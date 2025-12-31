@@ -26,6 +26,8 @@
 - C#
 - Java
 - D
+- JavaScript
+- TypeScript
 
 ## 📦 Installation
 
@@ -131,6 +133,19 @@ funcfinder --inp Controller.cs --source cs --map --json > functions.json
 funcfinder --inp Controller.cs --source cs --func CreateUser --extract
 ```
 
+### JavaScript/TypeScript Support
+
+```bash
+# Find all functions in a JavaScript file
+funcfinder --inp app.js --source js --map --json
+
+# Extract async function from TypeScript
+funcfinder --inp api.ts --source ts --func fetchUser --extract
+
+# Find React component methods
+funcfinder --inp Component.jsx --source js --func render,componentDidMount
+```
+
 ### Integration with Other Tools
 
 ```bash
@@ -149,7 +164,7 @@ funcfinder --inp <file> --source <lang> [OPTIONS]
 
 Required:
   --inp <file>       Source file to analyze
-  --source <lang>    Language: go/c/cpp/cs/java/d
+  --source <lang>    Language: go/c/cpp/cs/java/d/js/ts
 
 Modes (choose one):
   --func <names>     Find specific functions (comma-separated)
@@ -240,8 +255,8 @@ funcfinder --inp config.go --source go --map
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 **Areas for contribution:**
-- Additional language support (Python, JavaScript, Rust, etc.)
-- Improved regex patterns
+- Additional language support (Python, Rust, PHP, Ruby, etc.)
+- Improved regex patterns (arrow functions, generators)
 - Preprocessor support (C/C++ #ifdef)
 - Performance optimizations
 - Test coverage
@@ -256,9 +271,11 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### v1.1.0
 - [ ] Python support
-- [ ] JavaScript/TypeScript support
+- [x] JavaScript/TypeScript support
 - [ ] `--version` flag
 - [ ] Improved C# regex patterns
+- [ ] Arrow function support for JS/TS
+- [ ] Generator function support
 
 ### v1.2.0
 - [ ] Configuration file support

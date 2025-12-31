@@ -52,5 +52,23 @@
     "string_chars": ["\""],
     "raw_string_chars": ["`", "r\""],
     "escape_char": "\\"
+  },
+  "js": {
+    "func_pattern": "^\\s*(export\\s+)?(async\\s+)?(function\\s+)?(\\*\\s+)?(\\w+)\\s*\\(",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\"", "'"],
+    "raw_string_chars": ["`"],
+    "escape_char": "\\"
+  },
+  "ts": {
+    "func_pattern": "^\\s*(export\\s+)?(async\\s+)?(function\\s+)?(\\*\\s+)?(\\w+)\\s*[<(]",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\"", "'"],
+    "raw_string_chars": ["`"],
+    "escape_char": "\\"
   }
 }
