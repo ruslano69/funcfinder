@@ -1,234 +1,291 @@
-# funcfinder - GitHub Repository Package
+# funcfinder
 
-## ✅ Готовый репозиторий для публикации на GitHub
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/yourusername/funcfinder)
 
-**Архив:** funcfinder-github-ready.tar.gz (17 KB)
+**AI-optimized CLI tool for finding function boundaries in source code with 95%+ token reduction**
 
----
+`funcfinder` helps AI models and developers navigate large codebases efficiently by extracting function boundaries and structure without reading entire files.
 
-## 📦 Что внутри
+## ✨ Features
 
-### Исходный код (Go)
-- ✅ `main.go` - CLI интерфейс
-- ✅ `config.go` - загрузка конфигураций языков
-- ✅ `sanitizer.go` - обработка комментариев/литералов
-- ✅ `finder.go` - поиск границ функций
-- ✅ `formatter.go` - форматирование вывода
-- ✅ `languages.json` - паттерны для 6 языков (embedded)
-- ✅ `go.mod` - с GitHub module path
+- 🔍 **Find function boundaries** by name in source files
+- 🗺️ **Map all functions** in a file with `--map`
+- 📤 **Extract function bodies** with `--extract`
+- 📊 **JSON output** for AI integration with `--json`
+- 🚀 **95%+ token reduction** for code navigation
+- ⚡ **Fast**: ~50ms per 5000 lines
+- 🎯 **Zero dependencies**: static binary
 
-### Документация
-- ✅ `README.md` - главная страница с badges, примерами
-- ✅ `CONTRIBUTING.md` - гайд для контрибьюторов
-- ✅ `CHANGELOG.md` - история версий
-- ✅ `PUBLISHING.md` - пошаговая инструкция по публикации
-- ✅ `LICENSE` - MIT License
+## 🌐 Supported Languages
 
-### GitHub Integration
-- ✅ `.github/workflows/ci.yml` - автотесты на Linux/macOS/Windows
-- ✅ `.github/workflows/release.yml` - автосборка релизов
-- ✅ `.gitignore` - правильный для Go проектов
+- Go
+- C
+- C++
+- C#
+- Java
+- D
 
-### Примеры
-- ✅ `examples/example.go` - Go пример
-- ✅ `examples/example.c` - C пример
+## 📦 Installation
 
----
+### Via Go Install (Recommended)
 
-## 🚀 Как опубликовать (3 минуты)
-
-### 1. Распакуйте
 ```bash
-tar -xzf funcfinder-github-ready.tar.gz
-cd funcfinder-github
+go install github.com/yourusername/funcfinder@latest
 ```
 
-### 2. Обновите username
-**ВАЖНО:** Замените `yourusername` на ваше имя GitHub!
+### Pre-built Binaries
 
-В файлах:
-- `go.mod` → `module github.com/YOURUSERNAME/funcfinder`
-- `README.md` → везде замените `yourusername`
-- `PUBLISHING.md` → для справки
+Download from [Releases](https://github.com/yourusername/funcfinder/releases):
 
-### 3. Создайте репозиторий на GitHub
-- Зайдите на https://github.com/new
-- Имя: `funcfinder`
-- Public
-- БЕЗ README, LICENSE, .gitignore (уже есть!)
-
-### 4. Инициализируйте и push
 ```bash
-git init
-git add .
-git commit -m "Initial commit: funcfinder v1.0.0"
-git remote add origin https://github.com/YOURUSERNAME/funcfinder.git
-git branch -M main
-git push -u origin main
+# Linux
+wget https://github.com/yourusername/funcfinder/releases/download/v1.0.0/funcfinder-linux-amd64.tar.gz
+tar -xzf funcfinder-linux-amd64.tar.gz
+sudo mv funcfinder /usr/local/bin/
+
+# macOS
+wget https://github.com/yourusername/funcfinder/releases/download/v1.0.0/funcfinder-darwin-amd64.tar.gz
+tar -xzf funcfinder-darwin-amd64.tar.gz
+sudo mv funcfinder /usr/local/bin/
+
+# Windows
+# Download funcfinder-windows-amd64.zip and add to PATH
 ```
 
-### 5. Создайте релиз
+### From Source
+
 ```bash
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
+git clone https://github.com/yourusername/funcfinder.git
+cd funcfinder
+go build -o funcfinder
 ```
 
-**GitHub Actions автоматически:**
-- ✅ Запустит тесты
-- ✅ Соберет бинарники для Linux/macOS/Windows
-- ✅ Создаст релиз с артефактами
+## 🚀 Quick Start
 
----
+### Map all functions in a file
 
-## 🎯 После публикации пользователи смогут
-
-### Установить через go install
 ```bash
-go install github.com/YOURUSERNAME/funcfinder@latest
+funcfinder --inp main.go --source go --map
+# Output: main: 10-25; Handler: 45-78; helper: 65-72;
 ```
 
-### Скачать готовый бинарник
-Из Releases:
-- `funcfinder-linux-amd64.tar.gz`
-- `funcfinder-linux-arm64.tar.gz`
-- `funcfinder-darwin-amd64.tar.gz` (macOS Intel)
-- `funcfinder-darwin-arm64.tar.gz` (macOS M1/M2)
-- `funcfinder-windows-amd64.zip`
+### Find specific functions
 
-### Использовать в проектах
 ```bash
-# Быстрая навигация
-funcfinder --inp main.go --source go --map --json
+funcfinder --inp api.go --source go --func Handler,Middleware
+# Output: Handler: 45-78; Middleware: 80-95;
+```
 
-# Извлечение функций для AI
+### JSON output for AI
+
+```bash
+funcfinder --inp api.go --source go --map --json
+```
+
+```json
+{
+  "Handler": {"start": 45, "end": 78},
+  "Middleware": {"start": 80, "end": 95}
+}
+```
+
+### Extract function body
+
+```bash
 funcfinder --inp api.go --source go --func Handler --extract
-
-# Интеграция в CI/CD
-go install github.com/YOURUSERNAME/funcfinder@latest
-funcfinder --inp *.go --source go --map
 ```
+
+```go
+// Handler: 45-78
+func Handler(w http.ResponseWriter, r *http.Request) {
+    // function body...
+}
+```
+
+## 💡 Use Cases
+
+### AI-Driven Development
+
+**Problem:** AI reading 10,000 lines when it needs 250
+
+**Solution:** 
+```bash
+# 1. Get file structure (minimal tokens)
+funcfinder --inp large_file.go --source go --map --json
+
+# 2. AI selects needed function from map
+
+# 3. Extract only that function (97.5% token savings!)
+funcfinder --inp large_file.go --source go --func ProcessData --extract
+```
+
+### Code Navigation
+
+```bash
+# Find all methods in a C# file
+funcfinder --inp Controller.cs --source cs --map --json > functions.json
+
+# Extract specific method for review
+funcfinder --inp Controller.cs --source cs --func CreateUser --extract
+```
+
+### Integration with Other Tools
+
+```bash
+# Combine with grep/mgrep for comprehensive analysis
+mgrep "authentication" api.go
+funcfinder --inp api.go --source go --func AuthHandler --extract
+
+# Get function start line in scripts
+START=$(funcfinder --inp api.go --source go --func Handler --json | jq '.Handler.start')
+```
+
+## 📖 Usage
+
+```
+funcfinder --inp <file> --source <lang> [OPTIONS]
+
+Required:
+  --inp <file>       Source file to analyze
+  --source <lang>    Language: go/c/cpp/cs/java/d
+
+Modes (choose one):
+  --func <names>     Find specific functions (comma-separated)
+  --map              Map all functions in file
+
+Output formats:
+  (default)          grep-style: funcname: n1-n2;
+  --json             JSON format
+  --extract          Extract function bodies
+
+Options:
+  --raw              Don't ignore raw strings in brace counting
+```
+
+## 🎯 Token Reduction Examples
+
+### Example 1: Single Function
+
+**Traditional approach:**
+- AI reads entire file: 357 lines
+
+**With funcfinder:**
+```bash
+funcfinder --inp file.cs --source cs --func ValidateConversion --extract
+```
+- AI reads only function: 57 lines
+- **Token savings: 84%**
+
+### Example 2: File Navigation
+
+**Traditional approach:**
+- AI reads entire file to understand structure: 10,000 lines
+
+**With funcfinder:**
+```bash
+funcfinder --inp file.go --source go --map --json
+```
+- AI reads JSON map: ~100 tokens
+- **Token savings: 95%+**
+
+## 🏗️ Architecture
+
+```
+funcfinder/
+├── main.go          # CLI and coordination
+├── config.go        # Language configuration loader
+├── sanitizer.go     # Comment/string literal handler
+├── finder.go        # Function boundary detection
+├── formatter.go     # Output formatting (grep/json/extract)
+└── languages.json   # Language patterns (embedded)
+```
+
+## 🔧 Configuration
+
+Language patterns are defined in `languages.json` (embedded in binary):
+
+```json
+{
+  "go": {
+    "func_pattern": "^\\s*func\\s+(\\([^)]*\\)\\s+)?(\\w+)\\s*\\(",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\""],
+    "raw_string_chars": ["`"],
+    "escape_char": "\\"
+  }
+}
+```
+
+## 🧪 Testing
+
+Tested on:
+- Go standard library (`fmt/print.go`)
+- Production C# code (TELB project)
+- Real-world codebases with complex nesting
+
+```bash
+# Run tests
+go test ./...
+
+# Test on sample file
+funcfinder --inp config.go --source go --map
+```
+
+## 🤝 Contributing
+
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+**Areas for contribution:**
+- Additional language support (Python, JavaScript, Rust, etc.)
+- Improved regex patterns
+- Preprocessor support (C/C++ #ifdef)
+- Performance optimizations
+- Test coverage
+
+## 📊 Performance
+
+- **Speed:** ~50ms per 5000 lines (linear O(n))
+- **Memory:** Minimal (streaming line-by-line)
+- **Binary size:** 3MB (static, no dependencies)
+
+## 🗺️ Roadmap
+
+### v1.1.0
+- [ ] Python support
+- [ ] JavaScript/TypeScript support
+- [ ] `--version` flag
+- [ ] Improved C# regex patterns
+
+### v1.2.0
+- [ ] Configuration file support
+- [ ] Custom patterns via CLI
+- [ ] Function type filters (public/private)
+- [ ] Code statistics
+
+### v2.0.0
+- [ ] Tree-sitter integration for precise parsing
+- [ ] 30+ language support
+- [ ] API server mode
+- [ ] IDE integrations
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+Built for AI-driven development workflows. Inspired by the need to minimize token usage in large codebases.
+
+## 📞 Support
+
+- 🐛 [Report Issues](https://github.com/yourusername/funcfinder/issues)
+- 💡 [Feature Requests](https://github.com/yourusername/funcfinder/issues)
+- 📖 [Documentation](https://github.com/yourusername/funcfinder/wiki)
 
 ---
 
-## ✨ Возможности после публикации
-
-### Автоматическое CI/CD
-- ✅ Тесты на каждом push
-- ✅ Тесты на каждом PR
-- ✅ Линтинг кода
-- ✅ Coverage tracking
-- ✅ Multi-platform тесты (Linux, macOS, Windows)
-
-### Автоматические релизы
-- ✅ Создайте git tag → автоматический релиз
-- ✅ Бинарники для всех платформ
-- ✅ SHA256 checksums
-- ✅ Release notes из CHANGELOG
-
-### Community Features
-- ✅ Issues для баг-репортов
-- ✅ Pull Requests для контрибьюций
-- ✅ Discussions для вопросов
-- ✅ GitHub Actions badges
-
----
-
-## 📊 Метрики качества
-
-После публикации добавьте badges:
-
-```markdown
-[![Go Report Card](https://goreportcard.com/badge/github.com/YOURUSERNAME/funcfinder)](https://goreportcard.com/report/github.com/YOURUSERNAME/funcfinder)
-[![CI](https://github.com/YOURUSERNAME/funcfinder/workflows/CI/badge.svg)](https://github.com/YOURUSERNAME/funcfinder/actions)
-[![codecov](https://codecov.io/gh/YOURUSERNAME/funcfinder/branch/main/graph/badge.svg)](https://codecov.io/gh/YOURUSERNAME/funcfinder)
-```
-
----
-
-## 🎨 GitHub Features
-
-### После публикации настройте:
-
-1. **Topics** (для поиска):
-   - `cli`, `golang`, `ai`, `code-analysis`
-   - `developer-tools`, `token-optimization`
-
-2. **About section**:
-   - Description: "AI-optimized CLI tool for finding function boundaries"
-   - Website: (ссылка на документацию, если есть)
-   - Topics: см. выше
-
-3. **Branch protection** (опционально):
-   - Require PR reviews
-   - Require status checks (CI)
-
-4. **Discussions** (опционально):
-   - Включить для Q&A
-
----
-
-## 📢 Продвижение
-
-### Где анонсировать:
-
-**Reddit:**
-- r/golang
-- r/programming  
-- r/artificial
-
-**Twitter/X:**
-```
-🚀 Just released funcfinder v1.0.0!
-
-CLI tool for AI-driven code navigation:
-✅ 95%+ token reduction
-✅ 6 languages support
-✅ JSON output for AI
-
-Perfect for AI-assisted development! 🤖
-
-github.com/YOURUSERNAME/funcfinder
-```
-
-**Hacker News:**
-- Show HN: funcfinder - AI-optimized tool for code navigation
-
-**Блоги:**
-- Dev.to
-- Medium
-- Hashnode
-
-### Awesome Lists:
-
-Добавьте в:
-- [awesome-go](https://github.com/avelino/awesome-go)
-- [awesome-cli-apps](https://github.com/agarrharr/awesome-cli-apps)
-
----
-
-## 📝 Структура репозитория
-
-```
-github.com/YOURUSERNAME/funcfinder/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml           # Auto CI/CD
-│       └── release.yml      # Auto releases
-├── examples/
-│   ├── example.go           # Go example
-│   └── example.c            # C example
-├── .gitignore               # Go-specific
-├── LICENSE                  # MIT
-├── README.md                # Main docs + badges
-├── CONTRIBUTING.md          # Contributor guide
-├── CHANGELOG.md             # Version history
-├── PUBLISHING.md            # How to publish (this guide)
-├── go.mod                   # Go module
-├── config.go                # Source code
-├── sanitizer.go
-├── finder.go
-├── formatter.go
-├── main.go
-└── languages.json           # Language patterns
-```
-
+**funcfinder** - Navigate code efficiently, save tokens intelligently 🚀

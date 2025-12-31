@@ -1,0 +1,56 @@
+{
+  "go": {
+    "func_pattern": "^\\s*func\\s+(\\([^)]*\\)\\s+)?(\\w+)\\s*\\(",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\""],
+    "raw_string_chars": ["`"],
+    "escape_char": "\\"
+  },
+  "c": {
+    "func_pattern": "^\\s*[\\w\\s\\*]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*$",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\""],
+    "raw_string_chars": [],
+    "escape_char": "\\"
+  },
+  "cpp": {
+    "func_pattern": "^\\s*[\\w\\s\\*:<>,]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*(const)?\\s*$",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\""],
+    "raw_string_chars": [],
+    "escape_char": "\\"
+  },
+  "cs": {
+    "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*$",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\""],
+    "raw_string_chars": ["@\""],
+    "escape_char": "\\"
+  },
+  "java": {
+    "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*(throws\\s+[\\w,\\s]+)?\\s*$",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\""],
+    "raw_string_chars": [],
+    "escape_char": "\\"
+  },
+  "d": {
+    "func_pattern": "^\\s*[\\w\\s\\*\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*$",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\""],
+    "raw_string_chars": ["`", "r\""],
+    "escape_char": "\\"
+  }
+}
