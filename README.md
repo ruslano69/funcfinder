@@ -66,6 +66,13 @@ go build -o funcfinder
 
 ## 🚀 Quick Start
 
+### Check version
+
+```bash
+funcfinder --version
+# Output: funcfinder version 1.1.0
+```
+
 ### Map all functions in a file
 
 ```bash
@@ -177,6 +184,7 @@ Output formats:
 
 Options:
   --raw              Don't ignore raw strings in brace counting
+  --version          Print version and exit
 ```
 
 ## 🎯 Token Reduction Examples
@@ -272,7 +280,7 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ### v1.1.0
 - [ ] Python support
 - [x] JavaScript/TypeScript support
-- [ ] `--version` flag
+- [x] `--version` flag
 - [ ] Improved C# regex patterns
 - [ ] Arrow function support for JS/TS
 - [ ] Generator function support

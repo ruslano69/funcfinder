@@ -2,7 +2,7 @@
 
 ## v1.1.0 - 2025-12-31
 
-### JavaScript/TypeScript Support
+### JavaScript/TypeScript Support & Version Flag
 
 **Новые возможности:**
 - ✅ Поддержка JavaScript (js)
@@ -13,6 +13,7 @@
 - ✅ Поддержка generic типов (TypeScript)
 - ✅ Single quotes (') и double quotes (")
 - ✅ Template literals (`)
+- ✅ **--version flag** для проверки версии
 
 **Обновления:**
 - Добавлены unit тесты для JS/TS
