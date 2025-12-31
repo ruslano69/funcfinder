@@ -6,8 +6,11 @@ import (
 	"os"
 )
 
+const Version = "1.1.0"
+
 func main() {
 	// Парсинг аргументов командной строки
+	version := flag.Bool("version", false, "print version and exit")
 	inp := flag.String("inp", "", "input file with source code")
 	source := flag.String("source", "", "source language: go/c/cpp/cs/java/d/js/ts")
 	funcStr := flag.String("func", "", "function names to find (comma-separated)")
@@ -15,8 +18,14 @@ func main() {
 	jsonOut := flag.Bool("json", false, "output in JSON format")
 	extract := flag.Bool("extract", false, "extract function bodies")
 	rawMode := flag.Bool("raw", false, "include raw strings in brace counting")
-	
+
 	flag.Parse()
+
+	// Обработка флага --version
+	if *version {
+		fmt.Printf("funcfinder version %s\n", Version)
+		os.Exit(0)
+	}
 	
 	// Валидация параметров
 	if *inp == "" {

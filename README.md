@@ -26,8 +26,8 @@
 - C#
 - Java
 - D
-- JavaScript
-- TypeScript
+- **JavaScript** (including async functions, generator functions, arrow functions)
+- **TypeScript** (including async functions, generator functions, arrow functions, generics)
 
 ## 📦 Installation
 
@@ -65,6 +65,13 @@ go build -o funcfinder
 ```
 
 ## 🚀 Quick Start
+
+### Check version
+
+```bash
+funcfinder --version
+# Output: funcfinder version 1.1.0
+```
 
 ### Map all functions in a file
 
@@ -142,6 +149,12 @@ funcfinder --inp app.js --source js --map --json
 # Extract async function from TypeScript
 funcfinder --inp api.ts --source ts --func fetchUser --extract
 
+# Find generator functions
+funcfinder --inp generators.js --source js --func simpleGenerator --extract
+
+# Extract arrow functions
+funcfinder --inp utils.js --source js --func arrowFunc,asyncArrow --extract
+
 # Find React component methods
 funcfinder --inp Component.jsx --source js --func render,componentDidMount
 ```
@@ -177,6 +190,7 @@ Output formats:
 
 Options:
   --raw              Don't ignore raw strings in brace counting
+  --version          Print version and exit
 ```
 
 ## 🎯 Token Reduction Examples
@@ -272,7 +286,7 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ### v1.1.0
 - [ ] Python support
 - [x] JavaScript/TypeScript support
-- [ ] `--version` flag
+- [x] `--version` flag
 - [ ] Improved C# regex patterns
 - [ ] Arrow function support for JS/TS
 - [ ] Generator function support

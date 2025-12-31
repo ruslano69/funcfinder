@@ -2,17 +2,20 @@
 
 ## v1.1.0 - 2025-12-31
 
-### JavaScript/TypeScript Support
+### JavaScript/TypeScript Support & Version Flag
 
 **Новые возможности:**
 - ✅ Поддержка JavaScript (js)
 - ✅ Поддержка TypeScript (ts)
 - ✅ Обработка async/await функций
 - ✅ Поддержка export функций
-- ✅ Обработка методов классов
+- ✅ **Generator functions** (function*, async function*)
+- ✅ **Arrow functions** (const name = () => {}, async arrow functions)
+- ✅ Arrow functions с let/var
 - ✅ Поддержка generic типов (TypeScript)
 - ✅ Single quotes (') и double quotes (")
 - ✅ Template literals (`)
+- ✅ **--version flag** для проверки версии
 
 **Обновления:**
 - Добавлены unit тесты для JS/TS
@@ -22,14 +25,17 @@
 **Поддерживаемые паттерны:**
 - `function name() {}` - обычные функции
 - `async function name() {}` - async функции
-- `name() {}` - методы классов/объектов
+- `function* name() {}` - generator функции
+- `async function* name() {}` - async generator функции
+- `const name = () => {}` - arrow функции
+- `const name = async () => {}` - async arrow функции
+- `let/var name = () => {}` - arrow функции (let/var)
 - `export function name() {}` - экспортируемые функции
 - Generic функции TypeScript
 
 **Известные ограничения:**
-- Arrow functions пока не поддерживаются
-- Generator functions (*name) требуют доработки
-- Function expressions (const f = function() {}) не детектируются
+- Методы классов без ключевого слова "function": `methodName() {}`
+- Function expressions: `const f = function() {}`
 
 ---
 
