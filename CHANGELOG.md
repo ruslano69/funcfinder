@@ -1,5 +1,38 @@
 # Changelog
 
+## v1.1.0 - 2025-12-31
+
+### JavaScript/TypeScript Support
+
+**Новые возможности:**
+- ✅ Поддержка JavaScript (js)
+- ✅ Поддержка TypeScript (ts)
+- ✅ Обработка async/await функций
+- ✅ Поддержка export функций
+- ✅ Обработка методов классов
+- ✅ Поддержка generic типов (TypeScript)
+- ✅ Single quotes (') и double quotes (")
+- ✅ Template literals (`)
+
+**Обновления:**
+- Добавлены unit тесты для JS/TS
+- Обновлена документация
+- Примеры использования для JS/TS
+
+**Поддерживаемые паттерны:**
+- `function name() {}` - обычные функции
+- `async function name() {}` - async функции
+- `name() {}` - методы классов/объектов
+- `export function name() {}` - экспортируемые функции
+- Generic функции TypeScript
+
+**Известные ограничения:**
+- Arrow functions пока не поддерживаются
+- Generator functions (*name) требуют доработки
+- Function expressions (const f = function() {}) не детектируются
+
+---
+
 ## v1.0.0 - 2025-12-31
 
 ### Первый релиз

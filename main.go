@@ -9,7 +9,7 @@ import (
 func main() {
 	// Парсинг аргументов командной строки
 	inp := flag.String("inp", "", "input file with source code")
-	source := flag.String("source", "", "source language: go/c/cpp/cs/java/d")
+	source := flag.String("source", "", "source language: go/c/cpp/cs/java/d/js/ts")
 	funcStr := flag.String("func", "", "function names to find (comma-separated)")
 	mapMode := flag.Bool("map", false, "map all functions in file")
 	jsonOut := flag.Bool("json", false, "output in JSON format")
@@ -55,7 +55,7 @@ func main() {
 	langConfig, err := config.GetLanguageConfig(*source)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Supported languages: go, c, cpp, cs, java, d\n")
+		fmt.Fprintf(os.Stderr, "Supported languages: go, c, cpp, cs, java, d, js, ts\n")
 		os.Exit(1)
 	}
 	

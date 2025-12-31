@@ -15,7 +15,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 
 	// Verify expected languages are present
-	expectedLangs := []string{"go", "c", "cpp", "cs", "java", "d"}
+	expectedLangs := []string{"go", "c", "cpp", "cs", "java", "d", "js", "ts"}
 	for _, lang := range expectedLangs {
 		if _, ok := config[lang]; !ok {
 			t.Errorf("LoadConfig() missing language: %s", lang)
@@ -86,6 +86,20 @@ func TestLoadConfig_LanguageConfigurations(t *testing.T) {
 		},
 		{
 			lang:                "d",
+			expectedLineComment: "//",
+			expectedBlockStart:  "/*",
+			expectedBlockEnd:    "*/",
+			expectedEscapeChar:  "\\",
+		},
+		{
+			lang:                "js",
+			expectedLineComment: "//",
+			expectedBlockStart:  "/*",
+			expectedBlockEnd:    "*/",
+			expectedEscapeChar:  "\\",
+		},
+		{
+			lang:                "ts",
 			expectedLineComment: "//",
 			expectedBlockStart:  "/*",
 			expectedBlockEnd:    "*/",
@@ -167,6 +181,16 @@ func TestLoadConfig_StringChars(t *testing.T) {
 			expectedStringChars:  []string{"\""},
 			expectedRawStrings:   []string{"`", "r\""},
 		},
+		{
+			lang:                 "js",
+			expectedStringChars:  []string{"\"", "'"},
+			expectedRawStrings:   []string{"`"},
+		},
+		{
+			lang:                 "ts",
+			expectedStringChars:  []string{"\"", "'"},
+			expectedRawStrings:   []string{"`"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -236,13 +260,23 @@ func TestGetLanguageConfig(t *testing.T) {
 			wantError: false,
 		},
 		{
+			name:      "valid language - js",
+			lang:      "js",
+			wantError: false,
+		},
+		{
+			name:      "valid language - ts",
+			lang:      "ts",
+			wantError: false,
+		},
+		{
 			name:      "invalid language - python",
 			lang:      "python",
 			wantError: true,
 		},
 		{
-			name:      "invalid language - javascript",
-			lang:      "js",
+			name:      "invalid language - py",
+			lang:      "py",
 			wantError: true,
 		},
 		{
@@ -338,6 +372,54 @@ func TestFuncRegex(t *testing.T) {
 			code:          "public int GetValue()",
 			shouldMatch:   true,
 			expectedName:  "GetValue",
+		},
+		{
+			lang:          "js",
+			code:          "function main() {",
+			shouldMatch:   true,
+			expectedName:  "main",
+		},
+		{
+			lang:          "js",
+			code:          "async function getData() {",
+			shouldMatch:   true,
+			expectedName:  "getData",
+		},
+		{
+			lang:          "js",
+			code:          "regularMethod() {",
+			shouldMatch:   true,
+			expectedName:  "regularMethod",
+		},
+		{
+			lang:          "js",
+			code:          "async asyncMethod() {",
+			shouldMatch:   true,
+			expectedName:  "asyncMethod",
+		},
+		{
+			lang:          "js",
+			code:          "export function exported() {",
+			shouldMatch:   true,
+			expectedName:  "exported",
+		},
+		{
+			lang:          "ts",
+			code:          "function greet(name: string): string {",
+			shouldMatch:   true,
+			expectedName:  "greet",
+		},
+		{
+			lang:          "ts",
+			code:          "async function fetchUser(id: number): Promise<User> {",
+			shouldMatch:   true,
+			expectedName:  "fetchUser",
+		},
+		{
+			lang:          "ts",
+			code:          "identity<T>(arg: T): T {",
+			shouldMatch:   true,
+			expectedName:  "identity",
 		},
 	}
 
