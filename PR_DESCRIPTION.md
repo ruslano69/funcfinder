@@ -6,12 +6,12 @@ This PR adds comprehensive testing infrastructure and JavaScript/TypeScript lang
 
 ### Changes
 
-**1. Comprehensive Unit Tests (67.4% coverage)**
+**1. Comprehensive Unit Tests (65.4% coverage)**
 - ✅ `sanitizer_test.go`: 100+ tests for comment/string handling
 - ✅ `formatter_test.go`: 13 tests for all output formats
-- ✅ `config_test.go`: 25+ tests for language configurations
+- ✅ `config_test.go`: 34+ tests for language configurations (including generators & arrows)
 - ✅ `finder_test.go`: 40+ tests for function finding logic
-- ✅ Total: 191 tests passing with 67.4% code coverage
+- ✅ Total: 163 test runs passing with 65.4% code coverage
 
 **2. JavaScript/TypeScript Support (v1.1.0)**
 - ✅ JavaScript (js) language support
@@ -31,7 +31,7 @@ This PR adds comprehensive testing infrastructure and JavaScript/TypeScript lang
 ### Test Coverage Details
 
 ```
-Overall coverage: 67.4%
+Overall coverage: 65.4%
 
 sanitizer.go:
 - CleanLine:       97.6%  ✅
@@ -70,8 +70,11 @@ config.go:
 - `function name() {}` - regular functions
 - `async function name() {}` - async functions
 - `export function name() {}` - exported functions
-- `name() {}` - class/object methods
-- `async name() {}` - async methods
+- `function* name() {}` - generator functions ⭐ NEW
+- `async function* name() {}` - async generator functions ⭐ NEW
+- `const name = () => {}` - arrow functions ⭐ NEW
+- `const name = async () => {}` - async arrow functions ⭐ NEW
+- `let name = () => {}` / `var name = () => {}` - arrow functions (let/var) ⭐ NEW
 - `identity<T>()` - generic functions (TypeScript)
 
 **String handling:**
@@ -95,8 +98,8 @@ config.go:
 
 ## Test Plan
 
-- [x] All 191 unit tests passing
-- [x] Code coverage: 67.4%
+- [x] All 163 unit tests passing
+- [x] Code coverage: 65.4%
 - [x] Tested on real JavaScript files (test_example.js)
 - [x] Tested on real TypeScript files (test_example.ts)
 - [x] Manual testing with various JS/TS patterns
@@ -120,19 +123,18 @@ config.go:
 
 # Run all unit tests
 go test -v
-# Result: PASS (191 tests) ✅
+# Result: PASS (163 test runs) ✅
 
 # Check coverage
 go test -cover
-# Result: 67.4% coverage ✅
+# Result: 65.4% coverage ✅
 ```
 
 ## Known Limitations (for future improvement)
 
 JavaScript/TypeScript:
-- Arrow functions not yet supported: `const func = () => {}`
-- Generator functions need refinement: `function* generator() {}`
-- Function expressions not detected: `const f = function() {}`
+- Class methods without "function" keyword: `methodName() {}`
+- Function expressions: `const f = function() {}`
 
 These can be added in future versions.
 

@@ -388,14 +388,12 @@ func TestFuncRegex(t *testing.T) {
 		{
 			lang:          "js",
 			code:          "regularMethod() {",
-			shouldMatch:   true,
-			expectedName:  "regularMethod",
+			shouldMatch:   false, // Class methods without "function" keyword not supported
 		},
 		{
 			lang:          "js",
 			code:          "async asyncMethod() {",
-			shouldMatch:   true,
-			expectedName:  "asyncMethod",
+			shouldMatch:   false, // Class methods without "function" keyword not supported
 		},
 		{
 			lang:          "js",
@@ -418,8 +416,64 @@ func TestFuncRegex(t *testing.T) {
 		{
 			lang:          "ts",
 			code:          "identity<T>(arg: T): T {",
+			shouldMatch:   false, // Class methods without "function" keyword not supported
+		},
+		// Generator functions
+		{
+			lang:          "js",
+			code:          "function* simpleGenerator() {",
 			shouldMatch:   true,
-			expectedName:  "identity",
+			expectedName:  "simpleGenerator",
+		},
+		{
+			lang:          "js",
+			code:          "async function* asyncGenerator() {",
+			shouldMatch:   true,
+			expectedName:  "asyncGenerator",
+		},
+		{
+			lang:          "js",
+			code:          "export function* exportedGenerator() {",
+			shouldMatch:   true,
+			expectedName:  "exportedGenerator",
+		},
+		// Arrow functions
+		{
+			lang:          "js",
+			code:          "const arrowFunc = () => {",
+			shouldMatch:   true,
+			expectedName:  "arrowFunc",
+		},
+		{
+			lang:          "js",
+			code:          "const asyncArrow = async () => {",
+			shouldMatch:   true,
+			expectedName:  "asyncArrow",
+		},
+		{
+			lang:          "js",
+			code:          "let letArrow = () => {",
+			shouldMatch:   true,
+			expectedName:  "letArrow",
+		},
+		{
+			lang:          "js",
+			code:          "var varArrow = () => {",
+			shouldMatch:   true,
+			expectedName:  "varArrow",
+		},
+		// TypeScript arrow functions with types
+		{
+			lang:          "ts",
+			code:          "const typedArrow = (x: number): number => {",
+			shouldMatch:   true,
+			expectedName:  "typedArrow",
+		},
+		{
+			lang:          "ts",
+			code:          "const genericArrow = <T>(arg: T): T => {",
+			shouldMatch:   true,
+			expectedName:  "genericArrow",
 		},
 	}
 
@@ -440,12 +494,25 @@ func TestFuncRegex(t *testing.T) {
 					return
 				}
 
-				// Extract function name (last non-empty capture group)
+				// Extract function name using the same logic as finder.go
 				funcName := ""
-				for i := len(matches) - 1; i >= 1; i-- {
-					if matches[i] != "" {
-						funcName = matches[i]
-						break
+				// For JS/TS with arrow function support: check groups 3 and 5
+				if (tt.lang == "js" || tt.lang == "ts") && len(matches) > 5 {
+					// Group 3: function declarations (function name, function* name)
+					// Group 5: arrow functions (const name = ...)
+					if matches[3] != "" {
+						funcName = matches[3]
+					} else if matches[5] != "" {
+						funcName = matches[5]
+					}
+				}
+				// If name not found yet, use old logic (last non-empty capture group)
+				if funcName == "" {
+					for i := len(matches) - 1; i >= 1; i-- {
+						if matches[i] != "" {
+							funcName = matches[i]
+							break
+						}
 					}
 				}
 

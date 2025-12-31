@@ -26,8 +26,8 @@
 - C#
 - Java
 - D
-- JavaScript
-- TypeScript
+- **JavaScript** (including async functions, generator functions, arrow functions)
+- **TypeScript** (including async functions, generator functions, arrow functions, generics)
 
 ## 📦 Installation
 
@@ -148,6 +148,12 @@ funcfinder --inp app.js --source js --map --json
 
 # Extract async function from TypeScript
 funcfinder --inp api.ts --source ts --func fetchUser --extract
+
+# Find generator functions
+funcfinder --inp generators.js --source js --func simpleGenerator --extract
+
+# Extract arrow functions
+funcfinder --inp utils.js --source js --func arrowFunc,asyncArrow --extract
 
 # Find React component methods
 funcfinder --inp Component.jsx --source js --func render,componentDidMount

@@ -97,12 +97,25 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 			// Ищем начало новой функции
 			matches := funcRegex.FindStringSubmatch(cleaned)
 			if matches != nil {
-				// Извлекаем имя функции (последняя группа захвата)
+				// Извлекаем имя функции
 				funcName := ""
-				for i := len(matches) - 1; i >= 1; i-- {
-					if matches[i] != "" {
-						funcName = matches[i]
-						break
+				// Для JS/TS с поддержкой arrow functions: проверяем группы 3 и 5
+				if len(matches) > 5 {
+					// Группа 3: function declarations (function name, function* name)
+					// Группа 5: arrow functions (const name = ...)
+					if matches[3] != "" {
+						funcName = matches[3]
+					} else if len(matches) > 5 && matches[5] != "" {
+						funcName = matches[5]
+					}
+				}
+				// Если имя еще не найдено, используем старую логику (последняя группа)
+				if funcName == "" {
+					for i := len(matches) - 1; i >= 1; i-- {
+						if matches[i] != "" {
+							funcName = matches[i]
+							break
+						}
 					}
 				}
 				
