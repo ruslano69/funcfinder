@@ -20,19 +20,24 @@ func FormatGrepStyle(result *FindResult) string {
 }
 
 // JSONOutput представляет JSON-вывод
-type JSONOutput map[string]map[string]int
+type JSONOutput map[string]map[string]interface{}
 
 // FormatJSON форматирует результат в JSON
-// Пример: {"Handler": {"start": 45, "end": 78}}
+// Пример: {"Handler": {"start": 45, "end": 78, "decorators": ["@decorator"]}}
 func FormatJSON(result *FindResult) (string, error) {
 	output := make(JSONOutput)
 	for _, fn := range result.Functions {
-		output[fn.Name] = map[string]int{
+		fnData := map[string]interface{}{
 			"start": fn.Start,
 			"end":   fn.End,
 		}
+		// Добавляем декораторы, если они есть
+		if len(fn.Decorators) > 0 {
+			fnData["decorators"] = fn.Decorators
+		}
+		output[fn.Name] = fnData
 	}
-	
+
 	data, err := json.MarshalIndent(output, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal JSON: %w", err)

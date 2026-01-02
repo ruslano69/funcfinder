@@ -9,10 +9,11 @@ import (
 
 // FunctionBounds содержит информацию о границах функции
 type FunctionBounds struct {
-	Name  string
-	Start int      // Номер строки начала (1-based)
-	End   int      // Номер строки конца (1-based)
-	Lines []string // Тело функции (если extractMode)
+	Name       string
+	Start      int      // Номер строки начала (1-based)
+	End        int      // Номер строки конца (1-based)
+	Lines      []string // Тело функции (если extractMode)
+	Decorators []string // Декораторы функции (для Python, TypeScript, Java)
 }
 
 // FindResult содержит результат поиска
