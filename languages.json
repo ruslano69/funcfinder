@@ -20,7 +20,7 @@
   },
   "cpp": {
     "func_pattern": "^\\s*[\\w\\s\\*:<>,]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*(const)?\\s*$",
-    "class_pattern": "^\\s*(?:class|struct)\\s+(\\w+)",
+    "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|struct)\\s+(\\w+)",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -30,7 +30,7 @@
   },
   "cs": {
     "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*$",
-    "class_pattern": "^\\s*(?:class|interface)\\s+(\\w+)",
+    "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|interface|struct|enum)\\s+(\\w+)",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -40,7 +40,7 @@
   },
   "java": {
     "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*(throws\\s+[\\w,\\s]+)?\\s*\\{?\\s*$",
-    "class_pattern": "^\\s*(?:class|interface)\\s+(\\w+)",
+    "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|interface|enum)\\s+(\\w+)",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -50,7 +50,7 @@
   },
   "d": {
     "func_pattern": "^\\s*[\\w\\s\\*\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*$",
-    "class_pattern": "^\\s*(?:class|struct|interface)\\s+(\\w+)",
+    "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|struct|interface|enum)\\s+(\\w+)",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",

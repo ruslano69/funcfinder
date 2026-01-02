@@ -270,8 +270,16 @@ func extractSignatureFromLines(lines []string) string {
 		return ""
 	}
 
-	for _, line := range lines {
+	var fullSignature string
+	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
+		// Skip empty lines and decorators
+		if trimmed == "" || strings.HasPrefix(trimmed, "@") {
+			continue
+		}
+
+		// Go functions
 		if strings.HasPrefix(trimmed, "func ") {
 			idx := strings.Index(trimmed, "{")
 			if idx > 0 {
@@ -280,15 +288,22 @@ func extractSignatureFromLines(lines []string) string {
 			}
 			return strings.TrimPrefix(trimmed, "func ")
 		}
-		// Для Python
+
+		// Python functions
 		if strings.HasPrefix(trimmed, "def ") || strings.HasPrefix(trimmed, "async def ") {
-			idx := strings.Index(trimmed, ":")
-			if idx > 0 {
-				return strings.TrimSpace(trimmed[:idx])
+			// Collect multiline signature
+			signature := trimmed
+			for j := i + 1; j < len(lines) && !strings.Contains(signature, ":"); j++ {
+				signature += " " + strings.TrimSpace(lines[j])
 			}
-			return trimmed
+			idx := strings.Index(signature, ":")
+			if idx > 0 {
+				return strings.TrimSpace(signature[:idx])
+			}
+			return signature
 		}
-		// Для JavaScript/TypeScript
+
+		// JavaScript/TypeScript functions
 		if strings.Contains(trimmed, "function ") {
 			idx := strings.Index(trimmed, "{")
 			if idx > 0 {
@@ -296,9 +311,41 @@ func extractSignatureFromLines(lines []string) string {
 			}
 			return trimmed
 		}
+
+		// Java/C#/C++/D methods (public int add(...), void method(...), etc.)
+		// Look for pattern: words...identifier(...)
+		if strings.Contains(trimmed, "(") && (strings.Contains(trimmed, "{") || i+1 < len(lines)) {
+			// Collect multiline signature if needed
+			signature := trimmed
+			openBraceIdx := strings.Index(signature, "{")
+
+			// If no opening brace yet, might be multiline
+			if openBraceIdx < 0 {
+				for j := i + 1; j < len(lines) && j < i+5; j++ {
+					nextLine := strings.TrimSpace(lines[j])
+					signature += " " + nextLine
+					if strings.Contains(nextLine, "{") {
+						break
+					}
+				}
+			}
+
+			// Extract signature before opening brace
+			openBraceIdx = strings.Index(signature, "{")
+			if openBraceIdx > 0 {
+				fullSignature = strings.TrimSpace(signature[:openBraceIdx])
+			} else {
+				fullSignature = signature
+			}
+
+			// Clean up extra whitespace
+			fullSignature = strings.Join(strings.Fields(fullSignature), " ")
+
+			return fullSignature
+		}
 	}
 
-	return ""
+	return fullSignature
 }
 
 // FormatTreeCompact компактный формат дерева без типов

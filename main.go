@@ -82,8 +82,11 @@ func main() {
 		mode = "map"
 	}
 
+	// Для --tree-full нужны тела функций для извлечения сигнатур
+	extractMode := *extract || *treeFull
+
 	// Создаем подходящий парсер в зависимости от языка
-	finder := CreateFinder(langConfig, *funcStr, mode, *extract, *rawMode)
+	finder := CreateFinder(langConfig, *funcStr, mode, extractMode, *rawMode)
 	result, err := finder.FindFunctions(*inp)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
