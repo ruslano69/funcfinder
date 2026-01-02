@@ -1,6 +1,7 @@
 {
   "go": {
     "func_pattern": "^\\s*func\\s+(\\([^)]*\\)\\s+)?(\\w+)\\s*\\(",
+    "class_pattern": "^\\s*type\\s+(\\w+)\\s+struct\\s*\\{",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -19,6 +20,7 @@
   },
   "cpp": {
     "func_pattern": "^\\s*[\\w\\s\\*:<>,]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*(const)?\\s*$",
+    "class_pattern": "^\\s*(?:class|struct)\\s+(\\w+)",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -28,6 +30,7 @@
   },
   "cs": {
     "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*$",
+    "class_pattern": "^\\s*(?:class|interface)\\s+(\\w+)",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -37,6 +40,7 @@
   },
   "java": {
     "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*(throws\\s+[\\w,\\s]+)?\\s*\\{?\\s*$",
+    "class_pattern": "^\\s*(?:class|interface)\\s+(\\w+)",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -46,6 +50,7 @@
   },
   "d": {
     "func_pattern": "^\\s*[\\w\\s\\*\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*$",
+    "class_pattern": "^\\s*(?:class|struct|interface)\\s+(\\w+)",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -55,6 +60,7 @@
   },
   "js": {
     "func_pattern": "^\\s*(?:(export\\s+)?(async\\s+)?function\\s*\\*?\\s+(\\w+)\\s*\\(|(const|let|var)\\s+(\\w+)\\s*=\\s*(async\\s+)?\\()",
+    "class_pattern": "^\\s*(?:export\\s+)?class\\s+(\\w+)",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -64,6 +70,7 @@
   },
   "ts": {
     "func_pattern": "^\\s*(?:(export\\s+)?(async\\s+)?function\\s*\\*?\\s+(\\w+)\\s*[<(]|(const|let|var)\\s+(\\w+)\\s*=\\s*(async\\s+)?[<(])",
+    "class_pattern": "^\\s*(?:export\\s+)?class\\s+(\\w+)",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -73,6 +80,7 @@
   },
   "py": {
     "func_pattern": "^\\s*(async\\s+)?def\\s+(\\w+)\\s*\\(",
+    "class_pattern": "^\\s*class\\s+(\\w+)",
     "line_comment": "#",
     "block_comment_start": "\"\"\"",
     "block_comment_end": "\"\"\"",

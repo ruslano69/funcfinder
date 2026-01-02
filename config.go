@@ -13,6 +13,7 @@ var languagesFS embed.FS
 // LanguageConfig содержит паттерны и настройки для конкретного языка
 type LanguageConfig struct {
 	FuncPattern       string   `json:"func_pattern"`
+	ClassPattern      string   `json:"class_pattern"`      // паттерн для поиска классов
 	LineComment       string   `json:"line_comment"`
 	BlockCommentStart string   `json:"block_comment_start"`
 	BlockCommentEnd   string   `json:"block_comment_end"`
@@ -21,8 +22,9 @@ type LanguageConfig struct {
 	EscapeChar        string   `json:"escape_char"`
 	IndentBased       bool     `json:"indent_based"` // true для языков с отступами (Python)
 
-	// Компилированный regex (заполняется при загрузке)
-	funcRegex *regexp.Regexp
+	// Компилированные regex (заполняется при загрузке)
+	funcRegex  *regexp.Regexp
+	classRegex *regexp.Regexp
 }
 
 // Config - карта языков и их конфигураций
@@ -47,6 +49,15 @@ func LoadConfig() (Config, error) {
 			return nil, fmt.Errorf("invalid regex for %s: %w", lang, err)
 		}
 		langConf.funcRegex = re
+
+		// Компилируем regex для классов, если указан
+		if langConf.ClassPattern != "" {
+			classRe, err := regexp.Compile(langConf.ClassPattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid class regex for %s: %w", lang, err)
+			}
+			langConf.classRegex = classRe
+		}
 	}
 	
 	return config, nil
@@ -64,4 +75,13 @@ func (c Config) GetLanguageConfig(lang string) (*LanguageConfig, error) {
 // FuncRegex возвращает компилированное регулярное выражение для поиска функций
 func (lc *LanguageConfig) FuncRegex() *regexp.Regexp {
 	return lc.funcRegex
+}
+// ClassRegex возвращает компилированное регулярное выражение для поиска классов
+func (lc *LanguageConfig) ClassRegex() *regexp.Regexp {
+	return lc.classRegex
+}
+
+// HasClasses возвращает true, если язык поддерживает классы
+func (lc *LanguageConfig) HasClasses() bool {
+	return lc.ClassPattern != ""
 }
