@@ -6,13 +6,13 @@ import (
 	"os"
 )
 
-const Version = "1.1.0"
+const Version = "1.2.0"
 
 func main() {
 	// Парсинг аргументов командной строки
 	version := flag.Bool("version", false, "print version and exit")
 	inp := flag.String("inp", "", "input file with source code")
-	source := flag.String("source", "", "source language: go/c/cpp/cs/java/d/js/ts")
+	source := flag.String("source", "", "source language: go/c/cpp/cs/java/d/js/ts/py")
 	funcStr := flag.String("func", "", "function names to find (comma-separated)")
 	mapMode := flag.Bool("map", false, "map all functions in file")
 	jsonOut := flag.Bool("json", false, "output in JSON format")
@@ -64,15 +64,18 @@ func main() {
 	langConfig, err := config.GetLanguageConfig(*source)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Supported languages: go, c, cpp, cs, java, d, js, ts\n")
+		fmt.Fprintf(os.Stderr, "Supported languages: go, c, cpp, cs, java, d, js, ts, py\n")
 		os.Exit(1)
 	}
-	
-	// Парсим имена функций
-	funcNames := ParseFuncNames(*funcStr)
-	
-	// Создаем искатель и ищем функции
-	finder := NewFinder(langConfig, funcNames, *mapMode, *extract, *rawMode)
+
+	// Определяем режим работы
+	mode := "func"
+	if *mapMode {
+		mode = "map"
+	}
+
+	// Создаем подходящий парсер в зависимости от языка
+	finder := CreateFinder(langConfig, *funcStr, mode, *extract, *rawMode)
 	result, err := finder.FindFunctions(*inp)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

@@ -36,7 +36,7 @@
     "escape_char": "\\"
   },
   "java": {
-    "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*(throws\\s+[\\w,\\s]+)?\\s*$",
+    "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*(throws\\s+[\\w,\\s]+)?\\s*\\{?\\s*$",
     "line_comment": "//",
     "block_comment_start": "/*",
     "block_comment_end": "*/",
@@ -70,5 +70,15 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["`"],
     "escape_char": "\\"
+  },
+  "py": {
+    "func_pattern": "^\\s*(async\\s+)?def\\s+(\\w+)\\s*\\(",
+    "line_comment": "#",
+    "block_comment_start": "\"\"\"",
+    "block_comment_end": "\"\"\"",
+    "string_chars": ["\"", "'"],
+    "raw_string_chars": ["r\"", "r'"],
+    "escape_char": "\\",
+    "indent_based": true
   }
 }

@@ -28,6 +28,7 @@
 - D
 - **JavaScript** (including async functions, generator functions, arrow functions)
 - **TypeScript** (including async functions, generator functions, arrow functions, generics)
+- **Python** ⭐ NEW (including async/await, decorators, generators, class methods)
 
 ## 📦 Installation
 
@@ -159,6 +160,32 @@ funcfinder --inp utils.js --source js --func arrowFunc,asyncArrow --extract
 funcfinder --inp Component.jsx --source js --func render,componentDidMount
 ```
 
+### Python Support with Decorators
+
+```bash
+# Map all functions in Python file
+funcfinder --inp api.py --source py --map
+
+# Extract function with decorators
+funcfinder --inp api.py --source py --func cached_function --extract
+
+# JSON output includes decorators
+funcfinder --inp api.py --source py --func get_user --json
+{
+  "get_user": {
+    "decorators": [
+      "@require_auth",
+      "@validate_input"
+    ],
+    "end": 42,
+    "start": 35
+  }
+}
+
+# Find async functions and generators
+funcfinder --inp utils.py --source py --func async_generator,fibonacci --extract
+```
+
 ### Integration with Other Tools
 
 ```bash
@@ -177,7 +204,7 @@ funcfinder --inp <file> --source <lang> [OPTIONS]
 
 Required:
   --inp <file>       Source file to analyze
-  --source <lang>    Language: go/c/cpp/cs/java/d/js/ts
+  --source <lang>    Language: go/c/cpp/cs/java/d/js/ts/py
 
 Modes (choose one):
   --func <names>     Find specific functions (comma-separated)

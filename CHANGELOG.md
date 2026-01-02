@@ -1,5 +1,47 @@
 # Changelog
 
+## v1.2.0 - 2026-01-02
+
+### Python Support & Decorator Detection
+
+**Новые возможности:**
+- ✅ **Python support** (py) - indent-based parsing
+- ✅ **Decorator detection** (@decorator, @decorator(args))
+- ✅ Support for async/await functions
+- ✅ Support for generator functions (def name, async def)
+- ✅ Class methods and static methods
+- ✅ Multiline function signatures
+- ✅ Decorators in JSON output
+
+**Архитектурные изменения:**
+- Добавлен `python_finder.go` - специализированный парсер для Python
+- Добавлен `decorator.go` - структура DecoratorWindow для сбора декораторов
+- Добавлен `finder_factory.go` - фабрика для выбора парсера
+- Обновлена структура `FunctionBounds` - добавлено поле `Decorators`
+- Обновлен `formatter.go` - декораторы включены в JSON output
+
+**Поддерживаемые паттерны Python:**
+- `def name():` - обычные функции
+- `async def name():` - async функции
+- `@decorator` + `def name():` - функции с декораторами
+- Multiline signatures - `def name(\n  arg1,\n  arg2\n):`
+- Class methods с декораторами @property, @staticmethod, @classmethod
+
+**Тестовые примеры:**
+- Создана директория `test_examples/` с примерами для всех 9 языков
+- Python: test_example.py - комплексные примеры с декораторами
+- Скрипт test_all_languages.sh для автоматического тестирования
+
+**Улучшения:**
+- Исправлен regex паттерн для Java (добавлена поддержка `{` в конце строки)
+- Тестовые файлы перемещены в отдельную директорию
+
+**Known Limitations:**
+- Lambda functions не поддерживаются
+- Nested functions внутри классов могут детектироваться некорректно
+
+---
+
 ## v1.1.0 - 2025-12-31
 
 ### JavaScript/TypeScript Support & Version Flag

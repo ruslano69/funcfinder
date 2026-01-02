@@ -19,7 +19,8 @@ type LanguageConfig struct {
 	StringChars       []string `json:"string_chars"`
 	RawStringChars    []string `json:"raw_string_chars"`
 	EscapeChar        string   `json:"escape_char"`
-	
+	IndentBased       bool     `json:"indent_based"` // true для языков с отступами (Python)
+
 	// Компилированный regex (заполняется при загрузке)
 	funcRegex *regexp.Regexp
 }
