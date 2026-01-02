@@ -1,5 +1,66 @@
 # Changelog
 
+## v1.3.0 - 2026-01-02
+
+### Tree Visualization & Class Hierarchy
+
+**Новые возможности:**
+- ✅ **Tree visualization mode** (`--tree`) - hierarchical display of functions and classes
+- ✅ **Full tree mode** (`--tree-full`) - tree view with complete function signatures
+- ✅ **Class detection** - automatic identification of classes/structs/interfaces
+- ✅ **Method-class association** - methods are shown as children of their classes
+- ✅ **Unicode tree rendering** - beautiful tree formatting with box-drawing characters (├──, └──, │)
+- ✅ **Multi-language class support** - works with Go, C++, C#, Java, D, JS, TS, Python
+
+**Архитектурные изменения:**
+- Добавлен `tree.go` - tree building and formatting logic
+- Добавлена структура `ClassBounds` - для отслеживания границ классов
+- Обновлена структура `FunctionBounds` - добавлены поля `ClassName` и `Scope`
+- Обновлена структура `FindResult` - добавлено поле `Classes`
+- Добавлен `TreeNode` - структура для построения иерархического дерева
+- Обновлен `config.go` - добавлен `ClassRegex()` и `HasClasses()`
+- Обновлен `finder.go` - добавлены методы `findClasses()` и `findClassForLine()`
+
+**Обновления languages.json:**
+- Добавлен `class_pattern` для всех языков с поддержкой классов:
+  - Go: `type Name struct`
+  - C++: `class/struct Name`
+  - C#: `class/interface Name`
+  - Java: `class/interface Name`
+  - D: `class/struct/interface Name`
+  - JavaScript: `class Name` (with export support)
+  - TypeScript: `class Name` (with export support)
+  - Python: `class Name`
+
+**Форматы вывода:**
+- Tree compact: Shows function/method names with line ranges
+- Tree full: Shows complete function signatures in tree format
+- JSON compatible: Existing JSON output includes class information
+
+**Примеры использования:**
+```bash
+# Compact tree view
+funcfinder --inp Calculator.java --source java --tree
+
+# Tree with full signatures
+funcfinder --inp api.ts --source ts --tree-full
+
+# Python classes with decorators
+funcfinder --inp models.py --source py --tree
+```
+
+**Улучшения:**
+- Standalone functions shown at root level when no classes present
+- Mixed classes and functions properly visualized
+- Nested classes supported (shown in hierarchy)
+- Decorators preserved in Python tree output
+
+**Known Limitations:**
+- Nested classes shown but not as separate tree nodes
+- Anonymous classes not detected
+
+---
+
 ## v1.2.0 - 2026-01-02
 
 ### Python Support & Decorator Detection

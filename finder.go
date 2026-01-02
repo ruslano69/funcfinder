@@ -14,11 +14,21 @@ type FunctionBounds struct {
 	End        int      // Номер строки конца (1-based)
 	Lines      []string // Тело функции (если extractMode)
 	Decorators []string // Декораторы функции (для Python, TypeScript, Java)
+	ClassName  string   // Имя класса, к которому принадлежит функция
+	Scope      string   // Scope функции (для совместимости)
+}
+
+// ClassBounds содержит информацию о границах класса
+type ClassBounds struct {
+	Name  string
+	Start int
+	End   int
 }
 
 // FindResult содержит результат поиска
 type FindResult struct {
 	Functions []FunctionBounds
+	Classes   []ClassBounds
 	Filename  string
 }
 
@@ -68,18 +78,26 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 	result := &FindResult{
 		Filename:  filename,
 		Functions: []FunctionBounds{},
+		Classes:   []ClassBounds{},
 	}
-	
+
+	// Если язык поддерживает классы, сначала находим все классы
+	var classes []ClassBounds
+	if f.config.HasClasses() {
+		classes = f.findClasses(lines)
+		result.Classes = classes
+	}
+
 	state := StateNormal
 	var currentFunc *FunctionBounds
 	depth := 0
 	funcRegex := f.config.FuncRegex()
-	
+
 	for lineNum, line := range lines {
 		// Очищаем строку от комментариев и литералов
 		cleaned, newState := f.sanitizer.CleanLine(line, state)
 		state = newState
-		
+
 		// Если мы внутри функции, отслеживаем баланс скобок
 		if currentFunc != nil {
 			if f.extractMode {
@@ -122,20 +140,28 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 				
 				// Проверяем, нужно ли нам эту функцию
 				if f.mapMode || f.funcNames[funcName] {
+					// Определяем класс, к которому принадлежит функция
+					className := ""
+					if f.config.HasClasses() {
+						className = f.findClassForLine(classes, lineNum)
+					}
+
 					// Ищем открывающую скобку
 					braceCount := CountBraces(cleaned)
 					if braceCount > 0 {
 						// Скобка на той же строке
 						currentFunc = &FunctionBounds{
-							Name:  funcName,
-							Start: lineNum + 1, // 1-based
-							Lines: []string{},
+							Name:      funcName,
+							Start:     lineNum + 1, // 1-based
+							Lines:     []string{},
+							ClassName: className,
+							Scope:     className,
 						}
 						if f.extractMode {
 							currentFunc.Lines = append(currentFunc.Lines, line)
 						}
 						depth = braceCount
-						
+
 						if depth == 0 {
 							// Функция на одной строке (маловероятно, но возможно)
 							currentFunc.End = lineNum + 1
@@ -147,9 +173,11 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 					// (многострочная сигнатура)
 					if braceCount == 0 {
 						currentFunc = &FunctionBounds{
-							Name:  funcName,
-							Start: lineNum + 1,
-							Lines: []string{},
+							Name:      funcName,
+							Start:     lineNum + 1,
+							Lines:     []string{},
+							ClassName: className,
+							Scope:     className,
 						}
 						if f.extractMode {
 							currentFunc.Lines = append(currentFunc.Lines, line)
@@ -192,4 +220,70 @@ func ParseFuncNames(funcStr string) []string {
 		}
 	}
 	return result
+}
+// findClasses находит все классы в файле
+func (f *Finder) findClasses(lines []string) []ClassBounds {
+	var classes []ClassBounds
+	var currentClass *ClassBounds
+	classRegex := f.config.ClassRegex()
+	if classRegex == nil {
+		return classes
+	}
+
+	state := StateNormal
+	classDepth := 0
+
+	for lineNum, line := range lines {
+		cleaned, newState := f.sanitizer.CleanLine(line, state)
+		state = newState
+
+		if currentClass != nil {
+			// Отслеживаем баланс скобок
+			braceDelta := CountBraces(cleaned)
+			classDepth += braceDelta
+
+			// Если глубина стала 0, класс завершён
+			if classDepth <= 0 {
+				currentClass.End = lineNum + 1
+				classes = append(classes, *currentClass)
+				currentClass = nil
+				classDepth = 0
+			}
+		} else {
+			// Ищем начало нового класса
+			matches := classRegex.FindStringSubmatch(cleaned)
+			if matches != nil {
+				className := matches[1]
+				// Проверяем, есть ли открывающая скобка на этой строке
+				braceCount := strings.Count(cleaned, "{")
+				if braceCount > 0 {
+					classDepth = braceCount
+				} else {
+					classDepth = 0 // Ждём скобку на следующей строке
+				}
+				currentClass = &ClassBounds{
+					Name:  className,
+					Start: lineNum + 1,
+				}
+			}
+		}
+	}
+
+	// Если класс не был закрыт до конца файла
+	if currentClass != nil {
+		currentClass.End = len(lines)
+		classes = append(classes, *currentClass)
+	}
+
+	return classes
+}
+
+// findClassForLine находит класс, которому принадлежит строка
+func (f *Finder) findClassForLine(classes []ClassBounds, lineNum int) string {
+	for _, class := range classes {
+		if class.Start <= lineNum+1 && class.End >= lineNum+1 {
+			return class.Name
+		}
+	}
+	return ""
 }

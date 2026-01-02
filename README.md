@@ -12,6 +12,7 @@
 
 - 🔍 **Find function boundaries** by name in source files
 - 🗺️ **Map all functions** in a file with `--map`
+- 🌳 **Tree visualization** with `--tree` for classes and methods ⭐ NEW
 - 📤 **Extract function bodies** with `--extract`
 - 📊 **JSON output** for AI integration with `--json`
 - 🚀 **95%+ token reduction** for code navigation
@@ -44,12 +45,12 @@ Download from [Releases](https://github.com/yourusername/funcfinder/releases):
 
 ```bash
 # Linux
-wget https://github.com/yourusername/funcfinder/releases/download/v1.0.0/funcfinder-linux-amd64.tar.gz
+wget https://github.com/yourusername/funcfinder/releases/download/v1.3.0/funcfinder-linux-amd64.tar.gz
 tar -xzf funcfinder-linux-amd64.tar.gz
 sudo mv funcfinder /usr/local/bin/
 
 # macOS
-wget https://github.com/yourusername/funcfinder/releases/download/v1.0.0/funcfinder-darwin-amd64.tar.gz
+wget https://github.com/yourusername/funcfinder/releases/download/v1.3.0/funcfinder-darwin-amd64.tar.gz
 tar -xzf funcfinder-darwin-amd64.tar.gz
 sudo mv funcfinder /usr/local/bin/
 
@@ -71,7 +72,7 @@ go build -o funcfinder
 
 ```bash
 funcfinder --version
-# Output: funcfinder version 1.1.0
+# Output: funcfinder version 1.3.0
 ```
 
 ### Map all functions in a file
@@ -186,6 +187,28 @@ funcfinder --inp api.py --source py --func get_user --json
 funcfinder --inp utils.py --source py --func async_generator,fibonacci --extract
 ```
 
+### Tree Visualization for Classes
+
+```bash
+# Display class hierarchy in tree format
+funcfinder --inp Calculator.java --source java --tree
+
+# Output:
+# class Calculator (1-20)
+# ├── method add (5-7)
+# ├── method subtract (9-11)
+# └── method multiply (13-15)
+# class Helper (22-30)
+# ├── method assist (23-25)
+# └── method process (27-29)
+
+# Tree with full signatures
+funcfinder --inp api.ts --source ts --tree-full
+
+# Visualize Python classes (with decorators!)
+funcfinder --inp models.py --source py --tree
+```
+
 ### Integration with Other Tools
 
 ```bash
@@ -209,6 +232,8 @@ Required:
 Modes (choose one):
   --func <names>     Find specific functions (comma-separated)
   --map              Map all functions in file
+  --tree             Display functions in tree format (shows class hierarchy)
+  --tree-full        Display functions in tree format with signatures
 
 Output formats:
   (default)          grep-style: funcname: n1-n2;
@@ -310,17 +335,26 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## 🗺️ Roadmap
 
-### v1.1.0
-- [ ] Python support
+### v1.1.0 ✅
 - [x] JavaScript/TypeScript support
 - [x] `--version` flag
-- [ ] Improved C# regex patterns
-- [ ] Arrow function support for JS/TS
-- [ ] Generator function support
+- [x] Arrow function support for JS/TS
+- [x] Generator function support
 
-### v1.2.0
+### v1.2.0 ✅
+- [x] Python support with decorator detection
+- [x] Async/await function support
+- [x] Improved function detection across all languages
+
+### v1.3.0 (Current) ✅
+- [x] Tree visualization (`--tree` and `--tree-full`)
+- [x] Class hierarchy detection
+- [x] Method-class association for all OOP languages
+
+### v1.4.0
 - [ ] Configuration file support
 - [ ] Custom patterns via CLI
+- [ ] Improved C# regex patterns
 - [ ] Function type filters (public/private)
 - [ ] Code statistics
 
