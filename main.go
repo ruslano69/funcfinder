@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 const Version = "1.3.0"
@@ -72,7 +73,7 @@ func main() {
 	langConfig, err := config.GetLanguageConfig(*source)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Supported languages: go, c, cpp, cs, java, d, js, ts, py, rust, swift\n")
+		fmt.Fprintf(os.Stderr, "Supported languages: %s\n", strings.Join(config.GetSupportedLanguages(), ", "))
 		os.Exit(1)
 	}
 

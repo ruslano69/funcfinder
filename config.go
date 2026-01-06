@@ -85,3 +85,23 @@ func (lc *LanguageConfig) ClassRegex() *regexp.Regexp {
 func (lc *LanguageConfig) HasClasses() bool {
 	return lc.ClassPattern != ""
 }
+
+// GetSupportedLanguages возвращает отсортированный список всех поддерживаемых языков
+func (c Config) GetSupportedLanguages() []string {
+	languages := make([]string, 0, len(c))
+	for lang := range c {
+		languages = append(languages, lang)
+	}
+
+	// Сортируем для консистентного вывода
+	// Простая сортировка без импорта sort
+	for i := 0; i < len(languages)-1; i++ {
+		for j := i + 1; j < len(languages); j++ {
+			if languages[i] > languages[j] {
+				languages[i], languages[j] = languages[j], languages[i]
+			}
+		}
+	}
+
+	return languages
+}
