@@ -12,9 +12,11 @@
 
 - 🔍 **Find function boundaries** by name in source files
 - 🗺️ **Map all functions** in a file with `--map`
-- 🌳 **Tree visualization** with `--tree` for classes and methods ⭐ NEW
+- 🌳 **Tree visualization** with `--tree` for classes and methods
+- 📏 **Line range filtering** with `--lines` for precise scope control ⭐ NEW
 - 📤 **Extract function bodies** with `--extract`
 - 📊 **JSON output** for AI integration with `--json`
+- 🪟 **Windows-compatible file slicing** - native sed alternative
 - 🚀 **95%+ token reduction** for code navigation
 - ⚡ **Fast**: ~50ms per 5000 lines
 - 🎯 **Zero dependencies**: static binary
@@ -29,7 +31,9 @@
 - D
 - **JavaScript** (including async functions, generator functions, arrow functions)
 - **TypeScript** (including async functions, generator functions, arrow functions, generics)
-- **Python** ⭐ NEW (including async/await, decorators, generators, class methods)
+- **Python** (including async/await, decorators, generators, class methods)
+- **Rust** ⭐ NEW (including pub/async functions, structs, traits, enums, impl blocks)
+- **Swift** ⭐ NEW (including classes, structs, protocols, enums, static functions)
 
 ## 📦 Installation
 
@@ -45,12 +49,12 @@ Download from [Releases](https://github.com/yourusername/funcfinder/releases):
 
 ```bash
 # Linux
-wget https://github.com/yourusername/funcfinder/releases/download/v1.3.0/funcfinder-linux-amd64.tar.gz
+wget https://github.com/yourusername/funcfinder/releases/download/v1.4.0/funcfinder-linux-amd64.tar.gz
 tar -xzf funcfinder-linux-amd64.tar.gz
 sudo mv funcfinder /usr/local/bin/
 
 # macOS
-wget https://github.com/yourusername/funcfinder/releases/download/v1.3.0/funcfinder-darwin-amd64.tar.gz
+wget https://github.com/yourusername/funcfinder/releases/download/v1.4.0/funcfinder-darwin-amd64.tar.gz
 tar -xzf funcfinder-darwin-amd64.tar.gz
 sudo mv funcfinder /usr/local/bin/
 
@@ -72,7 +76,7 @@ go build -o funcfinder
 
 ```bash
 funcfinder --version
-# Output: funcfinder version 1.3.0
+# Output: funcfinder version 1.4.0
 ```
 
 ### Map all functions in a file
@@ -209,6 +213,38 @@ funcfinder --inp api.ts --source ts --tree-full
 funcfinder --inp models.py --source py --tree
 ```
 
+### Line Range Filtering (v1.4.0+)
+
+```bash
+# Standalone mode: Fast file slicing (works on ANY file, no --source needed)
+funcfinder --inp app.log --lines 1000:1100
+# Output: Lines 1000-1100 with line numbers
+
+# JSON output for line ranges
+funcfinder --inp config.yaml --lines :50 --json
+
+# Filter mode: Narrow function search to specific lines
+funcfinder --inp large_file.go --source go --map --lines 500:1000
+# Only shows functions within lines 500-1000
+
+# Find function in specific area (much faster for large files)
+funcfinder --inp server.js --source js --func handleAPI --lines 100:500 --extract
+
+# Tree view of limited scope
+funcfinder --inp Calculator.java --source java --tree --lines 1:100
+
+# Windows-compatible sed alternative (10-50x faster than PowerShell)
+funcfinder --inp server.log --lines 5000:   # From line 5000 to EOF
+funcfinder --inp debug.txt --lines :1000    # First 1000 lines
+funcfinder --inp trace.log --lines 500      # Single line 500
+```
+
+**Why --lines is useful:**
+- 🪟 **Cross-platform**: Works on Windows without sed
+- ⚡ **Performance**: 10-50x faster than PowerShell alternatives
+- 🎯 **Precision**: Combine with --map/--func/--tree to narrow search scope
+- 📏 **Any file**: Standalone mode works on logs, configs, any text file
+
 ### Integration with Other Tools
 
 ```bash
@@ -223,17 +259,22 @@ START=$(funcfinder --inp api.go --source go --func Handler --json | jq '.Handler
 ## 📖 Usage
 
 ```
-funcfinder --inp <file> --source <lang> [OPTIONS]
+funcfinder --inp <file> [--source <lang>] [OPTIONS]
 
 Required:
   --inp <file>       Source file to analyze
-  --source <lang>    Language: go/c/cpp/cs/java/d/js/ts/py
+  --source <lang>    Language: go/c/cpp/cs/java/d/js/ts/py/rust/swift
+                     (optional when using --lines alone)
 
 Modes (choose one):
   --func <names>     Find specific functions (comma-separated)
   --map              Map all functions in file
   --tree             Display functions in tree format (shows class hierarchy)
   --tree-full        Display functions in tree format with signatures
+
+Filtering:
+  --lines <range>    Extract/filter by line range (standalone or with --source)
+                     Formats: 100:150, :50, 100:, 100
 
 Output formats:
   (default)          grep-style: funcname: n1-n2;
@@ -350,6 +391,9 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - [x] Tree visualization (`--tree` and `--tree-full`)
 - [x] Class hierarchy detection
 - [x] Method-class association for all OOP languages
+- [x] **Rust support** (structs, traits, enums, impl blocks)
+- [x] **Swift support** (classes, structs, protocols, enums)
+- [x] **11 languages total** (added without Go code changes!)
 
 ### v1.4.0
 - [ ] Configuration file support

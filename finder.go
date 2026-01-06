@@ -75,6 +75,14 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 	
+	return f.FindFunctionsInLines(lines, 1, filename)
+}
+
+// FindFunctionsInLines ищет функции в предварительно прочитанных строках
+// startLine - номер первой строки в lines (1-based) относительно оригинального файла
+func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename string) (*FindResult, error) {
+	lineOffset := startLine - 1 // Offset для корректировки номеров строк
+
 	result := &FindResult{
 		Filename:  filename,
 		Functions: []FunctionBounds{},
@@ -84,7 +92,7 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 	// Если язык поддерживает классы, сначала находим все классы
 	var classes []ClassBounds
 	if f.config.HasClasses() {
-		classes = f.findClasses(lines)
+		classes = f.findClassesWithOffset(lines, lineOffset)
 		result.Classes = classes
 	}
 
@@ -103,12 +111,12 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 			if f.extractMode {
 				currentFunc.Lines = append(currentFunc.Lines, line)
 			}
-			
+
 			depth += CountBraces(cleaned)
-			
+
 			if depth == 0 {
 				// Конец функции
-				currentFunc.End = lineNum + 1 // 1-based
+				currentFunc.End = lineNum + 1 + lineOffset // 1-based + offset
 				result.Functions = append(result.Functions, *currentFunc)
 				currentFunc = nil
 			}
@@ -143,7 +151,7 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 					// Определяем класс, к которому принадлежит функция
 					className := ""
 					if f.config.HasClasses() {
-						className = f.findClassForLine(classes, lineNum)
+						className = f.findClassForLine(classes, lineNum+lineOffset)
 					}
 
 					// Ищем открывающую скобку
@@ -152,7 +160,7 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 						// Скобка на той же строке
 						currentFunc = &FunctionBounds{
 							Name:      funcName,
-							Start:     lineNum + 1, // 1-based
+							Start:     lineNum + 1 + lineOffset, // 1-based + offset
 							Lines:     []string{},
 							ClassName: className,
 							Scope:     className,
@@ -164,7 +172,7 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 
 						if depth == 0 {
 							// Функция на одной строке (маловероятно, но возможно)
-							currentFunc.End = lineNum + 1
+							currentFunc.End = lineNum + 1 + lineOffset
 							result.Functions = append(result.Functions, *currentFunc)
 							currentFunc = nil
 						}
@@ -174,7 +182,7 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 					if braceCount == 0 {
 						currentFunc = &FunctionBounds{
 							Name:      funcName,
-							Start:     lineNum + 1,
+							Start:     lineNum + 1 + lineOffset,
 							Lines:     []string{},
 							ClassName: className,
 							Scope:     className,
@@ -194,7 +202,7 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 				if braceCount > 0 {
 					depth = braceCount
 					if depth == 0 {
-						currentFunc.End = lineNum + 1
+						currentFunc.End = lineNum + 1 + lineOffset
 						result.Functions = append(result.Functions, *currentFunc)
 						currentFunc = nil
 					}
@@ -202,7 +210,7 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 			}
 		}
 	}
-	
+
 	return result, nil
 }
 
@@ -223,6 +231,11 @@ func ParseFuncNames(funcStr string) []string {
 }
 // findClasses находит все классы в файле
 func (f *Finder) findClasses(lines []string) []ClassBounds {
+	return f.findClassesWithOffset(lines, 0)
+}
+
+// findClassesWithOffset находит все классы с учетом offset номеров строк
+func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBounds {
 	var classes []ClassBounds
 	var currentClass *ClassBounds
 	classRegex := f.config.ClassRegex()
@@ -244,7 +257,7 @@ func (f *Finder) findClasses(lines []string) []ClassBounds {
 
 			// Если глубина стала 0, класс завершён
 			if classDepth <= 0 {
-				currentClass.End = lineNum + 1
+				currentClass.End = lineNum + 1 + lineOffset
 				classes = append(classes, *currentClass)
 				currentClass = nil
 				classDepth = 0
@@ -263,7 +276,7 @@ func (f *Finder) findClasses(lines []string) []ClassBounds {
 				}
 				currentClass = &ClassBounds{
 					Name:  className,
-					Start: lineNum + 1,
+					Start: lineNum + 1 + lineOffset,
 				}
 			}
 		}
@@ -271,7 +284,7 @@ func (f *Finder) findClasses(lines []string) []ClassBounds {
 
 	// Если класс не был закрыт до конца файла
 	if currentClass != nil {
-		currentClass.End = len(lines)
+		currentClass.End = len(lines) + lineOffset
 		classes = append(classes, *currentClass)
 	}
 

@@ -88,5 +88,25 @@
     "raw_string_chars": ["r\"", "r'"],
     "escape_char": "\\",
     "indent_based": true
+  },
+  "rust": {
+    "func_pattern": "^\\s*(?:pub\\s+)?(?:async\\s+)?fn\\s+(\\w+)\\s*\\(",
+    "class_pattern": "^\\s*(?:pub\\s+)?(?:struct|trait|enum|impl)\\s+(\\w+)",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\""],
+    "raw_string_chars": ["r#\""],
+    "escape_char": "\\"
+  },
+  "swift": {
+    "func_pattern": "^\\s*(?:public\\s+)?(?:static\\s+)?func\\s+(\\w+)\\s*\\(",
+    "class_pattern": "^\\s*(?:public\\s+)?(?:class|struct|enum|protocol)\\s+(\\w+)",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": ["\""],
+    "raw_string_chars": [],
+    "escape_char": "\\"
   }
 }
