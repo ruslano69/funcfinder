@@ -72,7 +72,7 @@ func main() {
 	langConfig, err := config.GetLanguageConfig(*source)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Supported languages: go, c, cpp, cs, java, d, js, ts, py\n")
+		fmt.Fprintf(os.Stderr, "Supported languages: go, c, cpp, cs, java, d, js, ts, py, rust, swift\n")
 		os.Exit(1)
 	}
 

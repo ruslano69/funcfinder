@@ -2,7 +2,7 @@
 
 ## v1.3.0 - 2026-01-02
 
-### Tree Visualization & Class Hierarchy
+### Tree Visualization & Class Hierarchy + Rust & Swift Support
 
 **Новые возможности:**
 - ✅ **Tree visualization mode** (`--tree`) - hierarchical display of functions and classes
@@ -10,7 +10,9 @@
 - ✅ **Class detection** - automatic identification of classes/structs/interfaces
 - ✅ **Method-class association** - methods are shown as children of their classes
 - ✅ **Unicode tree rendering** - beautiful tree formatting with box-drawing characters (├──, └──, │)
-- ✅ **Multi-language class support** - works with Go, C++, C#, Java, D, JS, TS, Python
+- ✅ **Multi-language class support** - works with Go, C++, C#, Java, D, JS, TS, Python, Rust, Swift
+- ✅ **Rust support** - structs, traits, enums, impl blocks, pub/async functions
+- ✅ **Swift support** - classes, structs, protocols, enums, static/public functions
 
 **Архитектурные изменения:**
 - Добавлен `tree.go` - tree building and formatting logic
@@ -31,6 +33,13 @@
   - JavaScript: `class Name` (with export support)
   - TypeScript: `class Name` (with export support)
   - Python: `class Name`
+  - **Rust**: `struct/trait/enum/impl Name` (NEW)
+  - **Swift**: `class/struct/enum/protocol Name` (NEW)
+
+**Расширяемая архитектура:**
+- ✅ **Rust и Swift добавлены БЕЗ изменения Go кода** - только через конфигурацию!
+- Демонстрация мощи data-driven архитектуры funcfinder
+- Теперь поддерживаются **11 языков** (было 9)
 
 **Форматы вывода:**
 - Tree compact: Shows function/method names with line ranges

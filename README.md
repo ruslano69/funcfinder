@@ -29,7 +29,9 @@
 - D
 - **JavaScript** (including async functions, generator functions, arrow functions)
 - **TypeScript** (including async functions, generator functions, arrow functions, generics)
-- **Python** ⭐ NEW (including async/await, decorators, generators, class methods)
+- **Python** (including async/await, decorators, generators, class methods)
+- **Rust** ⭐ NEW (including pub/async functions, structs, traits, enums, impl blocks)
+- **Swift** ⭐ NEW (including classes, structs, protocols, enums, static functions)
 
 ## 📦 Installation
 
@@ -350,6 +352,9 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - [x] Tree visualization (`--tree` and `--tree-full`)
 - [x] Class hierarchy detection
 - [x] Method-class association for all OOP languages
+- [x] **Rust support** (structs, traits, enums, impl blocks)
+- [x] **Swift support** (classes, structs, protocols, enums)
+- [x] **11 languages total** (added without Go code changes!)
 
 ### v1.4.0
 - [ ] Configuration file support
