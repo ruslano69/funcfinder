@@ -2,7 +2,7 @@
 
 ## v1.4.0 - 2026-01-06
 
-### Line Range Filtering & Cross-Platform File Slicing
+### Line Range Filtering, Cross-Platform File Slicing & Code Analysis Utilities
 
 **Новые возможности:**
 - ✅ **--lines flag** - extract specific line ranges from files
@@ -70,6 +70,78 @@ funcfinder --inp Calculator.java --source java --tree --lines 1:100
 - PowerShell alternatives to sed are 50x+ slower
 - Native cross-platform solution
 - No external tools required
+
+### Additional Code Analysis Utilities
+
+**Новые утилиты:**
+- ✅ **stat.go** - function call counter for 9 languages
+- ✅ **deps.go** - dependency analyzer for 9 languages
+- ✅ Complete code analysis toolkit for AI agents
+
+**stat - Function Call Counter:**
+```bash
+# Build and use
+go build -o stat stat.go
+stat finder.go -n 10
+
+# Output:
+# Language: Go
+# Functions: 28
+# append                    11
+# len                       5
+# CountBraces               4
+```
+
+**Возможности stat:**
+- Подсчет вызовов функций в исходных файлах
+- Поддержка 9 языков: Python, Go, Rust, JS/TS, Swift, C/C++, Java, D, C#
+- Top-N фильтрация самых вызываемых функций
+- Обработка комментариев и строковых литералов
+- Поддержка декораторов (Python, Java)
+
+**deps - Dependency Analyzer:**
+```bash
+# Build and use
+go build -o deps deps.go
+deps . -l go -n 10
+
+# Output:
+# Language: Go
+# Total imports: 12
+# Unique modules: 12
+# stdlib: 6, external: 1, internal: 5
+# fmt                             11 (std)
+# strings                         10 (std)
+
+# JSON output
+deps . -l go -j > dependencies.json
+```
+
+**Возможности deps:**
+- Анализ зависимостей модулей в проекте
+- Классификация: stdlib, external, internal
+- Подсчет использования каждого модуля
+- JSON вывод для интеграции с CI/CD
+- Поддержка 9 языков программирования
+
+**Workflow для AI-агентов:**
+```bash
+# 1. Структура кода
+funcfinder --inp api.go --source go --map
+
+# 2. Самые вызываемые функции
+stat api.go -l go -n 10
+
+# 3. Граф зависимостей
+deps . -l go -j
+```
+
+**Архитектура утилит:**
+- Zero dependencies (только stdlib)
+- Config-driven language support
+- Regex-based parsing
+- Совместимая архитектура с funcfinder
+- 300-400 строк кода каждая
 
 ---
 

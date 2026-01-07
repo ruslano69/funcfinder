@@ -357,6 +357,81 @@ go test ./...
 funcfinder --inp config.go --source go --map
 ```
 
+## 🛠️ Additional Utilities
+
+funcfinder включает две дополнительные утилиты для анализа кода:
+
+### stat - Function Call Counter
+
+Анализирует вызовы функций в исходных файлах:
+
+```bash
+# Build
+go build -o stat stat.go
+
+# Analyze function calls in a file
+stat finder.go -n 10
+
+# Output:
+# Language: Go
+# Functions: 28
+# -----------------------------------
+# append                    11
+# len                       5
+# CountBraces               4
+# ...
+
+# Force language
+stat script.txt -l py -n 20
+```
+
+**Поддерживаемые языки:** Python, Go, Rust, JavaScript/TypeScript, Swift, C/C++, Java, D, C#
+
+### deps - Dependency Analyzer
+
+Анализирует зависимости модулей в проекте:
+
+```bash
+# Build
+go build -o deps deps.go
+
+# Analyze dependencies in current directory
+deps . -l go -n 10
+
+# Output:
+# Language: Go
+# Total imports: 12
+# Unique modules: 12
+# -----------------------------------
+# stdlib: 6, external: 1, internal: 5
+# -----------------------------------
+# fmt                             11 (std)
+# strings                         10 (std)
+# ...
+
+# JSON output
+deps . -l go -j > dependencies.json
+```
+
+**Workflow для AI-агентов:**
+```bash
+# 1. Понять структуру файла
+funcfinder --inp api.go --source go --map
+
+# 2. Найти самые вызываемые функции
+stat api.go -l go -n 10
+
+# 3. Проанализировать зависимости
+deps . -l go -j
+```
+
+**Возможности:**
+- 🔍 Подсчет вызовов функций
+- 📊 Анализ зависимостей (stdlib vs external vs internal)
+- 📈 JSON вывод для интеграции
+- 🌐 9 языков программирования
+- ⚡ Zero dependencies, быстрая работа
+
 ## 🤝 Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -387,7 +462,7 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - [x] Async/await function support
 - [x] Improved function detection across all languages
 
-### v1.3.0 (Current) ✅
+### v1.3.0 ✅
 - [x] Tree visualization (`--tree` and `--tree-full`)
 - [x] Class hierarchy detection
 - [x] Method-class association for all OOP languages
@@ -395,12 +470,19 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - [x] **Swift support** (classes, structs, protocols, enums)
 - [x] **11 languages total** (added without Go code changes!)
 
-### v1.4.0
+### v1.4.0 (Current) ✅
+- [x] **--lines flag** for line range filtering
+- [x] Cross-platform file slicing (sed alternative)
+- [x] Standalone and filter modes
+- [x] **stat utility** - function call counter (9 languages)
+- [x] **deps utility** - dependency analyzer (9 languages)
+- [x] Complete code analysis toolkit
+
+### v1.5.0
 - [ ] Configuration file support
 - [ ] Custom patterns via CLI
 - [ ] Improved C# regex patterns
 - [ ] Function type filters (public/private)
-- [ ] Code statistics
 
 ### v2.0.0
 - [ ] Tree-sitter integration for precise parsing
