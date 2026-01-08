@@ -20,6 +20,7 @@ type LanguageConfig struct {
 	BlockComment     *BlockCommentConfig
 	StringPatterns   []string
 	CallPattern      string
+	ImportPattern    string
 	ExcludeWords     []string
 	DecoratorPattern string
 }
@@ -28,6 +29,17 @@ type LanguageConfig struct {
 type BlockCommentConfig struct {
 	Start string
 	End   string
+}
+
+// FileMetrics holds statistics about a source file
+type FileMetrics struct {
+	TotalLines    int
+	CodeLines     int
+	CommentLines  int
+	BlankLines    int
+	Imports       []string
+	Decorators    []string
+	FileSize      int64
 }
 
 // Pre-defined language configurations
@@ -44,6 +56,7 @@ var languages = map[string]*LanguageConfig{
 			`'[^'\\]*(?:\\.[^'\\]*)*'`,
 		},
 		CallPattern:      `(\w+)\s*\(`,
+		ImportPattern:    `^\s*(?:from\s+(\S+)\s+import|import\s+(\S+))`,
 		DecoratorPattern: `^\s*@(\w+)`,
 	},
 	"go": {
@@ -59,8 +72,9 @@ var languages = map[string]*LanguageConfig{
 		StringPatterns: []string{
 			`"[^"\\]*(?:\\.[^"\\]*)*"`,
 		},
-		CallPattern: `(\w+)\s*\(`,
-		ExcludeWords: []string{"func"},
+		CallPattern:   `(\w+)\s*\(`,
+		ImportPattern: `^\s*(?:import\s+"([^"]+)"|"([^"]+)"$)`,
+		ExcludeWords:  []string{"func"},
 	},
 	"rs": {
 		Name:       "Rust",
@@ -77,7 +91,8 @@ var languages = map[string]*LanguageConfig{
 			`r#"[^"]*"#`,
 			`r#*[^"]*#*`,
 		},
-		CallPattern: `(\w+)\s*\(`,
+		CallPattern:   `(\w+)\s*\(`,
+		ImportPattern: `^\s*use\s+([^;]+)`,
 	},
 	"js": {
 		Name:       "JavaScript/TypeScript",
@@ -94,7 +109,8 @@ var languages = map[string]*LanguageConfig{
 			`'[^'\\]*(?:\\.[^'\\]*)*'`,
 			"`[^`\\\\]*(?:\\\\.[^`\\\\]*)*`",
 		},
-		CallPattern: `(\w+)\s*\(`,
+		CallPattern:   `(\w+)\s*\(`,
+		ImportPattern: `^\s*(?:import\s+.*?from\s+["']([^"']+)["']|require\s*\(\s*["']([^"']+)["'])`,
 	},
 	"sw": {
 		Name:       "Swift",
@@ -110,7 +126,8 @@ var languages = map[string]*LanguageConfig{
 			`"[^"\\]*(?:\\.[^"\\]*)*"`,
 			`""".*?"""`,
 		},
-		CallPattern: `(\w+)\s*\(`,
+		CallPattern:   `(\w+)\s*\(`,
+		ImportPattern: `^\s*import\s+(\S+)`,
 		ExcludeWords: []string{
 			"func", "if", "while", "for", "guard",
 			"switch", "catch", "return", "throw",
@@ -130,7 +147,8 @@ var languages = map[string]*LanguageConfig{
 			`"[^"\\]*(?:\\.[^"\\]*)*"`,
 			`'[^'\\]*(?:\\.[^'\\]*)*'`,
 		},
-		CallPattern: `(\w+)\s*\(`,
+		CallPattern:   `(\w+)\s*\(`,
+		ImportPattern: `^\s*#\s*include\s*[<"]([^>"]+)[>"]`,
 		ExcludeWords: []string{
 			"if", "else", "while", "for", "switch",
 			"case", "return", "sizeof",
@@ -150,6 +168,7 @@ var languages = map[string]*LanguageConfig{
 			`"[^"\\]*(?:\\.[^"\\]*)*"`,
 		},
 		CallPattern:      `(\w+)\s*\(`,
+		ImportPattern:    `^\s*import\s+(?:static\s+)?([\w.]+)`,
 		DecoratorPattern: `^\s*@(\w+)`,
 		ExcludeWords: []string{
 			"if", "else", "while", "for", "switch",
@@ -170,7 +189,8 @@ var languages = map[string]*LanguageConfig{
 			`"[^"\\]*(?:\\.[^"\\]*)*"`,
 			`r"[^"]*"`,
 		},
-		CallPattern: `(\w+)\s*\(`,
+		CallPattern:   `(\w+)\s*\(`,
+		ImportPattern: `^\s*import\s+([\w.]+)`,
 		ExcludeWords: []string{
 			"if", "else", "while", "foreach", "for",
 			"switch", "case", "return",
@@ -191,6 +211,7 @@ var languages = map[string]*LanguageConfig{
 			`@"[^"]*"`,
 		},
 		CallPattern:      `(\w+)\s*\(`,
+		ImportPattern:    `^\s*using\s+([\w.]+)`,
 		DecoratorPattern: `^\s*\[(\w+)`,
 		ExcludeWords: []string{
 			"if", "else", "while", "foreach", "for",
@@ -264,14 +285,22 @@ func cleanLine(line string, config *LanguageConfig) (string, bool) {
 	return line, false
 }
 
-// countFunctionCalls counts function calls in a source file
-func countFunctionCalls(filename string, config *LanguageConfig) map[string]int {
+// analyzeFile analyzes a source file and returns function calls and metrics
+func analyzeFile(filename string, config *LanguageConfig) (map[string]int, *FileMetrics) {
 	file, err := os.Open(filename)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening file: %v\n", err)
 		os.Exit(1)
 	}
 	defer file.Close()
+
+	// Get file size
+	fileInfo, _ := file.Stat()
+	metrics := &FileMetrics{
+		FileSize: fileInfo.Size(),
+		Imports:  []string{},
+		Decorators: []string{},
+	}
 
 	pattern := regexp.MustCompile(config.CallPattern)
 	callCounts := make(map[string]int)
@@ -281,20 +310,67 @@ func countFunctionCalls(filename string, config *LanguageConfig) map[string]int 
 		decoratorPattern = regexp.MustCompile(config.DecoratorPattern)
 	}
 
+	var importPattern *regexp.Regexp
+	if config.ImportPattern != "" {
+		importPattern = regexp.MustCompile(config.ImportPattern)
+	}
+
+	importSet := make(map[string]bool)
+	decoratorSet := make(map[string]bool)
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
+		metrics.TotalLines++
 
-		cleanedLine, skip := cleanLine(line, config)
-		if skip || cleanedLine == "" {
+		trimmed := strings.TrimSpace(line)
+
+		// Count blank lines
+		if trimmed == "" {
+			metrics.BlankLines++
 			continue
 		}
 
+		// Check for imports (before cleaning)
+		if importPattern != nil {
+			match := importPattern.FindStringSubmatch(line)
+			if len(match) >= 2 {
+				for i := 1; i < len(match); i++ {
+					if match[i] != "" && !importSet[match[i]] {
+						importSet[match[i]] = true
+						metrics.Imports = append(metrics.Imports, match[i])
+					}
+				}
+			}
+		}
+
+		// Check for decorators
 		if decoratorPattern != nil {
 			match := decoratorPattern.FindStringSubmatch(line)
 			if len(match) >= 2 {
-				callCounts[match[1]]++
+				if !decoratorSet[match[1]] {
+					decoratorSet[match[1]] = true
+					metrics.Decorators = append(metrics.Decorators, match[1])
+				}
 			}
+		}
+
+		cleanedLine, isComment := cleanLine(line, config)
+
+		// Count comment lines
+		if isComment {
+			metrics.CommentLines++
+			continue
+		}
+
+		// Count code lines (non-blank, non-comment)
+		if cleanedLine != "" {
+			metrics.CodeLines++
+		}
+
+		// Count function calls
+		if cleanedLine == "" {
+			continue
 		}
 
 		matches := pattern.FindAllStringSubmatch(cleanedLine, -1)
@@ -316,7 +392,7 @@ func countFunctionCalls(filename string, config *LanguageConfig) map[string]int 
 		}
 	}
 
-	return callCounts
+	return callCounts, metrics
 }
 
 func main() {
@@ -366,7 +442,7 @@ func main() {
 		}
 	}
 
-	callCounts := countFunctionCalls(filename, config)
+	callCounts, metrics := analyzeFile(filename, config)
 
 	type pair struct{ name string; count int }
 	var calls []pair
@@ -375,9 +451,35 @@ func main() {
 	}
 	sort.Slice(calls, func(i, j int) bool { return calls[i].count > calls[j].count })
 
+	// Output file metrics
 	fmt.Printf("Language: %s\n", config.Name)
-	fmt.Printf("Functions: %d\n", len(calls))
+	fmt.Printf("File: %s (%.1f KB)\n", filepath.Base(filename), float64(metrics.FileSize)/1024)
 	fmt.Println(strings.Repeat("-", 35))
+
+	fmt.Printf("Lines: %d\n", metrics.TotalLines)
+	if metrics.TotalLines > 0 {
+		fmt.Printf("  Code:     %d (%.1f%%)\n", metrics.CodeLines, float64(metrics.CodeLines)*100/float64(metrics.TotalLines))
+		fmt.Printf("  Comments: %d (%.1f%%)\n", metrics.CommentLines, float64(metrics.CommentLines)*100/float64(metrics.TotalLines))
+		fmt.Printf("  Blank:    %d (%.1f%%)\n", metrics.BlankLines, float64(metrics.BlankLines)*100/float64(metrics.TotalLines))
+	}
+
+	if len(metrics.Imports) > 0 {
+		fmt.Printf("Imports: %d", len(metrics.Imports))
+		if len(metrics.Imports) <= 5 {
+			fmt.Printf(" (%s)\n", strings.Join(metrics.Imports, ", "))
+		} else {
+			fmt.Printf(" (%s, ...)\n", strings.Join(metrics.Imports[:5], ", "))
+		}
+	}
+
+	if len(metrics.Decorators) > 0 {
+		fmt.Printf("Decorators: %d (%s)\n", len(metrics.Decorators), strings.Join(metrics.Decorators, ", "))
+	}
+
+	fmt.Println(strings.Repeat("-", 35))
+	fmt.Printf("Function calls: %d unique\n", len(calls))
+	fmt.Println(strings.Repeat("-", 35))
+
 	printCount := len(calls)
 	if topN > 0 && topN < printCount {
 		printCount = topN
