@@ -7,6 +7,7 @@
 funcfinder
 stat
 deps
+complexity
 dist/
 
 # Test binary, built with `go test -c`

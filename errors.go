@@ -53,7 +53,14 @@ func PrintUsage(usageFunc func()) {
 }
 
 // PrintVersion prints version and exits successfully
-func PrintVersion(toolName, version string) {
-	fmt.Printf("%s version %s\n", toolName, version)
+func PrintVersion(toolName string) {
+	const Version = "1.4.0"
+	fmt.Printf("%s version %s\n", toolName, Version)
 	os.Exit(0)
+}
+
+// FatalErrorMsg prints error message and exits
+func FatalErrorMsg(msg string) {
+	fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
+	os.Exit(1)
 }
