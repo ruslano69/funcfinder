@@ -27,7 +27,7 @@ func main() {
 
 	// Обработка флага --version
 	if *version {
-		PrintVersion("funcfinder", Version)
+		PrintVersion("funcfinder")
 	}
 
 	// Валидация параметров
@@ -83,9 +83,9 @@ func main() {
 	}
 
 	// Получаем конфигурацию для выбранного языка
-	langConfig, err := GetLanguageConfig(config, *source)
+	langConfig, err := config.GetLanguageConfig(*source)
 	if err != nil {
-		FatalError("%v\nSupported languages: %s", err, strings.Join(GetSupportedLanguages(config), ", "))
+		FatalError("%v\nSupported languages: %s", err, strings.Join(config.GetSupportedLanguages(), ", "))
 	}
 
 	// Определяем режим работы
