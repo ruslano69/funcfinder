@@ -27,38 +27,31 @@ func main() {
 
 	// Обработка флага --version
 	if *version {
-		fmt.Printf("funcfinder version %s\n", Version)
-		os.Exit(0)
+		PrintVersion("funcfinder", Version)
 	}
-	
+
 	// Валидация параметров
 	if *inp == "" {
-		fmt.Fprintln(os.Stderr, "Error: --inp parameter is required")
-		flag.Usage()
-		os.Exit(1)
+		FatalError("--inp parameter is required")
 	}
 
 	// --source не обязателен если используется только --lines (standalone mode)
 	standaloneLines := *linesRange != "" && *source == ""
 
 	if *source == "" && !standaloneLines {
-		fmt.Fprintln(os.Stderr, "Error: --source parameter is required (or use --lines alone for plain text extraction)")
-		flag.Usage()
-		os.Exit(1)
+		FatalError("--source parameter is required (or use --lines alone for plain text extraction)")
 	}
-	
+
 	// Standalone --lines mode: просто вывести строки без парсинга
 	if standaloneLines {
 		lineRange, err := ParseLineRange(*linesRange)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing line range: %v\n", err)
-			os.Exit(1)
+			FatalError("parsing line range: %v", err)
 		}
 
 		lines, startLine, err := ReadFileLines(*inp, lineRange)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading lines: %v\n", err)
-			os.Exit(1)
+			FatalError("reading lines: %v", err)
 		}
 
 		// JSON output или plain
@@ -72,36 +65,27 @@ func main() {
 
 	// Взаимоисключающие режимы
 	if *funcStr == "" && !*mapMode && !*treeMode && !*treeFull {
-		fmt.Fprintln(os.Stderr, "Error: either --func, --map, or --tree must be specified")
-		flag.Usage()
-		os.Exit(1)
+		FatalError("either --func, --map, or --tree must be specified")
 	}
 
 	if *funcStr != "" && (*mapMode || *treeMode || *treeFull) {
-		fmt.Fprintln(os.Stderr, "Error: --func is mutually exclusive with --map and --tree")
-		flag.Usage()
-		os.Exit(1)
+		FatalError("--func is mutually exclusive with --map and --tree")
 	}
 
 	if *treeMode && *treeFull {
-		fmt.Fprintln(os.Stderr, "Error: --tree and --tree-full are mutually exclusive")
-		flag.Usage()
-		os.Exit(1)
+		FatalError("--tree and --tree-full are mutually exclusive")
 	}
-	
+
 	// Загружаем конфигурацию языков
 	config, err := LoadConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		FatalError("loading config: %v", err)
 	}
-	
+
 	// Получаем конфигурацию для выбранного языка
-	langConfig, err := config.GetLanguageConfig(*source)
+	langConfig, err := GetLanguageConfig(config, *source)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Supported languages: %s\n", strings.Join(config.GetSupportedLanguages(), ", "))
-		os.Exit(1)
+		FatalError("%v\nSupported languages: %s", err, strings.Join(GetSupportedLanguages(config), ", "))
 	}
 
 	// Определяем режим работы
@@ -122,57 +106,51 @@ func main() {
 	if *linesRange != "" {
 		lineRange, err := ParseLineRange(*linesRange)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing line range: %v\n", err)
-			os.Exit(1)
+			FatalError("parsing line range: %v", err)
 		}
 
 		lines, startLine, err := ReadFileLines(*inp, lineRange)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading lines: %v\n", err)
-			os.Exit(1)
+			FatalError("reading lines: %v", err)
 		}
 
 		// Warning: --lines may cut through function bodies
 		if lineRange.End == -1 {
-			fmt.Fprintf(os.Stderr, "INFO: Using --lines filter (%d:EOF). Functions outside this range will be excluded.\n", lineRange.Start)
+			InfoMessage("Using --lines filter (%d:EOF). Functions outside this range will be excluded.", lineRange.Start)
 		} else {
-			fmt.Fprintf(os.Stderr, "INFO: Using --lines filter (%d:%d). Functions outside this range will be excluded.\n", lineRange.Start, lineRange.End)
+			InfoMessage("Using --lines filter (%d:%d). Functions outside this range will be excluded.", lineRange.Start, lineRange.End)
 		}
 
 		// IMPORTANT: For Python need to handle it specially
 		// For now we only support standard Finder with --lines
 		if langConfig.IndentBased {
-			fmt.Fprintln(os.Stderr, "WARNING: --lines with Python may produce incorrect results for indent-based parsing")
+			WarnError("--lines with Python may produce incorrect results for indent-based parsing")
 		}
 
 		// Cast to *Finder to access FindFunctionsInLines
 		if stdFinder, ok := finder.(*Finder); ok {
 			result, err = stdFinder.FindFunctionsInLines(lines, startLine, *inp)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				FatalError("%v", err)
 			}
 		} else {
-			fmt.Fprintln(os.Stderr, "Error: --lines is not yet supported for Python files")
-			os.Exit(1)
+			FatalError("--lines is not yet supported for Python files")
 		}
 	} else {
 		// Standard mode: read entire file
 		result, err = finder.FindFunctions(*inp)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			FatalError("%v", err)
 		}
 	}
-	
+
 	// Если ничего не найдено
 	if len(result.Functions) == 0 {
 		if *mapMode || *treeMode || *treeFull {
-			fmt.Fprintln(os.Stderr, "No functions found in file")
+			FatalErrorWithCode(2, "No functions found in file")
 		} else {
-			fmt.Fprintln(os.Stderr, "Specified functions not found")
+			FatalErrorWithCode(2, "Specified functions not found")
 		}
-		os.Exit(2)
 	}
 
 	// Форматируем и выводим результат
@@ -182,8 +160,7 @@ func main() {
 	} else if *jsonOut {
 		output, err = FormatJSON(result)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error formatting output: %v\n", err)
-			os.Exit(1)
+			FatalError("formatting output: %v", err)
 		}
 	} else if *treeMode {
 		output = FormatTreeCompact(result)
