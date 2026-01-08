@@ -503,4 +503,3 @@ A: Только deps поддерживает `-j`. Для stat использу
 
 - [README.md](README.md) - основная документация funcfinder
 - [CHANGELOG.md](CHANGELOG.md) - история изменений
-- [CONTRIBUTING.md](CONTRIBUTING.md) - гайд для контрибьюторов
