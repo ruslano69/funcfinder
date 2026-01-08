@@ -397,12 +397,17 @@ deps . -l go -j                            # Граф зависимостей
 
 ## 🤝 Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome! Please follow these guidelines:
+
+**How to contribute:**
+- Fork the repository and create a feature branch
+- Write tests for new functionality
+- Follow existing code style and conventions
+- Submit PR with clear description
 
 **Areas for contribution:**
-- Additional language support (Python, Rust, PHP, Ruby, etc.)
-- Improved regex patterns (arrow functions, generators)
-- Preprocessor support (C/C++ #ifdef)
+- Additional language support
+- Improved regex patterns
 - Performance optimizations
 - Test coverage
 
