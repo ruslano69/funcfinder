@@ -319,14 +319,38 @@ funcfinder --inp file.go --source go --map --json
 
 ## 🏗️ Architecture
 
+### funcfinder Core
+
 ```
 funcfinder/
-├── main.go          # CLI and coordination
-├── config.go        # Language configuration loader
-├── sanitizer.go     # Comment/string literal handler
-├── finder.go        # Function boundary detection
-├── formatter.go     # Output formatting (grep/json/extract)
-└── languages.json   # Language patterns (embedded)
+├── main.go             # CLI and coordination
+├── config.go           # Unified language configuration (shared)
+├── errors.go           # Standard error handling (shared)
+├── sanitizer.go        # Comment/string literal handler
+├── finder.go           # Function boundary detection
+├── python_finder.go    # Python-specific indentation logic
+├── finder_factory.go   # Language-specific finder selection
+├── formatter.go        # Output formatting (grep/json/extract)
+├── tree.go             # Tree visualization for classes
+├── decorator.go        # Python decorator detection
+└── lines.go            # Line range filtering
+```
+
+### Shared Modules
+
+```
+config.go           # Loads languages.json, provides regex cache
+errors.go           # FatalError, WarnError, InfoMessage, PrintVersion
+languages.json      # Unified patterns for ALL utilities (embedded)
+```
+
+### Additional Utilities
+
+```
+stat.go             # Uses config.go + errors.go
+deps.go             # Uses config.go + errors.go
+complexity.go       # Uses config.go + errors.go + finder.go
+analyze.sh          # Orchestrates all utilities for full analysis
 ```
 
 ## 🔧 Configuration
@@ -364,7 +388,7 @@ funcfinder --inp config.go --source go --map
 
 ## 🛠️ Additional Utilities
 
-funcfinder поставляется с дополнительными утилитами для полного анализа кода. См. [UTILITIES.md](UTILITIES.md) для детальной документации.
+funcfinder поставляется с дополнительными утилитами для полного анализа кода. Все утилиты используют **единую архитектуру** с общими модулями конфигурации и обработки ошибок.
 
 ### Quick Start
 
@@ -372,19 +396,133 @@ funcfinder поставляется с дополнительными утили
 # Собрать все утилиты
 ./build.sh
 
+# Полный анализ проекта одной командой
+./analyze.sh
+
 # Workflow для AI-агентов
 funcfinder --inp api.go --source go --map  # Структура кода
 stat api.go -l go -n 10                    # Горячие точки
 deps . -l go -j                            # Граф зависимостей
+complexity api.go -l go                    # Когнитивная сложность
 ```
 
 ### Утилиты
 
-| Утилита | Назначение | Языки |
-|---------|------------|-------|
-| **funcfinder** | Структура кода (функции, классы, границы) | 11 |
-| **stat** | Анализ вызовов функций (hotspots) | 9 |
-| **deps** | Анализ зависимостей модулей | 9 |
+| Утилита | Назначение | Языки | Выход |
+|---------|------------|-------|-------|
+| **funcfinder** | Структура кода (функции, классы, границы) | 11 | grep/JSON/extract |
+| **stat** | Анализ вызовов функций + метрики файлов | 11 | текст |
+| **deps** | Анализ зависимостей модулей (stdlib/external/internal) | 11 | текст/JSON |
+| **complexity** ⭐ NEW | Анализ когнитивной сложности (nesting depth) | 11 | текст с цветами |
+
+### 🧠 complexity - Анализатор когнитивной сложности
+
+**Философия:** Глубокая вложенность (nesting depth), а не количество веток — настоящая сложность кода.
+
+```bash
+# Анализ одного файла
+complexity main.go -l go
+
+# Анализ директории
+complexity . -l go
+
+# JSON выход для автоматизации
+complexity api.py -l py --json
+
+# Топ N самых сложных функций
+complexity . -l go -n 10
+```
+
+**Примеры вывода:**
+
+```
+Average max complexity: 8.00
+============================================================
+Philosophy: Deep nesting (not branch count) is the real complexity
+============================================================
+#1 finder.go:238 findClassesWithOffset() depth=5 complexity=16 level=VERY_HIGH
+  Lines: 44, File: finder.go
+
+#2 finder.go:83 FindFunctionsInLines() depth=4 complexity=8 level=HIGH
+  Lines: 104, File: finder.go
+
+#3 config.go:142 GetLanguageConfig() depth=2 complexity=2 level=SIMPLE
+  Lines: 7, File: config.go
+
+============================================================
+Complexity distribution (by nesting depth):
+SIMPLE: 8 ██████████████ (depth ≤ 2)
+MODERATE: 2 ████ (depth = 3)
+HIGH: 1 ██ (depth ≥ 4)
+```
+
+**Уровни сложности:**
+- ✅ **SIMPLE** (depth ≤ 2) - Плоский код, легко понять
+- ⚠️ **MODERATE** (depth = 3) - Один уровень вложенности
+- 🔶 **HIGH** (depth ≥ 4) - Два+ уровня вложенности
+- 🔴 **CRITICAL** (depth ≥ 6) - Требуется рефакторинг
+
+**Формула:** `NDC = 2^(maxDepth - 1)`
+
+### 📊 Комплексный анализ с analyze.sh
+
+Автоматический скрипт для полного анализа проекта:
+
+```bash
+./analyze.sh
+```
+
+**Отчет включает:**
+- 📈 Статистику по файлам (строки, размер, code/comments/blank ratio)
+- 🔍 Инвентаризацию функций (всего 85 функций в funcfinder)
+- 🔥 Горячие точки вызовов (топ функций по частоте)
+- 📦 Граф зависимостей (stdlib vs external vs internal)
+- 🧠 Распределение сложности (SIMPLE/MODERATE/HIGH/CRITICAL)
+- 💡 Рекомендации по улучшению кода
+
+**Пример отчета:**
+```
+📊 Code Metrics:
+  • Total files:      14
+  • Total lines:      3,090
+  • Total size:       84.9 KB
+  • Total functions:  85
+  • Avg func/file:    6.0
+
+🎯 Code Quality:
+  ✅ Excellent - Low complexity, well-structured code
+
+═══════════════════════════════════════
+Overall Complexity Distribution:
+═══════════════════════════════════════
+✅ SIMPLE:    13 functions (depth ≤ 2)
+⚠️  MODERATE:  2 functions (depth = 3)
+🔶 HIGH:      1 functions (depth ≥ 4)
+🔴 CRITICAL:  0 functions (depth ≥ 6)
+```
+
+### 🏗️ Унифицированная архитектура (v1.4.0)
+
+Все утилиты используют **единые модули** (DRY принцип):
+
+```
+funcfinder/
+├── config.go          # Унифицированная конфигурация языков
+├── errors.go          # Стандартная обработка ошибок
+├── languages.json     # Единый источник паттернов (embedded)
+├── main.go            # funcfinder CLI
+├── stat.go            # Счётчик вызовов + метрики
+├── deps.go            # Анализатор зависимостей
+├── complexity.go      # Анализатор когнитивной сложности
+├── analyze.sh         # Комплексный анализ проекта
+└── build.sh           # Сборка всех утилит
+```
+
+**Преимущества архитектуры:**
+- ✅ **Нулевые дубликаты** - единая конфигурация для всех утилит
+- ✅ **Консистентность** - одинаковые сообщения об ошибках
+- ✅ **Простота расширения** - добавить язык = обновить JSON
+- ✅ **Нулевые зависимости** - все утилиты статические бинарники
 
 **Типичные сценарии:**
 - 📊 Первичный анализ незнакомого кода
@@ -392,8 +530,7 @@ deps . -l go -j                            # Граф зависимостей
 - 🔄 Рефакторинг и поиск дублирования
 - 📈 Code review и анализ PR
 - 🤖 AI-агент навигация с минимальными токенами
-
-См. [UTILITIES.md](UTILITIES.md) для примеров и best practices.
+- 🧠 Оценка когнитивной сложности перед рефакторингом
 
 ## 🤝 Contributing
 
@@ -442,15 +579,20 @@ Contributions welcome! Please follow these guidelines:
 - [x] **--lines flag** for line range filtering
 - [x] Cross-platform file slicing (sed alternative)
 - [x] Standalone and filter modes
-- [x] **stat utility** - function call counter (9 languages)
-- [x] **deps utility** - dependency analyzer (9 languages)
-- [x] Complete code analysis toolkit
+- [x] **stat utility** - function call counter + file metrics (11 languages)
+- [x] **deps utility** - dependency analyzer (11 languages)
+- [x] **complexity utility** ⭐ NEW - cognitive complexity analyzer (11 languages)
+- [x] **Unified architecture** - shared config.go and errors.go (DRY principle)
+- [x] **analyze.sh** - comprehensive project analysis script
+- [x] Complete code analysis toolkit with zero dependencies
 
 ### v1.5.0
-- [ ] Configuration file support
+- [ ] Configuration file support (.funcfinderrc)
 - [ ] Custom patterns via CLI
 - [ ] Improved C# regex patterns
 - [ ] Function type filters (public/private)
+- [ ] Cyclomatic complexity (as alternative to nesting depth)
+- [ ] HTML reports for analyze.sh
 
 ### v2.0.0
 - [ ] Tree-sitter integration for precise parsing
