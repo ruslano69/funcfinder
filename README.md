@@ -67,7 +67,12 @@ sudo mv funcfinder /usr/local/bin/
 ```bash
 git clone https://github.com/yourusername/funcfinder.git
 cd funcfinder
-go build -o funcfinder
+
+# Build all utilities (funcfinder, stat, deps)
+./build.sh
+
+# Or build individually
+go build  # funcfinder only
 ```
 
 ## 🚀 Quick Start
@@ -359,78 +364,36 @@ funcfinder --inp config.go --source go --map
 
 ## 🛠️ Additional Utilities
 
-funcfinder включает две дополнительные утилиты для анализа кода:
+funcfinder поставляется с дополнительными утилитами для полного анализа кода. См. [UTILITIES.md](UTILITIES.md) для детальной документации.
 
-### stat - Function Call Counter
-
-Анализирует вызовы функций в исходных файлах:
+### Quick Start
 
 ```bash
-# Build
-go build -o stat stat.go
+# Собрать все утилиты
+./build.sh
 
-# Analyze function calls in a file
-stat finder.go -n 10
-
-# Output:
-# Language: Go
-# Functions: 28
-# -----------------------------------
-# append                    11
-# len                       5
-# CountBraces               4
-# ...
-
-# Force language
-stat script.txt -l py -n 20
+# Workflow для AI-агентов
+funcfinder --inp api.go --source go --map  # Структура кода
+stat api.go -l go -n 10                    # Горячие точки
+deps . -l go -j                            # Граф зависимостей
 ```
 
-**Поддерживаемые языки:** Python, Go, Rust, JavaScript/TypeScript, Swift, C/C++, Java, D, C#
+### Утилиты
 
-### deps - Dependency Analyzer
+| Утилита | Назначение | Языки |
+|---------|------------|-------|
+| **funcfinder** | Структура кода (функции, классы, границы) | 11 |
+| **stat** | Анализ вызовов функций (hotspots) | 9 |
+| **deps** | Анализ зависимостей модулей | 9 |
 
-Анализирует зависимости модулей в проекте:
+**Типичные сценарии:**
+- 📊 Первичный анализ незнакомого кода
+- 🔍 Поиск узких мест для оптимизации
+- 🔄 Рефакторинг и поиск дублирования
+- 📈 Code review и анализ PR
+- 🤖 AI-агент навигация с минимальными токенами
 
-```bash
-# Build
-go build -o deps deps.go
-
-# Analyze dependencies in current directory
-deps . -l go -n 10
-
-# Output:
-# Language: Go
-# Total imports: 12
-# Unique modules: 12
-# -----------------------------------
-# stdlib: 6, external: 1, internal: 5
-# -----------------------------------
-# fmt                             11 (std)
-# strings                         10 (std)
-# ...
-
-# JSON output
-deps . -l go -j > dependencies.json
-```
-
-**Workflow для AI-агентов:**
-```bash
-# 1. Понять структуру файла
-funcfinder --inp api.go --source go --map
-
-# 2. Найти самые вызываемые функции
-stat api.go -l go -n 10
-
-# 3. Проанализировать зависимости
-deps . -l go -j
-```
-
-**Возможности:**
-- 🔍 Подсчет вызовов функций
-- 📊 Анализ зависимостей (stdlib vs external vs internal)
-- 📈 JSON вывод для интеграции
-- 🌐 9 языков программирования
-- ⚡ Zero dependencies, быстрая работа
+См. [UTILITIES.md](UTILITIES.md) для примеров и best practices.
 
 ## 🤝 Contributing
 
