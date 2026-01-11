@@ -68,8 +68,11 @@ sudo mv funcfinder /usr/local/bin/
 git clone https://github.com/yourusername/funcfinder.git
 cd funcfinder
 
-# Build all utilities (funcfinder, stat, deps)
+# Linux/macOS: Build all utilities (funcfinder, stat, deps, complexity)
 ./build.sh
+
+# Windows (PowerShell): Build all utilities
+.\build.ps1
 
 # Or build individually
 go build  # funcfinder only
