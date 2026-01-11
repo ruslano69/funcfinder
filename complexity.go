@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 // complexity.go - Nesting Depth Complexity Analyzer
 // Analyzes code complexity based on NESTING DEPTH, not decision point count
 // Philosophy: Deep nesting is harder to understand than flat code with many branches

@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 // deps.go - Module dependency analyzer
 // Uses shared configuration for multiple languages
 package main

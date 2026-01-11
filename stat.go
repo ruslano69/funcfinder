@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 // stat.go - Unified function call counter for multiple languages
 // Counts function calls in source files using shared configuration
 package main
