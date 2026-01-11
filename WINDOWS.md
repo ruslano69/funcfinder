@@ -25,6 +25,8 @@ This builds all four utilities:
 
 ### Option 2: Build Individual Utilities
 
+**IMPORTANT:** Do NOT use `go build` without specifying files, as the project has multiple `main()` functions (one per utility). You must either use `build.ps1` or specify exact files:
+
 ```powershell
 # Build only funcfinder
 go build -o funcfinder.exe main.go config.go sanitizer.go finder.go formatter.go tree.go decorator.go python_finder.go finder_factory.go lines.go errors.go
@@ -37,6 +39,17 @@ go build -o deps.exe deps.go config.go errors.go
 
 # Build only complexity
 go build -o complexity.exe complexity.go config.go errors.go sanitizer.go finder.go python_finder.go finder_factory.go decorator.go
+```
+
+**Common Error:**
+```powershell
+# ❌ WRONG - Will fail with "main redeclared"
+go build -o funcfinder.exe
+
+# ✅ CORRECT - Use build.ps1 or specify files
+.\build.ps1
+# OR
+go build -o funcfinder.exe main.go config.go sanitizer.go ...
 ```
 
 ## Usage Examples

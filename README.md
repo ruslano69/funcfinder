@@ -74,9 +74,14 @@ cd funcfinder
 # Windows (PowerShell): Build all utilities
 .\build.ps1
 
-# Or build individually
-go build  # funcfinder only
+# Or build individually (you must specify files!)
+# ❌ WRONG: go build (will fail - multiple main() functions)
+# ✅ CORRECT:
+go build -o funcfinder main.go config.go sanitizer.go finder.go formatter.go tree.go decorator.go python_finder.go finder_factory.go lines.go errors.go
 ```
+
+**Note:** The project has 4 utilities with separate `main()` functions. Always use `build.sh`/`build.ps1` or specify exact files. See [WINDOWS.md](WINDOWS.md) for details.
+
 
 ## 🚀 Quick Start
 
