@@ -664,8 +664,9 @@ With funcfinder:
 - **[docs/WINDOWS.md](docs/WINDOWS.md)** - Complete Windows build and usage guide
 - **[docs/UTILITIES.md](docs/UTILITIES.md)** - Documentation for stat, deps, complexity utilities
 - **[docs/COMPLEXITY.md](docs/COMPLEXITY.md)** - Cognitive complexity analyzer guide
+- **[docs/examples/](docs/examples/)** - Example scripts and demonstrations
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
-- **[docs/archive/](docs/archive/)** - Analysis reports and benchmarks (GJSON_ANALYSIS, SELF_ANALYSIS, etc.)
+- **[docs/archive/](docs/archive/)** - Analysis reports and benchmarks
 
 ## 📄 License
 
