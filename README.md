@@ -74,13 +74,13 @@ cd funcfinder
 # Windows (PowerShell): Build all utilities
 .\build.ps1
 
-# Or build individually (you must specify files!)
-# ❌ WRONG: go build (will fail - multiple main() functions)
-# ✅ CORRECT:
-go build -o funcfinder main.go config.go sanitizer.go finder.go formatter.go tree.go decorator.go python_finder.go finder_factory.go lines.go errors.go
+# Or build funcfinder only
+go build  # Now works! ✅
 ```
 
-**Note:** The project has 4 utilities with separate `main()` functions. Always use `build.sh`/`build.ps1` or specify exact files. See [WINDOWS.md](WINDOWS.md) for details.
+**✅ Fixed:** `go build` now works without errors! Other utilities use build tags and are built via `build.sh`/`build.ps1`.
+
+For Windows-specific instructions, see [docs/WINDOWS.md](docs/WINDOWS.md).
 
 
 ## 🚀 Quick Start
@@ -658,6 +658,14 @@ With funcfinder:
 - [ ] 30+ language support
 - [ ] API server mode
 - [ ] IDE integrations
+
+## 📚 Documentation
+
+- **[docs/WINDOWS.md](docs/WINDOWS.md)** - Complete Windows build and usage guide
+- **[docs/UTILITIES.md](docs/UTILITIES.md)** - Documentation for stat, deps, complexity utilities
+- **[docs/COMPLEXITY.md](docs/COMPLEXITY.md)** - Cognitive complexity analyzer guide
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
+- **[docs/archive/](docs/archive/)** - Analysis reports and benchmarks (GJSON_ANALYSIS, SELF_ANALYSIS, etc.)
 
 ## 📄 License
 
