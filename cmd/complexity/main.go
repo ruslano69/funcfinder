@@ -171,6 +171,7 @@ func main() {
 	thresholdFlag := flag.Int("t", DepthHigh, "Threshold for high nesting depth")
 	topN := flag.Int("n", 0, "Show top N most complex functions")
 	showDetails := flag.Bool("v", false, "Show detailed nesting analysis")
+	noSimple := flag.Bool("nosimple", false, "Hide SIMPLE level functions (depth <= 2)")
 	flag.Parse()
 
 	// Handle version flag
@@ -282,6 +283,18 @@ func main() {
 	sort.Slice(allFunctions, func(i, j int) bool {
 		return allFunctions[i].Complexity > allFunctions[j].Complexity
 	})
+
+	// Filter out SIMPLE functions if --nosimple flag is set
+	if *noSimple {
+		filtered := make([]ComplexityMetrics, 0, len(allFunctions))
+		for _, fn := range allFunctions {
+			level := getComplexityLevel(fn.MaxNestingDepth)
+			if level != LevelSimple {
+				filtered = append(filtered, fn)
+			}
+		}
+		allFunctions = filtered
+	}
 
 	// Show top N or all
 	printCount := len(allFunctions)
