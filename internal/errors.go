@@ -1,5 +1,5 @@
 // errors.go - Unified error handling for funcfinder utilities
-package main
+package internal
 
 import (
 	"fmt"

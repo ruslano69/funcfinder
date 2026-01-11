@@ -1,5 +1,6 @@
-//go:build ignore
-// +build ignore
+
+
+
 
 // complexity.go - Nesting Depth Complexity Analyzer
 // Analyzes code complexity based on NESTING DEPTH, not decision point count
@@ -16,6 +17,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"github.com/yourusername/funcfinder/internal"
 )
 
 // ComplexityLevel represents the complexity classification
@@ -173,7 +175,7 @@ func main() {
 
 	// Handle version flag
 	if *showVersion {
-		PrintVersion("complexity")
+		internal.PrintVersion("complexity")
 	}
 
 	// Use threshold flag to avoid unused error
@@ -187,16 +189,16 @@ func main() {
 	}
 
 	// Load configuration
-	config, err := LoadConfig()
+	config, err := internal.LoadConfig()
 	if err != nil {
-		FatalError("loading config: %v", err)
+		internal.FatalError("loading config: %v", err)
 	}
 
-	var langConfig *LanguageConfig
+	var langConfig *internal.LanguageConfig
 	if *langFlag != "" {
 		langConfig, err = config.GetLanguageConfig(*langFlag)
 		if err != nil {
-			FatalError("%v", err)
+			internal.FatalError("%v", err)
 		}
 	} else {
 		for _, l := range config {
@@ -209,7 +211,7 @@ func main() {
 	}
 
 	if langConfig == nil {
-		FatalErrorMsg("No supported files found")
+		internal.FatalErrorMsg("No supported files found")
 	}
 
 	// Walk directory and analyze files
@@ -237,7 +239,7 @@ func main() {
 	})
 
 	if len(allFiles) == 0 {
-		FatalErrorMsg("No functions found")
+		internal.FatalErrorMsg("No functions found")
 	}
 
 	// Calculate overall average (using max complexity per file)
@@ -262,9 +264,9 @@ func main() {
 	}
 
 	// Text output
-	InfoMessage(fmt.Sprintf("Language: %s", langConfig.Name))
-	InfoMessage(fmt.Sprintf("Files analyzed: %d", len(allFiles)))
-	InfoMessage(fmt.Sprintf("Total functions: %d", totalFunctions))
+	internal.InfoMessage(fmt.Sprintf("Language: %s", langConfig.Name))
+	internal.InfoMessage(fmt.Sprintf("Files analyzed: %d", len(allFiles)))
+	internal.InfoMessage(fmt.Sprintf("Total functions: %d", totalFunctions))
 	fmt.Printf("Average max complexity: %.2f\n", avgComplexity)
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Println("Philosophy: Deep nesting (not branch count) is the real complexity")
@@ -363,7 +365,7 @@ func getDepthThreshold(level ComplexityLevel) int {
 }
 
 // analyzeFileComplexity calculates nesting complexity for all functions in a file
-func analyzeFileComplexity(filename string, langConfig *LanguageConfig) FileComplexity {
+func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig) FileComplexity {
 	file, err := os.Open(filename)
 	if err != nil {
 		return FileComplexity{Filename: filename}
@@ -378,7 +380,7 @@ func analyzeFileComplexity(filename string, langConfig *LanguageConfig) FileComp
 	}
 
 	// Use finder to get function bounds (auto-selects PythonFinder for Python)
-	finder := CreateFinder(langConfig, "", "map", false, false)
+	finder := internal.CreateFinder(langConfig, "", "map", false, false)
 	result, err := finder.FindFunctions(filename)
 	if err != nil {
 		return FileComplexity{Filename: filename}

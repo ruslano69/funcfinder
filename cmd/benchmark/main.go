@@ -1,5 +1,6 @@
-//go:build ignore
-// +build ignore
+
+
+
 
 package main
 
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+	"github.com/yourusername/funcfinder/internal"
 )
 
 func main() {
@@ -23,30 +25,30 @@ func main() {
 	lang := flag.Arg(1)
 
 	// Load config once
-	config, err := LoadConfig()
+	config, err := internal.LoadConfig()
 	if err != nil {
-		FatalError("loading config: %v", err)
+		internal.FatalError("loading config: %v", err)
 	}
 
 	langConfig, err := config.GetLanguageConfig(lang)
 	if err != nil {
-		FatalError("language config: %v", err)
+		internal.FatalError("language config: %v", err)
 	}
 
 	// Warm up
-	finder := CreateFinder(langConfig, "", "map", false, false)
+	finder := internal.CreateFinder(langConfig, "", "map", false, false)
 	_, err = finder.FindFunctions(filename)
 	if err != nil {
-		FatalError("warm up: %v", err)
+		internal.FatalError("warm up: %v", err)
 	}
 
 	// Benchmark
 	start := time.Now()
 	for i := 0; i < *iterations; i++ {
-		finder := CreateFinder(langConfig, "", "map", false, false)
+		finder := internal.CreateFinder(langConfig, "", "map", false, false)
 		_, err := finder.FindFunctions(filename)
 		if err != nil {
-			FatalError("iteration %d: %v", i, err)
+			internal.FatalError("iteration %d: %v", i, err)
 		}
 	}
 	elapsed := time.Since(start)

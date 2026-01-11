@@ -1,6 +1,6 @@
 // config.go - Unified language configuration
 // Loads and manages language patterns for funcfinder, stat, deps, and complexity
-package main
+package internal
 
 import (
 	"embed"
