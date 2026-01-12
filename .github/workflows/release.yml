@@ -1,0 +1,165 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Build cross-platform binaries
+      run: |
+        # Create dist directory
+        mkdir -p dist
+
+        # Build for Linux AMD64
+        echo "Building for Linux AMD64..."
+        GOOS=linux GOARCH=amd64 go build -o dist/funcfinder-linux-amd64 ./cmd/funcfinder
+        GOOS=linux GOARCH=amd64 go build -o dist/stat-linux-amd64 ./cmd/stat
+        GOOS=linux GOARCH=amd64 go build -o dist/deps-linux-amd64 ./cmd/deps
+        GOOS=linux GOARCH=amd64 go build -o dist/complexity-linux-amd64 ./cmd/complexity
+
+        # Build for Linux ARM64
+        echo "Building for Linux ARM64..."
+        GOOS=linux GOARCH=arm64 go build -o dist/funcfinder-linux-arm64 ./cmd/funcfinder
+        GOOS=linux GOARCH=arm64 go build -o dist/stat-linux-arm64 ./cmd/stat
+        GOOS=linux GOARCH=arm64 go build -o dist/deps-linux-arm64 ./cmd/deps
+        GOOS=linux GOARCH=arm64 go build -o dist/complexity-linux-arm64 ./cmd/complexity
+
+        # Build for Windows AMD64
+        echo "Building for Windows AMD64..."
+        GOOS=windows GOARCH=amd64 go build -o dist/funcfinder-windows-amd64.exe ./cmd/funcfinder
+        GOOS=windows GOARCH=amd64 go build -o dist/stat-windows-amd64.exe ./cmd/stat
+        GOOS=windows GOARCH=amd64 go build -o dist/deps-windows-amd64.exe ./cmd/deps
+        GOOS=windows GOARCH=amd64 go build -o dist/complexity-windows-amd64.exe ./cmd/complexity
+
+        # Build for macOS AMD64
+        echo "Building for macOS AMD64..."
+        GOOS=darwin GOARCH=amd64 go build -o dist/funcfinder-darwin-amd64 ./cmd/funcfinder
+        GOOS=darwin GOARCH=amd64 go build -o dist/stat-darwin-amd64 ./cmd/stat
+        GOOS=darwin GOARCH=amd64 go build -o dist/deps-darwin-amd64 ./cmd/deps
+        GOOS=darwin GOARCH=amd64 go build -o dist/complexity-darwin-amd64 ./cmd/complexity
+
+        # Build for macOS ARM64 (M1/M2)
+        echo "Building for macOS ARM64..."
+        GOOS=darwin GOARCH=arm64 go build -o dist/funcfinder-darwin-arm64 ./cmd/funcfinder
+        GOOS=darwin GOARCH=arm64 go build -o dist/stat-darwin-arm64 ./cmd/stat
+        GOOS=darwin GOARCH=arm64 go build -o dist/deps-darwin-arm64 ./cmd/deps
+        GOOS=darwin GOARCH=arm64 go build -o dist/complexity-darwin-arm64 ./cmd/complexity
+
+    - name: Create archives
+      run: |
+        cd dist
+
+        # Linux AMD64
+        tar czf funcfinder-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz \
+          funcfinder-linux-amd64 stat-linux-amd64 deps-linux-amd64 complexity-linux-amd64
+
+        # Linux ARM64
+        tar czf funcfinder-${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar.gz \
+          funcfinder-linux-arm64 stat-linux-arm64 deps-linux-arm64 complexity-linux-arm64
+
+        # Windows AMD64
+        zip funcfinder-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip \
+          funcfinder-windows-amd64.exe stat-windows-amd64.exe deps-windows-amd64.exe complexity-windows-amd64.exe
+
+        # macOS AMD64
+        tar czf funcfinder-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.tar.gz \
+          funcfinder-darwin-amd64 stat-darwin-amd64 deps-darwin-amd64 complexity-darwin-amd64
+
+        # macOS ARM64
+        tar czf funcfinder-${{ steps.get_version.outputs.VERSION }}-darwin-arm64.tar.gz \
+          funcfinder-darwin-arm64 stat-darwin-arm64 deps-darwin-arm64 complexity-darwin-arm64
+
+    - name: Generate checksums
+      run: |
+        cd dist
+        sha256sum *.tar.gz *.zip > checksums.txt
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/*.tar.gz
+          dist/*.zip
+          dist/checksums.txt
+        body: |
+          ## funcfinder v${{ steps.get_version.outputs.VERSION }}
+
+          ### 🎉 What's New
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+          ### 📦 Installation
+
+          #### Linux (AMD64)
+          ```bash
+          wget https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.VERSION }}/funcfinder-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
+          tar xzf funcfinder-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
+          sudo mv funcfinder-linux-amd64 /usr/local/bin/funcfinder
+          sudo mv stat-linux-amd64 /usr/local/bin/stat
+          sudo mv deps-linux-amd64 /usr/local/bin/deps
+          sudo mv complexity-linux-amd64 /usr/local/bin/complexity
+          ```
+
+          #### macOS (Intel)
+          ```bash
+          wget https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.VERSION }}/funcfinder-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.tar.gz
+          tar xzf funcfinder-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.tar.gz
+          sudo mv funcfinder-darwin-amd64 /usr/local/bin/funcfinder
+          sudo mv stat-darwin-amd64 /usr/local/bin/stat
+          sudo mv deps-darwin-amd64 /usr/local/bin/deps
+          sudo mv complexity-darwin-amd64 /usr/local/bin/complexity
+          ```
+
+          #### macOS (M1/M2)
+          ```bash
+          wget https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.VERSION }}/funcfinder-${{ steps.get_version.outputs.VERSION }}-darwin-arm64.tar.gz
+          tar xzf funcfinder-${{ steps.get_version.outputs.VERSION }}-darwin-arm64.tar.gz
+          sudo mv funcfinder-darwin-arm64 /usr/local/bin/funcfinder
+          sudo mv stat-darwin-arm64 /usr/local/bin/stat
+          sudo mv deps-darwin-arm64 /usr/local/bin/deps
+          sudo mv complexity-darwin-arm64 /usr/local/bin/complexity
+          ```
+
+          #### Windows
+          Download `funcfinder-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip` and extract to a directory in your PATH.
+
+          ### 🔐 Verify Checksums
+          ```bash
+          sha256sum -c checksums.txt
+          ```
+
+          ### 📊 Test Coverage
+          84.8% - All core functionality tested
+
+          ### 🚀 Features
+          - **funcfinder**: Extract function signatures with 99.67% token reduction
+          - **stat**: Analyze code metrics (LOC, imports, decorators, function calls)
+          - **deps**: Dependency analysis with JSON output
+          - **complexity**: Nesting depth complexity analyzer
+
+          ### 🐛 Bug Fixes & Improvements
+          See full changelog for details.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
