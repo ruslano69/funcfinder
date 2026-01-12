@@ -21,7 +21,7 @@
 - ⚡ **Blazing fast**: 280,000 lines/sec (100K lines in 0.36s)
 - 🎯 **Zero dependencies**: static binary
 
-## 🌐 Supported Languages
+## 🌐 Supported Languages (15)
 
 - Go
 - C
@@ -32,8 +32,12 @@
 - **JavaScript** (including async functions, generator functions, arrow functions)
 - **TypeScript** (including async functions, generator functions, arrow functions, generics)
 - **Python** (including async/await, decorators, generators, class methods)
-- **Rust** ⭐ NEW (including pub/async functions, structs, traits, enums, impl blocks)
-- **Swift** ⭐ NEW (including classes, structs, protocols, enums, static functions)
+- **Rust** (including pub/async functions, structs, traits, enums, impl blocks)
+- **Swift** (including classes, structs, protocols, enums, static functions)
+- **Kotlin** ⭐ NEW (including suspend functions, data classes, sealed classes, objects)
+- **PHP** ⭐ NEW (including classes, traits, interfaces, visibility modifiers)
+- **Ruby** ⭐ NEW (including modules, class methods, methods with ? and !)
+- **Scala** ⭐ NEW (including case classes, traits, objects, pattern matching)
 
 ## 📦 Installation
 
@@ -632,15 +636,16 @@ With funcfinder:
 - [x] Method-class association for all OOP languages
 - [x] **Rust support** (structs, traits, enums, impl blocks)
 - [x] **Swift support** (classes, structs, protocols, enums)
-- [x] **11 languages total** (added without Go code changes!)
+- [x] **Kotlin, PHP, Ruby, Scala support** ⭐ NEW
+- [x] **15 languages total** (added without Go code changes!)
 
 ### v1.4.0 (Current) ✅
 - [x] **--lines flag** for line range filtering
 - [x] Cross-platform file slicing (sed alternative)
 - [x] Standalone and filter modes
-- [x] **stat utility** - function call counter + file metrics (11 languages)
-- [x] **deps utility** - dependency analyzer (11 languages)
-- [x] **complexity utility** ⭐ NEW - cognitive complexity analyzer (11 languages)
+- [x] **stat utility** - function call counter + file metrics (15 languages)
+- [x] **deps utility** - dependency analyzer (15 languages)
+- [x] **complexity utility** ⭐ NEW - cognitive complexity analyzer (15 languages)
 - [x] **Unified architecture** - shared config.go and errors.go (DRY principle)
 - [x] **analyze.sh** - comprehensive project analysis script
 - [x] Complete code analysis toolkit with zero dependencies
