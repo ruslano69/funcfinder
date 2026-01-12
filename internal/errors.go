@@ -54,7 +54,7 @@ func PrintUsage(usageFunc func()) {
 
 // PrintVersion prints version and exits successfully
 func PrintVersion(toolName string) {
-	const Version = "1.4.0"
+	const Version = "1.5.0"
 	fmt.Printf("%s version %s\n", toolName, Version)
 	os.Exit(0)
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/yourusername/funcfinder/internal"
 )
 
-const Version = "1.4.0"
+const Version = "1.5.0"
 
 func main() {
 	// Парсинг аргументов командной строки

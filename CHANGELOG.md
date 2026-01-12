@@ -1,5 +1,46 @@
 # Changelog
 
+## v1.5.0 - 2026-01-12
+
+### Extended Language Support: 4 New Languages
+
+**Новые языки (без изменений Go кода!):**
+- ✅ **Kotlin** - suspend functions, data classes, sealed classes, objects, coroutines
+- ✅ **PHP** - classes, traits, interfaces, visibility modifiers (public/private/protected)
+- ✅ **Ruby** - modules, class methods, methods with ? and ! characters
+- ✅ **Scala** - case classes, traits, objects, pattern matching, functional programming
+
+**Итого:** 15 языков (было 11)
+
+**Тестирование:**
+- Все 4 языка протестированы с `--map`, `--tree`, `--json`, `--extract`
+- Поддерживаются все режимы работы (standalone, filter, tree visualization)
+- Конфигурация добавлена в `internal/languages.json`
+
+**Примеры:**
+```bash
+# Kotlin
+funcfinder --inp App.kt --source kotlin --map
+# Output: getUser: 5-7; fetchUserAsync: 9-12; findUserById: 14-16; main: 21-23;
+
+# PHP
+funcfinder --inp Controller.php --source php --tree
+# Output: class UserController with methods
+
+# Ruby
+funcfinder --inp user.rb --source ruby --func valid? --extract
+# Output: extracts method with special characters
+
+# Scala
+funcfinder --inp Service.scala --source scala --json --map
+# Output: JSON with all functions
+```
+
+**Roadmap progress:**
+- v2.0.0 target: 30+ languages → Current: 15/30 (50% progress!)
+
+---
+
 ## v1.4.0 - 2026-01-06
 
 ### Line Range Filtering, Cross-Platform File Slicing & Code Analysis Utilities
