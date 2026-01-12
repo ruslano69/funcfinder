@@ -1,6 +1,3 @@
-//go:build ignore
-// +build ignore
-
 // stat.go - Unified function call counter for multiple languages
 // Counts function calls in source files using shared configuration
 package main
@@ -13,6 +10,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/yourusername/funcfinder/internal"
 )
 
 // FileMetrics holds statistics about a source file
@@ -27,7 +26,7 @@ type FileMetrics struct {
 }
 
 // cleanLine removes comments and strings from a line based on config
-func cleanLine(line string, config *LanguageConfig) (string, bool) {
+func cleanLine(line string, config *internal.LanguageConfig) (string, bool) {
 	if strings.HasPrefix(line, "#!") {
 		return "", true
 	}
@@ -66,10 +65,10 @@ func cleanLine(line string, config *LanguageConfig) (string, bool) {
 }
 
 // analyzeFile analyzes a source file and returns function calls and metrics
-func analyzeFile(filename string, config *LanguageConfig) (map[string]int, *FileMetrics) {
+func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]int, *FileMetrics) {
 	file, err := os.Open(filename)
 	if err != nil {
-		FatalError("opening file: %v", err)
+		internal.FatalError("opening file: %v", err)
 	}
 	defer file.Close()
 
@@ -83,7 +82,7 @@ func analyzeFile(filename string, config *LanguageConfig) (map[string]int, *File
 
 	callRegex := config.CallRegex()
 	if callRegex == nil {
-		FatalError("no call pattern defined for language")
+		internal.FatalError("no call pattern defined for language")
 	}
 
 	callCounts := make(map[string]int)
@@ -206,29 +205,29 @@ func main() {
 	}
 
 	if showVersion {
-		PrintVersion("stat")
+		internal.PrintVersion("stat")
 	}
 
 	if filename == "" {
-		FatalError("source file is required\nUsage: stat [OPTIONS] <source_file>")
+		internal.FatalError("source file is required\nUsage: stat [OPTIONS] <source_file>")
 	}
 
 	// Load shared configuration
-	config, err := LoadConfig()
+	config, err := internal.LoadConfig()
 	if err != nil {
-		FatalError("loading config: %v", err)
+		internal.FatalError("loading config: %v", err)
 	}
 
-	var langConfig *LanguageConfig
+	var langConfig *internal.LanguageConfig
 	if langFlag != "" {
 		langConfig, err = config.GetLanguageConfig(langFlag)
 		if err != nil {
-			FatalError("%v\nSupported languages: %s", err, strings.Join(config.GetSupportedLanguages(), ", "))
+			internal.FatalError("%v\nSupported languages: %s", err, strings.Join(config.GetSupportedLanguages(), ", "))
 		}
 	} else {
 		langConfig = config.GetLanguageByExtension(filename)
 		if langConfig == nil {
-			FatalError("cannot detect language from file extension\nSupported languages: %s", strings.Join(config.GetSupportedLanguages(), ", "))
+			internal.FatalError("cannot detect language from file extension\nSupported languages: %s", strings.Join(config.GetSupportedLanguages(), ", "))
 		}
 	}
 

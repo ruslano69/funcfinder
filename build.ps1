@@ -7,12 +7,9 @@ $ErrorActionPreference = "Stop"
 Write-Host "Building funcfinder toolkit v1.4.0..." -ForegroundColor Cyan
 Write-Host ""
 
-# Build main funcfinder
+# Build funcfinder
 Write-Host "→ Building funcfinder..." -ForegroundColor Yellow
-go build -o funcfinder.exe `
-  main.go config.go sanitizer.go finder.go `
-  formatter.go tree.go decorator.go python_finder.go `
-  finder_factory.go lines.go errors.go
+go build -o funcfinder.exe .\cmd\funcfinder
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "  ✓ funcfinder.exe" -ForegroundColor Green
@@ -21,9 +18,9 @@ if ($LASTEXITCODE -eq 0) {
     exit 1
 }
 
-# Build stat utility
+# Build stat
 Write-Host "→ Building stat..." -ForegroundColor Yellow
-go build -o stat.exe stat.go config.go errors.go
+go build -o stat.exe .\cmd\stat
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "  ✓ stat.exe" -ForegroundColor Green
@@ -32,9 +29,9 @@ if ($LASTEXITCODE -eq 0) {
     exit 1
 }
 
-# Build deps utility
+# Build deps
 Write-Host "→ Building deps..." -ForegroundColor Yellow
-go build -o deps.exe deps.go config.go errors.go
+go build -o deps.exe .\cmd\deps
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "  ✓ deps.exe" -ForegroundColor Green
@@ -43,11 +40,9 @@ if ($LASTEXITCODE -eq 0) {
     exit 1
 }
 
-# Build complexity utility
+# Build complexity
 Write-Host "→ Building complexity..." -ForegroundColor Yellow
-go build -o complexity.exe `
-  complexity.go config.go errors.go `
-  sanitizer.go finder.go python_finder.go finder_factory.go decorator.go
+go build -o complexity.exe .\cmd\complexity
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "  ✓ complexity.exe" -ForegroundColor Green

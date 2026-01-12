@@ -7,29 +7,24 @@ set -e
 echo "Building funcfinder toolkit v1.4.0..."
 echo ""
 
-# Build main funcfinder
+# Build funcfinder
 echo "→ Building funcfinder..."
-go build -o funcfinder \
-  main.go config.go sanitizer.go finder.go \
-  formatter.go tree.go decorator.go python_finder.go \
-  finder_factory.go lines.go errors.go
+go build -o funcfinder ./cmd/funcfinder
 echo "  ✓ funcfinder"
 
-# Build stat utility
+# Build stat
 echo "→ Building stat..."
-go build -o stat stat.go config.go errors.go
+go build -o stat ./cmd/stat
 echo "  ✓ stat"
 
-# Build deps utility
+# Build deps
 echo "→ Building deps..."
-go build -o deps deps.go config.go errors.go
+go build -o deps ./cmd/deps
 echo "  ✓ deps"
 
-# Build complexity utility
+# Build complexity
 echo "→ Building complexity..."
-go build -o complexity \
-  complexity.go config.go errors.go \
-  sanitizer.go finder.go python_finder.go finder_factory.go decorator.go
+go build -o complexity ./cmd/complexity
 echo "  ✓ complexity"
 
 echo ""

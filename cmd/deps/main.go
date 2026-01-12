@@ -1,6 +1,3 @@
-//go:build ignore
-// +build ignore
-
 // deps.go - Module dependency analyzer
 // Uses shared configuration for multiple languages
 package main
@@ -14,6 +11,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/yourusername/funcfinder/internal"
 )
 
 type DepInfo struct {
@@ -57,7 +56,7 @@ func isStdlib(module, langKey string) bool {
 	return false
 }
 
-func analyzeDeps(filename string, config *LanguageConfig) map[string]fileSet {
+func analyzeDeps(filename string, config *internal.LanguageConfig) map[string]fileSet {
 	deps := make(map[string]fileSet)
 
 	file, err := os.Open(filename)
@@ -177,20 +176,20 @@ func main() {
 	}
 
 	if showVersion {
-		PrintVersion("deps")
+		internal.PrintVersion("deps")
 	}
 
 	// Load shared configuration
-	config, err := LoadConfig()
+	config, err := internal.LoadConfig()
 	if err != nil {
-		FatalError("loading config: %v", err)
+		internal.FatalError("loading config: %v", err)
 	}
 
-	var langConfig *LanguageConfig
+	var langConfig *internal.LanguageConfig
 	if lang != "" {
 		langConfig, err = config.GetLanguageConfig(lang)
 		if err != nil {
-			FatalError("%v\nSupported languages: %s", err, strings.Join(config.GetSupportedLanguages(), ", "))
+			internal.FatalError("%v\nSupported languages: %s", err, strings.Join(config.GetSupportedLanguages(), ", "))
 		}
 	} else {
 		// Auto-detect by finding files with supported extensions
@@ -209,7 +208,7 @@ func main() {
 	}
 
 	if langConfig == nil {
-		FatalError("no supported files found in directory\nSupported languages: %s", strings.Join(config.GetSupportedLanguages(), ", "))
+		internal.FatalError("no supported files found in directory\nSupported languages: %s", strings.Join(config.GetSupportedLanguages(), ", "))
 	}
 
 	allDeps := make(map[string]fileSet)

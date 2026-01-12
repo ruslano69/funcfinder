@@ -1,4 +1,4 @@
-package main
+package internal
 
 // LanguageFinder - интерфейс для парсеров разных языков
 type LanguageFinder interface {

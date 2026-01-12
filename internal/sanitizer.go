@@ -1,4 +1,4 @@
-package main
+package internal
 
 // State представляет текущее состояние парсера
 type State int
