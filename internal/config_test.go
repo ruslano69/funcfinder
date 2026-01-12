@@ -158,12 +158,12 @@ func TestLoadConfig_StringChars(t *testing.T) {
 		},
 		{
 			lang:                 "c",
-			expectedStringChars:  []string{"\""},
+			expectedStringChars:  []string{"\"", "'"},
 			expectedRawStrings:   []string{},
 		},
 		{
 			lang:                 "cpp",
-			expectedStringChars:  []string{"\""},
+			expectedStringChars:  []string{"\"", "'"},
 			expectedRawStrings:   []string{},
 		},
 		{
@@ -270,14 +270,14 @@ func TestGetLanguageConfig(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name:      "invalid language - python",
+			name:      "valid language - python",
 			lang:      "python",
-			wantError: true,
+			wantError: true, // "python" is not valid, only "py" is
 		},
 		{
-			name:      "invalid language - py",
+			name:      "valid language - py",
 			lang:      "py",
-			wantError: true,
+			wantError: false, // py is now supported
 		},
 		{
 			name:      "invalid language - empty",

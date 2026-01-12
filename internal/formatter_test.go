@@ -151,9 +151,16 @@ func TestFormatJSON(t *testing.T) {
 					t.Errorf("FormatJSON() missing function %q", name)
 					continue
 				}
-				if actual["start"] != expected["start"] || actual["end"] != expected["end"] {
+
+				// Convert interface{} to int for comparison (JSON unmarshaling gives float64)
+				actualStart := int(actual["start"].(float64))
+				actualEnd := int(actual["end"].(float64))
+				expectedStart := expected["start"].(int)
+				expectedEnd := expected["end"].(int)
+
+				if actualStart != expectedStart || actualEnd != expectedEnd {
 					t.Errorf("FormatJSON() function %q = {start: %d, end: %d}, want {start: %d, end: %d}",
-						name, actual["start"], actual["end"], expected["start"], expected["end"])
+						name, actualStart, actualEnd, expectedStart, expectedEnd)
 				}
 			}
 		})
