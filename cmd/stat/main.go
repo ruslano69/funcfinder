@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/yourusername/funcfinder/internal"
+	"github.com/ruslano69/funcfinder/internal"
 )
 
 // FileMetrics holds statistics about a source file

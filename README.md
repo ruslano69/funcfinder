@@ -2,7 +2,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/yourusername/funcfinder)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/ruslano69/funcfinder)
 
 **AI-optimized CLI tool for finding function boundaries in source code with 99.67% token reduction**
 
@@ -44,21 +44,21 @@
 ### Via Go Install (Recommended)
 
 ```bash
-go install github.com/yourusername/funcfinder@latest
+go install github.com/ruslano69/funcfinder@latest
 ```
 
 ### Pre-built Binaries
 
-Download from [Releases](https://github.com/yourusername/funcfinder/releases):
+Download from [Releases](https://github.com/ruslano69/funcfinder/releases):
 
 ```bash
 # Linux
-wget https://github.com/yourusername/funcfinder/releases/download/v1.4.0/funcfinder-linux-amd64.tar.gz
+wget https://github.com/ruslano69/funcfinder/releases/download/v1.4.0/funcfinder-linux-amd64.tar.gz
 tar -xzf funcfinder-linux-amd64.tar.gz
 sudo mv funcfinder /usr/local/bin/
 
 # macOS
-wget https://github.com/yourusername/funcfinder/releases/download/v1.4.0/funcfinder-darwin-amd64.tar.gz
+wget https://github.com/ruslano69/funcfinder/releases/download/v1.4.0/funcfinder-darwin-amd64.tar.gz
 tar -xzf funcfinder-darwin-amd64.tar.gz
 sudo mv funcfinder /usr/local/bin/
 
@@ -69,7 +69,7 @@ sudo mv funcfinder /usr/local/bin/
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/funcfinder.git
+git clone https://github.com/ruslano69/funcfinder.git
 cd funcfinder
 
 # Linux/macOS: Build all utilities (funcfinder, stat, deps, complexity)
@@ -135,6 +135,36 @@ func Handler(w http.ResponseWriter, r *http.Request) {
     // function body...
 }
 ```
+
+## 🤖 AI Agent Integration
+
+### mini-SWE-agent Support
+
+funcfinder provides **perfect CLI tools** for [mini-SWE-agent](https://github.com/SWE-agent/mini-SWE-agent) - a minimalist AI coding agent that uses only bash commands.
+
+**Why perfect match:**
+- ✅ Pure bash interface (no special tool-calling)
+- ✅ Stateless execution (each command independent)
+- ✅ JSON output everywhere (`--json` flag)
+- ✅ 99% token reduction vs reading full files
+
+**Quick Example:**
+```bash
+# Agent workflow: Fix bug in auth/middleware.go
+
+# 1. Get structure (50 tokens vs 5000)
+funcfinder --inp auth/middleware.go --source go --map --json
+
+# 2. Extract buggy function (150 tokens vs 5000)
+funcfinder --inp auth/middleware.go --source go --func ValidateToken --extract
+
+# 3. Check complexity
+complexity auth/middleware.go -j | jq '.functions[] | select(.name=="ValidateToken")'
+
+# 4. Make targeted fix with 99% token savings! 🎉
+```
+
+**See:** [Complete Integration Guide](docs/MINI_SWE_AGENT_INTEGRATION.md) | [Example Workflows](examples/swe-agent/)
 
 ## 💡 Use Cases
 
@@ -683,9 +713,9 @@ Built for AI-driven development workflows. Inspired by the need to minimize toke
 
 ## 📞 Support
 
-- 🐛 [Report Issues](https://github.com/yourusername/funcfinder/issues)
-- 💡 [Feature Requests](https://github.com/yourusername/funcfinder/issues)
-- 📖 [Documentation](https://github.com/yourusername/funcfinder/wiki)
+- 🐛 [Report Issues](https://github.com/ruslano69/funcfinder/issues)
+- 💡 [Feature Requests](https://github.com/ruslano69/funcfinder/issues)
+- 📖 [Documentation](https://github.com/ruslano69/funcfinder/wiki)
 
 ---
 

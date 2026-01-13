@@ -385,7 +385,7 @@ jobs:
 
       - name: Install complexity
         run: |
-          go install github.com/yourusername/funcfinder/complexity@latest
+          go install github.com/ruslano69/funcfinder/complexity@latest
 
       - name: Check complexity
         run: |
