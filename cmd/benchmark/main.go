@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 	"time"
-	"github.com/yourusername/funcfinder/internal"
+	"github.com/ruslano69/funcfinder/internal"
 )
 
 func main() {

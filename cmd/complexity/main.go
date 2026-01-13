@@ -17,7 +17,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"github.com/yourusername/funcfinder/internal"
+	"github.com/ruslano69/funcfinder/internal"
 )
 
 // ComplexityLevel represents the complexity classification

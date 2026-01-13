@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/yourusername/funcfinder/internal"
+	"github.com/ruslano69/funcfinder/internal"
 )
 
 const Version = "1.5.0"
