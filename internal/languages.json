@@ -111,7 +111,8 @@
     "comment_patterns": ["//.*"],
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["`"],
-    "escape_char": "\\"
+    "escape_char": "\\",
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "typeof", "instanceof", "new", "delete", "void", "await"]
   },
   "ts": {
     "name": "TypeScript",
@@ -127,7 +128,8 @@
     "comment_patterns": ["//.*"],
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["`"],
-    "escape_char": "\\"
+    "escape_char": "\\",
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "typeof", "instanceof", "new", "delete", "void", "await"]
   },
   "py": {
     "name": "Python",
@@ -161,7 +163,8 @@
     "comment_patterns": ["//.*"],
     "string_chars": ["\""],
     "raw_string_chars": ["r#\"", "r#*[^\"]*#*"],
-    "escape_char": "\\"
+    "escape_char": "\\",
+    "exclude_words": ["if", "else", "while", "for", "loop", "match", "return", "break", "continue", "unsafe"]
   },
   "swift": {
     "name": "Swift",
