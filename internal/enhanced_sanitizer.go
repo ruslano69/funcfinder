@@ -1,10 +1,8 @@
 package internal
 
 import (
-	"fmt"
 	"sort"
 	"strings"
-	"unicode/utf8"
 )
 
 type ParserState int
@@ -20,14 +18,6 @@ const (
 )
 
 type State = ParserState
-
-const (
-	LegacyStateNormal       = StateNormal
-	LegacyStateLineComment  = StateLineComment
-	LegacyStateBlockComment = StateBlockComment
-	LegacyStateString       = StateString
-	LegacyStateRawString    = StateRawString
-)
 
 // State classification maps for O(1) lookups
 var (
@@ -110,8 +100,6 @@ type EnhancedSanitizer struct {
 	config          *LanguageConfig
 	sanitizerConfig *SanitizerConfig
 	useRaw          bool
-	multiLineDepth  int
-	blockCommentDepth int
 }
 
 func NewEnhancedSanitizer(config *LanguageConfig) *EnhancedSanitizer {
@@ -588,8 +576,7 @@ func (s *EnhancedSanitizer) CleanCode(code string) string {
 }
 
 func (s *EnhancedSanitizer) Reset() {
-	s.multiLineDepth = 0
-	s.blockCommentDepth = 0
+	// No state to reset since we removed unused depth counters
 }
 
 func CountBraces(line string) int {
@@ -598,18 +585,6 @@ func CountBraces(line string) int {
 		if ch == '{' {
 			count++
 		} else if ch == '}' {
-			count--
-		}
-	}
-	return count
-}
-
-func CountAngleBrackets(line string) int {
-	count := 0
-	for _, ch := range line {
-		if ch == '<' {
-			count++
-		} else if ch == '>' {
 			count--
 		}
 	}
@@ -628,58 +603,8 @@ func (s *EnhancedSanitizer) IsInLiteral(state ParserState) bool {
 	return literalStates[state]
 }
 
-func (s *EnhancedSanitizer) GetCurrentState() string {
-	return fmt.Sprintf("EnhancedSanitizer with %d delimiters", len(s.sanitizerConfig.StringDelimiters))
-}
-
-func SkipToNextLine(state ParserState) ParserState {
-	if state == StateLineComment {
-		return StateNormal
-	}
-	return state
-}
-
 func ValidState(state ParserState) bool {
 	return validStates[state]
-}
-
-func IsTransitionValid(from, to ParserState) bool {
-	validTransitions := map[ParserState][]ParserState{
-		StateNormal:         {StateLineComment, StateBlockComment, StateString, StateRawString, StateCharLiteral, StateMultiLineString},
-		StateLineComment:    {StateNormal},
-		StateBlockComment:   {StateNormal, StateBlockComment},
-		StateString:         {StateNormal, StateString},
-		StateRawString:      {StateNormal, StateRawString},
-		StateCharLiteral:    {StateNormal, StateCharLiteral},
-		StateMultiLineString: {StateNormal, StateMultiLineString},
-	}
-
-	allowed, exists := validTransitions[from]
-	if !exists {
-		return false
-	}
-
-	for _, st := range allowed {
-		if st == to {
-			return true
-		}
-	}
-	return false
-}
-
-func RuneCount(s string) int {
-	return utf8.RuneCountInString(s)
-}
-
-func TruncateToRunes(s string, maxRunes int) string {
-	if maxRunes <= 0 {
-		return ""
-	}
-	runes := []rune(s)
-	if len(runes) <= maxRunes {
-		return s
-	}
-	return string(runes[:maxRunes])
 }
 
 type Sanitizer struct {
@@ -722,8 +647,4 @@ func (s *Sanitizer) IsInLiteral(state State) bool {
 
 func (s *Sanitizer) Reset() {
 	s.enhanced.Reset()
-}
-
-func (s *Sanitizer) GetMultiLineDepth() int {
-	return s.enhanced.multiLineDepth
 }
