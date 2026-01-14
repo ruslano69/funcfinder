@@ -11,9 +11,11 @@
 ## ✨ Features
 
 - 🔍 **Find function boundaries** by name in source files
+- 🏗️ **Find structs/classes/types** with `--struct` flag ⭐ NEW
+- 🔄 **Combined mode** with `--all` (functions + structs) ⭐ NEW
 - 🗺️ **Map all functions** in a file with `--map`
 - 🌳 **Tree visualization** with `--tree` for classes and methods
-- 📏 **Line range filtering** with `--lines` for precise scope control ⭐ NEW
+- 📏 **Line range filtering** with `--lines` for precise scope control
 - 📤 **Extract function bodies** with `--extract`
 - 📊 **JSON output** for AI integration with `--json`
 - 🪟 **Windows-compatible file slicing** - native sed alternative
@@ -136,6 +138,78 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
+### Find structs/classes/types (NEW in v1.5.0)
+
+```bash
+# Map all types in a Go file
+funcfinder --inp models.go --source go --struct --map
+# Output: User: 10-15; fields: ID, Name, Email Address: 20-25; fields: Street, City, Zip
+
+# Find specific types
+funcfinder --inp models.go --source go --struct --type User,Address
+# Output: User: 10-15; fields: ID, Name, Email Address: 20-25; fields: Street, City, Zip
+
+# JSON output for types
+funcfinder --inp models.py --source py --struct --map --json
+```
+
+```json
+{
+  "filename": "models.py",
+  "types": [
+    {
+      "name": "User",
+      "kind": "class",
+      "start": 5,
+      "end": 12,
+      "fields": [
+        {"name": "id", "type": "int", "line": 6},
+        {"name": "name", "type": "str", "line": 7}
+      ]
+    }
+  ]
+}
+```
+
+### Combined mode: functions + structs (NEW in v1.5.0)
+
+```bash
+# Get complete file structure in one call
+funcfinder --inp service.go --source go --all --map
+
+# Output:
+# === FUNCTIONS ===
+# NewService: 30-35; Process: 40-55; Validate: 60-70;
+#
+# === TYPES ===
+# Service: 10-15; fields: db, cache Config: 20-25; fields: Host, Port
+
+# JSON output with both functions and types
+funcfinder --inp api.go --source go --all --json
+```
+
+```json
+{
+  "filename": "api.go",
+  "functions": [
+    {"name": "NewService", "start": 30, "end": 35},
+    {"name": "Process", "start": 40, "end": 55}
+  ],
+  "types": [
+    {
+      "name": "Service",
+      "kind": "struct",
+      "start": 10,
+      "end": 15,
+      "fields": [
+        {"name": "db", "type": "*sql.DB", "line": 11},
+        {"name": "cache", "type": "Cache", "line": 12}
+      ]
+    }
+  ]
+}
+```
+
 ## 🤖 AI Agent Integration
 
 ### mini-SWE-agent Support
@@ -152,17 +226,26 @@ funcfinder provides **perfect CLI tools** for [mini-SWE-agent](https://github.co
 ```bash
 # Agent workflow: Fix bug in auth/middleware.go
 
-# 1. Get structure (50 tokens vs 5000)
-funcfinder --inp auth/middleware.go --source go --map --json
+# 1. Get COMPLETE structure - functions + types (50 tokens vs 5000) ⭐ NEW
+funcfinder --inp auth/middleware.go --source go --all --json
 
 # 2. Extract buggy function (150 tokens vs 5000)
 funcfinder --inp auth/middleware.go --source go --func ValidateToken --extract
 
-# 3. Check complexity
+# 3. Check related types (understand data structures)
+funcfinder --inp auth/middleware.go --source go --struct --type TokenData --extract
+
+# 4. Check complexity
 complexity auth/middleware.go -j | jq '.functions[] | select(.name=="ValidateToken")'
 
-# 4. Make targeted fix with 99% token savings! 🎉
+# 5. Make targeted fix with 99% token savings! 🎉
 ```
+
+**Why --all is perfect for AI agents:**
+- ✅ One call = complete context (functions + data structures)
+- ✅ Understand both behavior (functions) and state (types)
+- ✅ Minimal tokens for maximum insight
+- ✅ Perfect for code understanding and refactoring tasks
 
 **See:** [Complete Integration Guide](docs/MINI_SWE_AGENT_INTEGRATION.md) | [Example Workflows](examples/swe-agent/)
 
@@ -238,6 +321,50 @@ funcfinder --inp api.py --source py --func get_user --json
 funcfinder --inp utils.py --source py --func async_generator,fibonacci --extract
 ```
 
+### Struct/Type Finding (NEW in v1.5.0)
+
+```bash
+# Find all types in a Go file
+funcfinder --inp models.go --source go --struct --map
+# Output: User: 10-20; fields: ID, Name, Email Config: 25-30; fields: Host, Port
+
+# Find specific structs/classes
+funcfinder --inp models.py --source py --struct --type User,Product --extract
+
+# Get complete file structure (functions + types)
+funcfinder --inp service.go --source go --all --json
+{
+  "functions": [{"name": "NewService", "start": 35, "end": 45}],
+  "types": [
+    {
+      "name": "Service",
+      "kind": "struct",
+      "fields": [{"name": "db", "type": "*sql.DB", "line": 12}]
+    }
+  ]
+}
+
+# Find C++ classes and structs
+funcfinder --inp widget.cpp --source cpp --struct --map
+
+# Find Java classes and interfaces
+funcfinder --inp api.java --source java --struct --map
+
+# Find Python classes with fields
+funcfinder --inp models.py --source py --struct --tree
+# Output:
+# class User (10-25)
+#   ├── field id: int (line 11)
+#   ├── field name: str (line 12)
+#   └── field email: str (line 13)
+```
+
+**Why struct finding is useful:**
+- 🏗️ **Understand data structures** before modifying code
+- 🔍 **Find type definitions** across large codebases
+- 📊 **JSON output** for AI-powered refactoring
+- 🔄 **Combined with functions** for complete context
+
 ### Tree Visualization for Classes
 
 ```bash
@@ -310,27 +437,55 @@ funcfinder --inp <file> [--source <lang>] [OPTIONS]
 
 Required:
   --inp <file>       Source file to analyze
-  --source <lang>    Language: go/c/cpp/cs/java/d/js/ts/py/rust/swift
+  --source <lang>    Language: go/c/cpp/cs/java/d/js/ts/py/rust/swift/kotlin/php/ruby/scala
                      (optional when using --lines alone)
 
-Modes (choose one):
+Work modes (choose one):
+  (default)          Find functions (default behavior)
+  --struct           Find structs/classes/types instead of functions ⭐ NEW
+  --all              Find both functions and structs ⭐ NEW
+
+Search modes (choose one):
   --func <names>     Find specific functions (comma-separated)
-  --map              Map all functions in file
-  --tree             Display functions in tree format (shows class hierarchy)
-  --tree-full        Display functions in tree format with signatures
+  --type <names>     Find specific types (comma-separated, requires --struct) ⭐ NEW
+  --map              Map all functions/types in file
+  --tree             Display in tree format (shows class hierarchy)
+  --tree-full        Display in tree format with signatures
 
 Filtering:
   --lines <range>    Extract/filter by line range (standalone or with --source)
                      Formats: 100:150, :50, 100:, 100
 
 Output formats:
-  (default)          grep-style: funcname: n1-n2;
+  (default)          grep-style: name: n1-n2;
   --json             JSON format
-  --extract          Extract function bodies
+  --extract          Extract function/type bodies
 
 Options:
   --raw              Don't ignore raw strings in brace counting
   --version          Print version and exit
+```
+
+### Examples of flag combinations:
+
+```bash
+# Functions (default mode)
+funcfinder --inp file.go --source go --map                    # Map all functions
+funcfinder --inp file.go --source go --func Handler          # Find specific function
+
+# Structs mode
+funcfinder --inp file.go --source go --struct --map          # Map all types
+funcfinder --inp file.go --source go --struct --type User    # Find specific type
+
+# Combined mode (--all requires --map, --tree, or --json)
+funcfinder --inp file.go --source go --all --map             # Map functions + types
+funcfinder --inp file.go --source go --all --json            # JSON with both
+funcfinder --inp file.go --source go --all --extract         # Extract both
+
+# Invalid combinations (will error)
+funcfinder --inp file.go --source go --struct --all          # Mutually exclusive
+funcfinder --inp file.go --source go --func foo --struct     # Can't mix modes
+funcfinder --inp file.go --source go --type User             # Need --struct or --all
 ```
 
 ## 🎯 Token Reduction Examples
@@ -669,7 +824,7 @@ With funcfinder:
 - [x] **Kotlin, PHP, Ruby, Scala support** ⭐ NEW
 - [x] **15 languages total** (added without Go code changes!)
 
-### v1.4.0 (Current) ✅
+### v1.4.0 ✅
 - [x] **--lines flag** for line range filtering
 - [x] Cross-platform file slicing (sed alternative)
 - [x] Standalone and filter modes
@@ -680,7 +835,18 @@ With funcfinder:
 - [x] **analyze.sh** - comprehensive project analysis script
 - [x] Complete code analysis toolkit with zero dependencies
 
-### v1.5.0
+### v1.5.0 (Current) ✅
+- [x] **--struct flag** - Find structs/classes/types/interfaces ⭐ NEW
+- [x] **--type flag** - Find specific types by name ⭐ NEW
+- [x] **--all flag** - Combined mode (functions + structs) ⭐ NEW
+- [x] **EnhancedSanitizer** - Multiline strings, char literals, nested comments
+- [x] **Struct pattern support** for all 15 languages
+- [x] **Field extraction** - Extract type fields with names and types
+- [x] **Combined JSON output** - Functions and types in single response
+- [x] **Nested function support** - Python, JS, TS, Go, Ruby, Scala
+- [x] Complete code structure analysis (behavior + state)
+
+### v1.6.0
 - [ ] Configuration file support (.funcfinderrc)
 - [ ] Custom patterns via CLI
 - [ ] Improved C# regex patterns
