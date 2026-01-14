@@ -150,8 +150,8 @@
   "rust": {
     "name": "Rust",
     "extensions": [".rs"],
-    "func_pattern": "^\\s*(?:pub\\s+)?(?:async\\s+)?fn\\s+(\\w+)\\s*\\(",
-    "class_pattern": "^\\s*(?:pub\\s+)?(?:struct|trait|enum|impl)\\s+(\\w+)",
+    "func_pattern": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?(?:async\\s+)?(?:unsafe\\s+)?(?:const\\s+)?(?:extern\\s+(?:\"C\"\\s+)?)?fn\\s+(\\w+)\\s*(?:<[^>]*>)?\\s*\\(",
+    "class_pattern": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?(?:struct|trait|enum|impl)(?:\\s+<[^>]*>)?\\s+(\\w+)",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*use\\s+([^;]+)",
     "exclude_patterns": ["^super::", "^self::"],
