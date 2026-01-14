@@ -339,20 +339,14 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 
 			if foundEnd >= 0 {
 				// Found closing - replace entire block from current position to end of closing delimiter
-				for i := idx; i < idx+foundEnd+len([]rune(foundDelim)); i++ {
-					if i < len(result) {
-						result[i] = ' '
-					}
-				}
+				fillWithSpaces(result, idx, foundEnd+len([]rune(foundDelim)))
 				idx += foundEnd + len([]rune(foundDelim))
 				state = StateNormal
 				// Skip remaining processing of this line
 				skipRemainingProcessing = true
 			}
 			// No closing found - replace rest of line
-			for i := idx; i < len(result); i++ {
-				result[i] = ' '
-			}
+			fillToEndWithSpaces(result, idx)
 			idx = len(runes)
 			continue
 
@@ -413,11 +407,7 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 							// endIdx should point to character AFTER closing delimiter
 							// foundEnd is the position of closing delimiter in afterStart
 							endIdx := idx + len([]rune(delim.Start)) + foundEnd
-							for i := idx; i <= endIdx; i++ {
-								if i < len(result) {
-									result[i] = ' '
-								}
-							}
+							fillWithSpaces(result, idx, endIdx-idx+1)
 							idx = endIdx + 1 // Move to character after closing delimiter
 							if idx >= len(runes) {
 								break
@@ -425,9 +415,7 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 							continue
 						} else {
 							// No closing found - replace from start to end of line and transition to StateMultiLineString
-							for i := idx; i < len(result); i++ {
-								result[i] = ' '
-							}
+							fillToEndWithSpaces(result, idx)
 							idx = len(runes)
 							state = StateMultiLineString
 							skipRemainingProcessing = true
@@ -492,17 +480,11 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 					
 					if foundEnd >= 0 {
 						// Found closing in same line
-						for i := idx; i < idx+len([]rune(s.config.BlockCommentStart))+foundEnd+len([]rune(s.config.BlockCommentEnd)); i++ {
-							if i < len(result) {
-								result[i] = ' '
-							}
-						}
+						fillWithSpaces(result, idx, len([]rune(s.config.BlockCommentStart))+foundEnd+len([]rune(s.config.BlockCommentEnd)))
 						idx += len([]rune(s.config.BlockCommentStart)) + foundEnd + len([]rune(s.config.BlockCommentEnd))
 					} else {
 						// No closing found - replace from start to end of line and transition to StateBlockComment
-						for i := idx; i < len(result); i++ {
-							result[i] = ' '
-						}
+						fillToEndWithSpaces(result, idx)
 						idx = len(runes)
 						state = StateBlockComment
 						skipRemainingProcessing = true
