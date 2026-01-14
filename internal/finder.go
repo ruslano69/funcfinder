@@ -32,6 +32,12 @@ type FindResult struct {
 	Filename  string
 }
 
+// FunctionContext отслеживает функцию и её глубину вложенности
+type FunctionContext struct {
+	Func  *FunctionBounds
+	Depth int
+}
+
 // Finder ищет функции в файле
 type Finder struct {
 	config      *LanguageConfig
@@ -96,6 +102,17 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 		result.Classes = classes
 	}
 
+	// Проверяем, поддерживает ли язык вложенные функции
+	if f.config.SupportsNested {
+		return f.findFunctionsWithNesting(lines, lineOffset, classes, result)
+	}
+
+	// Старая логика для языков без вложенных функций
+	return f.findFunctionsSimple(lines, lineOffset, classes, result)
+}
+
+// findFunctionsSimple - старая логика для языков без вложенных функций
+func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
 	state := StateNormal
 	var currentFunc *FunctionBounds
 	depth := 0
@@ -112,9 +129,19 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 				currentFunc.Lines = append(currentFunc.Lines, line)
 			}
 
+			prevDepth := depth
 			depth += CountBraces(cleaned)
 
-			if depth == 0 {
+			// Функция заканчивается только если мы ВЫХОДИМ из тела функции
+			// (prevDepth > 0 && depth == 0), а не просто depth == 0
+			// Это важно для multiline signatures с where clause в Rust:
+			// fn foo<T>(...) -> Result<T>
+			// where
+			//     T: Deserialize,  // здесь depth == 0, но это не конец функции!
+			// {
+			//     ...
+			// }
+			if depth == 0 && prevDepth > 0 {
 				// Конец функции
 				currentFunc.End = lineNum + 1 + lineOffset // 1-based + offset
 				result.Functions = append(result.Functions, *currentFunc)
@@ -145,7 +172,7 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 						}
 					}
 				}
-				
+
 				// Проверяем, нужно ли нам эту функцию
 				if f.mapMode || f.funcNames[funcName] {
 					// Определяем класс, к которому принадлежит функция
@@ -209,6 +236,105 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 				}
 			}
 		}
+	}
+
+	return result, nil
+}
+
+// findFunctionsWithNesting - новая логика для языков с вложенными функциями
+func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
+	state := StateNormal
+	funcStack := []*FunctionContext{} // Стек активных функций
+	funcRegex := f.config.FuncRegex()
+
+	for lineNum, line := range lines {
+		// Очищаем строку от комментариев и литералов
+		cleaned, newState := f.sanitizer.CleanLine(line, state)
+		state = newState
+
+		braceDelta := CountBraces(cleaned)
+
+		// 1. Сохраняем предыдущие глубины ДО обновления
+		prevDepths := make(map[int]int)
+		for i, ctx := range funcStack {
+			prevDepths[i] = ctx.Depth
+		}
+
+		// 2. Обновляем depth и Lines для ВСЕХ функций в стеке
+		for _, ctx := range funcStack {
+			if f.extractMode {
+				ctx.Func.Lines = append(ctx.Func.Lines, line)
+			}
+			ctx.Depth += braceDelta
+		}
+
+		// 3. Ищем новые функции на ЛЮБОМ уровне вложенности
+		matches := funcRegex.FindStringSubmatch(cleaned)
+		if matches != nil {
+			// Извлекаем имя функции
+			funcName := ""
+			// Для JS/TS с поддержкой arrow functions: проверяем группы 3 и 5
+			if len(matches) > 5 {
+				if matches[3] != "" {
+					funcName = matches[3]
+				} else if len(matches) > 5 && matches[5] != "" {
+					funcName = matches[5]
+				}
+			}
+			// Если имя еще не найдено, используем старую логику (последняя группа)
+			if funcName == "" {
+				for i := len(matches) - 1; i >= 1; i-- {
+					if matches[i] != "" {
+						funcName = matches[i]
+						break
+					}
+				}
+			}
+
+			// Проверяем, нужно ли нам эту функцию
+			if f.mapMode || f.funcNames[funcName] {
+				// Определяем класс, к которому принадлежит функция
+				className := ""
+				if f.config.HasClasses() {
+					className = f.findClassForLine(classes, lineNum+lineOffset)
+				}
+
+				newFunc := &FunctionBounds{
+					Name:      funcName,
+					Start:     lineNum + 1 + lineOffset,
+					Lines:     []string{},
+					ClassName: className,
+					Scope:     className,
+				}
+				if f.extractMode {
+					newFunc.Lines = append(newFunc.Lines, line)
+				}
+
+				// Добавляем новую функцию в стек
+				ctx := &FunctionContext{
+					Func:  newFunc,
+					Depth: braceDelta,
+				}
+				funcStack = append(funcStack, ctx)
+			}
+		}
+
+		// 4. Удаляем завершенные функции из стека (в обратном порядке)
+		var newStack []*FunctionContext
+		for i, ctx := range funcStack {
+			prevDepth := prevDepths[i]
+			// Функция завершается когда depth становится 0 после того как была > 0
+			if ctx.Depth == 0 && prevDepth > 0 {
+				// Конец функции
+				ctx.Func.End = lineNum + 1 + lineOffset
+				result.Functions = append(result.Functions, *ctx.Func)
+				// Не добавляем в новый стек (удаляем)
+			} else {
+				// Оставляем в стеке
+				newStack = append(newStack, ctx)
+			}
+		}
+		funcStack = newStack
 	}
 
 	return result, nil

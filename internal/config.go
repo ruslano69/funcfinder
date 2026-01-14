@@ -42,6 +42,9 @@ type LanguageConfig struct {
 	EscapeChar        string   `json:"escape_char"`
 	IndentBased       bool     `json:"indent_based"`
 
+	// Nested function support
+	SupportsNested bool `json:"supports_nested"`
+
 	// Language key for stdlib detection (e.g., "py", "go", "rs")
 	LangKey string `json:"lang_key"`
 
