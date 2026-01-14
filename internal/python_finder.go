@@ -138,8 +138,12 @@ func (pf *PythonFinder) FindFunctions(filename string) (*FindResult, error) {
 
 		functions = append(functions, function)
 
-		// Пропускаем обработанные строки
-		i = endLine - 1
+		// НЕ пропускаем строки если поддерживаем вложенные функции
+		// Это позволяет находить вложенные функции внутри внешних
+		if !pf.config.SupportsNested {
+			// Пропускаем обработанные строки только для языков без вложенности
+			i = endLine - 1
+		}
 	}
 
 	return &FindResult{

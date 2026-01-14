@@ -14,7 +14,8 @@
     "string_chars": ["\""],
     "raw_string_chars": ["`"],
     "escape_char": "\\",
-    "exclude_words": ["func"]
+    "exclude_words": ["func"],
+    "supports_nested": true
   },
   "c": {
     "name": "C/C++",
@@ -29,7 +30,8 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": [],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "sizeof"]
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "sizeof"],
+    "supports_nested": false
   },
   "cpp": {
     "name": "C++",
@@ -45,7 +47,8 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": [],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "sizeof"]
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "sizeof"],
+    "supports_nested": false
   },
   "cs": {
     "name": "C#",
@@ -62,7 +65,8 @@
     "string_chars": ["\""],
     "raw_string_chars": ["@\""],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return"]
+    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return"],
+    "supports_nested": false
   },
   "java": {
     "name": "Java",
@@ -79,7 +83,8 @@
     "string_chars": ["\""],
     "raw_string_chars": [],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return"]
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return"],
+    "supports_nested": false
   },
   "d": {
     "name": "D",
@@ -95,7 +100,8 @@
     "string_chars": ["\""],
     "raw_string_chars": ["`", "r\""],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return"]
+    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return"],
+    "supports_nested": false
   },
   "js": {
     "name": "JavaScript/TypeScript",
@@ -112,7 +118,8 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["`"],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "typeof", "instanceof", "new", "delete", "void", "await"]
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "typeof", "instanceof", "new", "delete", "void", "await"],
+    "supports_nested": true
   },
   "ts": {
     "name": "TypeScript",
@@ -129,7 +136,8 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["`"],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "typeof", "instanceof", "new", "delete", "void", "await"]
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "typeof", "instanceof", "new", "delete", "void", "await"],
+    "supports_nested": true
   },
   "py": {
     "name": "Python",
@@ -147,7 +155,8 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["r\"", "r'"],
     "escape_char": "\\",
-    "indent_based": true
+    "indent_based": true,
+    "supports_nested": true
   },
   "rust": {
     "name": "Rust",
@@ -164,7 +173,8 @@
     "string_chars": ["\""],
     "raw_string_chars": ["r#\"", "r#*[^\"]*#*"],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "loop", "match", "return", "break", "continue", "unsafe"]
+    "exclude_words": ["if", "else", "while", "for", "loop", "match", "return", "break", "continue", "unsafe"],
+    "supports_nested": false
   },
   "swift": {
     "name": "Swift",
@@ -180,7 +190,8 @@
     "string_chars": ["\""],
     "raw_string_chars": ["\"\"\".*?\"\"\""],
     "escape_char": "\\",
-    "exclude_words": ["func", "if", "while", "for", "guard", "switch", "catch", "return", "throw"]
+    "exclude_words": ["func", "if", "while", "for", "guard", "switch", "catch", "return", "throw"],
+    "supports_nested": true
   },
   "kotlin": {
     "name": "Kotlin",
@@ -197,7 +208,8 @@
     "string_chars": ["\""],
     "raw_string_chars": ["\"\"\""],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "when", "switch", "return"]
+    "exclude_words": ["if", "else", "while", "for", "when", "switch", "return"],
+    "supports_nested": false
   },
   "php": {
     "name": "PHP",
@@ -213,7 +225,8 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": [],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return", "echo", "print"]
+    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return", "echo", "print"],
+    "supports_nested": false
   },
   "ruby": {
     "name": "Ruby",
@@ -229,7 +242,8 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["%q{", "%Q{"],
     "escape_char": "\\",
-    "exclude_words": ["if", "elsif", "else", "unless", "while", "until", "for", "case", "when", "return", "yield"]
+    "exclude_words": ["if", "elsif", "else", "unless", "while", "until", "for", "case", "when", "return", "yield"],
+    "supports_nested": true
   },
   "scala": {
     "name": "Scala",
@@ -245,6 +259,7 @@
     "string_chars": ["\""],
     "raw_string_chars": ["\"\"\""],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "match", "case", "return", "yield"]
+    "exclude_words": ["if", "else", "while", "for", "match", "case", "return", "yield"],
+    "supports_nested": true
   }
 }
