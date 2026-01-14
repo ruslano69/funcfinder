@@ -112,9 +112,19 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 				currentFunc.Lines = append(currentFunc.Lines, line)
 			}
 
+			prevDepth := depth
 			depth += CountBraces(cleaned)
 
-			if depth == 0 {
+			// Функция заканчивается только если мы ВЫХОДИМ из тела функции
+			// (prevDepth > 0 && depth == 0), а не просто depth == 0
+			// Это важно для multiline signatures с where clause в Rust:
+			// fn foo<T>(...) -> Result<T>
+			// where
+			//     T: Deserialize,  // здесь depth == 0, но это не конец функции!
+			// {
+			//     ...
+			// }
+			if depth == 0 && prevDepth > 0 {
 				// Конец функции
 				currentFunc.End = lineNum + 1 + lineOffset // 1-based + offset
 				result.Functions = append(result.Functions, *currentFunc)
