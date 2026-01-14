@@ -1,5 +1,5 @@
 // config.go - Unified language configuration
-// Loads and manages language patterns for funcfinder, stat, deps, and complexity
+// Loads and manages language patterns for funcfinder, stat, deps, complexity, and findstruct
 package internal
 
 import (
@@ -13,6 +13,12 @@ import (
 //go:embed languages.json
 var languagesFS embed.FS
 
+// StructTypePattern represents a pattern for a specific type kind
+type StructTypePattern struct {
+	Type    string `json:"type"`   // Type kind: class, struct, interface, enum, etc.
+	Pattern string `json:"pattern"` // Regex pattern for this type
+}
+
 // LanguageConfig contains patterns and settings for a specific language
 type LanguageConfig struct {
 	// Basic info
@@ -22,6 +28,10 @@ type LanguageConfig struct {
 	// Function/Class patterns (for funcfinder)
 	FuncPattern  string `json:"func_pattern"`
 	ClassPattern string `json:"class_pattern"`
+
+	// Struct/type patterns (for findstruct) - stored as map for flexible access
+	StructTypePatterns []StructTypePattern `json:"struct_type_patterns,omitempty"`
+	FieldPattern       string              `json:"field_pattern,omitempty"`
 
 	// Call patterns (for stat.go)
 	CallPattern      string   `json:"call_pattern"`
@@ -40,6 +50,8 @@ type LanguageConfig struct {
 	StringChars       []string `json:"string_chars"`
 	RawStringChars    []string `json:"raw_string_chars"`
 	EscapeChar        string   `json:"escape_char"`
+	CharDelimiters    []string `json:"char_delimiters,omitempty"`
+	DocStringMarkers  []string `json:"doc_string_markers,omitempty"`
 	IndentBased       bool     `json:"indent_based"`
 
 	// Nested function support
@@ -48,17 +60,29 @@ type LanguageConfig struct {
 	// Language key for stdlib detection (e.g., "py", "go", "rs")
 	LangKey string `json:"lang_key"`
 
+	// Extra patterns for specialized finders (structfinder, etc.)
+	ExtraPatterns map[string]string `json:"extra_patterns,omitempty"`
+
 	// Compiled regex cache
-	funcRegex     *regexp.Regexp
-	classRegex    *regexp.Regexp
-	callRegex     *regexp.Regexp
-	importRegex   *regexp.Regexp
-	decoratorRe   *regexp.Regexp
-	blockCommentRe *regexp.Regexp
+	funcRegex       *regexp.Regexp
+	classRegex      *regexp.Regexp
+	structPatterns  map[string]*regexp.Regexp
+	fieldRegex      *regexp.Regexp
+	callRegex       *regexp.Regexp
+	importRegex     *regexp.Regexp
+	decoratorRe     *regexp.Regexp
+	blockCommentRe  *regexp.Regexp
 }
 
 // Config is a map of language keys to their configurations
 type Config map[string]*LanguageConfig
+
+// LanguageConfigWithMap is an intermediate struct for JSON unmarshalling
+// with struct_type_patterns as a map instead of slice
+type LanguageConfigWithMap struct {
+	LanguageConfig
+	StructTypePatternsMap map[string]string `json:"struct_type_patterns,omitempty"`
+}
 
 // LoadConfig loads language configurations from embedded JSON
 func LoadConfig() (Config, error) {
@@ -67,75 +91,101 @@ func LoadConfig() (Config, error) {
 		return nil, fmt.Errorf("failed to read languages.json: %w", err)
 	}
 
-	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
+	// First, unmarshal into a map to handle struct_type_patterns as object
+	var rawConfig map[string]*LanguageConfigWithMap
+	if err := json.Unmarshal(data, &rawConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse languages.json: %w", err)
 	}
 
-	// Compile regex patterns
-	for lang, langConf := range config {
+	// Convert to final Config
+	config := make(Config)
+	for lang, langConf := range rawConfig {
+		// Convert LanguageConfigWithMap to LanguageConfig
+		conf := langConf.LanguageConfig
+
+		// Convert struct_type_patterns map to compiled regexes
+		conf.structPatterns = make(map[string]*regexp.Regexp)
+		for typeKind, pattern := range langConf.StructTypePatternsMap {
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid struct pattern for %s (%s): %w", lang, typeKind, err)
+			}
+			conf.structPatterns[typeKind] = re
+		}
+
 		// Set LangKey if not provided
-		if langConf.LangKey == "" {
-			langConf.LangKey = lang
+		if conf.LangKey == "" {
+			conf.LangKey = lang
 		}
 
 		// Compile function regex
-		if langConf.FuncPattern != "" {
-			re, err := regexp.Compile(langConf.FuncPattern)
+		if conf.FuncPattern != "" {
+			re, err := regexp.Compile(conf.FuncPattern)
 			if err != nil {
 				return nil, fmt.Errorf("invalid func regex for %s: %w", lang, err)
 			}
-			langConf.funcRegex = re
+			conf.funcRegex = re
 		}
 
 		// Compile class regex if specified
-		if langConf.ClassPattern != "" {
-			classRe, err := regexp.Compile(langConf.ClassPattern)
+		if conf.ClassPattern != "" {
+			classRe, err := regexp.Compile(conf.ClassPattern)
 			if err != nil {
 				return nil, fmt.Errorf("invalid class regex for %s: %w", lang, err)
 			}
-			langConf.classRegex = classRe
+			conf.classRegex = classRe
+		}
+
+		// Compile field pattern if specified
+		if conf.FieldPattern != "" {
+			fieldRe, err := regexp.Compile(conf.FieldPattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid field pattern for %s: %w", lang, err)
+			}
+			conf.fieldRegex = fieldRe
 		}
 
 		// Compile call regex if specified
-		if langConf.CallPattern != "" {
-			callRe, err := regexp.Compile(langConf.CallPattern)
+		if conf.CallPattern != "" {
+			callRe, err := regexp.Compile(conf.CallPattern)
 			if err != nil {
 				return nil, fmt.Errorf("invalid call regex for %s: %w", lang, err)
 			}
-			langConf.callRegex = callRe
+			conf.callRegex = callRe
 		}
 
 		// Compile import regex if specified
-		if langConf.ImportPattern != "" {
-			importRe, err := regexp.Compile(langConf.ImportPattern)
+		if conf.ImportPattern != "" {
+			importRe, err := regexp.Compile(conf.ImportPattern)
 			if err != nil {
 				return nil, fmt.Errorf("invalid import regex for %s: %w", lang, err)
 			}
-			langConf.importRegex = importRe
+			conf.importRegex = importRe
 		}
 
 		// Compile decorator regex if specified
-		if langConf.DecoratorPattern != "" {
-			decoratorRe, err := regexp.Compile(langConf.DecoratorPattern)
+		if conf.DecoratorPattern != "" {
+			decoratorRe, err := regexp.Compile(conf.DecoratorPattern)
 			if err != nil {
 				return nil, fmt.Errorf("invalid decorator regex for %s: %w", lang, err)
 			}
-			langConf.decoratorRe = decoratorRe
+			conf.decoratorRe = decoratorRe
 		}
 
 		// Compile block comment regex if specified
-		if langConf.BlockCommentStart != "" && langConf.BlockCommentEnd != "" {
+		if conf.BlockCommentStart != "" && conf.BlockCommentEnd != "" {
 			// Use regexp.QuoteMeta to escape special regex characters like /* and */
-			start := regexp.QuoteMeta(langConf.BlockCommentStart)
-			end := regexp.QuoteMeta(langConf.BlockCommentEnd)
+			start := regexp.QuoteMeta(conf.BlockCommentStart)
+			end := regexp.QuoteMeta(conf.BlockCommentEnd)
 			pattern := fmt.Sprintf(`%s[\s\S]*?%s`, start, end)
 			blockRe, err := regexp.Compile(pattern)
 			if err != nil {
 				return nil, fmt.Errorf("invalid block comment regex for %s: %w", lang, err)
 			}
-			langConf.blockCommentRe = blockRe
+			conf.blockCommentRe = blockRe
 		}
+
+		config[lang] = &conf
 	}
 
 	return config, nil
@@ -191,8 +241,41 @@ func (lc *LanguageConfig) ClassRegex() *regexp.Regexp {
 	return lc.classRegex
 }
 
+// GetExtraPattern returns an extra pattern by key
+func (lc *LanguageConfig) GetExtraPattern(key string) string {
+	if lc.ExtraPatterns != nil {
+		return lc.ExtraPatterns[key]
+	}
+	return ""
+}
+
 func (lc *LanguageConfig) HasClasses() bool {
 	return lc.ClassPattern != ""
+}
+
+// Struct pattern getters for findstruct
+
+// GetStructPatterns returns all compiled struct type patterns
+func (lc *LanguageConfig) GetStructPatterns() map[string]*regexp.Regexp {
+	return lc.structPatterns
+}
+
+// GetStructPattern returns a compiled pattern for a specific struct type
+func (lc *LanguageConfig) GetStructPattern(typeKind string) *regexp.Regexp {
+	if lc.structPatterns != nil {
+		return lc.structPatterns[typeKind]
+	}
+	return nil
+}
+
+// GetFieldPattern returns the compiled field pattern regex
+func (lc *LanguageConfig) GetFieldPattern() *regexp.Regexp {
+	return lc.fieldRegex
+}
+
+// HasStructSupport returns true if the language has struct type patterns configured
+func (lc *LanguageConfig) HasStructSupport() bool {
+	return len(lc.structPatterns) > 0
 }
 
 // Regex getters for stat.go

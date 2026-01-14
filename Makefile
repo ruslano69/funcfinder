@@ -3,7 +3,7 @@
 
 # Variables
 VERSION := 1.4.0
-BINARIES := funcfinder stat deps complexity
+BINARIES := funcfinder stat deps complexity findstruct
 BUILD_DIR := build
 DIST_DIR := dist
 GO := go
@@ -40,6 +40,8 @@ build:
 	@echo "  ✓ deps"
 	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o complexity ./cmd/complexity
 	@echo "  ✓ complexity"
+	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o findstruct ./cmd/findstruct
+	@echo "  ✓ findstruct"
 	@echo "$(COLOR_GREEN)✅ All binaries built successfully!$(COLOR_RESET)"
 
 ## build-all: Build binaries for all platforms
@@ -65,6 +67,7 @@ install: build
 	@sudo cp stat /usr/local/bin/
 	@sudo cp deps /usr/local/bin/
 	@sudo cp complexity /usr/local/bin/
+	@sudo cp findstruct /usr/local/bin/
 	@echo "$(COLOR_GREEN)✅ Installation complete!$(COLOR_RESET)"
 
 ## uninstall: Remove binaries from /usr/local/bin
@@ -74,6 +77,7 @@ uninstall:
 	@sudo rm -f /usr/local/bin/stat
 	@sudo rm -f /usr/local/bin/deps
 	@sudo rm -f /usr/local/bin/complexity
+	@sudo rm -f /usr/local/bin/findstruct
 	@echo "$(COLOR_GREEN)✅ Uninstallation complete!$(COLOR_RESET)"
 
 ##@ Testing
@@ -167,6 +171,7 @@ clean:
 	@rm -f $(BINARIES)
 	@rm -rf $(BUILD_DIR) $(DIST_DIR)
 	@rm -f coverage.txt coverage.html
+	@rm -f findstruct
 	@echo "$(COLOR_GREEN)✅ Cleanup complete$(COLOR_RESET)"
 
 ## deps: Download dependencies

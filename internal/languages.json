@@ -3,7 +3,13 @@
     "name": "Go",
     "extensions": [".go"],
     "func_pattern": "^\\s*func\\s+(\\([^)]*\\)\\s+)?(\\w+)\\s*\\(",
-    "class_pattern": "^\\s*type\\s+(\\w+)\\s+struct\\s*\\{",
+    "class_pattern": "^\\s*type\\s+(\\w+)\\s+(struct|interface)\\s*\\{",
+    "struct_type_patterns": {
+      "struct": "^\\s*type\\s+(\\w+)\\s+struct\\s*\\{",
+      "interface": "^\\s*type\\s+(\\w+)\\s+interface\\s*\\{",
+      "type_alias": "^\\s*type\\s+(\\w+)\\s*=\\s*"
+    },
+    "field_pattern": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s+([a-zA-Z_][\\w\\[\\]*\\s]*)\\s*$",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*(?:import\\s+\"([^\"]+)\"|\"([^\"]+)\"$)",
     "multi_line_import": "import (",
@@ -14,13 +20,19 @@
     "string_chars": ["\""],
     "raw_string_chars": ["`"],
     "escape_char": "\\",
-    "exclude_words": ["func"],
+    "exclude_words": ["func", "type", "import", "const", "var", "package"],
     "supports_nested": true
   },
   "c": {
-    "name": "C/C++",
-    "extensions": [".c", ".cpp", ".cc", ".h", ".hpp"],
+    "name": "C",
+    "extensions": [".c", ".h"],
     "func_pattern": "^\\s*[\\w\\s\\*]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*$",
+    "class_pattern": "^\\s*(?:typedef\\s+)?struct\\s+(?:\\w+\\s*)?\\{",
+    "struct_type_patterns": {
+      "struct": "^\\s*(?:typedef\\s+)?(?:struct|union)\\s+(?:(\\w+)\\s*)?\\{",
+      "typedef_struct": "^\\s*typedef\\s+struct(?:\\s+\\w+)?\\s*\\{\\s*(\\w+)\\s*\\}"
+    },
+    "field_pattern": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\s*([a-zA-Z_][\\w\\s\\*\\[\\]]*)\\s*;",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*#\\s*include\\s*[<\"]([^>\"]+)[>\"]",
     "line_comment": "//",
@@ -30,7 +42,7 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": [],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "sizeof"],
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "sizeof", "define", "include", "ifdef", "ifndef", "endif"],
     "supports_nested": false
   },
   "cpp": {
@@ -38,6 +50,14 @@
     "extensions": [".cpp", ".cc", ".cxx", ".hpp", ".h"],
     "func_pattern": "^\\s*[\\w\\s\\*:<>,]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*(const)?\\s*$",
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|struct)\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*(?:\\w+\\s+)?class\\s+(\\w+)",
+      "struct": "^\\s*(?:\\w+\\s+)?struct\\s+(\\w+)",
+      "interface": "^\\s*(?:\\w+\\s+)?class\\s+(\\w+)\\s*:",
+      "enum": "^\\s*(?:\\w+\\s+)?enum\\s+(?:class\\s+)?(\\w+)",
+      "union": "^\\s*(?:\\w+\\s+)?union\\s+(\\w+)"
+    },
+    "field_pattern": "^\\s*(?:const\\s+)?(?:\\w+(?:<[^>]*>)?\\s+)+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:\\[\\s*\\]\\s*)?(?:=|;|,)",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*#\\s*include\\s*[<\"]([^>\"]+)[>\"]",
     "line_comment": "//",
@@ -47,7 +67,7 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": [],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "sizeof"],
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "sizeof", "define", "include", "typedef", "namespace", "using"],
     "supports_nested": false
   },
   "cs": {
@@ -55,6 +75,14 @@
     "extensions": [".cs", ".csx"],
     "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*$",
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|interface|struct|enum)\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial)\\s+)*(?:class|record)\\s+(\\w+)",
+      "struct": "^\\s*(?:(?:public|private|protected|internal)\\s+)?struct\\s+(\\w+)",
+      "interface": "^\\s*(?:(?:public|private|protected|internal)\\s+)?interface\\s+(\\w+)",
+      "enum": "^\\s*(?:(?:public|private|protected|internal)\\s+)?enum\\s+(\\w+)",
+      "record": "^\\s*(?:(?:public|private|protected|internal|sealed)\\s+)?record\\s+(?:struct\\s+)?(\\w+)"
+    },
+    "field_pattern": "^\\s*(?:public|private|protected|internal|static|readonly|const|volatile)?\\s*(?:readonly\\s+)?(?:[a-zA-Z_][\\w<>\\.\\[\\]]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:\\{|=|;)",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*using\\s+([\\w.]+)",
     "decorator_pattern": "^\\s*\\[(\\w+)",
@@ -65,7 +93,7 @@
     "string_chars": ["\""],
     "raw_string_chars": ["@\""],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return"],
+    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return", "using", "namespace", "class", "interface", "struct", "enum"],
     "supports_nested": false
   },
   "java": {
@@ -73,6 +101,14 @@
     "extensions": [".java"],
     "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*(throws\\s+[\\w,\\s]+)?\\s*\\{?\\s*$",
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|interface|enum)\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*(?:(?:public|private|protected|static|abstract|final|sealed|non-sealed)\\s+)*(?:class|record)\\s+(\\w+)",
+      "interface": "^\\s*(?:(?:public|private|protected|static)\\s+)?interface\\s+(\\w+)",
+      "enum": "^\\s*(?:(?:public|private|protected|static)\\s+)?enum\\s+(\\w+)",
+      "record": "^\\s*(?:(?:public|private|protected|static)\\s+)?record\\s+(\\w+)",
+      "abstract": "^\\s*(?:(?:public|private|protected|static|abstract)\\s+)*abstract\\s+class\\s+(\\w+)"
+    },
+    "field_pattern": "^\\s*(?:public|private|protected|static|final|abstract|synchronized|native|strictfp)?\\s*(?:final\\s+)?(?:[a-zA-Z_][\\w<>[\\]]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:=|;)",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*import\\s+(?:static\\s+)?([\\w.]+)",
     "decorator_pattern": "^\\s*@(\\w+)",
@@ -83,7 +119,7 @@
     "string_chars": ["\""],
     "raw_string_chars": [],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return"],
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "import", "package", "class", "interface", "enum"],
     "supports_nested": false
   },
   "d": {
@@ -91,6 +127,14 @@
     "extensions": [".d"],
     "func_pattern": "^\\s*[\\w\\s\\*\\[\\]]+\\s+(\\w+)\\s*\\([^)]*\\)\\s*$",
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|struct|interface|enum)\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*(?:(?:public|private|protected|static|const|immutable|shared)\\s+)*class\\s+(\\w+)",
+      "struct": "^\\s*(?:(?:public|private|protected|static|const|immutable|shared)\\s+)*struct\\s+(\\w+)",
+      "interface": "^\\s*(?:(?:public|private|protected)\\s+)?interface\\s+(\\w+)",
+      "enum": "^\\s*(?:(?:public|private|protected|static|const)\\s+)?enum\\s+(\\w+)",
+      "union": "^\\s*(?:(?:public|private|protected|static|const)\\s+)?union\\s+(\\w+)"
+    },
+    "field_pattern": "^\\s*(?:public|private|protected|package|static|const|immutable|shared|enum)\\s*(?:[a-zA-Z_][\\w\\[\\]]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*;",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*import\\s+([\\w.]+)",
     "line_comment": "//",
@@ -100,14 +144,21 @@
     "string_chars": ["\""],
     "raw_string_chars": ["`", "r\""],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return"],
+    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return", "import", "module", "class", "struct", "interface", "enum", "union"],
     "supports_nested": false
   },
   "js": {
-    "name": "JavaScript/TypeScript",
-    "extensions": [".js", ".jsx", ".mjs", ".ts", ".tsx"],
+    "name": "JavaScript",
+    "extensions": [".js", ".jsx", ".mjs"],
     "func_pattern": "^\\s*(?:(export\\s+)?(async\\s+)?function\\s*\\*?\\s+(\\w+)\\s*\\(|(const|let|var)\\s+(\\w+)\\s*=\\s*(async\\s+)?\\()",
     "class_pattern": "^\\s*(?:export\\s+)?class\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+(\\w+)",
+      "interface": "^\\s*(?:export\\s+)?interface\\s+(\\w+)",
+      "enum": "^\\s*(?:export\\s+)?const\\s+(\\w+)\\s*=\\s*\\{",
+      "type_alias": "^\\s*(?:export\\s+)?type\\s+(\\w+)\\s*="
+    },
+    "field_pattern": "(?:(?:public|private|protected|readonly|static|abstract)\\s+)*(?:[a-zA-Z_][\\w\\[\\]]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:=|;|,)",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*(?:import\\s+.*?from\\s+[\"']([^\"']+)[\"']|require\\s*\\(\\s*[\"']([^\"']+)[\"'])",
     "exclude_patterns": ["^\\.", "^\\./"],
@@ -118,7 +169,7 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["`"],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "typeof", "instanceof", "new", "delete", "void", "await"],
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "typeof", "instanceof", "new", "delete", "void", "await", "async", "export", "import", "default"],
     "supports_nested": true
   },
   "ts": {
@@ -126,6 +177,13 @@
     "extensions": [".ts", ".tsx"],
     "func_pattern": "^\\s*(?:(export\\s+)?(async\\s+)?function\\s*\\*?\\s+(\\w+)\\s*[<(]|(const|let|var)\\s+(\\w+)\\s*=\\s*(async\\s+)?[<(])",
     "class_pattern": "^\\s*(?:export\\s+)?class\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+(\\w+)",
+      "interface": "^\\s*(?:export\\s+)?interface\\s+(\\w+)",
+      "enum": "^\\s*(?:export\\s+)?(?:const\\s+)?enum\\s+(\\w+)",
+      "type_alias": "^\\s*(?:export\\s+)?type\\s+(\\w+)\\s*="
+    },
+    "field_pattern": "(?:(?:public|private|protected|readonly|static|abstract)\\s+)*(?:[a-zA-Z_][\\w\\[\\]]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:\\?|=|;|,)",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*(?:import\\s+.*?from\\s+[\"']([^\"']+)[\"']|require\\s*\\(\\s*[\"']([^\"']+)[\"'])",
     "exclude_patterns": ["^\\.", "^\\./"],
@@ -136,7 +194,7 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["`"],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "typeof", "instanceof", "new", "delete", "void", "await"],
+    "exclude_words": ["if", "else", "while", "for", "switch", "case", "return", "typeof", "instanceof", "new", "delete", "void", "await", "async", "export", "import", "default"],
     "supports_nested": true
   },
   "py": {
@@ -144,6 +202,17 @@
     "extensions": [".py", ".pyw"],
     "func_pattern": "^\\s*(async\\s+)?def\\s+(\\w+)\\s*\\(",
     "class_pattern": "^\\s*class\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*class\\s+(\\w+)",
+      "dataclass": "^\\s*@dataclass\\s*\\nclass\\s+(\\w+)",
+      "NamedTuple": "^\\s*class\\s+(\\w+)\\s*\\(\\s*NamedTuple\\s*\\)",
+      "TypedDict": "^\\s*class\\s+(\\w+)\\s*\\(\\s*TypedDict\\s*\\)",
+      "enum": "^\\s*class\\s+(\\w+)\\s*\\(\\s*Enum\\s*\\)",
+      "Protocol": "^\\s*class\\s+(\\w+)\\s*\\(\\s*Protocol\\s*\\)",
+      "attrs": "^\\s*@attr\\.s\\s*\\nclass\\s+(\\w+)",
+      "abstract": "^\\s*class\\s+(\\w+)\\s*\\(\\s*ABC\\s*\\)"
+    },
+    "field_pattern": "^\\s*(\\w+)\\s*:\\s*([\\w\\[\\],\\.\\s\\*]*?)\\s*(?:=|$)",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*(?:from\\s+(\\S+)\\s+import|import\\s+(\\S+))",
     "decorator_pattern": "^\\s*@(\\w+)",
@@ -156,6 +225,7 @@
     "raw_string_chars": ["r\"", "r'"],
     "escape_char": "\\",
     "indent_based": true,
+    "exclude_words": ["def", "class", "if", "else", "elif", "while", "for", "try", "except", "finally", "with", "return", "yield", "import", "from", "pass", "break", "continue"],
     "supports_nested": true
   },
   "rust": {
@@ -163,6 +233,13 @@
     "extensions": [".rs"],
     "func_pattern": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?(?:async\\s+)?(?:unsafe\\s+)?(?:const\\s+)?(?:extern\\s+(?:\"C\"\\s+)?)?fn\\s+(\\w+)\\s*(?:<[^>]*>)?\\s*\\(",
     "class_pattern": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?(?:struct|trait|enum|impl)(?:\\s+<[^>]*>)?\\s+(\\w+)",
+    "struct_type_patterns": {
+      "struct": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?struct\\s+(\\w+)",
+      "enum": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?enum\\s+(\\w+)",
+      "trait": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?trait\\s+(\\w+)",
+      "union": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?union\\s+(\\w+)"
+    },
+    "field_pattern": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?(?:const\\s+)?(?:static\\s+)?(?:mut\\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\\s*:(?:\\s*<[^>]*>\\s*)?\\s*[a-zA-Z_][\\w<>,\\[\\]\\s]*",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*use\\s+([^;]+)",
     "exclude_patterns": ["^super::", "^self::"],
@@ -173,7 +250,7 @@
     "string_chars": ["\""],
     "raw_string_chars": ["r#\"", "r#*[^\"]*#*"],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "loop", "match", "return", "break", "continue", "unsafe"],
+    "exclude_words": ["if", "else", "while", "for", "loop", "match", "return", "break", "continue", "unsafe", "fn", "struct", "enum", "trait", "impl", "pub", "mod", "use"],
     "supports_nested": false
   },
   "swift": {
@@ -181,6 +258,13 @@
     "extensions": [".swift"],
     "func_pattern": "^\\s*(?:public\\s+)?(?:static\\s+)?func\\s+(\\w+)\\s*\\(",
     "class_pattern": "^\\s*(?:public\\s+)?(?:class|struct|enum|protocol)\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*(?:public\\s+)?(?:open\\s+)?(?:public\\s+)?(?:final\\s+)?class\\s+(\\w+)",
+      "struct": "^\\s*(?:public\\s+)?struct\\s+(\\w+)",
+      "enum": "^\\s*(?:public\\s+)?enum\\s+(\\w+)",
+      "protocol": "^\\s*(?:public\\s+)?protocol\\s+(\\w+)"
+    },
+    "field_pattern": "(?:var|let|public|private|internal|fileprivate|static)\\s+(?:\\w+(?:<[^>]*>)?\\s+)+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?::\\s*[\\w\\[\\]<>?,=\\s]*)?(?:\\{|=|;)",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*import\\s+(\\S+)",
     "line_comment": "//",
@@ -190,7 +274,7 @@
     "string_chars": ["\""],
     "raw_string_chars": ["\"\"\".*?\"\"\""],
     "escape_char": "\\",
-    "exclude_words": ["func", "if", "while", "for", "guard", "switch", "catch", "return", "throw"],
+    "exclude_words": ["func", "class", "struct", "enum", "protocol", "if", "while", "for", "guard", "switch", "catch", "return", "throw", "import", "public", "private", "internal", "static", "var", "let"],
     "supports_nested": true
   },
   "kotlin": {
@@ -198,6 +282,15 @@
     "extensions": [".kt", ".kts"],
     "func_pattern": "^\\s*(?:(?:public|private|protected|internal)\\s+)?(?:suspend\\s+)?fun\\s+(?:<[^>]+>\\s+)?(\\w+)\\s*\\(",
     "class_pattern": "^\\s*(?:(?:public|private|protected|internal)\\s+)?(?:data\\s+|sealed\\s+|enum\\s+|abstract\\s+)?(?:class|interface|object)\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*(?:(?:public|private|protected|internal)\\s+)?(?:open\\s+)?(?:abstract\\s+)?(?:data\\s+)?(?:sealed\\s+)?class\\s+(\\w+)",
+      "interface": "^\\s*(?:(?:public|private|protected|internal)\\s+)?interface\\s+(\\w+)",
+      "object": "^\\s*(?:(?:public|private|protected|internal)\\s+)?object\\s+(\\w+)",
+      "data_class": "^\\s*(?:(?:public|private|protected|internal)\\s+)?data\\s+class\\s+(\\w+)",
+      "sealed_class": "^\\s*(?:(?:public|private|protected|internal)\\s+)?sealed\\s+class\\s+(\\w+)",
+      "enum_class": "^\\s*(?:(?:public|private|protected|internal)\\s+)?enum\\s+class\\s+(\\w+)"
+    },
+    "field_pattern": "(?:var|val|public|private|protected|internal|static|lateinit)\\s+(?:\\w+(?:<[^>]*>)?\\s+)+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?::\\s*[\\w\\[\\]<>?,=\\s]*)?(?:\\{|=|;)",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*import\\s+([\\w.]+)",
     "decorator_pattern": "^\\s*@(\\w+)",
@@ -208,7 +301,7 @@
     "string_chars": ["\""],
     "raw_string_chars": ["\"\"\""],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "when", "switch", "return"],
+    "exclude_words": ["if", "else", "while", "for", "when", "switch", "return", "fun", "class", "interface", "object", "data", "sealed", "enum", "val", "var", "import", "package"],
     "supports_nested": false
   },
   "php": {
@@ -216,6 +309,13 @@
     "extensions": [".php"],
     "func_pattern": "^\\s*(?:(?:public|private|protected)\\s+)?(?:static\\s+)?function\\s+(\\w+)\\s*\\(",
     "class_pattern": "^\\s*(?:(?:abstract|final)\\s+)?(?:class|interface|trait)\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*(?:abstract\\s+|final\\s+)*(?:public\\s+|private\\s+|protected\\s+)*class\\s+(\\w+)",
+      "interface": "^\\s*(?:public\\s+|private\\s+|protected\\s+)*interface\\s+(\\w+)",
+      "trait": "^\\s*(?:public\\s+|private\\s+|protected\\s+)*trait\\s+(\\w+)",
+      "abstract": "^\\s*abstract\\s+class\\s+(\\w+)"
+    },
+    "field_pattern": "(?:public|private|protected|var|static)\\s+(?:\\$\\w+(?:<[^>]*>)?\\s*,?\\s*)+",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*(?:use\\s+([\\w\\\\]+)|require(?:_once)?\\s*[\"']([^\"']+)[\"']|include(?:_once)?\\s*[\"']([^\"']+)[\"'])",
     "line_comment": "//",
@@ -225,7 +325,7 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": [],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return", "echo", "print"],
+    "exclude_words": ["if", "else", "while", "foreach", "for", "switch", "case", "return", "echo", "print", "class", "interface", "trait", "function", "public", "private", "protected", "static"],
     "supports_nested": false
   },
   "ruby": {
@@ -233,6 +333,13 @@
     "extensions": [".rb", ".rake"],
     "func_pattern": "^\\s*def\\s+(\\w+[?!]?)\\s*[\\(\\n]?",
     "class_pattern": "^\\s*(?:class|module)\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*class\\s+(\\w+)",
+      "module": "^\\s*module\\s+(\\w+)",
+      "struct": "^\\s*Struct\\.new\\s*\\(\\s*\"(\\w+)\"",
+      "data": "^\\s*Data\\.define\\s*\\(\\s*\"(\\w+)\""
+    },
+    "field_pattern": "^\\s*(?:attr_reader|attr_writer|attr_accessor)?\\s*(?:\\w+)\\s*[,|\\s]",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*require(?:_relative)?\\s*[\"']([^\"']+)[\"']",
     "line_comment": "#",
@@ -242,7 +349,8 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["%q{", "%Q{"],
     "escape_char": "\\",
-    "exclude_words": ["if", "elsif", "else", "unless", "while", "until", "for", "case", "when", "return", "yield"],
+    "indent_based": true,
+    "exclude_words": ["if", "elsif", "else", "unless", "while", "until", "for", "case", "when", "return", "yield", "class", "module", "def", "end"],
     "supports_nested": true
   },
   "scala": {
@@ -250,6 +358,14 @@
     "extensions": [".scala"],
     "func_pattern": "^\\s*(?:(?:private|protected|public)\\s+)?def\\s+(\\w+)\\s*[\\[\\(]",
     "class_pattern": "^\\s*(?:(?:private|protected|public)\\s+)?(?:case\\s+)?(?:class|object|trait)\\s+(\\w+)",
+    "struct_type_patterns": {
+      "class": "^\\s*(?:(?:private|protected|public)\\s+)?(?:final\\s+)?(?:sealed\\s+)?(?:abstract\\s+)?class\\s+(\\w+)",
+      "trait": "^\\s*(?:(?:private|protected|public)\\s+)?trait\\s+(\\w+)",
+      "object": "^\\s*(?:(?:private|protected|public)\\s+)?object\\s+(\\w+)",
+      "case_class": "^\\s*(?:(?:private|protected|public)\\s+)?case\\s+class\\s+(\\w+)",
+      "enum": "^\\s*(?:(?:private|protected|public)\\s+)?enum\\s+(\\w+)"
+    },
+    "field_pattern": "(?:val|var|private|protected|public)\\s+(?:\\w+(?:<[^>]*>)?\\s+)+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?::\\s*[\\w\\[\\]<>?,=\\s]*)?(?:=|;)",
     "call_pattern": "(\\w+)\\s*\\(",
     "import_pattern": "^\\s*import\\s+([\\w.]+)",
     "line_comment": "//",
@@ -259,7 +375,7 @@
     "string_chars": ["\""],
     "raw_string_chars": ["\"\"\""],
     "escape_char": "\\",
-    "exclude_words": ["if", "else", "while", "for", "match", "case", "return", "yield"],
+    "exclude_words": ["if", "else", "while", "for", "match", "case", "return", "yield", "def", "class", "trait", "object", "val", "var", "import", "package"],
     "supports_nested": true
   }
 }
