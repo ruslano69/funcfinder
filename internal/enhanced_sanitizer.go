@@ -220,6 +220,81 @@ func replaceCharWithSpace(result []rune, idx int) {
 	}
 }
 
+// State handlers
+func (s *EnhancedSanitizer) handleBlockComment(line string, runes []rune, result []rune, idx int) (int, ParserState) {
+	remaining := line[idx:]
+	if pos := strings.Index(remaining, s.config.BlockCommentEnd); pos >= 0 {
+		// Found closing - replace entire block
+		fillWithSpaces(result, idx, pos+len([]rune(s.config.BlockCommentEnd)))
+		return idx + pos + len([]rune(s.config.BlockCommentEnd)), StateNormal
+	}
+	// No closing found - replace rest of line
+	fillToEndWithSpaces(result, idx)
+	return len(runes), StateBlockComment
+}
+
+func (s *EnhancedSanitizer) handleString(runes []rune, result []rune, idx int) (int, ParserState) {
+	if s.config.EscapeChar != "" && runes[idx] == []rune(s.config.EscapeChar)[0] && idx+1 < len(runes) {
+		replaceCharWithSpace(result, idx)
+		replaceCharWithSpace(result, idx+1)
+		return idx + 2, StateString
+	} else if s.matchesDelimiter(runes, idx, "string") {
+		replaceCharWithSpace(result, idx)
+		return idx + 1, StateNormal
+	}
+	return idx + 1, StateString
+}
+
+func (s *EnhancedSanitizer) handleRawString(runes []rune, result []rune, idx int) (int, ParserState) {
+	if s.matchesDelimiter(runes, idx, "raw") {
+		return idx + 1, StateNormal
+	}
+	if s.useRaw {
+		result[idx] = runes[idx]
+	}
+	return idx + 1, StateRawString
+}
+
+func (s *EnhancedSanitizer) handleCharLiteral(runes []rune, result []rune, idx int) (int, ParserState) {
+	if s.config.EscapeChar != "" && runes[idx] == []rune(s.config.EscapeChar)[0] && idx+1 < len(runes) {
+		replaceCharWithSpace(result, idx)
+		replaceCharWithSpace(result, idx+1)
+		return idx + 2, StateCharLiteral
+	} else if s.matchesAnyAt(runes, idx, s.sanitizerConfig.CharDelimiters) {
+		replaceCharWithSpace(result, idx)
+		return idx + 1, StateNormal
+	}
+	replaceCharWithSpace(result, idx)
+	return idx + 1, StateCharLiteral
+}
+
+func (s *EnhancedSanitizer) handleMultiLineString(line string, runes []rune, result []rune, idx int) (int, ParserState) {
+	remaining := line[idx:]
+	foundEnd := -1
+	foundDelim := ""
+	newState := StateMultiLineString
+
+	for _, delim := range s.sanitizerConfig.StringDelimiters {
+		if delim.IsMultiLine && delim.End != "" {
+			if pos := strings.Index(remaining, delim.End); pos >= 0 {
+				if foundEnd == -1 || pos < foundEnd {
+					foundEnd = pos
+					foundDelim = delim.End
+				}
+			}
+		}
+	}
+
+	if foundEnd >= 0 {
+		fillWithSpaces(result, idx, foundEnd+len([]rune(foundDelim)))
+		idx += foundEnd + len([]rune(foundDelim))
+		newState = StateNormal
+	}
+	// Always replace rest of line with spaces (even if closing delimiter found)
+	fillToEndWithSpaces(result, idx)
+	return len(runes), newState
+}
+
 func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, ParserState) {
 	if len(line) == 0 {
 		return line, state
@@ -240,102 +315,23 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 
 		switch state {
 		case StateBlockComment:
-			// Fast scan: search for block comment closing delimiter
-			remaining := line[idx:]
-			if pos := strings.Index(remaining, s.config.BlockCommentEnd); pos >= 0 {
-				// Found closing - replace entire block
-				fillWithSpaces(result, idx, pos+len([]rune(s.config.BlockCommentEnd)))
-				idx += pos + len([]rune(s.config.BlockCommentEnd))
-				state = StateNormal
-				continue
-			}
-			// No closing found - replace rest of line
-			fillToEndWithSpaces(result, idx)
-			idx = len(runes)
+			idx, state = s.handleBlockComment(line, runes, result, idx)
 			continue
 
 		case StateString:
-			if s.config.EscapeChar != "" && runes[idx] == []rune(s.config.EscapeChar)[0] && idx+1 < len(runes) {
-				// Replace both characters (escape and next) with spaces
-				replaceCharWithSpace(result, idx)
-				replaceCharWithSpace(result, idx+1)
-				idx += 2
-			} else if s.matchesDelimiter(runes, idx, "string") {
-				// Replace closing delimiter with space
-				replaceCharWithSpace(result, idx)
-				idx++
-				state = StateNormal
-				continue
-			} else {
-				idx++
-			}
+			idx, state = s.handleString(runes, result, idx)
+			continue
 
 		case StateRawString:
-			if s.matchesDelimiter(runes, idx, "raw") {
-				idx++
-				state = StateNormal
-				continue
-			} else {
-				if s.useRaw {
-					result[idx] = runes[idx]
-				}
-				idx++
-			}
+			idx, state = s.handleRawString(runes, result, idx)
+			continue
 
 		case StateCharLiteral:
-			// Check escape character first (to avoid confusing escaped quote with closing delimiter)
-			if s.config.EscapeChar != "" && runes[idx] == []rune(s.config.EscapeChar)[0] && idx+1 < len(runes) {
-				// Replace escape character and next character with spaces
-				if idx < len(result) {
-					result[idx] = ' '
-				}
-				if idx+1 < len(result) {
-					result[idx+1] = ' '
-				}
-				idx += 2
-			} else if s.matchesAnyAt(runes, idx, s.sanitizerConfig.CharDelimiters) {
-				// Found closing delimiter - replace it with space!
-				if idx < len(result) {
-					result[idx] = ' '
-				}
-				idx++
-				state = StateNormal
-			} else {
-				// Replace current character with space
-				if idx < len(result) {
-					result[idx] = ' '
-				}
-				idx++
-			}
+			idx, state = s.handleCharLiteral(runes, result, idx)
+			continue
 
 		case StateMultiLineString:
-			// Fast scan: search for multi-line string closing delimiter
-			remaining := line[idx:]
-			foundEnd := -1
-			foundDelim := ""
-
-			for _, delim := range s.sanitizerConfig.StringDelimiters {
-				if delim.IsMultiLine && delim.End != "" {
-					if pos := strings.Index(remaining, delim.End); pos >= 0 {
-						if foundEnd == -1 || pos < foundEnd {
-							foundEnd = pos
-							foundDelim = delim.End
-						}
-					}
-				}
-			}
-
-			if foundEnd >= 0 {
-				// Found closing - replace entire block from current position to end of closing delimiter
-				fillWithSpaces(result, idx, foundEnd+len([]rune(foundDelim)))
-				idx += foundEnd + len([]rune(foundDelim))
-				state = StateNormal
-				// Skip remaining processing of this line
-				skipRemainingProcessing = true
-			}
-			// No closing found - replace rest of line
-			fillToEndWithSpaces(result, idx)
-			idx = len(runes)
+			idx, state = s.handleMultiLineString(line, runes, result, idx)
 			continue
 
 		case StateNormal:
