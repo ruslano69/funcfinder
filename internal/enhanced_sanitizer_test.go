@@ -88,53 +88,6 @@ func TestEnhancedSanitizer_New(t *testing.T) {
 	}
 }
 
-func TestEnhancedSanitizer_CountAngleBrackets(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected int
-	}{
-		{
-			name:     "empty string",
-			input:    "",
-			expected: 0,
-		},
-		{
-			name:     "no brackets",
-			input:    "func main()",
-			expected: 0,
-		},
-		{
-			name:     "single opening bracket",
-			input:    "Vec<T>",
-			expected: 0,
-		},
-		{
-			name:     "unbalanced brackets",
-			input:    "List<A<B",
-			expected: 2,
-		},
-		{
-			name:     "multiple templates",
-			input:    "Map<Key, Value<List<Item>>>",
-			expected: 0,
-		},
-		{
-			name:     "comparison operators",
-			input:    "if a < b && c > d",
-			expected: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := CountAngleBrackets(tt.input)
-			if result != tt.expected {
-				t.Errorf("CountAngleBrackets(%q) = %d, want %d", tt.input, result, tt.expected)
-			}
-		})
-	}
-}
 
 func TestEnhancedSanitizer_ParserState(t *testing.T) {
 	tests := []struct {
@@ -187,36 +140,6 @@ func TestEnhancedSanitizer_ValidState(t *testing.T) {
 	}
 }
 
-func TestEnhancedSanitizer_IsTransitionValid(t *testing.T) {
-	tests := []struct {
-		name     string
-		from     ParserState
-		to       ParserState
-		expected bool
-	}{
-		// Допустимые переходы
-		{"normal to block comment", StateNormal, StateBlockComment, true},
-		{"normal to string", StateNormal, StateString, true},
-		{"normal to line comment", StateNormal, StateLineComment, true},
-		{"block comment to normal", StateBlockComment, StateNormal, true},
-		{"string to normal", StateString, StateNormal, true},
-
-		// Неопределённые переходы
-		{"string to block comment", StateString, StateBlockComment, false},
-		{"line comment to string", StateLineComment, StateString, false},
-		{"same state allowed", StateBlockComment, StateBlockComment, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := IsTransitionValid(tt.from, tt.to)
-			if result != tt.expected {
-				t.Errorf("IsTransitionValid(%s, %s) = %v, want %v",
-					tt.from.String(), tt.to.String(), result, tt.expected)
-			}
-		})
-	}
-}
 
 func TestEnhancedSanitizer_IsInLiteral(t *testing.T) {
 	config := newGoConfig()
@@ -535,88 +458,6 @@ func TestEnhancedSanitizer_EdgeCases(t *testing.T) {
 		})
 	}
 }
-
-func TestEnhancedSanitizer_RuneFunctions(t *testing.T) {
-	tests := []struct {
-		name       string
-		input      string
-		runeCount  int
-		truncated  string
-		maxRunes   int
-	}{
-		{
-			name:      "ASCII string",
-			input:     "hello",
-			runeCount: 5,
-			truncated: "hel",
-			maxRunes:  3,
-		},
-		{
-			name:      "Unicode string",
-			input:     "привет",
-			runeCount: 6,
-			truncated: "при",
-			maxRunes:  3,
-		},
-		{
-			name:      "Mixed string",
-			input:     "hello мир",
-			runeCount: 9,
-			truncated: "hel",
-			maxRunes:  3,
-		},
-		{
-			name:      "Empty string",
-			input:     "",
-			runeCount: 0,
-			truncated: "",
-			maxRunes:  3,
-		},
-		{
-			name:      "Truncate to zero",
-			input:     "hello",
-			runeCount: 5,
-			truncated: "",
-			maxRunes:  0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			count := RuneCount(tt.input)
-			if count != tt.runeCount {
-				t.Errorf("RuneCount(%q) = %d, want %d", tt.input, count, tt.runeCount)
-			}
-
-			truncated := TruncateToRunes(tt.input, tt.maxRunes)
-			if truncated != tt.truncated {
-				t.Errorf("TruncateToRunes(%q, %d) = %q, want %q", tt.input, tt.maxRunes, truncated, tt.truncated)
-			}
-		})
-	}
-}
-
-func TestEnhancedSanitizer_SkipToNextLine(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    State
-		expected State
-	}{
-		{"line comment to normal", StateLineComment, StateNormal},
-		{"normal stays normal", StateNormal, StateNormal},
-		{"string stays string", StateString, StateString},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := SkipToNextLine(tt.input)
-			if result != tt.expected {
-				t.Errorf("SkipToNextLine(%s) = %s, want %s", tt.input.String(), result.String(), tt.expected.String())
-			}
-		})
-	}
-}
-
 func TestEnhancedSanitizer_MultiLanguageSupport(t *testing.T) {
 	// Тестируем поддержку разных языков
 	languages := []struct {
@@ -681,11 +522,6 @@ func TestEnhancedSanitizer_Reset(t *testing.T) {
 
 	// Сбрасываем состояние
 	s.Reset()
-
-	// Проверяем, что multiLineDepth сброшен
-	if s.GetMultiLineDepth() != 0 {
-		t.Errorf("multiLineDepth should be 0 after reset, got %d", s.GetMultiLineDepth())
-	}
 }
 
 // Дополнительный тест для реального сценария с шаблонами C++
