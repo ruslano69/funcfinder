@@ -4,24 +4,60 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/ruslano69/funcfinder)
 
-**AI-optimized CLI tool for finding function boundaries in source code with 99.67% token reduction**
+**Production-grade code analysis factory for multi-language codebases**
 
-`funcfinder` provides X-ray vision and microscope precision for AI workflows - scan entire codebases in milliseconds, extract exact functions with zero noise. **100K lines analyzed faster than a single AI request!**
+`funcfinder` is not just a parser—it's a **universal code analysis factory** that automatically detects languages, extracts functions/classes/types, and scales from single files to entire repositories. Built on a state-machine sanitizer (not regex), it handles C# verbatim strings, Python docstrings, and nested comments correctly where simple regex fails.
 
-## ✨ Features
+**⚡ Performance**: 763,000 lines/sec parsing · Parallel processing with worker pools · Processes 100K lines in ~130ms
 
-- 🔍 **Find function boundaries** by name in source files
-- 🏗️ **Find structs/classes/types** with `--struct` flag ⭐ NEW
-- 🔄 **Combined mode** with `--all` (functions + structs) ⭐ NEW
-- 🗺️ **Map all functions** in a file with `--map`
-- 🌳 **Tree visualization** with `--tree` for classes and methods
-- 📏 **Line range filtering** with `--lines` for precise scope control
-- 📤 **Extract function bodies** with `--extract`
-- 📊 **JSON output** for AI integration with `--json`
-- 🪟 **Windows-compatible file slicing** - native sed alternative
-- 🚀 **99.67% token reduction** for code navigation
-- ⚡ **Blazing fast**: 280,000 lines/sec (100K lines in 0.36s)
-- 🎯 **Zero dependencies**: static binary
+## ✨ What Makes It Different
+
+### 🏭 Factory Architecture, Not Simple Regex
+- **Language Factory**: Auto-detects 15+ languages by extension
+- **Parser Factory**: Switches between brace-based (Go/Java) and indent-based (Python) parsers
+- **Enhanced Sanitizer**: State machine that correctly handles edge cases regex can't (C# `@"..."`, Python `"""`, nested comments)
+- **Multiple Finders**: Function finder, struct finder, combined mode—all through unified API
+
+### 🚀 Production Features
+
+- 📁 **Directory Mode** ⭐ NEW: `--dir ./project` scans entire repositories with automatic language detection
+- ⚡ **Parallel Processing**: `--workers 8` for 4-8x speedup on large codebases
+- 🎯 **Smart Filtering**: Automatic `.gitignore` support, skip `node_modules`, `vendor`, etc.
+- 🔍 **Three Analysis Modes**:
+  - `--map` (default): Find all functions
+  - `--struct`: Find only classes/structs/types
+  - `--all`: Both functions and types
+- 📊 **Output Formats**: grep-style, JSON, tree, tree-full, extract bodies
+- 🎨 **Multi-language**: Single command analyzes mixed Go/Python/C++/Java projects
+- 🪟 **Cross-platform**: Linux, macOS, Windows—zero dependencies
+
+### 📈 Real-World Performance
+
+```bash
+# Small project (21 files, mixed languages)
+funcfinder -dir test_examples --all --map
+→ 273 functions + 438 types in ~30-45ms
+
+# Medium project (25 Go files)
+funcfinder -dir internal --all --json
+→ 228 functions + 69 classes in ~40ms
+
+# Parallel speedup
+--workers 1: 45ms  →  --workers 4: 29ms (1.55x faster)
+```
+
+## 🌐 Core Capabilities
+
+- 🔍 **Single File Analysis**: `--inp file.go --map` for targeted extraction
+- 📁 **Directory Scanning**: `--dir ./src --all` for entire codebases
+- 🏗️ **Type Extraction**: `--struct` finds classes, structs, interfaces, enums
+- 🔄 **Combined Analysis**: `--all` gets both functions and types in one pass
+- 🗺️ **Codebase Mapping**: `--tree` shows hierarchical structure
+- 📏 **Precise Extraction**: `--lines 50:100` for specific code ranges
+- 📤 **Body Extraction**: `--extract` pulls complete function bodies
+- 📊 **JSON Export**: `--json` for programmatic processing
+- ⚡ **Performance**: 763K lines/sec sanitizer, parallel worker pools
+- 🎯 **Zero Dependencies**: Single static binary
 
 ## 🌐 Supported Languages (15)
 
@@ -55,12 +91,12 @@ Download from [Releases](https://github.com/ruslano69/funcfinder/releases):
 
 ```bash
 # Linux
-wget https://github.com/ruslano69/funcfinder/releases/download/v1.4.0/funcfinder-linux-amd64.tar.gz
+wget https://github.com/ruslano69/funcfinder/releases/download/v1.6.0/funcfinder-linux-amd64.tar.gz
 tar -xzf funcfinder-linux-amd64.tar.gz
 sudo mv funcfinder /usr/local/bin/
 
 # macOS
-wget https://github.com/ruslano69/funcfinder/releases/download/v1.4.0/funcfinder-darwin-amd64.tar.gz
+wget https://github.com/ruslano69/funcfinder/releases/download/v1.6.0/funcfinder-darwin-amd64.tar.gz
 tar -xzf funcfinder-darwin-amd64.tar.gz
 sudo mv funcfinder /usr/local/bin/
 
@@ -91,14 +127,43 @@ For Windows-specific instructions, see [docs/WINDOWS.md](docs/WINDOWS.md).
 
 ## 🚀 Quick Start
 
-### Check version
+### Directory Mode (⭐ Most Powerful)
+
+```bash
+# Scan entire project (auto-detects languages)
+funcfinder --dir ./myproject --map --tree
+
+# Find all functions + classes in repository
+funcfinder --dir ./src --all --json > codebase.json
+
+# Fast parallel scan with 8 workers
+funcfinder --dir . --map --workers 8
+
+# Only structs/classes (skip functions)
+funcfinder --dir ./models --struct --map
+
+# Output:
+# INFO: Scanning directory: ./src (mode=all, workers=8, gitignore=true)
+# └── src
+# ├── main.go
+# │   ├── def main (line 10)
+# │   └── class Server (line 25)
+# ├── handler.py
+# │   ├── def process (line 5)
+# │   └── class Handler (line 20)
+# INFO: Processed 15 files, found 45 functions, 12 classes/types
+```
+
+### Single File Mode
+
+#### Check version
 
 ```bash
 funcfinder --version
-# Output: funcfinder version 1.4.0
+# Output: funcfinder version 1.6.0
 ```
 
-### Map all functions in a file
+#### Map all functions in a file
 
 ```bash
 funcfinder --inp main.go --source go --map
@@ -209,6 +274,78 @@ funcfinder --inp api.go --source go --all --json
   ]
 }
 ```
+
+## 🏗️ Architecture: Why Not Just Regex?
+
+### The Problem with Simple Regex Parsers
+
+Most code parsers use naive regex patterns and fail on edge cases:
+
+```csharp
+// ❌ Simple regex breaks here:
+string path = @"C:\Users\Test";  // C# verbatim string
+string msg = @"He said ""Hello""";  // Escaped quotes in verbatim
+
+// ❌ Regex truncates this:
+query := `SELECT * FROM users // not a comment`  // Go raw string
+
+// ❌ Regex sees 6 quotes, not 1 docstring:
+"""This is a Python docstring"""
+```
+
+### funcfinder's Solution: Factory + State Machine
+
+```
+Input File → Language Factory → Parser Factory → Enhanced Sanitizer → Pattern Matching
+     │              │                  │                    │                  │
+  file.go      GoConfig          Finder           State Machine         Find Functions
+  file.py    PythonConfig    PythonFinder     (763K lines/sec)         Extract Bodies
+  file.cs      CSharpConfig       Finder       Handles verbatim            Output
+```
+
+**Key Components:**
+
+1. **Language Factory** (`languages.json`)
+   - Auto-detects language by extension
+   - Loads correct parser config (brace-based vs indent-based)
+   - Supports 15+ languages with language-specific features
+
+2. **Enhanced Sanitizer** (State Machine, not regex)
+   - **7 states**: Normal, LineComment, BlockComment, String, RawString, CharLiteral, MultiLineString
+   - Correctly handles: C# `@"..."`, Python `"""`, Go `` `...` ``, nested comments
+   - Performance: 763,000 lines/sec
+   - [Technical deep-dive](docs/COMPLEXITY_ANALYSIS.md)
+
+3. **Parser Factory**
+   - `CreateFinder()` → Brace-based (Go, Java, C++) or Indent-based (Python)
+   - `CreateStructFinder()` → Type extraction with field parsing
+   - Unified API regardless of language
+
+4. **Directory Processor**
+   - Worker pool for parallel processing
+   - `.gitignore` pattern matching
+   - Language detection per file
+   - Result aggregation
+
+**Result:** Handles production code that breaks simple regex parsers.
+
+### Proof: Test Results
+
+```bash
+# C# verbatim strings (broken in most tools)
+funcfinder --inp test.cs --source cs --map
+✅ Correctly handles @"C:\Users" and @"He said ""Hello"""
+
+# Python docstrings (often counted as 6 separate strings)
+funcfinder --inp test.py --source py --map
+✅ Treats """...""" as single multiline string
+
+# Go raw strings with comment-like content
+funcfinder --inp test.go --source go --map
+✅ `SELECT // not comment` parsed correctly
+```
+
+See [STAT_FIX_COMPLETED.md](docs/STAT_FIX_COMPLETED.md) for detailed comparison.
 
 ## 🤖 AI Agent Integration
 
