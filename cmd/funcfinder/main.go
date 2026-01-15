@@ -88,6 +88,17 @@ func handleDirectoryMode(config internal.Config, dirPath string, workers int, re
 		internal.FatalError("path is not a directory: %s", dirPath)
 	}
 
+	// Определяем режим работы
+	workMode := "functions"
+	if structMode && allMode {
+		internal.FatalError("--struct and --all are mutually exclusive")
+	}
+	if structMode {
+		workMode = "structs"
+	} else if allMode {
+		workMode = "all"
+	}
+
 	// Валидация параметров
 	if funcStr == "" && !mapMode && !treeMode && !treeFull {
 		internal.FatalError("either --func, --map, or --tree must be specified in directory mode")
@@ -101,15 +112,10 @@ func handleDirectoryMode(config internal.Config, dirPath string, workers int, re
 		internal.FatalError("--tree and --tree-full are mutually exclusive")
 	}
 
-	// Directory mode не поддерживает --struct и --all пока
-	if structMode || allMode {
-		internal.FatalError("--struct and --all are not yet supported in directory mode")
-	}
-
-	internal.InfoMessage("Scanning directory: %s (recursive=%v, workers=%d, gitignore=%v)", dirPath, recursive, workers, useGitignore)
+	internal.InfoMessage("Scanning directory: %s (mode=%s, recursive=%v, workers=%d, gitignore=%v)", dirPath, workMode, recursive, workers, useGitignore)
 
 	// Создаем процессор директорий
-	processor := internal.NewDirProcessor(config, workers, recursive, useGitignore)
+	processor := internal.NewDirProcessor(config, workers, recursive, useGitignore, workMode)
 
 	// Обрабатываем директорию
 	results, err := processor.ProcessDirectory(dirPath)
@@ -123,11 +129,18 @@ func handleDirectoryMode(config internal.Config, dirPath string, workers int, re
 
 	// Статистика
 	totalFuncs := 0
+	totalClasses := 0
 	totalFiles := len(results)
 	for _, r := range results {
 		totalFuncs += len(r.Functions)
+		totalClasses += len(r.Classes)
 	}
-	internal.InfoMessage("Processed %d files, found %d functions", totalFiles, totalFuncs)
+
+	if workMode == "all" || workMode == "structs" {
+		internal.InfoMessage("Processed %d files, found %d functions, %d classes/types", totalFiles, totalFuncs, totalClasses)
+	} else {
+		internal.InfoMessage("Processed %d files, found %d functions", totalFiles, totalFuncs)
+	}
 }
 
 func handleFileMode(config internal.Config, inp, source, funcStr, typeStr string, structMode, allMode, mapMode, treeMode, treeFull, jsonOut, extract, rawMode bool, linesRange string) {

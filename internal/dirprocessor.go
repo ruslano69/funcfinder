@@ -33,6 +33,7 @@ type DirProcessor struct {
 	workers      int
 	recursive    bool
 	useGitignore bool
+	workMode     string // "functions", "structs", or "all"
 }
 
 // TreeNode represents a node in the directory tree for tree output
@@ -44,7 +45,7 @@ type DirTreeNode struct {
 }
 
 // NewDirProcessor creates a new directory processor
-func NewDirProcessor(config Config, workers int, recursive, useGitignore bool) *DirProcessor {
+func NewDirProcessor(config Config, workers int, recursive, useGitignore bool, workMode string) *DirProcessor {
 	if workers <= 0 {
 		workers = runtime.NumCPU()
 	}
@@ -53,6 +54,7 @@ func NewDirProcessor(config Config, workers int, recursive, useGitignore bool) *
 		workers:      workers,
 		recursive:    recursive,
 		useGitignore: useGitignore,
+		workMode:     workMode,
 	}
 }
 
@@ -203,17 +205,68 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 		return result
 	}
 
-	// Create finder for this file type
-	finder := CreateFinder(langConfig, "", "map", false, false)
+	switch dp.workMode {
+	case "functions":
+		// Find only functions
+		finder := CreateFinder(langConfig, "", "map", false, false)
+		findResult, err := finder.FindFunctions(job.Path)
+		if err != nil {
+			result.Error = err
+			return result
+		}
+		result.Functions = findResult.Functions
+		result.Classes = findResult.Classes
 
-	findResult, err := finder.FindFunctions(job.Path)
-	if err != nil {
-		result.Error = err
-		return result
+	case "structs":
+		// Find only structs/classes/types
+		if !langConfig.HasStructSupport() {
+			// Skip languages without struct support
+			return result
+		}
+		factory := NewStructFinderFactory()
+		structFinder := factory.CreateStructFinder(langConfig, "", true, false)
+		structResult, err := structFinder.FindStructures(job.Path)
+		if err != nil {
+			result.Error = err
+			return result
+		}
+		// For structs mode, put types in Classes field
+		for _, typ := range structResult.Types {
+			result.Classes = append(result.Classes, ClassBounds{
+				Name:  typ.Name,
+				Start: typ.Start,
+				End:   typ.End,
+			})
+		}
+
+	case "all":
+		// Find both functions and structs
+		finder := CreateFinder(langConfig, "", "map", false, false)
+		findResult, err := finder.FindFunctions(job.Path)
+		if err != nil {
+			result.Error = err
+			return result
+		}
+		result.Functions = findResult.Functions
+		result.Classes = findResult.Classes
+
+		// Also find structs if language supports it
+		if langConfig.HasStructSupport() {
+			factory := NewStructFinderFactory()
+			structFinder := factory.CreateStructFinder(langConfig, "", true, false)
+			structResult, err := structFinder.FindStructures(job.Path)
+			if err == nil {
+				// Append struct types to classes
+				for _, typ := range structResult.Types {
+					result.Classes = append(result.Classes, ClassBounds{
+						Name:  typ.Name,
+						Start: typ.Start,
+						End:   typ.End,
+					})
+				}
+			}
+		}
 	}
-
-	result.Functions = findResult.Functions
-	result.Classes = findResult.Classes
 
 	return result
 }
