@@ -260,7 +260,7 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 				replaceCharWithSpace(result, idx)
 				replaceCharWithSpace(result, idx+1)
 				idx += 2
-			} else if s.matchesAnyStringDelimiter(runes, idx) {
+			} else if s.matchesDelimiter(runes, idx, "string") {
 				// Replace closing delimiter with space
 				replaceCharWithSpace(result, idx)
 				idx++
@@ -271,7 +271,7 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 			}
 
 		case StateRawString:
-			if s.matchesAnyRawStringDelimiter(runes, idx) {
+			if s.matchesDelimiter(runes, idx, "raw") {
 				idx++
 				state = StateNormal
 				continue
@@ -486,9 +486,9 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 				}
 
 				// 4. Regular strings and raw strings (only if not multi-line)
-				if !s.useRaw && s.matchesAnyRawStringDelimiter(runes, idx) {
+				if !s.useRaw && s.matchesDelimiter(runes, idx, "raw") {
 					state = StateRawString
-				} else if s.matchesAnyStringDelimiter(runes, idx) {
+				} else if s.matchesDelimiter(runes, idx, "string") {
 					state = StateString
 				}
 			}
@@ -516,18 +516,18 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 	return string(result), state
 }
 
-func (s *EnhancedSanitizer) matchesAnyStringDelimiter(runes []rune, pos int) bool {
+func (s *EnhancedSanitizer) matchesDelimiter(runes []rune, pos int, delimType string) bool {
 	for _, delim := range s.sanitizerConfig.StringDelimiters {
-		if !delim.IsMultiLine && s.matchesAt(runes, pos, delim.Start) {
-			return true
+		match := false
+		switch delimType {
+		case "string":
+			match = !delim.IsMultiLine && !delim.IsRaw
+		case "raw":
+			match = delim.IsRaw && !delim.IsMultiLine
+		case "multiline":
+			match = delim.IsMultiLine
 		}
-	}
-	return false
-}
-
-func (s *EnhancedSanitizer) matchesAnyRawStringDelimiter(runes []rune, pos int) bool {
-	for _, delim := range s.sanitizerConfig.StringDelimiters {
-		if delim.IsRaw && !delim.IsMultiLine && s.matchesAt(runes, pos, delim.Start) {
+		if match && s.matchesAt(runes, pos, delim.Start) {
 			return true
 		}
 	}
