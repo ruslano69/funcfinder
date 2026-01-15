@@ -9,24 +9,30 @@ import (
 	"github.com/ruslano69/funcfinder/internal"
 )
 
-const Version = "1.5.0"
+const Version = "1.6.0"
 
 func main() {
 	// Парсинг аргументов командной строки
 	version := flag.Bool("version", false, "print version and exit")
+
+	// Режим файла
 	inp := flag.String("inp", "", "input file with source code")
 	source := flag.String("source", "", "source language: go/c/cpp/cs/java/d/js/ts/py")
 
-	// Function finding flags
-	funcStr := flag.String("func", "", "function names to find (comma-separated)")
+	// Режим каталога
+	dir := flag.String("dir", "", "directory to scan for source files (auto-detects language by extension)")
+	workers := flag.Int("workers", 0, "number of parallel workers (default: number of CPU cores)")
+	recursive := flag.Bool("recursive", true, "scan directories recursively")
+	noGitignore := flag.Bool("no-gitignore", false, "ignore .gitignore files")
 
-	// Struct finding flags (NEW)
+	// Function/Type finding flags
+	funcStr := flag.String("func", "", "function names to find (comma-separated)")
 	structMode := flag.Bool("struct", false, "find structs/classes/types instead of functions")
 	typeStr := flag.String("type", "", "type names to find (comma-separated)")
 	allMode := flag.Bool("all", false, "find both functions and structs")
 
 	// Output mode flags
-	mapMode := flag.Bool("map", false, "map all functions/types in file")
+	mapMode := flag.Bool("map", false, "map all functions/types in file(s)")
 	treeMode := flag.Bool("tree", false, "output in tree format")
 	treeFull := flag.Bool("tree-full", false, "output in tree format with signatures")
 	jsonOut := flag.Bool("json", false, "output in JSON format")
@@ -43,83 +49,13 @@ func main() {
 		internal.PrintVersion("funcfinder")
 	}
 
-	// Валидация параметров
-	if *inp == "" {
-		internal.FatalError("--inp parameter is required")
+	// Валидация: либо -inp либо -dir должно быть указано
+	if *inp == "" && *dir == "" {
+		internal.FatalError("either --inp (single file) or --dir (directory) parameter is required")
 	}
 
-	// --source не обязателен если используется только --lines (standalone mode)
-	standaloneLines := *linesRange != "" && *source == ""
-
-	if *source == "" && !standaloneLines {
-		internal.FatalError("--source parameter is required (or use --lines alone for plain text extraction)")
-	}
-
-	// Standalone --lines mode: просто вывести строки без парсинга
-	if standaloneLines {
-		lineRange, err := internal.ParseLineRange(*linesRange)
-		if err != nil {
-			internal.FatalError("parsing line range: %v", err)
-		}
-
-		lines, startLine, err := internal.ReadFileLines(*inp, lineRange)
-		if err != nil {
-			internal.FatalError("reading lines: %v", err)
-		}
-
-		// JSON output или plain
-		if *jsonOut {
-			internal.OutputJSONLines(lines, startLine, lineRange)
-		} else {
-			internal.OutputPlainLines(lines, startLine)
-		}
-		os.Exit(0)
-	}
-
-	// Валидация режимов работы
-	// Определяем главный режим: functions (по умолчанию), structs, или all
-	workMode := "functions"
-	if *structMode && *allMode {
-		internal.FatalError("--struct and --all are mutually exclusive")
-	}
-	if *structMode {
-		workMode = "structs"
-	} else if *allMode {
-		workMode = "all"
-	}
-
-	// Взаимоисключающие режимы для functions/structs
-	if workMode == "functions" {
-		if *funcStr == "" && !*mapMode && !*treeMode && !*treeFull {
-			internal.FatalError("either --func, --map, or --tree must be specified")
-		}
-		if *funcStr != "" && (*mapMode || *treeMode || *treeFull) {
-			internal.FatalError("--func is mutually exclusive with --map and --tree")
-		}
-		if *typeStr != "" {
-			internal.FatalError("--type can only be used with --struct or --all")
-		}
-	} else if workMode == "structs" {
-		if *typeStr == "" && !*mapMode && !*treeMode && !*treeFull {
-			internal.FatalError("either --type, --map, or --tree must be specified with --struct")
-		}
-		if *typeStr != "" && (*mapMode || *treeMode || *treeFull) {
-			internal.FatalError("--type is mutually exclusive with --map and --tree")
-		}
-		if *funcStr != "" {
-			internal.FatalError("--func cannot be used with --struct")
-		}
-	} else if workMode == "all" {
-		if !*mapMode && !*treeMode && !*treeFull && !*jsonOut {
-			internal.FatalError("--all requires --map, --tree, or --json output mode")
-		}
-		if *funcStr != "" || *typeStr != "" {
-			internal.FatalError("--func and --type cannot be used with --all (use --map instead)")
-		}
-	}
-
-	if *treeMode && *treeFull {
-		internal.FatalError("--tree and --tree-full are mutually exclusive")
+	if *inp != "" && *dir != "" {
+		internal.FatalError("--inp and --dir are mutually exclusive")
 	}
 
 	// Загружаем конфигурацию языков
@@ -128,31 +64,184 @@ func main() {
 		internal.FatalError("loading config: %v", err)
 	}
 
+	// Режим обработки каталога
+	if *dir != "" {
+		handleDirectoryMode(config, *dir, *workers, *recursive, !*noGitignore, *funcStr, *mapMode, *treeMode, *treeFull, *jsonOut, *extract, *structMode, *allMode)
+		return
+	}
+
+	// Режим обработки одного файла (существующая логика)
+	handleFileMode(config, *inp, *source, *funcStr, *typeStr, *structMode, *allMode, *mapMode, *treeMode, *treeFull, *jsonOut, *extract, *rawMode, *linesRange)
+}
+
+func handleDirectoryMode(config internal.Config, dirPath string, workers int, recursive, useGitignore bool, funcStr string, mapMode, treeMode, treeFull, jsonOut, extract, structMode, allMode bool) {
+	// Проверяем существование директории
+	info, err := os.Stat(dirPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			internal.FatalError("directory does not exist: %s", dirPath)
+		}
+		internal.FatalError("accessing directory: %v", err)
+	}
+
+	if !info.IsDir() {
+		internal.FatalError("path is not a directory: %s", dirPath)
+	}
+
+	// Определяем режим работы
+	workMode := "functions"
+	if structMode && allMode {
+		internal.FatalError("--struct and --all are mutually exclusive")
+	}
+	if structMode {
+		workMode = "structs"
+	} else if allMode {
+		workMode = "all"
+	}
+
+	// Валидация параметров
+	if funcStr == "" && !mapMode && !treeMode && !treeFull {
+		internal.FatalError("either --func, --map, or --tree must be specified in directory mode")
+	}
+
+	if funcStr != "" && (mapMode || treeMode || treeFull) {
+		internal.FatalError("--func is mutually exclusive with --map and --tree")
+	}
+
+	if treeMode && treeFull {
+		internal.FatalError("--tree and --tree-full are mutually exclusive")
+	}
+
+	internal.InfoMessage("Scanning directory: %s (mode=%s, recursive=%v, workers=%d, gitignore=%v)", dirPath, workMode, recursive, workers, useGitignore)
+
+	// Создаем процессор директорий
+	processor := internal.NewDirProcessor(config, workers, recursive, useGitignore, workMode)
+
+	// Обрабатываем директорию
+	results, err := processor.ProcessDirectory(dirPath)
+	if err != nil {
+		internal.FatalError("processing directory: %v", err)
+	}
+
+	// Выводим результат
+	output := internal.AggregateDirResults(results, jsonOut, treeMode, treeFull)
+	fmt.Println(output)
+
+	// Статистика
+	totalFuncs := 0
+	totalClasses := 0
+	totalFiles := len(results)
+	for _, r := range results {
+		totalFuncs += len(r.Functions)
+		totalClasses += len(r.Classes)
+	}
+
+	if workMode == "all" || workMode == "structs" {
+		internal.InfoMessage("Processed %d files, found %d functions, %d classes/types", totalFiles, totalFuncs, totalClasses)
+	} else {
+		internal.InfoMessage("Processed %d files, found %d functions", totalFiles, totalFuncs)
+	}
+}
+
+func handleFileMode(config internal.Config, inp, source, funcStr, typeStr string, structMode, allMode, mapMode, treeMode, treeFull, jsonOut, extract, rawMode bool, linesRange string) {
+	// --source не обязателен если используется только --lines (standalone mode)
+	standaloneLines := linesRange != "" && source == ""
+
+	if source == "" && !standaloneLines {
+		internal.FatalError("--source parameter is required (or use --lines alone for plain text extraction)")
+	}
+
+	// Standalone --lines mode: просто вывести строки без парсинга
+	if standaloneLines {
+		lineRange, err := internal.ParseLineRange(linesRange)
+		if err != nil {
+			internal.FatalError("parsing line range: %v", err)
+		}
+
+		lines, startLine, err := internal.ReadFileLines(inp, lineRange)
+		if err != nil {
+			internal.FatalError("reading lines: %v", err)
+		}
+
+		// JSON output или plain
+		if jsonOut {
+			internal.OutputJSONLines(lines, startLine, lineRange)
+		} else {
+			internal.OutputPlainLines(lines, startLine)
+		}
+		os.Exit(0)
+	}
+
+	// Валидация режимов работы
+	workMode := "functions"
+	if structMode && allMode {
+		internal.FatalError("--struct and --all are mutually exclusive")
+	}
+	if structMode {
+		workMode = "structs"
+	} else if allMode {
+		workMode = "all"
+	}
+
+	// Взаимоисключающие режимы
+	if workMode == "functions" {
+		if funcStr == "" && !mapMode && !treeMode && !treeFull {
+			internal.FatalError("either --func, --map, or --tree must be specified")
+		}
+		if funcStr != "" && (mapMode || treeMode || treeFull) {
+			internal.FatalError("--func is mutually exclusive with --map and --tree")
+		}
+		if typeStr != "" {
+			internal.FatalError("--type can only be used with --struct or --all")
+		}
+	} else if workMode == "structs" {
+		if typeStr == "" && !mapMode && !treeMode && !treeFull {
+			internal.FatalError("either --type, --map, or --tree must be specified with --struct")
+		}
+		if typeStr != "" && (mapMode || treeMode || treeFull) {
+			internal.FatalError("--type is mutually exclusive with --map and --tree")
+		}
+		if funcStr != "" {
+			internal.FatalError("--func cannot be used with --struct")
+		}
+	} else if workMode == "all" {
+		if !mapMode && !treeMode && !treeFull && !jsonOut {
+			internal.FatalError("--all requires --map, --tree, or --json output mode")
+		}
+		if funcStr != "" || typeStr != "" {
+			internal.FatalError("--func and --type cannot be used with --all (use --map instead)")
+		}
+	}
+
+	if treeMode && treeFull {
+		internal.FatalError("--tree and --tree-full are mutually exclusive")
+	}
+
 	// Получаем конфигурацию для выбранного языка
-	langConfig, err := config.GetLanguageConfig(*source)
+	langConfig, err := config.GetLanguageConfig(source)
 	if err != nil {
 		internal.FatalError("%v\nSupported languages: %s", err, strings.Join(config.GetSupportedLanguages(), ", "))
 	}
 
 	// Определяем режим работы
 	mode := "func"
-	if *mapMode || *treeMode || *treeFull {
+	if mapMode || treeMode || treeFull {
 		mode = "map"
 	}
 
-	// Для --tree-full нужны тела функций/типов для извлечения сигнатур
-	extractMode := *extract || *treeFull
+	// Для --tree-full нужны тела функций/типов
+	extractMode := extract || treeFull
 
 	// Обработка в зависимости от workMode
 	switch workMode {
 	case "functions":
-		processFunctions(langConfig, *funcStr, mode, extractMode, *rawMode, *inp, *linesRange, *mapMode, *treeMode, *treeFull, *jsonOut, *extract)
+		processFunctions(langConfig, funcStr, mode, extractMode, rawMode, inp, linesRange, mapMode, treeMode, treeFull, jsonOut, extract)
 
 	case "structs":
-		processStructs(langConfig, *typeStr, mode, extractMode, *inp, *linesRange, *mapMode, *treeMode, *treeFull, *jsonOut, *extract)
+		processStructs(langConfig, typeStr, mode, extractMode, inp, linesRange, mapMode, treeMode, treeFull, jsonOut, extract)
 
 	case "all":
-		processAll(langConfig, mode, extractMode, *rawMode, *inp, *linesRange, *mapMode, *treeMode, *treeFull, *jsonOut, *extract)
+		processAll(langConfig, mode, extractMode, rawMode, inp, linesRange, mapMode, treeMode, treeFull, jsonOut, extract)
 	}
 }
 
@@ -184,7 +273,6 @@ func processFunctions(langConfig *internal.LanguageConfig, funcStr, mode string,
 		}
 
 		// IMPORTANT: For Python need to handle it specially
-		// For now we only support standard Finder with --lines
 		if langConfig.IndentBased {
 			internal.WarnError("--lines with Python may produce incorrect results for indent-based parsing")
 		}
@@ -299,7 +387,7 @@ func processAll(langConfig *internal.LanguageConfig, mode string, extractMode, r
 		internal.FatalError("--lines is not yet supported with --all mode")
 	}
 
-	// Создаем function finder (всегда в режиме "map" для поиска всех функций)
+	// Создаем function finder (всегда в режиме "map")
 	funcFinder := internal.CreateFinder(langConfig, "", "map", extractMode, rawMode)
 	funcResult, err := funcFinder.FindFunctions(inp)
 	if err != nil {
@@ -310,7 +398,7 @@ func processAll(langConfig *internal.LanguageConfig, mode string, extractMode, r
 	var structResult *internal.StructFindResult
 	if langConfig.HasStructSupport() {
 		factory := internal.NewStructFinderFactory()
-		structFinder := factory.CreateStructFinder(langConfig, "", true, extractMode) // mapMode=true для --all
+		structFinder := factory.CreateStructFinder(langConfig, "", true, extractMode)
 		structResult, err = structFinder.FindStructures(inp)
 		if err != nil {
 			internal.FatalError("finding types: %v", err)
@@ -330,10 +418,8 @@ func processAll(langConfig *internal.LanguageConfig, mode string, extractMode, r
 
 	// Форматируем и выводим результат
 	if jsonOut {
-		// Комбинированный JSON
 		outputCombinedJSON(funcResult, structResult)
 	} else if extract {
-		// Комбинированный extract
 		if funcCount > 0 {
 			fmt.Println("=== FUNCTIONS ===")
 			fmt.Println(internal.FormatExtract(funcResult))
@@ -343,7 +429,6 @@ func processAll(langConfig *internal.LanguageConfig, mode string, extractMode, r
 				fmt.Println()
 			}
 			fmt.Println("=== TYPES ===")
-			// Читаем файл для extract режима
 			allLines, _, err := internal.ReadFileLines(inp, internal.LineRange{Start: 1, End: -1})
 			if err != nil {
 				internal.FatalError("reading file: %v", err)
@@ -351,7 +436,6 @@ func processAll(langConfig *internal.LanguageConfig, mode string, extractMode, r
 			fmt.Println(internal.FormatStructExtract(structResult, allLines))
 		}
 	} else if treeMode || treeFull {
-		// Комбинированный tree
 		if funcCount > 0 {
 			fmt.Println("=== FUNCTIONS ===")
 			if treeFull {
@@ -368,7 +452,6 @@ func processAll(langConfig *internal.LanguageConfig, mode string, extractMode, r
 			fmt.Println(internal.FormatStructTree(structResult))
 		}
 	} else {
-		// Комбинированный map (grep-style)
 		if funcCount > 0 {
 			fmt.Println("=== FUNCTIONS ===")
 			fmt.Println(internal.FormatGrepStyle(funcResult))

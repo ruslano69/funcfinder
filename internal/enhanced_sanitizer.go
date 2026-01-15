@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"sort"
 	"strings"
 )
 
@@ -74,128 +73,20 @@ func (s ParserState) String() string {
 	}
 }
 
-type StringDelimiter struct {
-	Start       string
-	End         string
-	EscapeChar  string
-	IsRaw       bool
-	IsMultiLine bool
-	IsDocString bool
-	Priority    int
+// Sanitizer provides code sanitization by removing comments and string literals
+type Sanitizer struct {
+	config *LanguageConfig
+	useRaw bool
 }
 
-type SanitizerConfig struct {
-	LanguageConfig   *LanguageConfig
-	StringDelimiters []StringDelimiter // Keep for backward compatibility and priority ordering
-	CharDelimiters   []string
-
-	// Map-based lookups for O(1) performance
-	DelimiterMap        map[string]*StringDelimiter
-	RegularStringDelims map[string]*StringDelimiter // !IsMultiLine
-	RawStringDelims     map[string]*StringDelimiter // IsRaw && !IsMultiLine
-	MultiLineDelims     map[string]*StringDelimiter // IsMultiLine
-}
-
-type EnhancedSanitizer struct {
-	config          *LanguageConfig
-	sanitizerConfig *SanitizerConfig
-	useRaw          bool
-}
-
-func NewEnhancedSanitizer(config *LanguageConfig) *EnhancedSanitizer {
-	sanitizerConfig := buildSanitizerConfig(config)
-
-	return &EnhancedSanitizer{
-		config:          config,
-		sanitizerConfig: sanitizerConfig,
-		useRaw:          false,
+func NewSanitizer(config *LanguageConfig, useRaw bool) *Sanitizer {
+	return &Sanitizer{
+		config: config,
+		useRaw: useRaw,
 	}
 }
 
-func buildSanitizerConfig(config *LanguageConfig) *SanitizerConfig {
-	delimiters := buildStringDelimiters(config)
-
-	// Build delimiter maps for O(1) lookups
-	delimiterMap := make(map[string]*StringDelimiter)
-	regularMap := make(map[string]*StringDelimiter)
-	rawMap := make(map[string]*StringDelimiter)
-	multiLineMap := make(map[string]*StringDelimiter)
-
-	for i := range delimiters {
-		delim := &delimiters[i]
-
-		// Add to main map
-		delimiterMap[delim.Start] = delim
-
-		// Add to type-specific maps
-		if delim.IsMultiLine {
-			multiLineMap[delim.Start] = delim
-		} else if delim.IsRaw {
-			rawMap[delim.Start] = delim
-		} else {
-			regularMap[delim.Start] = delim
-		}
-	}
-
-	return &SanitizerConfig{
-		LanguageConfig:      config,
-		StringDelimiters:    delimiters,
-		CharDelimiters:      buildCharDelimiters(config),
-		DelimiterMap:        delimiterMap,
-		RegularStringDelims: regularMap,
-		RawStringDelims:     rawMap,
-		MultiLineDelims:     multiLineMap,
-	}
-}
-
-func buildStringDelimiters(config *LanguageConfig) []StringDelimiter {
-	var delimiters []StringDelimiter
-
-	for _, char := range config.StringChars {
-		delimiters = append(delimiters, StringDelimiter{
-			Start:      char,
-			End:        char,
-			EscapeChar: config.EscapeChar,
-			Priority:   10,
-		})
-	}
-
-	for _, char := range config.RawStringChars {
-		delimiters = append(delimiters, StringDelimiter{
-			Start:    char,
-			End:      char,
-			IsRaw:    true,
-			Priority: 20,
-		})
-	}
-
-	for _, marker := range config.DocStringMarkers {
-		delimiters = append(delimiters, StringDelimiter{
-			Start:       marker,
-			End:         marker,
-			EscapeChar:  config.EscapeChar,
-			IsMultiLine: true,
-			Priority:    30,
-		})
-	}
-
-	sort.Slice(delimiters, func(i, j int) bool {
-		return delimiters[i].Priority > delimiters[j].Priority
-	})
-
-	return delimiters
-}
-
-func buildCharDelimiters(config *LanguageConfig) []string {
-	if config.CharDelimiters != nil {
-		return config.CharDelimiters
-	}
-	return []string{""}
-}
-
-// Helper functions for replacing characters with spaces (DRY principle)
-
-// fillWithSpaces replaces a range [startIdx, startIdx+length) with spaces (bounds-checked)
+// Helper functions for filling result buffer with spaces
 func fillWithSpaces(result []rune, startIdx, length int) {
 	endIdx := startIdx + length
 	if endIdx > len(result) {
@@ -206,22 +97,70 @@ func fillWithSpaces(result []rune, startIdx, length int) {
 	}
 }
 
-// fillToEndWithSpaces replaces from startIdx to end of line with spaces
 func fillToEndWithSpaces(result []rune, startIdx int) {
 	for i := startIdx; i < len(result); i++ {
 		result[i] = ' '
 	}
 }
 
-// replaceCharWithSpace replaces a single character at index with space (bounds-checked)
 func replaceCharWithSpace(result []rune, idx int) {
 	if idx < len(result) {
 		result[idx] = ' '
 	}
 }
 
+// Pattern matching functions
+func (s *Sanitizer) matchesAt(runes []rune, pos int, pattern string) bool {
+	if pattern == "" {
+		return true
+	}
+	patternRunes := []rune(pattern)
+	if pos+len(patternRunes) > len(runes) {
+		return false
+	}
+	return string(runes[pos:pos+len(patternRunes)]) == pattern
+}
+
+func (s *Sanitizer) matchesStringDelimiter(runes []rune, pos int) bool {
+	for _, char := range s.config.StringChars {
+		if s.matchesAt(runes, pos, char) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Sanitizer) matchesRawStringDelimiter(runes []rune, pos int) bool {
+	for _, char := range s.config.RawStringChars {
+		if s.matchesAt(runes, pos, char) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Sanitizer) matchesCharDelimiter(runes []rune, pos int) bool {
+	if s.config.CharDelimiters != nil {
+		for _, char := range s.config.CharDelimiters {
+			if s.matchesAt(runes, pos, char) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (s *Sanitizer) matchesDocStringStart(runes []rune, pos int) bool {
+	for _, marker := range s.config.DocStringMarkers {
+		if s.matchesAt(runes, pos, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // State handlers
-func (s *EnhancedSanitizer) handleBlockComment(line string, runes []rune, result []rune, idx int) (int, ParserState) {
+func (s *Sanitizer) handleBlockComment(line string, runes []rune, result []rune, idx int) (int, ParserState) {
 	remaining := line[idx:]
 	if pos := strings.Index(remaining, s.config.BlockCommentEnd); pos >= 0 {
 		// Found closing - replace entire block
@@ -233,20 +172,20 @@ func (s *EnhancedSanitizer) handleBlockComment(line string, runes []rune, result
 	return len(runes), StateBlockComment
 }
 
-func (s *EnhancedSanitizer) handleString(runes []rune, result []rune, idx int) (int, ParserState) {
+func (s *Sanitizer) handleString(runes []rune, result []rune, idx int) (int, ParserState) {
 	if s.config.EscapeChar != "" && runes[idx] == []rune(s.config.EscapeChar)[0] && idx+1 < len(runes) {
 		replaceCharWithSpace(result, idx)
 		replaceCharWithSpace(result, idx+1)
 		return idx + 2, StateString
-	} else if s.matchesDelimiter(runes, idx, "string") {
+	} else if s.matchesStringDelimiter(runes, idx) {
 		replaceCharWithSpace(result, idx)
 		return idx + 1, StateNormal
 	}
 	return idx + 1, StateString
 }
 
-func (s *EnhancedSanitizer) handleRawString(runes []rune, result []rune, idx int) (int, ParserState) {
-	if s.matchesDelimiter(runes, idx, "raw") {
+func (s *Sanitizer) handleRawString(runes []rune, result []rune, idx int) (int, ParserState) {
+	if s.matchesRawStringDelimiter(runes, idx) {
 		return idx + 1, StateNormal
 	}
 	if s.useRaw {
@@ -255,12 +194,12 @@ func (s *EnhancedSanitizer) handleRawString(runes []rune, result []rune, idx int
 	return idx + 1, StateRawString
 }
 
-func (s *EnhancedSanitizer) handleCharLiteral(runes []rune, result []rune, idx int) (int, ParserState) {
+func (s *Sanitizer) handleCharLiteral(runes []rune, result []rune, idx int) (int, ParserState) {
 	if s.config.EscapeChar != "" && runes[idx] == []rune(s.config.EscapeChar)[0] && idx+1 < len(runes) {
 		replaceCharWithSpace(result, idx)
 		replaceCharWithSpace(result, idx+1)
 		return idx + 2, StateCharLiteral
-	} else if s.matchesAnyAt(runes, idx, s.sanitizerConfig.CharDelimiters) {
+	} else if s.matchesCharDelimiter(runes, idx) {
 		replaceCharWithSpace(result, idx)
 		return idx + 1, StateNormal
 	}
@@ -268,18 +207,29 @@ func (s *EnhancedSanitizer) handleCharLiteral(runes []rune, result []rune, idx i
 	return idx + 1, StateCharLiteral
 }
 
-func (s *EnhancedSanitizer) handleMultiLineString(line string, runes []rune, result []rune, idx int) (int, ParserState) {
+func (s *Sanitizer) handleMultiLineString(line string, runes []rune, result []rune, idx int) (int, ParserState) {
 	remaining := line[idx:]
 	foundEnd := -1
 	foundDelim := ""
 	newState := StateMultiLineString
 
-	for _, delim := range s.sanitizerConfig.StringDelimiters {
-		if delim.IsMultiLine && delim.End != "" {
-			if pos := strings.Index(remaining, delim.End); pos >= 0 {
+	// Special case: C# verbatim strings end with " not @"
+	// Check if we started with @" by looking for " as closing
+	if pos := strings.Index(remaining, `"`); pos >= 0 {
+		// Check if it's unescaped (not "")
+		if pos+1 >= len(remaining) || remaining[pos+1] != '"' {
+			foundEnd = pos
+			foundDelim = `"`
+		}
+	}
+
+	// Standard docstring markers
+	if foundEnd < 0 {
+		for _, marker := range s.config.DocStringMarkers {
+			if pos := strings.Index(remaining, marker); pos >= 0 {
 				if foundEnd == -1 || pos < foundEnd {
 					foundEnd = pos
-					foundDelim = delim.End
+					foundDelim = marker
 				}
 			}
 		}
@@ -296,11 +246,11 @@ func (s *EnhancedSanitizer) handleMultiLineString(line string, runes []rune, res
 }
 
 // StateNormal helper functions - return (newIdx, newState, handled)
-func (s *EnhancedSanitizer) tryHandleCharDelimiter(runes []rune, result []rune, idx int) (int, ParserState, bool) {
-	if len(s.sanitizerConfig.CharDelimiters) == 0 {
+func (s *Sanitizer) tryHandleCharDelimiter(runes []rune, result []rune, idx int) (int, ParserState, bool) {
+	if len(s.config.CharDelimiters) == 0 {
 		return idx, StateNormal, false
 	}
-	for _, char := range s.sanitizerConfig.CharDelimiters {
+	for _, char := range s.config.CharDelimiters {
 		if char != "" && s.matchesAt(runes, idx, char) {
 			replaceCharWithSpace(result, idx)
 			return idx + len([]rune(char)), StateCharLiteral, true
@@ -309,68 +259,84 @@ func (s *EnhancedSanitizer) tryHandleCharDelimiter(runes []rune, result []rune, 
 	return idx, StateNormal, false
 }
 
-func (s *EnhancedSanitizer) tryHandleLineComment(runes []rune, idx int) (int, bool) {
-	if s.matchesAt(runes, idx, s.config.LineComment) {
+func (s *Sanitizer) tryHandleLineComment(runes []rune, idx int) (int, bool) {
+	if s.config.LineComment != "" && s.matchesAt(runes, idx, s.config.LineComment) {
 		return len(runes), true
 	}
 	return idx, false
 }
 
-func (s *EnhancedSanitizer) tryHandleRegularStrings(runes []rune, idx int) (ParserState, bool) {
-	if !s.useRaw && s.matchesDelimiter(runes, idx, "raw") {
+func (s *Sanitizer) tryHandleRegularStrings(runes []rune, idx int) (ParserState, bool) {
+	if !s.useRaw && s.matchesRawStringDelimiter(runes, idx) {
 		return StateRawString, true
-	} else if s.matchesDelimiter(runes, idx, "string") {
+	} else if s.matchesStringDelimiter(runes, idx) {
 		return StateString, true
 	}
 	return StateNormal, false
 }
 
-func (s *EnhancedSanitizer) tryHandleMultiLineString(line string, runes []rune, result []rune, idx int) (int, ParserState, bool) {
-	for _, delim := range s.sanitizerConfig.StringDelimiters {
-		if !delim.IsMultiLine || delim.Start == "" || !s.matchesAt(runes, idx, delim.Start) {
-			continue
-		}
+func (s *Sanitizer) tryHandleMultiLineString(line string, runes []rune, result []rune, idx int) (int, ParserState, bool) {
+	if !s.matchesDocStringStart(runes, idx) {
+		return idx, StateNormal, false
+	}
 
-		afterStart := line[idx+len([]rune(delim.Start)):]
-		foundEnd := -1
-
-		// First search for delimiter start as closing (e.g., @" closing with @")
-		if pos := strings.Index(afterStart, delim.Start); pos >= 0 {
-			foundEnd = pos
-		}
-
-		// If not found, search for " as closing (for @"..." case)
-		if foundEnd < 0 {
-			lastPos := -1
-			searchPos := 0
-			for {
-				pos := strings.Index(afterStart[searchPos:], "\"")
-				if pos < 0 {
-					break
-				}
-				lastPos = searchPos + pos
-				searchPos = lastPos + 1
-			}
-			if lastPos >= 0 {
-				foundEnd = lastPos
-			}
-		}
-
-		if foundEnd >= 0 {
-			// Found closing in same line
-			endIdx := idx + len([]rune(delim.Start)) + foundEnd
-			fillWithSpaces(result, idx, endIdx-idx+1)
-			return endIdx + 1, StateNormal, true
-		} else {
-			// No closing - fill rest of line and transition to StateMultiLineString
-			fillToEndWithSpaces(result, idx)
-			return len(runes), StateMultiLineString, true
+	// Find which marker matched
+	var matchedMarker string
+	for _, marker := range s.config.DocStringMarkers {
+		if s.matchesAt(runes, idx, marker) {
+			matchedMarker = marker
+			break
 		}
 	}
-	return idx, StateNormal, false
+
+	if matchedMarker == "" {
+		return idx, StateNormal, false
+	}
+
+	afterStart := line[idx+len([]rune(matchedMarker)):]
+	foundEnd := -1
+	closingDelim := matchedMarker
+
+	// Special case: C# verbatim strings @"..." close with " not @"
+	if matchedMarker == `@"` {
+		// Search for unescaped " (in verbatim, "" is escaped ")
+		searchPos := 0
+		for searchPos < len(afterStart) {
+			pos := strings.Index(afterStart[searchPos:], `"`)
+			if pos < 0 {
+				break
+			}
+			// Check if it's "" (escaped)
+			actualPos := searchPos + pos
+			if actualPos+1 < len(afterStart) && afterStart[actualPos+1] == '"' {
+				searchPos = actualPos + 2 // Skip ""
+				continue
+			}
+			// Found unescaped "
+			foundEnd = actualPos
+			closingDelim = `"`
+			break
+		}
+	} else {
+		// Standard docstring markers - search for same marker
+		if pos := strings.Index(afterStart, matchedMarker); pos >= 0 {
+			foundEnd = pos
+		}
+	}
+
+	if foundEnd >= 0 {
+		// Found closing in same line
+		endIdx := idx + len([]rune(matchedMarker)) + foundEnd + len([]rune(closingDelim))
+		fillWithSpaces(result, idx, endIdx-idx)
+		return endIdx, StateNormal, true
+	} else {
+		// No closing - fill rest of line and transition to StateMultiLineString
+		fillToEndWithSpaces(result, idx)
+		return len(runes), StateMultiLineString, true
+	}
 }
 
-func (s *EnhancedSanitizer) tryHandleBlockComment(line string, runes []rune, result []rune, idx int) (int, ParserState, bool) {
+func (s *Sanitizer) tryHandleBlockComment(line string, runes []rune, result []rune, idx int) (int, ParserState, bool) {
 	if s.config.BlockCommentStart == "" || !s.matchesAt(runes, idx, s.config.BlockCommentStart) {
 		return idx, StateNormal, false
 	}
@@ -415,7 +381,7 @@ func (s *EnhancedSanitizer) tryHandleBlockComment(line string, runes []rune, res
 	}
 }
 
-func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, ParserState) {
+func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserState) {
 	if len(line) == 0 {
 		return line, state
 	}
@@ -490,49 +456,7 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 	return string(result), state
 }
 
-func (s *EnhancedSanitizer) matchesDelimiter(runes []rune, pos int, delimType string) bool {
-	for _, delim := range s.sanitizerConfig.StringDelimiters {
-		match := false
-		switch delimType {
-		case "string":
-			match = !delim.IsMultiLine && !delim.IsRaw
-		case "raw":
-			match = delim.IsRaw && !delim.IsMultiLine
-		case "multiline":
-			match = delim.IsMultiLine
-		}
-		if match && s.matchesAt(runes, pos, delim.Start) {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *EnhancedSanitizer) matchesAt(runes []rune, pos int, pattern string) bool {
-	if pattern == "" {
-		return true
-	}
-	patternRunes := []rune(pattern)
-	if pos+len(patternRunes) > len(runes) {
-		return false
-	}
-	return string(runes[pos:pos+len(patternRunes)]) == pattern
-}
-
-func (s *EnhancedSanitizer) matchesAnyAt(runes []rune, pos int, patterns []string) bool {
-	for _, pattern := range patterns {
-		if len(pattern) == 0 {
-			// Empty pattern matches anywhere, but we don't want that for delimiter matching
-			continue
-		}
-		if s.matchesAt(runes, pos, pattern) {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *EnhancedSanitizer) CleanLines(lines []string) []string {
+func (s *Sanitizer) CleanLines(lines []string) []string {
 	result := make([]string, len(lines))
 	state := StateNormal
 
@@ -543,14 +467,40 @@ func (s *EnhancedSanitizer) CleanLines(lines []string) []string {
 	return result
 }
 
-func (s *EnhancedSanitizer) CleanCode(code string) string {
+func (s *Sanitizer) CleanCode(code string) string {
 	lines := strings.Split(code, "\n")
 	cleanedLines := s.CleanLines(lines)
 	return strings.Join(cleanedLines, "\n")
 }
 
-func (s *EnhancedSanitizer) Reset() {
-	// No state to reset since we removed unused depth counters
+func (s *Sanitizer) IsInString(state State) bool {
+	return stringStates[state]
+}
+
+func (s *Sanitizer) IsInComment(state State) bool {
+	return commentStates[state]
+}
+
+func (s *Sanitizer) IsInLiteral(state State) bool {
+	return literalStates[state]
+}
+
+func (s *Sanitizer) GetConfig() *LanguageConfig {
+	return s.config
+}
+
+func (s *Sanitizer) Reset() {}
+
+// Backward compatibility aliases for tests
+type EnhancedSanitizer = Sanitizer
+
+func NewEnhancedSanitizer(config *LanguageConfig) *EnhancedSanitizer {
+	return NewSanitizer(config, false)
+}
+
+// Utility functions
+func ValidState(state ParserState) bool {
+	return validStates[state]
 }
 
 func CountBraces(line string) int {
@@ -563,62 +513,4 @@ func CountBraces(line string) int {
 		}
 	}
 	return count
-}
-
-func (s *EnhancedSanitizer) IsInString(state ParserState) bool {
-	return stringStates[state]
-}
-
-func (s *EnhancedSanitizer) IsInComment(state ParserState) bool {
-	return commentStates[state]
-}
-
-func (s *EnhancedSanitizer) IsInLiteral(state ParserState) bool {
-	return literalStates[state]
-}
-
-func ValidState(state ParserState) bool {
-	return validStates[state]
-}
-
-type Sanitizer struct {
-	enhanced *EnhancedSanitizer
-}
-
-func NewSanitizer(config *LanguageConfig, useRaw bool) *Sanitizer {
-	return &Sanitizer{
-		enhanced: NewEnhancedSanitizer(config),
-	}
-}
-
-func (s *Sanitizer) CleanLine(line string, state State) (string, State) {
-	return s.enhanced.CleanLine(line, state)
-}
-
-func (s *Sanitizer) CleanLines(lines []string) []string {
-	return s.enhanced.CleanLines(lines)
-}
-
-func (s *Sanitizer) CleanCode(code string) string {
-	return s.enhanced.CleanCode(code)
-}
-
-func (s *Sanitizer) GetConfig() *LanguageConfig {
-	return s.enhanced.config
-}
-
-func (s *Sanitizer) IsInString(state State) bool {
-	return s.enhanced.IsInString(state)
-}
-
-func (s *Sanitizer) IsInComment(state State) bool {
-	return s.enhanced.IsInComment(state)
-}
-
-func (s *Sanitizer) IsInLiteral(state State) bool {
-	return s.enhanced.IsInLiteral(state)
-}
-
-func (s *Sanitizer) Reset() {
-	s.enhanced.Reset()
 }

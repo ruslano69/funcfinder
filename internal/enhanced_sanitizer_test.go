@@ -80,11 +80,12 @@ func TestEnhancedSanitizer_New(t *testing.T) {
 	if s.config != config {
 		t.Error("config not set correctly")
 	}
-	if s.sanitizerConfig == nil {
-		t.Error("sanitizerConfig not initialized")
+	// Phase 5: simplified architecture - no sanitizerConfig
+	if s.config.StringChars == nil {
+		t.Error("StringChars should not be nil")
 	}
-	if len(s.sanitizerConfig.StringDelimiters) == 0 {
-		t.Error("StringDelimiters should not be empty")
+	if len(s.config.StringChars) == 0 && len(s.config.DocStringMarkers) == 0 {
+		t.Error("Should have at least one string delimiter")
 	}
 }
 
@@ -479,8 +480,8 @@ func TestEnhancedSanitizer_MultiLanguageSupport(t *testing.T) {
 				t.Fatalf("Failed to create sanitizer for %s", lang.name)
 			}
 
-			// Проверяем наличие разделителей
-			if len(s.sanitizerConfig.StringDelimiters) == 0 {
+			// Phase 5: simplified architecture check
+			if len(s.config.StringChars) == 0 && len(s.config.DocStringMarkers) == 0 {
 				t.Errorf("No string delimiters for %s", lang.name)
 			}
 

@@ -25,43 +25,23 @@ type FileMetrics struct {
 	FileSize     int64
 }
 
-// cleanLine removes comments and strings from a line based on config
-func cleanLine(line string, config *internal.LanguageConfig) (string, bool) {
+// cleanLine removes comments and strings using enhanced_sanitizer
+func cleanLine(line string, sanitizer *internal.Sanitizer, state *internal.ParserState) (string, bool) {
+	// Skip shebang lines
 	if strings.HasPrefix(line, "#!") {
 		return "", true
 	}
 
-	// Handle block comments
-	if config.BlockCommentRegex() != nil {
-		blockRe := config.BlockCommentRegex()
-		if blockRe.MatchString(line) {
-			line = blockRe.ReplaceAllString(line, "")
-			if strings.TrimSpace(line) == "" {
-				return "", true
-			}
-		}
+	// Use enhanced_sanitizer for proper string/comment removal
+	cleaned, newState := sanitizer.CleanLine(line, *state)
+	*state = newState
+
+	// Check if line is entirely comment/string (all spaces after cleaning)
+	if strings.TrimSpace(cleaned) == "" {
+		return "", true
 	}
 
-	// Handle line comments
-	if config.LineComment != "" {
-		commentIdx := strings.Index(line, config.LineComment)
-		if commentIdx >= 0 {
-			before := line[:commentIdx]
-			if strings.TrimSpace(before) == "" {
-				return "", true
-			}
-			line = before
-		}
-	}
-
-	// Remove string literals
-	for _, sc := range config.StringChars {
-		pattern := regexp.QuoteMeta(sc) + `[^` + regexp.QuoteMeta(sc) + `\\]*(?:\\.[^` + regexp.QuoteMeta(sc) + `\\]*)*` + regexp.QuoteMeta(sc)
-		re := regexp.MustCompile(pattern)
-		line = re.ReplaceAllString(line, `""`)
-	}
-
-	return line, false
+	return cleaned, false
 }
 
 // analyzeFile analyzes a source file and returns function calls and metrics
@@ -100,6 +80,10 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 	importSet := make(map[string]bool)
 	decoratorSet := make(map[string]bool)
 
+	// Create sanitizer for proper string/comment removal
+	sanitizer := internal.NewSanitizer(config, false)
+	state := internal.StateNormal
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -137,7 +121,7 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 			}
 		}
 
-		cleanedLine, isComment := cleanLine(line, config)
+		cleanedLine, isComment := cleanLine(line, sanitizer, &state)
 
 		// Count comment lines
 		if isComment {

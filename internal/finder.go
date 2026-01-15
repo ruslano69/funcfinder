@@ -391,7 +391,7 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 		} else {
 			// Ищем начало нового класса
 			matches := classRegex.FindStringSubmatch(cleaned)
-			if matches != nil {
+			if matches != nil && len(matches) >= 2 {
 				className := matches[1]
 				// Проверяем, есть ли открывающая скобка на этой строке
 				braceCount := strings.Count(cleaned, "{")
