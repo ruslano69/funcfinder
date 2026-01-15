@@ -295,6 +295,126 @@ func (s *EnhancedSanitizer) handleMultiLineString(line string, runes []rune, res
 	return len(runes), newState
 }
 
+// StateNormal helper functions - return (newIdx, newState, handled)
+func (s *EnhancedSanitizer) tryHandleCharDelimiter(runes []rune, result []rune, idx int) (int, ParserState, bool) {
+	if len(s.sanitizerConfig.CharDelimiters) == 0 {
+		return idx, StateNormal, false
+	}
+	for _, char := range s.sanitizerConfig.CharDelimiters {
+		if char != "" && s.matchesAt(runes, idx, char) {
+			replaceCharWithSpace(result, idx)
+			return idx + len([]rune(char)), StateCharLiteral, true
+		}
+	}
+	return idx, StateNormal, false
+}
+
+func (s *EnhancedSanitizer) tryHandleLineComment(runes []rune, idx int) (int, bool) {
+	if s.matchesAt(runes, idx, s.config.LineComment) {
+		return len(runes), true
+	}
+	return idx, false
+}
+
+func (s *EnhancedSanitizer) tryHandleRegularStrings(runes []rune, idx int) (ParserState, bool) {
+	if !s.useRaw && s.matchesDelimiter(runes, idx, "raw") {
+		return StateRawString, true
+	} else if s.matchesDelimiter(runes, idx, "string") {
+		return StateString, true
+	}
+	return StateNormal, false
+}
+
+func (s *EnhancedSanitizer) tryHandleMultiLineString(line string, runes []rune, result []rune, idx int) (int, ParserState, bool) {
+	for _, delim := range s.sanitizerConfig.StringDelimiters {
+		if !delim.IsMultiLine || delim.Start == "" || !s.matchesAt(runes, idx, delim.Start) {
+			continue
+		}
+
+		afterStart := line[idx+len([]rune(delim.Start)):]
+		foundEnd := -1
+
+		// First search for delimiter start as closing (e.g., @" closing with @")
+		if pos := strings.Index(afterStart, delim.Start); pos >= 0 {
+			foundEnd = pos
+		}
+
+		// If not found, search for " as closing (for @"..." case)
+		if foundEnd < 0 {
+			lastPos := -1
+			searchPos := 0
+			for {
+				pos := strings.Index(afterStart[searchPos:], "\"")
+				if pos < 0 {
+					break
+				}
+				lastPos = searchPos + pos
+				searchPos = lastPos + 1
+			}
+			if lastPos >= 0 {
+				foundEnd = lastPos
+			}
+		}
+
+		if foundEnd >= 0 {
+			// Found closing in same line
+			endIdx := idx + len([]rune(delim.Start)) + foundEnd
+			fillWithSpaces(result, idx, endIdx-idx+1)
+			return endIdx + 1, StateNormal, true
+		} else {
+			// No closing - fill rest of line and transition to StateMultiLineString
+			fillToEndWithSpaces(result, idx)
+			return len(runes), StateMultiLineString, true
+		}
+	}
+	return idx, StateNormal, false
+}
+
+func (s *EnhancedSanitizer) tryHandleBlockComment(line string, runes []rune, result []rune, idx int) (int, ParserState, bool) {
+	if s.config.BlockCommentStart == "" || !s.matchesAt(runes, idx, s.config.BlockCommentStart) {
+		return idx, StateNormal, false
+	}
+
+	afterStart := line[idx+len([]rune(s.config.BlockCommentStart)):]
+
+	// Search for closing delimiter considering nesting
+	depth := 1
+	searchPos := 0
+	foundEnd := -1
+
+	for searchPos < len(afterStart) {
+		// Check for nested comment start
+		if strings.HasPrefix(afterStart[searchPos:], s.config.BlockCommentStart) {
+			depth++
+			searchPos += len([]rune(s.config.BlockCommentStart))
+			continue
+		}
+
+		// Check for comment closing
+		if strings.HasPrefix(afterStart[searchPos:], s.config.BlockCommentEnd) {
+			depth--
+			if depth == 0 {
+				foundEnd = searchPos
+				break
+			}
+			searchPos += len([]rune(s.config.BlockCommentEnd))
+			continue
+		}
+
+		searchPos++
+	}
+
+	if foundEnd >= 0 {
+		// Found closing in same line
+		fillWithSpaces(result, idx, len([]rune(s.config.BlockCommentStart))+foundEnd+len([]rune(s.config.BlockCommentEnd)))
+		return idx + len([]rune(s.config.BlockCommentStart)) + foundEnd + len([]rune(s.config.BlockCommentEnd)), StateNormal, true
+	} else {
+		// No closing - fill rest of line and transition to StateBlockComment
+		fillToEndWithSpaces(result, idx)
+		return len(runes), StateBlockComment, true
+	}
+}
+
 func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, ParserState) {
 	if len(line) == 0 {
 		return line, state
@@ -309,10 +429,6 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 	idx := 0
 
 	for idx < len(runes) {
-		// Control flags for managing processing flow
-		skipIdxIncrement := false
-		skipRemainingProcessing := false
-
 		switch state {
 		case StateBlockComment:
 			idx, state = s.handleBlockComment(line, runes, result, idx)
@@ -335,177 +451,39 @@ func (s *EnhancedSanitizer) CleanLine(line string, state ParserState) (string, P
 			continue
 
 		case StateNormal:
-			if len(s.sanitizerConfig.CharDelimiters) > 0 {
-				for _, char := range s.sanitizerConfig.CharDelimiters {
-					if char != "" && s.matchesAt(runes, idx, char) {
-						// Replace opening delimiter with space!
-						if idx < len(result) {
-							result[idx] = ' '
-						}
-						state = StateCharLiteral
-						idx += len([]rune(char))
-						// Skip standard idx++ at end of loop
-						skipIdxIncrement = true
-						break
-					}
-				}
-			}
+			// Try handlers in priority order
+			var handled bool
 
-			if state == StateNormal {
-				// Fast scan for multi-line blocks: check in priority order
-				foundMultiLineString := false
-
-				// 1. Multi-line strings (""", ''', @" etc.) - CHECK BEFORE regular strings!
-				for _, delim := range s.sanitizerConfig.StringDelimiters {
-					if delim.IsMultiLine && delim.Start != "" && s.matchesAt(runes, idx, delim.Start) {
-						// Start searching for closing delimiter
-						afterStart := line[idx+len([]rune(delim.Start)):]
-						foundEnd := -1
-
-						// First search for @" as closing delimiter (for @"..." ending with @")
-						if pos := strings.Index(afterStart, delim.Start); pos >= 0 {
-							foundEnd = pos
-						}
-
-						// If @" not found as closing, search for " for @"..." case (regular end)
-						// To search correctly, find the last " that is not part of ""
-						if foundEnd < 0 {
-							// Search for all " positions and take the last one
-							lastPos := -1
-							searchPos := 0
-							for {
-								pos := strings.Index(afterStart[searchPos:], "\"")
-								if pos < 0 {
-									break
-								}
-								lastPos = searchPos + pos
-								searchPos = lastPos + 1
-							}
-							if lastPos >= 0 {
-								foundEnd = lastPos
-							}
-						}
-
-						if foundEnd >= 0 {
-							// Found closing in same line - replace entire block
-							// endIdx should point to character AFTER closing delimiter
-							// foundEnd is the position of closing delimiter in afterStart
-							endIdx := idx + len([]rune(delim.Start)) + foundEnd
-							fillWithSpaces(result, idx, endIdx-idx+1)
-							idx = endIdx + 1 // Move to character after closing delimiter
-							if idx >= len(runes) {
-								break
-							}
-							continue
-						} else {
-							// No closing found - replace from start to end of line and transition to StateMultiLineString
-							fillToEndWithSpaces(result, idx)
-							idx = len(runes)
-							state = StateMultiLineString
-							skipRemainingProcessing = true
-						}
-						foundMultiLineString = true
-						break
-					}
-				}
-
-				// Skip remaining checks if multi-line string was found
-				if foundMultiLineString {
-					if skipRemainingProcessing {
-						continue
-					}
-					// If closing was in same line, skip remaining checks
-					if idx < len(runes) && state == StateNormal {
-						// Continue from current position but skip regular string checks
-						// Move to copying character if needed
-						if idx < len(result) && idx < len(runes) {
-							result[idx] = runes[idx]
-						}
-						if !skipIdxIncrement {
-							idx++
-						}
-						if idx >= len(runes) {
-							break
-						}
-						continue
-					}
-				}
-
-				// 2. Block comments (with nesting support)
-				if s.config.BlockCommentStart != "" && s.matchesAt(runes, idx, s.config.BlockCommentStart) {
-					afterStart := line[idx+len([]rune(s.config.BlockCommentStart)):]
-					
-					// Search for closing delimiter considering nesting
-					depth := 1
-					searchPos := 0
-					foundEnd := -1
-					
-					for searchPos < len(afterStart) {
-						// Check for start of new nested comment
-						if strings.HasPrefix(afterStart[searchPos:], s.config.BlockCommentStart) {
-							depth++
-							searchPos += len([]rune(s.config.BlockCommentStart))
-							continue
-						}
-						
-						// Check for comment closing
-						if strings.HasPrefix(afterStart[searchPos:], s.config.BlockCommentEnd) {
-							depth--
-							if depth == 0 {
-								foundEnd = searchPos
-								break
-							}
-							searchPos += len([]rune(s.config.BlockCommentEnd))
-							continue
-						}
-						
-						searchPos++
-					}
-					
-					if foundEnd >= 0 {
-						// Found closing in same line
-						fillWithSpaces(result, idx, len([]rune(s.config.BlockCommentStart))+foundEnd+len([]rune(s.config.BlockCommentEnd)))
-						idx += len([]rune(s.config.BlockCommentStart)) + foundEnd + len([]rune(s.config.BlockCommentEnd))
-					} else {
-						// No closing found - replace from start to end of line and transition to StateBlockComment
-						fillToEndWithSpaces(result, idx)
-						idx = len(runes)
-						state = StateBlockComment
-						skipRemainingProcessing = true
-					}
-				}
-
-				// 3. Single-line comments
-				if s.matchesAt(runes, idx, s.config.LineComment) {
-					idx = len(runes)
-					skipRemainingProcessing = true
-				}
-
-				// 4. Regular strings and raw strings (only if not multi-line)
-				if !s.useRaw && s.matchesDelimiter(runes, idx, "raw") {
-					state = StateRawString
-				} else if s.matchesDelimiter(runes, idx, "string") {
-					state = StateString
-				}
-			}
-
-			if state == StateNormal {
-				if idx < len(result) && idx < len(runes) {
-					result[idx] = runes[idx]
-				}
-			}
-			// Обработка флагов пропуска
-			if skipRemainingProcessing {
-				// Пропускаем idx++ и переходим к следующей итерации
+			// 1. Char delimiters (highest priority)
+			if idx, state, handled = s.tryHandleCharDelimiter(runes, result, idx); handled {
 				continue
 			}
-			if !skipIdxIncrement {
-				idx++
+
+			// 2. Multi-line strings (check before regular strings)
+			if idx, state, handled = s.tryHandleMultiLineString(line, runes, result, idx); handled {
+				continue
 			}
-			// Check if we went out of bounds after increment
-			if idx >= len(runes) {
-				break
+
+			// 3. Block comments
+			if idx, state, handled = s.tryHandleBlockComment(line, runes, result, idx); handled {
+				continue
 			}
+
+			// 4. Line comments
+			if idx, handled = s.tryHandleLineComment(runes, idx); handled {
+				continue
+			}
+
+			// 5. Regular strings and raw strings
+			if state, handled = s.tryHandleRegularStrings(runes, idx); handled {
+				// State changed, continue to next iteration
+			}
+
+			// 6. Copy character if still in StateNormal
+			if state == StateNormal && idx < len(result) && idx < len(runes) {
+				result[idx] = runes[idx]
+			}
+			idx++
 		}
 	}
 
