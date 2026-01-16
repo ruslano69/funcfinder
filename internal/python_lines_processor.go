@@ -322,20 +322,6 @@ func padToLen(s string, length int) string {
 	return strings.Repeat(" ", length-len(s))
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func countLeadingSpaces(line string) int {
 	count := 0
 	for _, c := range line {
