@@ -486,6 +486,105 @@ diff <(jq -r '.files[].functions[].name' before.json | sort) \
 --tree-full # Complete tree with empty dirs
 ```
 
+---
+
+## 🐍 Advanced Feature: Smart Python --lines Processing
+
+**NEW**: funcfinder now has intelligent scope-aware line range processing for Python!
+
+### The Problem
+
+When AI agents request specific line ranges in Python code with `--lines`, they often accidentally split functions in half:
+
+```python
+# AI agent requests: --lines 15:25
+def my_function():           # line 10
+    x = 1                    # line 15  <- Requested start (INSIDE function!)
+    return x                 # line 16
+                             # line 17
+def another_function():      # line 18  <- Function split!
+    pass                     # line 25  <- Requested end
+```
+
+**❌ Without smart processing**: Returns broken code
+**✅ With smart processing**: Automatically expands to `10:25` (complete functions)
+
+### How It Works
+
+**Two-Pass Analysis:**
+
+1. **Pass 1 - Scope Analysis**: Scans entire file, builds map of all functions/classes with their exact boundaries
+2. **Pass 2 - Range Validation**: Checks requested range, auto-corrects if it would break scope boundaries
+
+**Automatic Adjustments:**
+
+| Scenario | Action | Example |
+|----------|--------|---------|
+| **Range inside function body** | Expand to full function | `70:75` → `69:82` |
+| **Range in global scope** | Expand to next function | `15:30` → `11:18` |
+| **Range exceeds function end** | Clip to function boundary | `18:35` → `18:26` |
+| **Range inside class method** | Clip to class end | `42:66` → `42:68` |
+
+### Usage Example
+
+```bash
+# Request range that's inside a function
+./funcfinder --inp script.py --source py --lines 70:75 --map
+
+# Output: Adjustment report + corrected range
++------------------------------------------------------------------+
+|           PYTHON LINES RANGE ADJUSTMENT REPORT                  |
++------------------------------------------------------------------+
+| Requested range: 70:75                                          |
+| Adjusted range:  69:82                                          |
++------------------------------------------------------------------+
+| Adjustment #1:
+|   Scope: function 'outer_function'
+|   Reason: Requested range is inside function body, expanded to full function
++------------------------------------------------------------------+
+
+outer_function: 69-80; inner_function: 72-75;
+```
+
+### Benefits for AI Agents
+
+✅ **No more broken code**: Never splits functions in half
+✅ **Transparent corrections**: Shows exactly what was adjusted and why
+✅ **Context preservation**: Keeps decorators, docstrings, nested functions intact
+✅ **Works with all modes**: `--map`, `--extract`, `--func` all supported
+
+### Smart Scope Detection
+
+The system correctly handles:
+- ✅ Functions with decorators (includes `@decorator` lines)
+- ✅ `async def` functions
+- ✅ Nested functions (inner functions)
+- ✅ Class methods (property, staticmethod, classmethod)
+- ✅ Multi-line function signatures
+- ✅ Docstrings (doesn't close scope prematurely)
+
+### When to Use
+
+**Perfect for:**
+- Reading specific sections of large Python files
+- Extracting related functions that are grouped together
+- Avoiding massive token costs when you only need part of a file
+
+**Example workflow:**
+```bash
+# 1. Map the file to see all functions
+./funcfinder --inp large_script.py --source py --map
+
+# Output shows: process_data: 150-200; validate: 205-250; transform: 255-300
+
+# 2. Request just the middle section (with smart correction)
+./funcfinder --inp large_script.py --source py --lines 200:260 --map
+
+# Smart correction ensures you get complete validate() and transform() functions
+```
+
+---
+
 ## Best Practices Checklist
 
 - ✅ **Always start with directory scan**: `./funcfinder --dir . --all --json`

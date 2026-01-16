@@ -260,21 +260,39 @@ func processFunctions(langConfig *internal.LanguageConfig, funcStr, mode string,
 			internal.FatalError("parsing line range: %v", err)
 		}
 
+		// Для Python: умный анализ scope областей видимости
+		if langConfig.IndentBased {
+			// Pass 1: Анализ scope областей видимости
+			scopes, err := internal.AnalyzePythonScopes(inp)
+			if err != nil {
+				internal.FatalError("analyzing Python scopes: %v", err)
+			}
+
+			// Pass 2: Валидация и коррекция диапазона
+			fixedStart, fixedEnd, adjustments := internal.ValidateAndFixLineRange(scopes, lineRange.Start, lineRange.End)
+
+			// Выводим отчёт об корректировках
+			if len(adjustments) > 0 {
+				report := internal.FormatLineAdjustmentReport(adjustments, lineRange.Start, lineRange.End, fixedStart, fixedEnd)
+				fmt.Println(report)
+			}
+
+			// Обновляем диапазон
+			lineRange.Start = fixedStart
+			lineRange.End = fixedEnd
+			linesRange = fmt.Sprintf("%d:%d", fixedStart, fixedEnd)
+		}
+
 		lines, startLine, err := internal.ReadFileLines(inp, lineRange)
 		if err != nil {
 			internal.FatalError("reading lines: %v", err)
 		}
 
-		// Warning: --lines may cut through function bodies
+		// Предупреждение: --lines может разрезать тела функций
 		if lineRange.End == -1 {
 			internal.InfoMessage("Using --lines filter (%d:EOF). Functions outside this range will be excluded.", lineRange.Start)
 		} else {
 			internal.InfoMessage("Using --lines filter (%d:%d). Functions outside this range will be excluded.", lineRange.Start, lineRange.End)
-		}
-
-		// IMPORTANT: For Python need to handle it specially
-		if langConfig.IndentBased {
-			internal.WarnError("--lines with Python may produce incorrect results for indent-based parsing")
 		}
 
 		// Cast to *internal.Finder to access FindFunctionsInLines
@@ -284,7 +302,19 @@ func processFunctions(langConfig *internal.LanguageConfig, funcStr, mode string,
 				internal.FatalError("%v", err)
 			}
 		} else {
-			internal.FatalError("--lines is not yet supported for Python files")
+			// Python finder - используем тот же метод для консистентности
+			result, err = finder.FindFunctions(inp)
+			if err != nil {
+				internal.FatalError("%v", err)
+			}
+			// Фильтруем результаты по запрошенному диапазону
+			filtered := make([]internal.FunctionBounds, 0)
+			for _, fn := range result.Functions {
+				if fn.Start >= lineRange.Start && (lineRange.End == -1 || fn.End <= lineRange.End) {
+					filtered = append(filtered, fn)
+				}
+			}
+			result.Functions = filtered
 		}
 	} else {
 		// Standard mode: read entire file
