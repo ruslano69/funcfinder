@@ -66,7 +66,12 @@ func main() {
 
 	// Режим обработки каталога
 	if *dir != "" {
-		handleDirectoryMode(config, *dir, *workers, *recursive, !*noGitignore, *funcStr, *mapMode, *treeMode, *treeFull, *jsonOut, *extract, *structMode, *allMode)
+		// Автоматически включаем --map если не указан другой режим вывода
+		autoMapMode := *mapMode
+		if !*mapMode && !*treeMode && !*treeFull {
+			autoMapMode = true
+		}
+		handleDirectoryMode(config, *dir, *workers, *recursive, !*noGitignore, *funcStr, autoMapMode, *treeMode, *treeFull, *jsonOut, *extract, *structMode, *allMode)
 		return
 	}
 
@@ -100,10 +105,7 @@ func handleDirectoryMode(config internal.Config, dirPath string, workers int, re
 	}
 
 	// Валидация параметров
-	if funcStr == "" && !mapMode && !treeMode && !treeFull {
-		internal.FatalError("either --func, --map, or --tree must be specified in directory mode")
-	}
-
+	// Note: --map is now default, so no error if none specified
 	if funcStr != "" && (mapMode || treeMode || treeFull) {
 		internal.FatalError("--func is mutually exclusive with --map and --tree")
 	}
