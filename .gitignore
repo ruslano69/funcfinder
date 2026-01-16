@@ -50,3 +50,4 @@ cmd/*/stat
 cmd/*/deps
 cmd/*/complexity
 cmd/*/benchmark
+codebase_map.json

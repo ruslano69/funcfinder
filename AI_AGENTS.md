@@ -2,13 +2,63 @@
 
 **For AI Agents**: This document describes the optimal workflow for analyzing codebases using `funcfinder`. Following these patterns will dramatically reduce token consumption while maintaining accuracy.
 
+---
+
+## 🔨 Build First!
+
+**CRITICAL**: Before using funcfinder, you MUST build it first!
+
+```bash
+# Step 0: Build all utilities (required before first use)
+./build.sh
+
+# Output:
+# ✓ funcfinder
+# ✓ stat
+# ✓ deps
+# ✓ complexity
+# ✅ All binaries built successfully!
+```
+
+**Why build first?**
+- funcfinder is a Go binary that must be compiled
+- Takes ~5 seconds to build all utilities
+- Only needed once per session
+- If you see "command not found", run `./build.sh` first
+
+---
+
+## 🚀 Quick Start for AI Agents
+
+**Copy-paste this workflow for immediate results:**
+
+```bash
+# 1. BUILD (only needed once)
+./build.sh
+
+# 2. MAP entire codebase (your starting point)
+# --map is now DEFAULT for directories!
+./funcfinder --dir . --all --json > codebase_map.json
+
+# 3. SEARCH the map (no file reads!)
+grep -i "YourFunction" codebase_map.json
+
+# 4. EXTRACT specific function once found
+./funcfinder --inp path/to/file.go --source go --extract "YourFunction"
+```
+
+**Result**: 99%+ token savings, instant navigation, zero guesswork.
+
+---
+
 ## Core Principle: Map Before Reading
 
 **ALWAYS** use `funcfinder` to map the codebase structure **BEFORE** reading any files. This is the single most important optimization for token efficiency.
 
 ```bash
 # ✅ CORRECT: Map entire codebase first (763K lines/sec)
-funcfinder --dir . --all --json
+# --map is now DEFAULT for directories!
+./funcfinder --dir . --all --json
 
 # ❌ WRONG: Reading files blindly
 cat src/file1.go src/file2.go src/file3.go
@@ -29,8 +79,8 @@ grep -r "function" src/
 ### Scenario 1: Understanding a New Codebase
 
 ```bash
-# Step 1: Get complete map
-funcfinder --dir . --all --json > codebase_map.json
+# Step 1: Get complete map (--map is now default!)
+./funcfinder --dir . --all --json > codebase_map.json
 
 # Result: Full inventory of all functions, classes, types
 # - Auto-detects all languages
@@ -54,10 +104,10 @@ funcfinder --dir . --all --json > codebase_map.json
 
 ```bash
 # Search the map (grep on funcfinder output)
-funcfinder --dir . --all --json | jq -r '.files[].functions[] | select(.name | contains("Auth"))'
+./funcfinder --dir . --all --json | jq -r '.files[].functions[] | select(.name | contains("Auth"))'
 
 # Or use grep-style output directly
-funcfinder --dir . --all | grep "Auth"
+./funcfinder --dir . --all | grep "Auth"
 
 # Result: authentication.go:42: AuthenticateUser
 #         auth_handler.go:18: AuthMiddleware
@@ -69,7 +119,7 @@ funcfinder --dir . --all | grep "Auth"
 
 ```bash
 # Map type hierarchy without implementation details
-funcfinder --dir . --struct --json
+./funcfinder --dir . --struct --json
 
 # Result: All classes, interfaces, structs, types
 # - Perfect for understanding data models
@@ -81,11 +131,11 @@ funcfinder --dir . --struct --json
 
 ```bash
 # After identifying the target file from directory scan
-funcfinder -inp target.go -source target.go --map
+./funcfinder --inp target.go --source go --map
 
 # Result: Function map with line ranges
 # Now use --extract to read only relevant functions:
-funcfinder -inp target.go -source target.go --extract "ProcessRequest"
+./funcfinder --inp target.go --source go --extract "ProcessRequest"
 ```
 
 ## Complete Workflow Example
@@ -94,14 +144,14 @@ funcfinder -inp target.go -source target.go --extract "ProcessRequest"
 
 ```bash
 # 1. Map the codebase (30ms for 25 files)
-funcfinder --dir . --all --json > map.json
+./funcfinder --dir . --all --json > map.json
 
 # 2. Search the map (no file reads)
 grep -i "auth" map.json
 # Found: authentication.go:42: AuthenticateUser
 
 # 3. Read ONLY the relevant function
-funcfinder -inp authentication.go -source authentication.go --extract "AuthenticateUser"
+./funcfinder --inp authentication.go --source go --extract "AuthenticateUser"
 
 # 4. Understand dependencies by checking what it calls
 # (Already in the map.json from step 1)
@@ -118,7 +168,7 @@ funcfinder -inp authentication.go -source authentication.go --extract "Authentic
 
 ```bash
 # Auto-detects Go, Python, JavaScript, TypeScript, etc.
-funcfinder --dir . --all --json
+./funcfinder --dir . --all --json
 
 # No need to specify language per file
 # Result includes language metadata per file
@@ -128,7 +178,7 @@ funcfinder --dir . --all --json
 
 ```bash
 # Use parallel processing (automatic)
-funcfinder --dir large_repo --all --json --workers 8
+./funcfinder --dir large_repo --all --json --workers 8
 
 # Result: Linear scaling with CPU cores
 # Example: 100K lines in ~130ms
@@ -138,7 +188,7 @@ funcfinder --dir large_repo --all --json --workers 8
 
 ```bash
 # Scan only changed directory
-funcfinder --dir src/modified_module --all --json
+./funcfinder --dir src/modified_module --all --json
 
 # Compare with previous map to see what changed
 # No need to re-scan entire repo
@@ -148,7 +198,7 @@ funcfinder --dir src/modified_module --all --json
 
 ```bash
 # Get hierarchical visualization
-funcfinder --dir src --tree
+./funcfinder --dir src --tree
 
 # Result: Directory tree with functions nested under files
 # src/
@@ -158,6 +208,98 @@ funcfinder --dir src --tree
 #   └── handler.go
 #       └── def HandleRequest (line 23)
 ```
+
+---
+
+## 📋 Flag Reference Table (Critical for AI Agents!)
+
+**NEW**: `--map` is now **DEFAULT** for directory mode! File mode still requires `--map`.
+
+| Task | Correct Command | ❌ Common Mistake |
+|------|----------------|-------------------|
+| **Map entire codebase** | `./funcfinder --dir . --all --json` | `./funcfinder --dir . --all --json` (missing `./`) |
+| **Map only functions** | `./funcfinder --dir . --json` | `./funcfinder --dir .` (missing --json) |
+| **Map only types** | `./funcfinder --dir . --struct --json` | `./funcfinder --dir . --struct` (missing --json) |
+| **Map single file** | `./funcfinder --inp file.go --source go --map` | `./funcfinder --inp file.go --source go` (missing --map!) |
+| **Find specific function** | `./funcfinder --inp file.go --source go --func "MyFunc"` | `./funcfinder --inp file.go --func "MyFunc"` (missing --source) |
+| **Extract function body** | `./funcfinder --inp file.go --source go --extract "MyFunc"` | `./funcfinder --inp file.go --extract "MyFunc"` (missing --source) |
+| **Tree view** | `./funcfinder --dir . --tree` | `./funcfinder --tree` (missing --dir) |
+
+**Key Rules**:
+- ✅ Always use `./funcfinder` (not `funcfinder`) until added to PATH
+- ✅ **Directory mode**: `--map` is DEFAULT (no need to specify!)
+- ✅ **File mode**: `--map` is REQUIRED for mapping (or use `--func`, `--extract`, `--tree`)
+- ✅ File mode **always requires** `--source <lang>` flag
+- ✅ Use `--all` to get both functions AND types
+
+---
+
+## ⚠️ Common AI Agent Mistakes
+
+### Mistake #1: Forgetting to Build
+
+```bash
+# ❌ ERROR: Command not found
+./funcfinder --dir . --all --json
+
+# ✅ SOLUTION: Build first!
+./build.sh
+./funcfinder --dir . --all --map --json
+```
+
+**Why it happens**: funcfinder is a Go binary, not a system command.
+
+### Mistake #2: Forgetting --map in File Mode
+
+```bash
+# ❌ ERROR: either --func, --map, or --tree must be specified
+./funcfinder --inp file.go --source go
+
+# ✅ CORRECT: Add --map flag for file mode
+./funcfinder --inp file.go --source go --map
+```
+
+**Why it happens**: File mode needs to know what you want: `--map` (all functions), `--func` (specific), or `--extract`.
+**Note**: Directory mode has `--map` as DEFAULT, file mode does NOT!
+
+### Mistake #3: Scanning Root Gets 0 Files
+
+```bash
+# ❌ RESULT: 0 files (because .gitignore hides *.go files)
+./funcfinder --dir . --all --json
+
+# ✅ SOLUTION: Scan specific directory OR use --no-gitignore
+./funcfinder --dir internal --all --json
+./funcfinder --dir . --all --json --no-gitignore
+```
+
+**Why it happens**: `.gitignore` might exclude source files at root level.
+
+### Mistake #4: Missing --source Flag in File Mode
+
+```bash
+# ❌ ERROR: --source parameter is required
+./funcfinder --inp file.go --func "ProcessRequest"
+
+# ✅ CORRECT: Add --source flag
+./funcfinder --inp file.go --source go --func "ProcessRequest"
+```
+
+**Why it happens**: funcfinder can't auto-detect language in file mode.
+
+### Mistake #5: Using Wrong Path Separator
+
+```bash
+# ❌ ERROR: Uses `-inp` (single dash) instead of `--inp`
+./funcfinder -inp file.go -source go --map
+
+# ✅ CORRECT: Use double dash for long flags
+./funcfinder --inp file.go --source go --map
+```
+
+**Why it happens**: funcfinder uses GNU-style `--long-flags`, not `-short` flags.
+
+---
 
 ## Output Format Reference
 
@@ -198,7 +340,7 @@ jq -r '.files[] | "\(.path): \(.functions | length)"' map.json
 ### Grep Format (Search-Friendly)
 
 ```bash
-funcfinder --dir . --all
+./funcfinder --dir . --all
 
 # Output:
 # internal/finder.go:89: FindFunctions
@@ -209,16 +351,16 @@ funcfinder --dir . --all
 **Use standard grep/awk**:
 ```bash
 # Filter by filename
-funcfinder --dir . --all | grep "finder.go"
+./funcfinder --dir . --all | grep "finder.go"
 
 # Extract line numbers
-funcfinder --dir . --all | awk -F: '{print $2}'
+./funcfinder --dir . --all | awk -F: '{print $2}'
 ```
 
 ### Tree Format (Human-Readable)
 
 ```bash
-funcfinder --dir . --tree
+./funcfinder --dir . --tree
 
 # Output: Hierarchical structure
 # Perfect for initial exploration
@@ -264,7 +406,7 @@ query := `SELECT * FROM users WHERE name = "John" // not a comment`
 
 | Approach | Speed | Accuracy | Token Cost |
 |----------|-------|----------|------------|
-| **funcfinder --dir . --all --json** | 763K lines/sec | 100% | 1 read |
+| **./funcfinder --dir . --all --json** | 763K lines/sec | 100% | 1 read |
 | Reading each file individually | Depends on filesystem | 100% | N reads |
 | `grep -r "^func"` | Fast | ~60% | N scans |
 | `cat **/*.go \| grep` | Fast | ~40% | Huge tokens |
@@ -277,7 +419,7 @@ query := `SELECT * FROM users WHERE name = "John" // not a comment`
 
 ```bash
 # Find main function across entire project
-funcfinder --dir . --all | grep ":main$"
+./funcfinder --dir . --all | grep ":main$"
 
 # Result: cmd/app/main.go:15: main
 # Now read only that file
@@ -287,20 +429,20 @@ funcfinder --dir . --all | grep ":main$"
 
 ```bash
 # Get all test functions
-funcfinder --dir . --all | grep "Test"
+./funcfinder --dir . --all | grep "Test"
 
 # Compare with implementation functions to identify untested code
-funcfinder --dir src --all | grep -v "Test" > implementations.txt
+./funcfinder --dir src --all | grep -v "Test" > implementations.txt
 ```
 
 ### Example 3: Refactoring Impact Analysis
 
 ```bash
 # Before refactoring: map current structure
-funcfinder --dir . --all --json > before.json
+./funcfinder --dir . --all --json > before.json
 
 # After refactoring: map new structure
-funcfinder --dir . --all --json > after.json
+./funcfinder --dir . --all --json > after.json
 
 # Compare to see what changed
 diff <(jq -r '.files[].functions[].name' before.json | sort) \
@@ -312,28 +454,28 @@ diff <(jq -r '.files[].functions[].name' before.json | sort) \
 ### Directory Analysis
 ```bash
 # Full scan with all features
-funcfinder --dir <path> --all --json [--recursive] [--workers N]
+./funcfinder --dir <path> --all --json [--recursive] [--workers N]
 
 # Only functions (faster if types not needed)
-funcfinder --dir <path> --map
+./funcfinder --dir <path> --map
 
 # Only types/classes/structs
-funcfinder --dir <path> --struct --json
+./funcfinder --dir <path> --struct --json
 
 # Ignore .gitignore (analyze dependencies)
-funcfinder --dir <path> --all --no-gitignore
+./funcfinder --dir <path> --all --no-gitignore
 ```
 
 ### Single File Analysis
 ```bash
 # Map functions in file
-funcfinder -inp <file> -source <file> --map
+./funcfinder --inp <file> --source <lang> --map
 
 # Extract specific function
-funcfinder -inp <file> -source <file> --extract "<FuncName>"
+./funcfinder --inp <file> --source <lang> --extract "<FuncName>"
 
 # Get line range
-funcfinder -inp <file> -source <file> --func "<FuncName>" --lines
+./funcfinder --inp <file> --source <lang> --func "<FuncName>" --lines
 ```
 
 ### Output Formats
@@ -344,9 +486,108 @@ funcfinder -inp <file> -source <file> --func "<FuncName>" --lines
 --tree-full # Complete tree with empty dirs
 ```
 
+---
+
+## 🐍 Advanced Feature: Smart Python --lines Processing
+
+**NEW**: funcfinder now has intelligent scope-aware line range processing for Python!
+
+### The Problem
+
+When AI agents request specific line ranges in Python code with `--lines`, they often accidentally split functions in half:
+
+```python
+# AI agent requests: --lines 15:25
+def my_function():           # line 10
+    x = 1                    # line 15  <- Requested start (INSIDE function!)
+    return x                 # line 16
+                             # line 17
+def another_function():      # line 18  <- Function split!
+    pass                     # line 25  <- Requested end
+```
+
+**❌ Without smart processing**: Returns broken code
+**✅ With smart processing**: Automatically expands to `10:25` (complete functions)
+
+### How It Works
+
+**Two-Pass Analysis:**
+
+1. **Pass 1 - Scope Analysis**: Scans entire file, builds map of all functions/classes with their exact boundaries
+2. **Pass 2 - Range Validation**: Checks requested range, auto-corrects if it would break scope boundaries
+
+**Automatic Adjustments:**
+
+| Scenario | Action | Example |
+|----------|--------|---------|
+| **Range inside function body** | Expand to full function | `70:75` → `69:82` |
+| **Range in global scope** | Expand to next function | `15:30` → `11:18` |
+| **Range exceeds function end** | Clip to function boundary | `18:35` → `18:26` |
+| **Range inside class method** | Clip to class end | `42:66` → `42:68` |
+
+### Usage Example
+
+```bash
+# Request range that's inside a function
+./funcfinder --inp script.py --source py --lines 70:75 --map
+
+# Output: Adjustment report + corrected range
++------------------------------------------------------------------+
+|           PYTHON LINES RANGE ADJUSTMENT REPORT                  |
++------------------------------------------------------------------+
+| Requested range: 70:75                                          |
+| Adjusted range:  69:82                                          |
++------------------------------------------------------------------+
+| Adjustment #1:
+|   Scope: function 'outer_function'
+|   Reason: Requested range is inside function body, expanded to full function
++------------------------------------------------------------------+
+
+outer_function: 69-80; inner_function: 72-75;
+```
+
+### Benefits for AI Agents
+
+✅ **No more broken code**: Never splits functions in half
+✅ **Transparent corrections**: Shows exactly what was adjusted and why
+✅ **Context preservation**: Keeps decorators, docstrings, nested functions intact
+✅ **Works with all modes**: `--map`, `--extract`, `--func` all supported
+
+### Smart Scope Detection
+
+The system correctly handles:
+- ✅ Functions with decorators (includes `@decorator` lines)
+- ✅ `async def` functions
+- ✅ Nested functions (inner functions)
+- ✅ Class methods (property, staticmethod, classmethod)
+- ✅ Multi-line function signatures
+- ✅ Docstrings (doesn't close scope prematurely)
+
+### When to Use
+
+**Perfect for:**
+- Reading specific sections of large Python files
+- Extracting related functions that are grouped together
+- Avoiding massive token costs when you only need part of a file
+
+**Example workflow:**
+```bash
+# 1. Map the file to see all functions
+./funcfinder --inp large_script.py --source py --map
+
+# Output shows: process_data: 150-200; validate: 205-250; transform: 255-300
+
+# 2. Request just the middle section (with smart correction)
+./funcfinder --inp large_script.py --source py --lines 200:260 --map
+
+# Smart correction ensures you get complete validate() and transform() functions
+```
+
+---
+
 ## Best Practices Checklist
 
-- ✅ **Always start with directory scan**: `funcfinder --dir . --all --json`
+- ✅ **Always start with directory scan**: `./funcfinder --dir . --all --json`
 - ✅ **Use JSON for structured queries**: Pipe to `jq` for precise extraction
 - ✅ **Use grep format for simple searches**: Fast text filtering
 - ✅ **Extract functions, don't read full files**: Use `--extract` after identifying targets
@@ -375,7 +616,7 @@ cat file1.go file2.go ... file50.go
 **funcfinder approach**:
 ```bash
 # 1. Map codebase (30ms)
-funcfinder --dir . --all --json > map.json
+./funcfinder --dir . --all --json > map.json
 # Token cost: ~5K tokens (just the map)
 
 # 2. Search map (instant)
@@ -383,7 +624,7 @@ grep "ProcessRequest" map.json
 # Found: handler.go:142
 
 # 3. Extract function (5ms)
-funcfinder -inp handler.go -source handler.go --extract "ProcessRequest"
+./funcfinder --inp handler.go --source go --extract "ProcessRequest"
 # Token cost: ~500 tokens (just the function)
 
 # Total: ~5.5K tokens vs 500K = 99% reduction
@@ -398,4 +639,4 @@ funcfinder -inp handler.go -source handler.go --extract "ProcessRequest"
 3. **Maintain accuracy**: State-machine parser handles edge cases
 4. **Scale effortlessly**: Parallel processing + multi-language support
 
-**Golden Rule**: If you're about to read a file to find a function, use `funcfinder --dir . --all --json` instead. The map will tell you exactly where to look, and you'll save 99% of your token budget.
+**Golden Rule**: If you're about to read a file to find a function, use `./funcfinder --dir . --all --json` instead. The map will tell you exactly where to look, and you'll save 99% of your token budget.
