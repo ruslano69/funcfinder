@@ -310,12 +310,18 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 					newFunc.Lines = append(newFunc.Lines, line)
 				}
 
-				// Добавляем новую функцию в стек
-				ctx := &FunctionContext{
-					Func:  newFunc,
-					Depth: braceDelta,
+				// Если скобки сбалансированы на одной строке ({ ... }) — функция завершена
+				if braceDelta == 0 && strings.Contains(cleaned, "{") {
+					newFunc.End = lineNum + 1 + lineOffset
+					result.Functions = append(result.Functions, *newFunc)
+				} else {
+					// Добавляем новую функцию в стек
+					ctx := &FunctionContext{
+						Func:  newFunc,
+						Depth: braceDelta,
+					}
+					funcStack = append(funcStack, ctx)
 				}
-				funcStack = append(funcStack, ctx)
 			}
 		}
 

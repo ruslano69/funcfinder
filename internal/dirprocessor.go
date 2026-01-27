@@ -256,13 +256,20 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 			structFinder := factory.CreateStructFinder(langConfig, "", true, false)
 			structResult, err := structFinder.FindStructures(job.Path)
 			if err == nil {
-				// Append struct types to classes
+				// Dedup: only add types not already in Classes (from class_pattern)
+				seen := make(map[string]bool, len(result.Classes))
+				for _, c := range result.Classes {
+					seen[c.Name+":"+strconv.Itoa(c.Start)] = true
+				}
 				for _, typ := range structResult.Types {
-					result.Classes = append(result.Classes, ClassBounds{
-						Name:  typ.Name,
-						Start: typ.Start,
-						End:   typ.End,
-					})
+					key := typ.Name + ":" + strconv.Itoa(typ.Start)
+					if !seen[key] {
+						result.Classes = append(result.Classes, ClassBounds{
+							Name:  typ.Name,
+							Start: typ.Start,
+							End:   typ.End,
+						})
+					}
 				}
 			}
 		}
