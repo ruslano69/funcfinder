@@ -475,6 +475,43 @@ func TestFuncRegex(t *testing.T) {
 			shouldMatch:   true,
 			expectedName:  "genericArrow",
 		},
+		// export const arrow functions (Bug #1 fix)
+		{
+			lang:          "js",
+			code:          "export const add = (a, b) => {",
+			shouldMatch:   true,
+			expectedName:  "add",
+		},
+		{
+			lang:          "js",
+			code:          "export const asyncFetch = async (url) => {",
+			shouldMatch:   true,
+			expectedName:  "asyncFetch",
+		},
+		{
+			lang:          "ts",
+			code:          "export const processData = (data: string[]): void => {",
+			shouldMatch:   true,
+			expectedName:  "processData",
+		},
+		{
+			lang:          "ts",
+			code:          "export const fetchUser = async (id: string): Promise<void> => {",
+			shouldMatch:   true,
+			expectedName:  "fetchUser",
+		},
+		{
+			lang:          "ts",
+			code:          "export let handler = (req: Request) => {",
+			shouldMatch:   true,
+			expectedName:  "handler",
+		},
+		{
+			lang:          "ts",
+			code:          "export const genericFn = <T>(x: T): T => {",
+			shouldMatch:   true,
+			expectedName:  "genericFn",
+		},
 	}
 
 	for _, tt := range tests {

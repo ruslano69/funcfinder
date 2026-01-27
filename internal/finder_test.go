@@ -540,3 +540,105 @@ func RealFunction() {
 		t.Errorf("Function name = %q, want \"RealFunction\"", result.Functions[0].Name)
 	}
 }
+
+func TestFindFunctions_SingleLineFunctions(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Test Go single-line function (supports_nested: true)
+	t.Run("go_single_line", func(t *testing.T) {
+		testFile := filepath.Join(tmpDir, "single.go")
+		code := `package main
+
+func multi() {
+	return
+}
+
+func single() { return }
+
+func another() {
+	x := 1
+	_ = x
+}
+`
+		if err := os.WriteFile(testFile, []byte(code), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		config := getGoConfig(t)
+		finder := NewFinder(config, []string{}, true, false, false)
+		result, err := finder.FindFunctions(testFile)
+		if err != nil {
+			t.Fatalf("FindFunctions() error = %v", err)
+		}
+
+		if len(result.Functions) != 3 {
+			t.Fatalf("Found %d functions, want 3", len(result.Functions))
+		}
+
+		// single() should have Start == End (single line)
+		single := result.Functions[1]
+		if single.Name != "single" {
+			t.Errorf("Second function name = %q, want \"single\"", single.Name)
+		}
+		if single.Start != single.End {
+			t.Errorf("single() boundaries: %d-%d, want same line (single-line function)", single.Start, single.End)
+		}
+
+		// multi() should span multiple lines
+		multi := result.Functions[0]
+		if multi.Start == multi.End {
+			t.Errorf("multi() should span multiple lines, got %d-%d", multi.Start, multi.End)
+		}
+	})
+
+	// Test Swift single-line methods inside struct (Bug #3)
+	t.Run("swift_single_line_in_struct", func(t *testing.T) {
+		testFile := filepath.Join(tmpDir, "single.swift")
+		code := `public struct Logger {
+    public let level: Int
+
+    public func log(_ msg: String) {
+        print(msg)
+    }
+
+    public func trace(_ msg: String) { log(msg) }
+    public func debug(_ msg: String) { log(msg) }
+}
+`
+		if err := os.WriteFile(testFile, []byte(code), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		config, err := LoadConfig()
+		if err != nil {
+			t.Fatalf("LoadConfig() error = %v", err)
+		}
+		langConfig, err := config.GetLanguageConfig("swift")
+		if err != nil {
+			t.Fatalf("GetLanguageConfig(swift) error = %v", err)
+		}
+
+		finder := NewFinder(langConfig, []string{}, true, false, false)
+		result, err := finder.FindFunctions(testFile)
+		if err != nil {
+			t.Fatalf("FindFunctions() error = %v", err)
+		}
+
+		if len(result.Functions) != 3 {
+			t.Fatalf("Found %d functions, want 3 (log, trace, debug)", len(result.Functions))
+		}
+
+		for _, fn := range result.Functions {
+			if fn.Name == "trace" || fn.Name == "debug" {
+				if fn.Start != fn.End {
+					t.Errorf("%s() boundaries: %d-%d, want single-line (Start == End)", fn.Name, fn.Start, fn.End)
+				}
+			}
+			if fn.Name == "log" {
+				if fn.Start == fn.End {
+					t.Errorf("log() should span multiple lines, got %d-%d", fn.Start, fn.End)
+				}
+			}
+		}
+	})
+}

@@ -150,7 +150,7 @@
   "js": {
     "name": "JavaScript",
     "extensions": [".js", ".jsx", ".mjs"],
-    "func_pattern": "^\\s*(?:(export\\s+)?(async\\s+)?function\\s*\\*?\\s+(\\w+)\\s*\\(|(const|let|var)\\s+(\\w+)\\s*=\\s*(async\\s+)?\\()",
+    "func_pattern": "^\\s*(?:(export\\s+)?(async\\s+)?function\\s*\\*?\\s+(\\w+)\\s*\\(|(?:export\\s+)?(const|let|var)\\s+(\\w+)\\s*=\\s*(async\\s+)?\\()",
     "class_pattern": "^\\s*(?:export\\s+)?class\\s+(\\w+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+(\\w+)",
@@ -175,7 +175,7 @@
   "ts": {
     "name": "TypeScript",
     "extensions": [".ts", ".tsx"],
-    "func_pattern": "^\\s*(?:(export\\s+)?(async\\s+)?function\\s*\\*?\\s+(\\w+)\\s*[<(]|(const|let|var)\\s+(\\w+)\\s*=\\s*(async\\s+)?[<(])",
+    "func_pattern": "^\\s*(?:(export\\s+)?(async\\s+)?function\\s*\\*?\\s+(\\w+)\\s*[<(]|(?:export\\s+)?(const|let|var)\\s+(\\w+)\\s*=\\s*(async\\s+)?[<(])",
     "class_pattern": "^\\s*(?:export\\s+)?class\\s+(\\w+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+(\\w+)",
