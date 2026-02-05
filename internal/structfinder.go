@@ -342,8 +342,8 @@ func (f *StructFinder) findFieldsForType(lines []string, typeBounds *TypeBounds,
 				fieldType = strings.TrimSpace(matches[2])
 			}
 
-			// Skip if field name is empty or looks like a method
-			if fieldName != "" && !isLikelyMethod(fieldName, cleaned) {
+			// Skip if field name is empty, looks like a method, or is an excluded word
+			if fieldName != "" && !isLikelyMethod(fieldName, cleaned) && !isExcludedWord(fieldName, f.config.ExcludeWords) {
 				fields = append(fields, FieldBounds{
 					Name: fieldName,
 					Type: fieldType,
@@ -360,4 +360,14 @@ func (f *StructFinder) findFieldsForType(lines []string, typeBounds *TypeBounds,
 func isLikelyMethod(name string, line string) bool {
 	// Functions have parentheses, fields don't
 	return strings.Contains(line, "(") || strings.Contains(line, ")")
+}
+
+// isExcludedWord checks if the name is in the exclude words list
+func isExcludedWord(name string, excludeWords []string) bool {
+	for _, word := range excludeWords {
+		if name == word {
+			return true
+		}
+	}
+	return false
 }

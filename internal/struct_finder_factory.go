@@ -259,7 +259,7 @@ func (f *HybridStructFinder) findFieldsForType(lines []string, typeBounds *TypeB
 				fieldType = strings.TrimSpace(matches[2])
 			}
 
-			if fieldName != "" && !isLikelyMethod(fieldName, cleaned) {
+			if fieldName != "" && !isLikelyMethod(fieldName, cleaned) && !isExcludedWord(fieldName, f.config.ExcludeWords) {
 				fields = append(fields, FieldBounds{
 					Name: fieldName,
 					Type: fieldType,
