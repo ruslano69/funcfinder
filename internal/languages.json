@@ -274,7 +274,7 @@
     "string_chars": ["\""],
     "raw_string_chars": ["\"\"\".*?\"\"\""],
     "escape_char": "\\",
-    "exclude_words": ["func", "class", "struct", "enum", "protocol", "if", "while", "for", "guard", "switch", "catch", "return", "throw", "import", "public", "private", "internal", "static", "var", "let"],
+    "exclude_words": ["func", "class", "struct", "enum", "protocol", "if", "else", "while", "for", "guard", "switch", "catch", "return", "throw", "import", "public", "private", "internal", "static", "var", "let"],
     "supports_nested": true
   },
   "kotlin": {
@@ -349,7 +349,7 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["%q{", "%Q{"],
     "escape_char": "\\",
-    "indent_based": true,
+    "block_end_keyword": "end",
     "exclude_words": ["if", "elsif", "else", "unless", "while", "until", "for", "case", "when", "return", "yield", "class", "module", "def", "end"],
     "supports_nested": true
   },

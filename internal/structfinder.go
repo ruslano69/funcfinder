@@ -117,29 +117,32 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 		state = newState
 
 		if currentType != nil {
-			// We're inside a type definition
-			// Count braces to find the end
-			if f.config.HasClasses() {
-				prevDepth := depth
-				depth += CountBraces(cleaned)
-
-				// Type ends when we exit the outermost braces
-				// (prevDepth > 0 && depth == 0), not just depth == 0
-				if depth == 0 && prevDepth > 0 {
+			// We're inside a type definition - find end based on language type
+			if f.config.BlockEndKeyword != "" {
+				// Ruby-like: find 'end' at same indent level as type start
+				if isRubyBlockEnd(line, f.config.BlockEndKeyword, currentType.StartLineIndent) {
 					currentType.End = lineNum + 1 + lineOffset
 					types = append(types, *currentType)
 					currentType = nil
 				}
-			} else {
+			} else if f.config.IndentBased {
 				// For indent-based languages like Python, use indentation
-				// For simple brace-less types, end at next type or EOF
-				if f.config.IndentBased {
-					indent := GetIndentLevel(line)
-					if indent <= currentType.StartLineIndent {
-						currentType.End = lineNum + 1 + lineOffset
-						types = append(types, *currentType)
-						currentType = nil
-					}
+				indent := GetIndentLevel(line)
+				if indent <= currentType.StartLineIndent {
+					currentType.End = lineNum + 1 + lineOffset
+					types = append(types, *currentType)
+					currentType = nil
+				}
+			} else if f.config.HasClasses() {
+				// Brace-based languages: count braces to find the end
+				prevDepth := depth
+				depth += CountBraces(cleaned)
+
+				// Type ends when we exit the outermost braces
+				if depth == 0 && prevDepth > 0 {
+					currentType.End = lineNum + 1 + lineOffset
+					types = append(types, *currentType)
+					currentType = nil
 				}
 			}
 		} else {
@@ -183,6 +186,9 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 									types = append(types, *currentType)
 									currentType = nil
 								}
+							} else if f.config.BlockEndKeyword != "" {
+								// Ruby-like: will find end by matching 'end' keyword
+								depth = 1 // Mark as inside
 							} else if f.config.IndentBased {
 								// Indent-based type, will find end by indentation
 								depth = 1 // Mark as inside
@@ -240,6 +246,9 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 								types = append(types, *currentType)
 								currentType = nil
 							}
+						} else if f.config.BlockEndKeyword != "" {
+							// Ruby-like: will find end by matching 'end' keyword
+							depth = 1 // Mark as inside
 						} else if f.config.IndentBased {
 							// Indent-based type, will find end by indentation
 							depth = 1 // Mark as inside
@@ -248,7 +257,7 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 							depth = 0
 						}
 					}
-				} else if currentType != nil && depth == 0 && !f.config.IndentBased {
+				} else if currentType != nil && depth == 0 && !f.config.IndentBased && f.config.BlockEndKeyword == "" {
 					// Continue multi-line signature
 					braceCount := CountBraces(cleaned)
 					if braceCount > 0 {
@@ -342,8 +351,8 @@ func (f *StructFinder) findFieldsForType(lines []string, typeBounds *TypeBounds,
 				fieldType = strings.TrimSpace(matches[2])
 			}
 
-			// Skip if field name is empty or looks like a method
-			if fieldName != "" && !isLikelyMethod(fieldName, cleaned) {
+			// Skip if field name is empty, looks like a method, or is an excluded word
+			if fieldName != "" && !isLikelyMethod(fieldName, cleaned) && !isExcludedWord(fieldName, f.config.ExcludeWords) {
 				fields = append(fields, FieldBounds{
 					Name: fieldName,
 					Type: fieldType,
@@ -360,4 +369,24 @@ func (f *StructFinder) findFieldsForType(lines []string, typeBounds *TypeBounds,
 func isLikelyMethod(name string, line string) bool {
 	// Functions have parentheses, fields don't
 	return strings.Contains(line, "(") || strings.Contains(line, ")")
+}
+
+// isExcludedWord checks if the name is in the exclude words list
+func isExcludedWord(name string, excludeWords []string) bool {
+	for _, word := range excludeWords {
+		if name == word {
+			return true
+		}
+	}
+	return false
+}
+
+// isRubyBlockEnd checks if line is a block end keyword at the expected indent level
+// Used for Ruby-like languages where 'end' closes class/module at matching indent
+func isRubyBlockEnd(line string, keyword string, expectedIndent int) bool {
+	trimmed := strings.TrimSpace(line)
+	if trimmed != keyword {
+		return false
+	}
+	return GetIndentLevel(line) == expectedIndent
 }

@@ -363,8 +363,9 @@ func processStructs(langConfig *internal.LanguageConfig, typeStr, mode string, e
 	}
 
 	// Создаем struct finder через фабрику
+	// Для tree/map режимов нужно искать все типы (mapMode=true)
 	factory := internal.NewStructFinderFactory()
-	structFinder := factory.CreateStructFinder(langConfig, typeStr, mapMode, extractMode)
+	structFinder := factory.CreateStructFinder(langConfig, typeStr, mapMode || treeMode || treeFull, extractMode)
 
 	var result *internal.StructFindResult
 	var err error

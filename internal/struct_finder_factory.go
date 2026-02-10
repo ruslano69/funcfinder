@@ -53,7 +53,12 @@ func (f *StructFinderFactory) CreateStructFinder(config *LanguageConfig, typeNam
 
 // determineFinderType determines the appropriate finder type for the language
 func (f *StructFinderFactory) determineFinderType(config *LanguageConfig) FinderType {
-	// Indent-based languages
+	// Block-end-keyword languages (Ruby) use standard brace finder with special end detection
+	if config.BlockEndKeyword != "" {
+		return FinderTypeBrace
+	}
+
+	// Indent-based languages (Python)
 	if config.IndentBased {
 		return FinderTypeIndent
 	}
@@ -259,7 +264,7 @@ func (f *HybridStructFinder) findFieldsForType(lines []string, typeBounds *TypeB
 				fieldType = strings.TrimSpace(matches[2])
 			}
 
-			if fieldName != "" && !isLikelyMethod(fieldName, cleaned) {
+			if fieldName != "" && !isLikelyMethod(fieldName, cleaned) && !isExcludedWord(fieldName, f.config.ExcludeWords) {
 				fields = append(fields, FieldBounds{
 					Name: fieldName,
 					Type: fieldType,

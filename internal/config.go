@@ -53,6 +53,7 @@ type LanguageConfig struct {
 	CharDelimiters    []string `json:"char_delimiters,omitempty"`
 	DocStringMarkers  []string `json:"doc_string_markers,omitempty"`
 	IndentBased       bool     `json:"indent_based"`
+	BlockEndKeyword   string   `json:"block_end_keyword,omitempty"` // For Ruby-like languages (end keyword)
 
 	// Nested function support
 	SupportsNested bool `json:"supports_nested"`
