@@ -486,7 +486,11 @@ After running `./build.sh`, you also have these specialized tools:
 # Analyze complexity of functions
 ./complexity internal/finder.go -l go
 
+# ✅ RECOMMENDED: Skip simple functions (saves tokens!)
+./complexity internal/finder.go -l go --nosimple
+
 # Output: Functions ranked by complexity score
+# --nosimple filters out trivial functions (complexity ≤ 1)
 # Note: Single-file analysis only
 ```
 
