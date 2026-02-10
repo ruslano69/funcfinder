@@ -567,6 +567,60 @@ funcfinder --inp api.go --source go --func AuthHandler --extract
 START=$(funcfinder --inp api.go --source go --func Handler --json | jq '.Handler.start')
 ```
 
+## 🔄 Usage Scenarios
+
+### Git Hooks Integration: "Commit Once, Search Instantly Forever"
+
+Автоматически обновляйте карту кода при каждом коммите. Один раз настроил — поиск мгновенный навсегда.
+
+**1. Создайте post-commit hook:**
+
+```bash
+# .git/hooks/post-commit
+#!/bin/bash
+funcfinder --dir . --all --json > .codemap.json 2>/dev/null
+git add .codemap.json 2>/dev/null
+```
+
+```bash
+chmod +x .git/hooks/post-commit
+```
+
+**2. Добавьте конфигурацию проекта:**
+
+```bash
+# .funcfinder.config (опционально)
+EXCLUDE_DIRS="node_modules,vendor,.git,dist,build"
+WORKERS=8
+OUTPUT_FORMAT="json"
+```
+
+**3. Результат:**
+
+| Подход | Время поиска | Контекст |
+|--------|-------------|----------|
+| `grep -r "func"` | ~2-5 сек | Только текст |
+| `funcfinder + hooks` | **мгновенно** | Структура + границы + типы |
+
+**Преимущества:**
+- 📍 Карта кода всегда актуальна
+- ⚡ Мгновенный поиск по `.codemap.json`
+- 🔍 AI-агенты получают структуру без парсинга
+- 💾 Минимальный overhead (JSON ~50KB для среднего проекта)
+
+**Пример использования карты:**
+
+```bash
+# Быстрый поиск функции
+jq '.files[] | select(.path | contains("auth")) | .functions[]' .codemap.json
+
+# Найти все классы
+jq '.files[] | .path as $p | .types[] | "\($p):\(.name)"' .codemap.json
+
+# Статистика проекта
+jq '{files: (.files | length), functions: [.files[].functions[]] | length}' .codemap.json
+```
+
 ## 📖 Usage
 
 ```
