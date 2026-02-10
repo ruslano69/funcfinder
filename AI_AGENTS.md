@@ -325,7 +325,17 @@ grep -i "auth" map.json
 }
 ```
 
-**Use jq to query**:
+**⚠️ Important**: `path` is at file level, NOT duplicated inside each function/class. This is intentional (saves space). Use jq to combine them:
+
+```bash
+# ❌ WRONG - functions don't have .path field:
+jq '.files[].functions[] | "\(.name) in \(.path)"'  # path is undefined!
+
+# ✅ CORRECT - capture path first, then iterate:
+jq '.files[] | .path as $p | .functions[] | "\(.name) in \($p)"' map.json
+```
+
+**Basic jq queries**:
 ```bash
 # Get all function names
 jq -r '.files[].functions[].name' map.json
@@ -335,6 +345,31 @@ jq -r '.files[] | select(.path | contains("auth")) | .functions[]' map.json
 
 # Count functions per file
 jq -r '.files[] | "\(.path): \(.functions | length)"' map.json
+```
+
+**Advanced jq recipes (copy-paste ready)**:
+```bash
+# Functions with full paths (most common need!)
+jq -r '.files[] | .path as $p | .functions[] | "\($p):\(.line): \(.name)"' map.json
+
+# Top 10 files by function count
+jq '[.files[] | {path, count: (.functions | length)}] | sort_by(-.count) | .[:10]' map.json
+
+# Find function by name (case-insensitive)
+jq '.files[] | .path as $p | .functions[] | select(.name | ascii_downcase | contains("export")) | {path: $p, name, line}' map.json
+
+# All structs/classes of specific kind
+jq '.files[].classes[] | select(.kind == "struct")' map.json
+
+# Count total (already in root, but useful for verification)
+jq '{files: .total_files, functions: .total_functions, classes: .total_classes}' map.json
+```
+
+**Quick grep alternative (faster for simple searches)**:
+```bash
+# Simple text search - often faster than jq
+grep -i "rabbitmq" map.json
+grep '"name": "Export' map.json
 ```
 
 ### Grep Format (Search-Friendly)
@@ -412,6 +447,55 @@ query := `SELECT * FROM users WHERE name = "John" // not a comment`
 | `cat **/*.go \| grep` | Fast | ~40% | Huge tokens |
 
 **Bottom line**: funcfinder is both faster AND more accurate while using 99% fewer tokens.
+
+---
+
+## 🔧 Additional Tools: stat, deps, complexity
+
+After running `./build.sh`, you also have these specialized tools:
+
+### stat - Function Call Statistics
+```bash
+# Analyze function calls in a single file
+./stat internal/finder.go -l go
+
+# Output: Which functions are called and how often
+# Note: Currently single-file only, not directory mode
+```
+
+### deps - Import/Dependency Analysis
+```bash
+# Analyze imports in a file
+./deps internal/config.go -l go -json
+
+# Output structure (array, not object!):
+{
+  "file": "config.go",
+  "dependencies": [
+    {"name": "encoding/json", "count": 5},
+    {"name": "regexp", "count": 3}
+  ]
+}
+
+# Sort by count:
+./deps file.go -l go -json | jq '.dependencies | sort_by(-.count) | .[:10]'
+```
+
+### complexity - Cyclomatic Complexity
+```bash
+# Analyze complexity of functions
+./complexity internal/finder.go -l go
+
+# Output: Functions ranked by complexity score
+# Note: Single-file analysis only
+```
+
+**⚠️ Tool Limitations**:
+- `stat`, `deps`, `complexity` work on **single files only**
+- For directory analysis, use `funcfinder --dir` and process results
+- These are supplementary tools, `funcfinder` is the primary workhorse
+
+---
 
 ## Integration Examples
 
