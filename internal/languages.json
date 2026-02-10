@@ -349,7 +349,7 @@
     "string_chars": ["\"", "'"],
     "raw_string_chars": ["%q{", "%Q{"],
     "escape_char": "\\",
-    "indent_based": true,
+    "block_end_keyword": "end",
     "exclude_words": ["if", "elsif", "else", "unless", "while", "until", "for", "case", "when", "return", "yield", "class", "module", "def", "end"],
     "supports_nested": true
   },

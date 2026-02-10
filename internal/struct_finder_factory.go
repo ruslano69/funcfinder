@@ -53,7 +53,12 @@ func (f *StructFinderFactory) CreateStructFinder(config *LanguageConfig, typeNam
 
 // determineFinderType determines the appropriate finder type for the language
 func (f *StructFinderFactory) determineFinderType(config *LanguageConfig) FinderType {
-	// Indent-based languages
+	// Block-end-keyword languages (Ruby) use standard brace finder with special end detection
+	if config.BlockEndKeyword != "" {
+		return FinderTypeBrace
+	}
+
+	// Indent-based languages (Python)
 	if config.IndentBased {
 		return FinderTypeIndent
 	}
