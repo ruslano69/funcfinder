@@ -718,38 +718,27 @@ funcfinder --inp api.go --source go --func ProcessData --extract
 
 ## 🏗️ Architecture
 
-### funcfinder Core
-
 ```
 funcfinder/
-├── main.go             # CLI and coordination
-├── config.go           # Unified language configuration (shared)
-├── errors.go           # Standard error handling (shared)
-├── sanitizer.go        # Comment/string literal handler
-├── finder.go           # Function boundary detection
-├── python_finder.go    # Python-specific indentation logic
-├── finder_factory.go   # Language-specific finder selection
-├── formatter.go        # Output formatting (grep/json/extract)
-├── tree.go             # Tree visualization for classes
-├── decorator.go        # Python decorator detection
-└── lines.go            # Line range filtering
-```
-
-### Shared Modules
-
-```
-config.go           # Loads languages.json, provides regex cache
-errors.go           # FatalError, WarnError, InfoMessage, PrintVersion
-languages.json      # Unified patterns for ALL utilities (embedded)
-```
-
-### Additional Utilities
-
-```
-stat.go             # Uses config.go + errors.go
-deps.go             # Uses config.go + errors.go
-complexity.go       # Uses config.go + errors.go + finder.go
-analyze.sh          # Orchestrates all utilities for full analysis
+├── cmd/                        # CLI entry points
+│   ├── funcfinder/main.go      # Main tool
+│   ├── stat/main.go            # Call counter
+│   ├── deps/main.go            # Dependency analyzer
+│   └── complexity/main.go      # Complexity analyzer
+├── internal/                   # Core logic
+│   ├── config.go               # Language configuration
+│   ├── languages.json          # 15 language patterns (embedded)
+│   ├── finder.go               # Function boundary detection
+│   ├── structfinder.go         # Class/struct detection
+│   ├── enhanced_sanitizer.go   # State-machine parser
+│   ├── dirprocessor.go         # Directory scanning
+│   ├── python_finder.go        # Python-specific logic
+│   ├── formatter.go            # Output formatting
+│   └── tree.go                 # Tree visualization
+├── examples/
+│   └── analyze.sh              # Full project analysis
+├── docs/                       # Documentation
+└── test_examples/              # Test files (15 languages)
 ```
 
 ## 🔧 Configuration
