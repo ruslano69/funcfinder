@@ -571,9 +571,9 @@ START=$(funcfinder --inp api.go --source go --func Handler --json | jq '.Handler
 
 ### Git Hooks Integration: "Commit Once, Search Instantly Forever"
 
-Автоматически обновляйте карту кода при каждом коммите. Один раз настроил — поиск мгновенный навсегда.
+Automatically update your code map on every commit. Set up once — instant search forever.
 
-**1. Создайте post-commit hook:**
+**1. Create post-commit hook:**
 
 ```bash
 # .git/hooks/post-commit
@@ -586,38 +586,38 @@ git add .codemap.json 2>/dev/null
 chmod +x .git/hooks/post-commit
 ```
 
-**2. Добавьте конфигурацию проекта:**
+**2. Add project configuration (optional):**
 
 ```bash
-# .funcfinder.config (опционально)
+# .funcfinder.config
 EXCLUDE_DIRS="node_modules,vendor,.git,dist,build"
 WORKERS=8
 OUTPUT_FORMAT="json"
 ```
 
-**3. Результат:**
+**3. Result:**
 
-| Подход | Время поиска | Контекст |
-|--------|-------------|----------|
-| `grep -r "func"` | ~2-5 сек | Только текст |
-| `funcfinder + hooks` | **мгновенно** | Структура + границы + типы |
+| Approach | Search Time | Context |
+|----------|-------------|---------|
+| `grep -r "func"` | ~2-5 sec | Text only |
+| `funcfinder + hooks` | **instant** | Structure + boundaries + types |
 
-**Преимущества:**
-- 📍 Карта кода всегда актуальна
-- ⚡ Мгновенный поиск по `.codemap.json`
-- 🔍 AI-агенты получают структуру без парсинга
-- 💾 Минимальный overhead (JSON ~50KB для среднего проекта)
+**Benefits:**
+- 📍 Code map always up-to-date
+- ⚡ Instant search via `.codemap.json`
+- 🔍 AI agents get structure without parsing
+- 💾 Minimal overhead (JSON ~50KB for medium project)
 
-**Пример использования карты:**
+**Using the map:**
 
 ```bash
-# Быстрый поиск функции
+# Find functions in auth module
 jq '.files[] | select(.path | contains("auth")) | .functions[]' .codemap.json
 
-# Найти все классы
+# List all classes with paths
 jq '.files[] | .path as $p | .types[] | "\($p):\(.name)"' .codemap.json
 
-# Статистика проекта
+# Project statistics
 jq '{files: (.files | length), functions: [.files[].functions[]] | length}' .codemap.json
 ```
 
@@ -787,151 +787,104 @@ funcfinder --inp config.go --source go --map
 
 ## 🛠️ Additional Utilities
 
-funcfinder поставляется с дополнительными утилитами для полного анализа кода. Все утилиты используют **единую архитектуру** с общими модулями конфигурации и обработки ошибок.
+funcfinder ships with additional utilities for comprehensive code analysis. All utilities share a **unified architecture** with common configuration and error handling modules.
 
 ### Quick Start
 
 ```bash
-# Собрать все утилиты
+# Build all utilities
 ./build.sh
 
-# Полный анализ проекта одной командой
-./analyze.sh
+# Full project analysis in one command
+./examples/analyze.sh
 
-# Workflow для AI-агентов
-funcfinder --inp api.go --source go --map  # Структура кода
-stat api.go -l go -n 10                    # Горячие точки
-deps . -l go -j                            # Граф зависимостей
-complexity api.go -l go                    # Когнитивная сложность
+# AI agent workflow
+funcfinder --inp api.go --source go --map  # Code structure
+stat api.go -l go -n 10                    # Hotspots
+deps . -l go -j                            # Dependency graph
+complexity api.go -l go                    # Cognitive complexity
 ```
 
-### Утилиты
+### Utilities
 
-| Утилита | Назначение | Языки | Выход |
-|---------|------------|-------|-------|
-| **funcfinder** | Структура кода (функции, классы, границы) | 11 | grep/JSON/extract |
-| **stat** | Анализ вызовов функций + метрики файлов | 11 | текст |
-| **deps** | Анализ зависимостей модулей (stdlib/external/internal) | 11 | текст/JSON |
-| **complexity** ⭐ NEW | Анализ когнитивной сложности (nesting depth) | 11 | текст с цветами |
+| Utility | Purpose | Languages | Output |
+|---------|---------|-----------|--------|
+| **funcfinder** | Code structure (functions, classes, boundaries) | 15 | grep/JSON/extract |
+| **stat** | Function call analysis + file metrics | 15 | text |
+| **deps** | Module dependency analysis (stdlib/external/internal) | 15 | text/JSON |
+| **complexity** | Cognitive complexity analyzer (nesting depth) | 15 | colored text |
 
-### 🧠 complexity - Анализатор когнитивной сложности
+### 🧠 complexity - Cognitive Complexity Analyzer
 
-**Философия:** Глубокая вложенность (nesting depth), а не количество веток — настоящая сложность кода.
-
-⚠️ **ВАЖНО:** Различайте вложенные циклы (критично для производительности) и вложенные if (читаемость). См. [PERFORMANCE.md](PERFORMANCE.md) для деталей.
+**Philosophy:** Deep nesting (not branch count) is the real complexity.
 
 ```bash
-# Анализ одного файла
+# Analyze single file
 complexity main.go -l go
 
-# Анализ директории
+# Analyze directory
 complexity . -l go
 
-# JSON выход для автоматизации
+# JSON output for automation
 complexity api.py -l py --json
 
-# Топ N самых сложных функций
+# Top N most complex functions
 complexity . -l go -n 10
 ```
 
-**Примеры вывода:**
+**Complexity Levels:**
+- ✅ **SIMPLE** (depth ≤ 2) - Flat code, easy to understand
+- ⚠️ **MODERATE** (depth = 3) - One nesting level
+- 🔶 **HIGH** (depth ≥ 4) - Two+ nesting levels
+- 🔴 **CRITICAL** (depth ≥ 6) - Needs refactoring
 
-```
-Average max complexity: 8.00
-============================================================
-Philosophy: Deep nesting (not branch count) is the real complexity
-============================================================
-#1 finder.go:238 findClassesWithOffset() depth=5 complexity=16 level=VERY_HIGH
-  Lines: 44, File: finder.go
+**Formula:** `NDC = 2^(maxDepth - 1)`
 
-#2 finder.go:83 FindFunctionsInLines() depth=4 complexity=8 level=HIGH
-  Lines: 104, File: finder.go
-
-#3 config.go:142 GetLanguageConfig() depth=2 complexity=2 level=SIMPLE
-  Lines: 7, File: config.go
-
-============================================================
-Complexity distribution (by nesting depth):
-SIMPLE: 8 ██████████████ (depth ≤ 2)
-MODERATE: 2 ████ (depth = 3)
-HIGH: 1 ██ (depth ≥ 4)
-```
-
-**Уровни сложности:**
-- ✅ **SIMPLE** (depth ≤ 2) - Плоский код, легко понять
-- ⚠️ **MODERATE** (depth = 3) - Один уровень вложенности
-- 🔶 **HIGH** (depth ≥ 4) - Два+ уровня вложенности
-- 🔴 **CRITICAL** (depth ≥ 6) - Требуется рефакторинг
-
-**Формула:** `NDC = 2^(maxDepth - 1)`
-
-### 📊 Комплексный анализ с analyze.sh
-
-Автоматический скрипт для полного анализа проекта:
+### 📊 Full Analysis with analyze.sh
 
 ```bash
-./analyze.sh
+./examples/analyze.sh
 ```
 
-**Отчет включает:**
-- 📈 Статистику по файлам (строки, размер, code/comments/blank ratio)
-- 🔍 Инвентаризацию функций (всего 85 функций в funcfinder)
-- 🔥 Горячие точки вызовов (топ функций по частоте)
-- 📦 Граф зависимостей (stdlib vs external vs internal)
-- 🧠 Распределение сложности (SIMPLE/MODERATE/HIGH/CRITICAL)
-- 💡 Рекомендации по улучшению кода
+**Report includes:**
+- 📈 File statistics (lines, size, code/comments/blank ratio)
+- 🔍 Function inventory
+- 🔥 Call hotspots (top functions by frequency)
+- 📦 Dependency graph (stdlib vs external vs internal)
+- 🧠 Complexity distribution (SIMPLE/MODERATE/HIGH/CRITICAL)
 
-**Пример отчета:**
-```
-📊 Code Metrics:
-  • Total files:      14
-  • Total lines:      3,090
-  • Total size:       84.9 KB
-  • Total functions:  85
-  • Avg func/file:    6.0
+### 🏗️ Unified Architecture (v1.4.0)
 
-🎯 Code Quality:
-  ✅ Excellent - Low complexity, well-structured code
-
-═══════════════════════════════════════
-Overall Complexity Distribution:
-═══════════════════════════════════════
-✅ SIMPLE:    13 functions (depth ≤ 2)
-⚠️  MODERATE:  2 functions (depth = 3)
-🔶 HIGH:      1 functions (depth ≥ 4)
-🔴 CRITICAL:  0 functions (depth ≥ 6)
-```
-
-### 🏗️ Унифицированная архитектура (v1.4.0)
-
-Все утилиты используют **единые модули** (DRY принцип):
+All utilities share **common modules** (DRY principle):
 
 ```
 funcfinder/
-├── config.go          # Унифицированная конфигурация языков
-├── errors.go          # Стандартная обработка ошибок
-├── languages.json     # Единый источник паттернов (embedded)
-├── main.go            # funcfinder CLI
-├── stat.go            # Счётчик вызовов + метрики
-├── deps.go            # Анализатор зависимостей
-├── complexity.go      # Анализатор когнитивной сложности
-├── analyze.sh         # Комплексный анализ проекта
-└── build.sh           # Сборка всех утилит
+├── internal/
+│   ├── config.go          # Unified language configuration
+│   ├── errors.go          # Standard error handling
+│   └── languages.json     # Single source of patterns (embedded)
+├── cmd/
+│   ├── funcfinder/        # Main CLI
+│   ├── stat/              # Call counter + metrics
+│   ├── deps/              # Dependency analyzer
+│   └── complexity/        # Complexity analyzer
+└── examples/
+    └── analyze.sh         # Full project analysis
 ```
 
-**Преимущества архитектуры:**
-- ✅ **Нулевые дубликаты** - единая конфигурация для всех утилит
-- ✅ **Консистентность** - одинаковые сообщения об ошибках
-- ✅ **Простота расширения** - добавить язык = обновить JSON
-- ✅ **Нулевые зависимости** - все утилиты статические бинарники
+**Architecture Benefits:**
+- ✅ **Zero duplication** - single config for all utilities
+- ✅ **Consistency** - same error messages everywhere
+- ✅ **Easy extension** - add language = update JSON
+- ✅ **Zero dependencies** - all utilities are static binaries
 
-**Типичные сценарии:**
-- 📊 Первичный анализ незнакомого кода
-- 🔍 Поиск узких мест для оптимизации
-- 🔄 Рефакторинг и поиск дублирования
-- 📈 Code review и анализ PR
-- 🤖 AI-агент навигация с минимальными токенами
-- 🧠 Оценка когнитивной сложности перед рефакторингом
+**Common Use Cases:**
+- 📊 Initial analysis of unfamiliar code
+- 🔍 Finding optimization bottlenecks
+- 🔄 Refactoring and duplication detection
+- 📈 Code review and PR analysis
+- 🤖 AI agent navigation with minimal tokens
+- 🧠 Complexity assessment before refactoring
 
 ## 🤝 Contributing
 
