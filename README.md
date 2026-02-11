@@ -4,28 +4,23 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/ruslano69/funcfinder)
 
-**Map functions & classes in 15 languages. Extract what you need. Save 99% tokens.**
-
-## 5 Problems funcfinder Solves
-
-| Problem | Reality | Solution |
-|---------|---------|----------|
-| **AI reads README, skips code** | Models avoid code — expensive, unclear structure | `--dir . --all --json` → full map, model knows where to look |
-| **Hours browsing source files** | "Where does this depend on? Where's the complexity?" | One command → dependencies, hotspots, complexity scores |
-| **API costs > actual coding** | 80% tokens on exploration, 20% on work | 99% token reduction — map first, read targeted |
-| **Toolset assembly required** | ctags + LSP + grep + manual counting | One binary, 15 languages, 4 analysis tools |
-| **Teach model, then yourself** | Every project = new onboarding | Drop-in workflow: build → map → extract |
+**Stop mastering grep. Run one script. Get the full picture.**
 
 ```bash
-# Build once
-./build.sh
-
-# Full picture in 30ms
-./funcfinder --dir . --all --json > map.json
-
-# AI now knows exactly where to look
-./funcfinder --inp api.go --source go --func Handler --extract
+./build.sh && ./funcfinder --dir . --all --json > map.json
 ```
+
+## Why?
+
+| Without funcfinder | With funcfinder |
+|-------------------|-----------------|
+| AI reads README, avoids code (too expensive) | AI sees full structure, reads only what matters |
+| Hours browsing files: "what depends on what?" | `map.json` + one `jq` query = instant answer |
+| 80% API budget on exploration | 99% reduction — map once, extract targeted |
+| ctags + LSP + grep + manual work | One binary, 15 languages, zero setup |
+| Learn tools, then teach model | Drop `map.json` in context — model just works |
+
+**Time + Money + Understanding + Simplicity = One command.**
 
 ### 🚀 Production Features
 
