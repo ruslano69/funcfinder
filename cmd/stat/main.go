@@ -14,6 +14,8 @@ import (
 	"github.com/ruslano69/funcfinder/internal"
 )
 
+const Version = "1.6.0"
+
 // FileMetrics holds statistics about a source file
 type FileMetrics struct {
 	TotalLines   int
@@ -189,7 +191,7 @@ func main() {
 	}
 
 	if showVersion {
-		internal.PrintVersion("stat")
+		internal.PrintVersion("stat", Version)
 	}
 
 	if filename == "" {

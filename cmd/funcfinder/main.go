@@ -17,7 +17,7 @@ func main() {
 
 	// Режим файла
 	inp := flag.String("inp", "", "input file with source code")
-	source := flag.String("source", "", "source language: go/c/cpp/cs/java/d/js/ts/py")
+	source := flag.String("source", "", "source language: go/c/cpp/cs/java/d/js/ts/py/rust/swift/kotlin/php/ruby/scala")
 
 	// Режим каталога
 	dir := flag.String("dir", "", "directory to scan for source files (auto-detects language by extension)")
@@ -46,7 +46,7 @@ func main() {
 
 	// Обработка флага --version
 	if *version {
-		internal.PrintVersion("funcfinder")
+		internal.PrintVersion("funcfinder", Version)
 	}
 
 	// Валидация: либо -inp либо -dir должно быть указано

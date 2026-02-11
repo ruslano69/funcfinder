@@ -17,8 +17,11 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
 	"github.com/ruslano69/funcfinder/internal"
 )
+
+const Version = "1.6.0"
 
 // ComplexityLevel represents the complexity classification
 type ComplexityLevel int
@@ -176,7 +179,7 @@ func main() {
 
 	// Handle version flag
 	if *showVersion {
-		internal.PrintVersion("complexity")
+		internal.PrintVersion("complexity", Version)
 	}
 
 	// Use threshold flag to avoid unused error

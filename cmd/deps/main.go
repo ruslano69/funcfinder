@@ -15,6 +15,8 @@ import (
 	"github.com/ruslano69/funcfinder/internal"
 )
 
+const Version = "1.6.0"
+
 type DepInfo struct {
 	Module string   `json:"module"`
 	Count  int      `json:"count"`
@@ -176,7 +178,7 @@ func main() {
 	}
 
 	if showVersion {
-		internal.PrintVersion("deps")
+		internal.PrintVersion("deps", Version)
 	}
 
 	// Load shared configuration
