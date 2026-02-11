@@ -314,7 +314,7 @@ Input File → Language Factory → Parser Factory → Enhanced Sanitizer → Pa
    - **7 states**: Normal, LineComment, BlockComment, String, RawString, CharLiteral, MultiLineString
    - Correctly handles: C# `@"..."`, Python `"""`, Go `` `...` ``, nested comments
    - Performance: 763,000 lines/sec
-   - [Technical deep-dive](docs/COMPLEXITY_ANALYSIS.md)
+   - [Technical deep-dive](docs/ENHANCED_SANITIZER.md)
 
 3. **Parser Factory**
    - `CreateFinder()` → Brace-based (Go, Java, C++) or Indent-based (Python)
@@ -344,8 +344,6 @@ funcfinder --inp test.py --source py --map
 funcfinder --inp test.go --source go --map
 ✅ `SELECT // not comment` parsed correctly
 ```
-
-See [STAT_FIX_COMPLETED.md](docs/STAT_FIX_COMPLETED.md) for detailed comparison.
 
 ## 🤖 AI Agent Integration
 
@@ -384,7 +382,7 @@ complexity auth/middleware.go -j | jq '.functions[] | select(.name=="ValidateTok
 - ✅ Minimal tokens for maximum insight
 - ✅ Perfect for code understanding and refactoring tasks
 
-**See:** [Complete Integration Guide](docs/MINI_SWE_AGENT_INTEGRATION.md) | [Example Workflows](examples/swe-agent/)
+**See:** [AI Agent Guide](AGENTS.md) | [Example Workflows](examples/swe-agent/)
 
 ## 💡 Use Cases
 
@@ -995,12 +993,11 @@ With funcfinder:
 
 ## 📚 Documentation
 
-- **[docs/WINDOWS.md](docs/WINDOWS.md)** - Complete Windows build and usage guide
-- **[docs/UTILITIES.md](docs/UTILITIES.md)** - Documentation for stat, deps, complexity utilities
-- **[docs/COMPLEXITY.md](docs/COMPLEXITY.md)** - Cognitive complexity analyzer guide
-- **[docs/examples/](docs/examples/)** - Example scripts and demonstrations
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
-- **[docs/archive/](docs/archive/)** - Analysis reports and benchmarks
+- **[AGENTS.md](AGENTS.md)** - Quick reference for AI agents
+- **[docs/WINDOWS.md](docs/WINDOWS.md)** - Windows build guide
+- **[docs/CI_CD.md](docs/CI_CD.md)** - CI/CD pipeline documentation
+- **[docs/ENHANCED_SANITIZER.md](docs/ENHANCED_SANITIZER.md)** - State-machine parser deep-dive
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
 
 ## 📄 License
 
