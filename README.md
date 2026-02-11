@@ -8,22 +8,22 @@
 
 ## 5 Problems funcfinder Solves
 
-| Problem | Without funcfinder | With funcfinder |
-|---------|-------------------|-----------------|
-| **AI reads 10K lines to find one function** | `cat file.go` → 10,000 tokens | `--func Name --extract` → 50 tokens |
-| **grep breaks on strings/comments** | `grep "func"` finds `"func in string"` | State-machine parser ignores literals |
-| **No codebase overview** | Read every file manually | `--dir . --all --json` → full map in 30ms |
-| **Different tools per language** | ctags + jedi + tsserver... | One binary, 15 languages |
-| **Finding class boundaries** | Count braces manually | `--struct --tree` → instant hierarchy |
+| Problem | Reality | Solution |
+|---------|---------|----------|
+| **AI reads README, skips code** | Models avoid code — expensive, unclear structure | `--dir . --all --json` → full map, model knows where to look |
+| **Hours browsing source files** | "Where does this depend on? Where's the complexity?" | One command → dependencies, hotspots, complexity scores |
+| **API costs > actual coding** | 80% tokens on exploration, 20% on work | 99% token reduction — map first, read targeted |
+| **Toolset assembly required** | ctags + LSP + grep + manual counting | One binary, 15 languages, 4 analysis tools |
+| **Teach model, then yourself** | Every project = new onboarding | Drop-in workflow: build → map → extract |
 
 ```bash
 # Build once
 ./build.sh
 
-# Map everything
+# Full picture in 30ms
 ./funcfinder --dir . --all --json > map.json
 
-# Extract specific function
+# AI now knows exactly where to look
 ./funcfinder --inp api.go --source go --func Handler --extract
 ```
 
