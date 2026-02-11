@@ -4,19 +4,28 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/ruslano69/funcfinder)
 
-**Production-grade code analysis factory for multi-language codebases**
+**Map functions & classes in 15 languages. Extract what you need. Save 99% tokens.**
 
-`funcfinder` is not just a parser—it's a **universal code analysis factory** that automatically detects languages, extracts functions/classes/types, and scales from single files to entire repositories. Built on a state-machine sanitizer (not regex), it handles C# verbatim strings, Python docstrings, and nested comments correctly where simple regex fails.
+## 5 Problems funcfinder Solves
 
-**⚡ Performance**: 763,000 lines/sec parsing · Parallel processing with worker pools · Processes 100K lines in ~130ms
+| Problem | Without funcfinder | With funcfinder |
+|---------|-------------------|-----------------|
+| **AI reads 10K lines to find one function** | `cat file.go` → 10,000 tokens | `--func Name --extract` → 50 tokens |
+| **grep breaks on strings/comments** | `grep "func"` finds `"func in string"` | State-machine parser ignores literals |
+| **No codebase overview** | Read every file manually | `--dir . --all --json` → full map in 30ms |
+| **Different tools per language** | ctags + jedi + tsserver... | One binary, 15 languages |
+| **Finding class boundaries** | Count braces manually | `--struct --tree` → instant hierarchy |
 
-## ✨ What Makes It Different
+```bash
+# Build once
+./build.sh
 
-### 🏭 Factory Architecture, Not Simple Regex
-- **Language Factory**: Auto-detects 15+ languages by extension
-- **Parser Factory**: Switches between brace-based (Go/Java) and indent-based (Python) parsers
-- **Enhanced Sanitizer**: State machine that correctly handles edge cases regex can't (C# `@"..."`, Python `"""`, nested comments)
-- **Multiple Finders**: Function finder, struct finder, combined mode—all through unified API
+# Map everything
+./funcfinder --dir . --all --json > map.json
+
+# Extract specific function
+./funcfinder --inp api.go --source go --func Handler --extract
+```
 
 ### 🚀 Production Features
 
