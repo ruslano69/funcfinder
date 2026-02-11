@@ -70,21 +70,13 @@ funcfinder -dir internal --all --json
 
 ## 🌐 Supported Languages (15)
 
-- Go
-- C
-- C++
-- C#
-- Java
-- D
-- **JavaScript** (including async functions, generator functions, arrow functions)
-- **TypeScript** (including async functions, generator functions, arrow functions, generics)
-- **Python** (including async/await, decorators, generators, class methods)
-- **Rust** (including pub/async functions, structs, traits, enums, impl blocks)
-- **Swift** (including classes, structs, protocols, enums, static functions)
-- **Kotlin** ⭐ NEW (including suspend functions, data classes, sealed classes, objects)
-- **PHP** ⭐ NEW (including classes, traits, interfaces, visibility modifiers)
-- **Ruby** ⭐ NEW (including modules, class methods, methods with ? and !)
-- **Scala** ⭐ NEW (including case classes, traits, objects, pattern matching)
+| Category | Languages |
+|----------|-----------|
+| **Systems** | C, C++, Rust, Go, D |
+| **JVM** | Java, Kotlin, Scala |
+| **Web** | JavaScript, TypeScript, PHP |
+| **Scripting** | Python, Ruby |
+| **Mobile** | Swift, C# |
 
 ## 📦 Installation
 
