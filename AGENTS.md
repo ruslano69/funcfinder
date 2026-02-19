@@ -37,11 +37,14 @@ grep -i "auth" map.json
 | Map single file | `./funcfinder --inp file.go --source go --map` |
 | Find specific function | `./funcfinder --inp file.go --source go --func Name` |
 | Extract function body | `./funcfinder --inp file.go --source go --func Name --extract` |
+| Extract named structs | `./funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract` |
+| Extract all structs | `./funcfinder --inp file.go --source go --struct --extract` |
 | Tree view | `./funcfinder --dir . --tree` |
 
 **Key Rules**:
 - `--dir` mode: `--map` is DEFAULT
-- `--inp` mode: requires `--source <lang>` AND (`--map` or `--func` or `--tree`)
+- `--inp` mode: requires `--source <lang>` AND (`--map` or `--func` or `--tree` or `--extract`)
+- `--struct "TypeA,TypeB"` — activates struct mode and filters by names (shorthand for `--struct --type "TypeA,TypeB"`)
 - Languages: `go`, `py`, `js`, `ts`, `java`, `cs`, `cpp`, `c`, `rust`, `swift`, `kotlin`, `php`, `ruby`, `scala`, `d`
 
 ---
@@ -82,6 +85,15 @@ grep -i "auth" map.json
 
 # Fix: scan specific directory
 ./funcfinder --dir internal --all --json
+```
+
+### 5. Using --struct to extract named types (old mistake)
+```bash
+# Error: either --type, --map, --tree, or --extract must be specified with --struct
+./funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract  # ← this NOW works!
+
+# Old workaround (still valid):
+./funcfinder --inp file.go --source go --struct --type "TypeA,TypeB" --extract
 ```
 
 ---
