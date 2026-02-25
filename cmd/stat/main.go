@@ -355,27 +355,22 @@ func main() {
 		var aggMetrics FileMetrics
 		var collected []perFile
 
-		filepath.Walk(dirMode, func(path string, info os.FileInfo, walkErr error) error {
-			if walkErr != nil || info.IsDir() {
-				return nil
+		dirFiles, walkErr := internal.CollectSourceFiles(dirMode, langConfig, true)
+		if walkErr != nil {
+			internal.FatalError("walking directory: %v", walkErr)
+		}
+		for _, path := range dirFiles {
+			counts, m := analyzeFile(path, langConfig)
+			for fn, cnt := range counts {
+				aggregateCounts[fn] += cnt
 			}
-			for _, ext := range langConfig.Extensions {
-				if strings.HasSuffix(path, ext) {
-					counts, m := analyzeFile(path, langConfig)
-					for fn, cnt := range counts {
-						aggregateCounts[fn] += cnt
-					}
-					aggMetrics.TotalLines += m.TotalLines
-					aggMetrics.CodeLines += m.CodeLines
-					aggMetrics.CommentLines += m.CommentLines
-					aggMetrics.BlankLines += m.BlankLines
-					aggMetrics.FileSize += m.FileSize
-					collected = append(collected, perFile{path: path, calls: sortedCalls(counts), m: *m})
-					break
-				}
-			}
-			return nil
-		})
+			aggMetrics.TotalLines += m.TotalLines
+			aggMetrics.CodeLines += m.CodeLines
+			aggMetrics.CommentLines += m.CommentLines
+			aggMetrics.BlankLines += m.BlankLines
+			aggMetrics.FileSize += m.FileSize
+			collected = append(collected, perFile{path: path, calls: sortedCalls(counts), m: *m})
+		}
 
 		aggCalls := sortedCalls(aggregateCounts)
 

@@ -216,26 +216,21 @@ func main() {
 	}
 
 	allDeps := make(map[string]fileSet)
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
-		}
-		for _, ext := range langConfig.Extensions {
-			if strings.HasSuffix(path, ext) {
-				deps := analyzeDeps(path, langConfig, excludeREs)
-				for dep, files := range deps {
-					if allDeps[dep] == nil {
-						allDeps[dep] = make(fileSet)
-					}
-					for f := range files {
-						allDeps[dep][f] = true
-					}
-				}
-				break
+	dirFiles, walkErr := internal.CollectSourceFiles(dir, langConfig, true)
+	if walkErr != nil {
+		internal.FatalError("walking directory: %v", walkErr)
+	}
+	for _, path := range dirFiles {
+		fileDeps := analyzeDeps(path, langConfig, excludeREs)
+		for dep, files := range fileDeps {
+			if allDeps[dep] == nil {
+				allDeps[dep] = make(fileSet)
+			}
+			for f := range files {
+				allDeps[dep][f] = true
 			}
 		}
-		return nil
-	})
+	}
 
 	var deps []DepInfo
 	stdlib, external, internal := 0, 0, 0

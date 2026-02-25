@@ -250,24 +250,18 @@ func main() {
 	totalComplexity := 0
 	totalFunctions := 0
 
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
+	dirFiles, walkErr := internal.CollectSourceFiles(dir, langConfig, true)
+	if walkErr != nil {
+		internal.FatalError("walking directory: %v", walkErr)
+	}
+	for _, path := range dirFiles {
+		fileComplexity := analyzeFileComplexity(path, langConfig)
+		if fileComplexity.TotalFunctions > 0 {
+			allFiles = append(allFiles, fileComplexity)
+			totalFunctions += fileComplexity.TotalFunctions
+			totalComplexity += fileComplexity.MaxComplexity
 		}
-
-		for _, ext := range langConfig.Extensions {
-			if strings.HasSuffix(path, ext) {
-				fileComplexity := analyzeFileComplexity(path, langConfig)
-				if fileComplexity.TotalFunctions > 0 {
-					allFiles = append(allFiles, fileComplexity)
-					totalFunctions += fileComplexity.TotalFunctions
-					totalComplexity += fileComplexity.MaxComplexity
-				}
-				break
-			}
-		}
-		return nil
-	})
+	}
 
 	if len(allFiles) == 0 {
 		internal.FatalErrorMsg("No functions found")
