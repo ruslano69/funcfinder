@@ -163,12 +163,45 @@ var flatPatterns = map[string]*regexp.Regexp{
 	"cs": regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
 }
 
+// reorderArgs moves flags before positional arguments so flag.Parse() works
+// regardless of argument order (e.g. "complexity file.go -l js" becomes
+// "complexity -l js file.go").
+func reorderArgs(args []string) []string {
+	// Flags that consume the next argument as their value.
+	valueFlags := map[string]bool{"l": true, "t": true, "n": true}
+
+	var flags []string
+	var positional []string
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "-") {
+			flags = append(flags, arg)
+			name := strings.TrimLeft(arg, "-")
+			// Handle -flag=value form (value already included).
+			if strings.Contains(name, "=") {
+				continue
+			}
+			// Consume next token as value if this flag expects one.
+			if valueFlags[name] && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+				flags = append(flags, args[i])
+			}
+		} else {
+			positional = append(positional, arg)
+		}
+	}
+	return append(flags, positional...)
+}
+
 func main() {
+	os.Args = append([]string{os.Args[0]}, reorderArgs(os.Args[1:])...)
+
 	// Define flags
 	showVersion := flag.Bool("version", false, "Show version")
 	langFlag := flag.String("l", "", "Force language")
 	jsonOut := flag.Bool("j", false, "Output JSON")
-	thresholdFlag := flag.Int("t", DepthHigh, "Threshold for high nesting depth")
+	thresholdFlag := flag.Int("t", 0, "Show only functions with nesting depth >= N (0 = show all)")
 	topN := flag.Int("n", 0, "Show top N most complex functions")
 	showDetails := flag.Bool("v", false, "Show detailed nesting analysis")
 	noSimple := flag.Bool("nosimple", false, "Hide SIMPLE level functions (depth <= 2)")
@@ -178,9 +211,6 @@ func main() {
 	if *showVersion {
 		internal.PrintVersion("complexity")
 	}
-
-	// Use threshold flag to avoid unused error
-	_ = thresholdFlag
 
 	// Check for positional args
 	args := flag.Args()
@@ -220,24 +250,18 @@ func main() {
 	totalComplexity := 0
 	totalFunctions := 0
 
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
+	dirFiles, walkErr := internal.CollectSourceFiles(dir, langConfig, true)
+	if walkErr != nil {
+		internal.FatalError("walking directory: %v", walkErr)
+	}
+	for _, path := range dirFiles {
+		fileComplexity := analyzeFileComplexity(path, langConfig)
+		if fileComplexity.TotalFunctions > 0 {
+			allFiles = append(allFiles, fileComplexity)
+			totalFunctions += fileComplexity.TotalFunctions
+			totalComplexity += fileComplexity.MaxComplexity
 		}
-
-		for _, ext := range langConfig.Extensions {
-			if strings.HasSuffix(path, ext) {
-				fileComplexity := analyzeFileComplexity(path, langConfig)
-				if fileComplexity.TotalFunctions > 0 {
-					allFiles = append(allFiles, fileComplexity)
-					totalFunctions += fileComplexity.TotalFunctions
-					totalComplexity += fileComplexity.MaxComplexity
-				}
-				break
-			}
-		}
-		return nil
-	})
+	}
 
 	if len(allFiles) == 0 {
 		internal.FatalErrorMsg("No functions found")
@@ -290,6 +314,17 @@ func main() {
 		for _, fn := range allFunctions {
 			level := getComplexityLevel(fn.MaxNestingDepth)
 			if level != LevelSimple {
+				filtered = append(filtered, fn)
+			}
+		}
+		allFunctions = filtered
+	}
+
+	// Apply -t threshold filter
+	if *thresholdFlag > 0 {
+		filtered := make([]ComplexityMetrics, 0, len(allFunctions))
+		for _, fn := range allFunctions {
+			if fn.MaxNestingDepth >= *thresholdFlag {
 				filtered = append(filtered, fn)
 			}
 		}
