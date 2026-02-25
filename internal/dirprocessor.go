@@ -452,6 +452,9 @@ func formatDirResultsGrep(results []DirResult) string {
 		for _, fn := range r.Functions {
 			output += r.Path + ":" + itoa(fn.Start) + ": " + fn.Name + "\n"
 		}
+		for _, cl := range r.Classes {
+			output += r.Path + ":" + itoa(cl.Start) + ": " + cl.Name + "\n"
+		}
 	}
 	return output
 }
