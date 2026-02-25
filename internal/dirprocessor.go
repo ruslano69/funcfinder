@@ -107,9 +107,9 @@ func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 		}
 
 		// Skip hidden files and directories (starting with .)
-		// except for .gitignore itself
+		// except for .gitignore itself and the root path itself
 		base := filepath.Base(path)
-		if len(base) > 0 && base[0] == '.' && base != ".gitignore" {
+		if len(base) > 0 && base[0] == '.' && base != ".gitignore" && path != rootPath {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}

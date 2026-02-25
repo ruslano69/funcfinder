@@ -78,13 +78,13 @@ grep -i "auth" map.json
 ./funcfinder --inp file.go --source go --func Main
 ```
 
-### 4. Zero files from root scan
+### 4. Using --struct to extract named types (old mistake)
 ```bash
-# Result: 0 files (gitignore hiding sources)
-./funcfinder --dir . --all
+# Error: either --type, --map, --tree, or --extract must be specified with --struct
+./funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract  # ← this NOW works!
 
-# Fix: scan specific directory
-./funcfinder --dir internal --all --json
+# Old workaround (still valid):
+./funcfinder --inp file.go --source go --struct --type "TypeA,TypeB" --extract
 ```
 
 ### 5. Using --struct to extract named types (old mistake)
