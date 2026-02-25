@@ -4,27 +4,32 @@
 
 set -e
 
-echo "Building funcfinder toolkit v1.4.0..."
+VERSION_BASE="1.6"
+PATCH=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+VERSION="${VERSION_BASE}.${PATCH}"
+LDFLAGS="-s -w -X github.com/ruslano69/funcfinder/internal.Version=${VERSION}"
+
+echo "Building funcfinder toolkit v${VERSION}..."
 echo ""
 
 # Build funcfinder
 echo "→ Building funcfinder..."
-go build -o funcfinder ./cmd/funcfinder
+go build -ldflags "${LDFLAGS}" -o funcfinder ./cmd/funcfinder
 echo "  ✓ funcfinder"
 
 # Build stat
 echo "→ Building stat..."
-go build -o stat ./cmd/stat
+go build -ldflags "${LDFLAGS}" -o stat ./cmd/stat
 echo "  ✓ stat"
 
 # Build deps
 echo "→ Building deps..."
-go build -o deps ./cmd/deps
+go build -ldflags "${LDFLAGS}" -o deps ./cmd/deps
 echo "  ✓ deps"
 
 # Build complexity
 echo "→ Building complexity..."
-go build -o complexity ./cmd/complexity
+go build -ldflags "${LDFLAGS}" -o complexity ./cmd/complexity
 echo "  ✓ complexity"
 
 echo ""
