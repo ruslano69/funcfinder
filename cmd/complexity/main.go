@@ -163,7 +163,40 @@ var flatPatterns = map[string]*regexp.Regexp{
 	"cs": regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
 }
 
+// reorderArgs moves flags before positional arguments so flag.Parse() works
+// regardless of argument order (e.g. "complexity file.go -l js" becomes
+// "complexity -l js file.go").
+func reorderArgs(args []string) []string {
+	// Flags that consume the next argument as their value.
+	valueFlags := map[string]bool{"l": true, "t": true, "n": true}
+
+	var flags []string
+	var positional []string
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "-") {
+			flags = append(flags, arg)
+			name := strings.TrimLeft(arg, "-")
+			// Handle -flag=value form (value already included).
+			if strings.Contains(name, "=") {
+				continue
+			}
+			// Consume next token as value if this flag expects one.
+			if valueFlags[name] && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+				flags = append(flags, args[i])
+			}
+		} else {
+			positional = append(positional, arg)
+		}
+	}
+	return append(flags, positional...)
+}
+
 func main() {
+	os.Args = append([]string{os.Args[0]}, reorderArgs(os.Args[1:])...)
+
 	// Define flags
 	showVersion := flag.Bool("version", false, "Show version")
 	langFlag := flag.String("l", "", "Force language")
