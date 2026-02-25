@@ -87,6 +87,15 @@ grep -i "auth" map.json
 ./funcfinder --inp file.go --source go --struct --type "TypeA,TypeB" --extract
 ```
 
+### 5. Using --struct to extract named types (old mistake)
+```bash
+# Error: either --type, --map, --tree, or --extract must be specified with --struct
+./funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract  # ← this NOW works!
+
+# Old workaround (still valid):
+./funcfinder --inp file.go --source go --struct --type "TypeA,TypeB" --extract
+```
+
 ---
 
 ## JSON Output Structure
