@@ -56,7 +56,7 @@ func isStdlib(module, langKey string) bool {
 	return false
 }
 
-func analyzeDeps(filename string, config *internal.LanguageConfig) map[string]fileSet {
+func analyzeDeps(filename string, config *internal.LanguageConfig, excludeREs []*regexp.Regexp) map[string]fileSet {
 	deps := make(map[string]fileSet)
 
 	file, err := os.Open(filename)
@@ -98,10 +98,9 @@ func analyzeDeps(filename string, config *internal.LanguageConfig) map[string]fi
 			continue
 		}
 
-		// Check exclusion patterns
+		// Check exclusion patterns (pre-compiled)
 		skip := false
-		for _, pattern := range config.ExcludePatterns {
-			re := regexp.MustCompile(pattern)
+		for _, re := range excludeREs {
 			if re.MatchString(trimmed) {
 				skip = true
 				break
@@ -117,10 +116,9 @@ func analyzeDeps(filename string, config *internal.LanguageConfig) map[string]fi
 				if match[i] != "" && !strings.Contains(match[i], "://") {
 					dep := match[i]
 
-					// Additional exclusion check on extracted module
+					// Additional exclusion check on extracted module (pre-compiled)
 					excluded := false
-					for _, pattern := range config.ExcludePatterns {
-						re := regexp.MustCompile(pattern)
+					for _, re := range excludeREs {
 						if re.MatchString(dep) {
 							excluded = true
 							break
@@ -211,6 +209,12 @@ func main() {
 		internal.FatalError("no supported files found in directory\nSupported languages: %s", strings.Join(config.GetSupportedLanguages(), ", "))
 	}
 
+	// Pre-compile ExcludePatterns once before walking the directory.
+	var excludeREs []*regexp.Regexp
+	for _, pattern := range langConfig.ExcludePatterns {
+		excludeREs = append(excludeREs, regexp.MustCompile(pattern))
+	}
+
 	allDeps := make(map[string]fileSet)
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
@@ -218,7 +222,7 @@ func main() {
 		}
 		for _, ext := range langConfig.Extensions {
 			if strings.HasSuffix(path, ext) {
-				deps := analyzeDeps(path, langConfig)
+				deps := analyzeDeps(path, langConfig, excludeREs)
 				for dep, files := range deps {
 					if allDeps[dep] == nil {
 						allDeps[dep] = make(fileSet)

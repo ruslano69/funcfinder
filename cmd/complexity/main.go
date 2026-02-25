@@ -201,7 +201,7 @@ func main() {
 	showVersion := flag.Bool("version", false, "Show version")
 	langFlag := flag.String("l", "", "Force language")
 	jsonOut := flag.Bool("j", false, "Output JSON")
-	thresholdFlag := flag.Int("t", DepthHigh, "Threshold for high nesting depth")
+	thresholdFlag := flag.Int("t", 0, "Show only functions with nesting depth >= N (0 = show all)")
 	topN := flag.Int("n", 0, "Show top N most complex functions")
 	showDetails := flag.Bool("v", false, "Show detailed nesting analysis")
 	noSimple := flag.Bool("nosimple", false, "Hide SIMPLE level functions (depth <= 2)")
@@ -211,9 +211,6 @@ func main() {
 	if *showVersion {
 		internal.PrintVersion("complexity")
 	}
-
-	// Use threshold flag to avoid unused error
-	_ = thresholdFlag
 
 	// Check for positional args
 	args := flag.Args()
@@ -323,6 +320,17 @@ func main() {
 		for _, fn := range allFunctions {
 			level := getComplexityLevel(fn.MaxNestingDepth)
 			if level != LevelSimple {
+				filtered = append(filtered, fn)
+			}
+		}
+		allFunctions = filtered
+	}
+
+	// Apply -t threshold filter
+	if *thresholdFlag > 0 {
+		filtered := make([]ComplexityMetrics, 0, len(allFunctions))
+		for _, fn := range allFunctions {
+			if fn.MaxNestingDepth >= *thresholdFlag {
 				filtered = append(filtered, fn)
 			}
 		}

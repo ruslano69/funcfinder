@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,26 @@ import (
 
 	"github.com/ruslano69/funcfinder/internal"
 )
+
+// StatResult is the JSON output structure (mirrors deps/complexity pattern).
+type StatResult struct {
+	Language     string      `json:"language"`
+	File         string      `json:"file"`
+	FileSizeKB   float64     `json:"file_size_kb"`
+	TotalLines   int         `json:"total_lines"`
+	CodeLines    int         `json:"code_lines"`
+	CommentLines int         `json:"comment_lines"`
+	BlankLines   int         `json:"blank_lines"`
+	Imports      []string    `json:"imports"`
+	Decorators   []string    `json:"decorators"`
+	UniqueCalls  int         `json:"unique_calls"`
+	TopCalls     []CallEntry `json:"top_calls"`
+}
+
+type CallEntry struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
 
 // FileMetrics holds statistics about a source file
 type FileMetrics struct {
@@ -166,6 +187,7 @@ func main() {
 	filename := ""
 	langFlag := ""
 	topN := 0
+	jsonOut := false
 
 	for i := 1; i < len(os.Args); i++ {
 		arg := os.Args[i]
@@ -174,6 +196,7 @@ func main() {
 			fmt.Println("  --version   Show version and exit")
 			fmt.Println("  -l <lang>   Force language (py, go, rs, js, ts, sw, c, cpp, java, d, cs)")
 			fmt.Println("  -n <num>    Show top N functions")
+			fmt.Println("  -j, --json  Output JSON")
 			return
 		} else if arg == "--version" {
 			showVersion = true
@@ -183,6 +206,8 @@ func main() {
 		} else if arg == "-n" && i+1 < len(os.Args) {
 			fmt.Sscanf(os.Args[i+1], "%d", &topN)
 			i++
+		} else if arg == "-j" || arg == "--json" {
+			jsonOut = true
 		} else if !strings.HasPrefix(arg, "-") {
 			filename = arg
 		}
@@ -226,6 +251,33 @@ func main() {
 		calls = append(calls, pair{name, count})
 	}
 	sort.Slice(calls, func(i, j int) bool { return calls[i].count > calls[j].count })
+
+	if jsonOut {
+		topEntries := calls
+		if topN > 0 && topN < len(topEntries) {
+			topEntries = topEntries[:topN]
+		}
+		callEntries := make([]CallEntry, len(topEntries))
+		for i, c := range topEntries {
+			callEntries[i] = CallEntry{Name: c.name, Count: c.count}
+		}
+		result := StatResult{
+			Language:     langConfig.Name,
+			File:         filename,
+			FileSizeKB:   float64(metrics.FileSize) / 1024,
+			TotalLines:   metrics.TotalLines,
+			CodeLines:    metrics.CodeLines,
+			CommentLines: metrics.CommentLines,
+			BlankLines:   metrics.BlankLines,
+			Imports:      metrics.Imports,
+			Decorators:   metrics.Decorators,
+			UniqueCalls:  len(calls),
+			TopCalls:     callEntries,
+		}
+		jsonBytes, _ := json.MarshalIndent(result, "", "  ")
+		fmt.Println(string(jsonBytes))
+		return
+	}
 
 	// Output file metrics
 	fmt.Printf("Language: %s\n", langConfig.Name)
