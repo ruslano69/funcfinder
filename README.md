@@ -783,19 +783,20 @@ funcfinder ships with additional utilities for comprehensive code analysis. All 
 
 # AI agent workflow
 funcfinder --inp api.go --source go --map  # Code structure
-stat api.go -l go -n 10                    # Hotspots
+stat api.go -l go -n 10                    # Call hotspots (single file)
+stat --dir . -l go -n 10                   # Call hotspots (entire project)
 deps . -l go -j                            # Dependency graph
-complexity api.go -l go                    # Cognitive complexity
+complexity . -l go -n 10                   # Cognitive complexity (directory)
 ```
 
 ### Utilities
 
-| Utility | Purpose | Languages | Output |
-|---------|---------|-----------|--------|
-| **funcfinder** | Code structure (functions, classes, boundaries) | 15 | grep/JSON/extract |
-| **stat** | Function call analysis + file metrics | 15 | text |
-| **deps** | Module dependency analysis (stdlib/external/internal) | 15 | text/JSON |
-| **complexity** | Cognitive complexity analyzer (nesting depth) | 15 | colored text |
+| Utility | Purpose | Languages | Modes | Output |
+|---------|---------|-----------|-------|--------|
+| **funcfinder** | Code structure (functions, classes, boundaries) | 15 | `--inp`, `--dir` | grep/JSON/extract |
+| **stat** | Function call analysis + file metrics | 15 | `<file>`, `--dir` | text/JSON |
+| **deps** | Module dependency analysis (stdlib/external/internal) | 15 | `<dir>` | text/JSON |
+| **complexity** | Cognitive complexity analyzer (nesting depth) | 15 | `<dir>` | colored text/JSON |
 
 ### 🧠 complexity - Cognitive Complexity Analyzer
 
@@ -973,19 +974,19 @@ With funcfinder:
 - [x] **Nested function support** - Python, JS, TS, Go, Ruby, Scala
 - [x] Complete code structure analysis (behavior + state)
 
-### v1.6.0
-- [ ] Configuration file support (.funcfinderrc)
-- [ ] Custom patterns via CLI
-- [ ] Improved C# regex patterns
-- [ ] Function type filters (public/private)
-- [ ] Cyclomatic complexity (as alternative to nesting depth)
-- [ ] HTML reports for analyze.sh
+### v1.6.0 (Current) ✅
+- [x] **stat: `--dir` mode** — recursive directory scan, per-file summary + aggregate totals (text and JSON)
+- [x] **stat: `-j` JSON output** — consistent with deps and complexity
+- [x] **deps: performance fix** — ExcludePatterns regex now compiled once, not per-line per-file
+- [x] **complexity: working `-t` threshold** — flag was defined but silently discarded; now controls nesting depth cutoff
+- [x] **All utilities: argument ordering** — flags now accepted in any position relative to path
+- [x] **`internal.CollectSourceFiles`** — shared file discovery with `.gitignore` support and hidden-file skipping; all three utilities use it instead of hand-rolled `filepath.Walk`
 
-### v2.0.0
-- [ ] Tree-sitter integration for precise parsing
-- [ ] 30+ language support
-- [ ] API server mode
-- [ ] IDE integrations
+### v1.7.0
+- [ ] CI/CD mode for complexity: `--strict <depth>` exits non-zero when any function exceeds threshold
+- [ ] `stat --dir` aggregation across languages (currently single-language per run)
+- [ ] Configuration file support (`.funcfinderrc`)
+- [ ] HTML report for `analyze.sh`
 
 ## 📚 Documentation
 
