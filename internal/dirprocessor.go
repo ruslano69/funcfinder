@@ -2,6 +2,7 @@
 package internal
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -107,9 +108,9 @@ func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 		}
 
 		// Skip hidden files and directories (starting with .)
-		// except for .gitignore itself
+		// except for .gitignore itself and the root "." directory
 		base := filepath.Base(path)
-		if len(base) > 0 && base[0] == '.' && base != ".gitignore" {
+		if len(base) > 0 && base[0] == '.' && base != ".gitignore" && base != "." {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
@@ -574,4 +575,150 @@ func escapeJSON(s string) string {
 
 func itoa(n int) string {
 	return strconv.Itoa(n)
+}
+
+// ShardInfo represents metadata about a single shard file
+type ShardInfo struct {
+	Path           string `json:"path"`
+	Files          int    `json:"files"`
+	TotalFunctions int    `json:"total_functions"`
+	TotalClasses   int    `json:"total_classes"`
+}
+
+// Manifest represents the index of all shards
+type Manifest struct {
+	Version        string      `json:"version"`
+	RootDir        string      `json:"root_dir"`
+	SplitBy        string      `json:"split_by"`
+	Shards         []ShardInfo `json:"shards"`
+	TotalFiles     int         `json:"total_files"`
+	TotalFunctions int         `json:"total_functions"`
+	TotalClasses   int         `json:"total_classes"`
+}
+
+// pathToShardName converts a path to flat shard filename
+// e.g., "internal/auth" -> "internal_auth.json"
+// e.g., "internal/config.go" -> "internal_config_go.json"
+func pathToShardName(path string) string {
+	// Replace all path separators and dots with underscores
+	normalized := strings.ReplaceAll(path, string(filepath.Separator), "_")
+	normalized = strings.ReplaceAll(normalized, ".", "_")
+	// Remove leading underscores
+	normalized = strings.TrimLeft(normalized, "_")
+	// Handle empty path (root)
+	if normalized == "" {
+		normalized = "root"
+	}
+	return normalized + ".json"
+}
+
+// WriteSplitOutput writes results to split shard files with a manifest
+func WriteSplitOutput(results []DirResult, outDir, rootDir, splitBy string) (string, error) {
+	// Create output directory
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		return "", fmt.Errorf("creating output directory: %w", err)
+	}
+
+	// Group results by shard key
+	shards := make(map[string][]DirResult)
+
+	for _, r := range results {
+		if len(r.Functions) == 0 && len(r.Classes) == 0 {
+			continue
+		}
+
+		relPath, err := filepath.Rel(rootDir, r.Path)
+		if err != nil {
+			relPath = r.Path
+		}
+
+		var shardKey string
+		if splitBy == "file" {
+			// One shard per file: use full file path (keep extension for uniqueness)
+			shardKey = relPath
+		} else {
+			// One shard per directory: use directory path
+			shardKey = filepath.Dir(relPath)
+			if shardKey == "." {
+				shardKey = ""
+			}
+		}
+
+		shards[shardKey] = append(shards[shardKey], r)
+	}
+
+	// Write each shard and collect manifest info
+	var manifest Manifest
+	manifest.Version = "1.0"
+	manifest.RootDir = rootDir
+	manifest.SplitBy = splitBy
+
+	for shardKey, shardResults := range shards {
+		shardName := pathToShardName(shardKey)
+		shardPath := filepath.Join(outDir, shardName)
+
+		// Generate JSON content for this shard
+		content := formatDirResultsJSON(shardResults)
+
+		// Write shard file
+		if err := os.WriteFile(shardPath, []byte(content), 0644); err != nil {
+			return "", fmt.Errorf("writing shard %s: %w", shardName, err)
+		}
+
+		// Count totals for this shard
+		totalFuncs := 0
+		totalClasses := 0
+		for _, r := range shardResults {
+			totalFuncs += len(r.Functions)
+			totalClasses += len(r.Classes)
+		}
+
+		manifest.Shards = append(manifest.Shards, ShardInfo{
+			Path:           shardName,
+			Files:          len(shardResults),
+			TotalFunctions: totalFuncs,
+			TotalClasses:   totalClasses,
+		})
+
+		manifest.TotalFiles += len(shardResults)
+		manifest.TotalFunctions += totalFuncs
+		manifest.TotalClasses += totalClasses
+	}
+
+	// Write manifest.json
+	manifestJSON := formatManifestJSON(&manifest)
+	manifestPath := filepath.Join(outDir, "manifest.json")
+	if err := os.WriteFile(manifestPath, []byte(manifestJSON), 0644); err != nil {
+		return "", fmt.Errorf("writing manifest: %w", err)
+	}
+
+	// Return summary for display
+	return fmt.Sprintf("Split output written to %s/\n  Manifest: manifest.json\n  Shards: %d files\n  Total: %d files, %d functions, %d classes",
+		outDir, len(manifest.Shards), manifest.TotalFiles, manifest.TotalFunctions, manifest.TotalClasses), nil
+}
+
+func formatManifestJSON(m *Manifest) string {
+	json := "{\n"
+	json += "  \"version\": \"" + m.Version + "\",\n"
+	json += "  \"root_dir\": \"" + escapeJSON(m.RootDir) + "\",\n"
+	json += "  \"split_by\": \"" + m.SplitBy + "\",\n"
+	json += "  \"shards\": [\n"
+	for i, s := range m.Shards {
+		json += "    {"
+		json += "\"path\": \"" + escapeJSON(s.Path) + "\", "
+		json += "\"files\": " + itoa(s.Files) + ", "
+		json += "\"total_functions\": " + itoa(s.TotalFunctions) + ", "
+		json += "\"total_classes\": " + itoa(s.TotalClasses)
+		json += "}"
+		if i < len(m.Shards)-1 {
+			json += ","
+		}
+		json += "\n"
+	}
+	json += "  ],\n"
+	json += "  \"total_files\": " + itoa(m.TotalFiles) + ",\n"
+	json += "  \"total_functions\": " + itoa(m.TotalFunctions) + ",\n"
+	json += "  \"total_classes\": " + itoa(m.TotalClasses) + "\n"
+	json += "}\n"
+	return json
 }
