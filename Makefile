@@ -2,13 +2,16 @@
 .PHONY: all build test clean install uninstall coverage fmt vet lint help release
 
 # Variables
-VERSION := 1.4.0
+# Patch version is derived from total git commit count — increments automatically with every commit.
+# Bump VERSION_BASE manually only for major/minor releases.
+VERSION_BASE := 1.6
+VERSION := $(VERSION_BASE).$(shell git rev-list --count HEAD)
 BINARIES := funcfinder stat deps complexity findstruct
 BUILD_DIR := build
 DIST_DIR := dist
 GO := go
 GOFLAGS := -v
-LDFLAGS := -ldflags "-s -w -X main.Version=$(VERSION)"
+LDFLAGS := -ldflags "-s -w -X github.com/ruslano69/funcfinder/internal.Version=$(VERSION)"
 
 # Colors for output
 COLOR_RESET := \033[0m
@@ -195,23 +198,18 @@ update:
 
 ##@ Release
 
-## release: Create a new release (use: make release VERSION=1.5.0)
+## release: Create a new major/minor release (use: make release BASE=1.7)
 release:
-	@echo "$(COLOR_GREEN)Creating release v$(VERSION)...$(COLOR_RESET)"
-	@if [ -z "$(VERSION)" ]; then \
-		echo "$(COLOR_YELLOW)⚠️  VERSION not specified. Usage: make release VERSION=1.5.0$(COLOR_RESET)"; \
+	@if [ -z "$(BASE)" ]; then \
+		echo "$(COLOR_YELLOW)⚠️  BASE not specified. Usage: make release BASE=1.7$(COLOR_RESET)"; \
 		exit 1; \
 	fi
-	@echo "Updating version in files..."
-	@# Update version in main files
-	@sed -i 's/Version = "[^"]*"/Version = "$(VERSION)"/' cmd/funcfinder/main.go
-	@sed -i 's/Version = "[^"]*"/Version = "$(VERSION)"/' cmd/stat/main.go
-	@sed -i 's/Version = "[^"]*"/Version = "$(VERSION)"/' cmd/deps/main.go
-	@sed -i 's/Version = "[^"]*"/Version = "$(VERSION)"/' cmd/complexity/main.go
+	@echo "$(COLOR_GREEN)Updating VERSION_BASE to $(BASE)...$(COLOR_RESET)"
+	@sed -i 's/^VERSION_BASE := .*/VERSION_BASE := $(BASE)/' Makefile
 	@echo "Creating git tag..."
-	@git tag -a v$(VERSION) -m "Release v$(VERSION)"
-	@echo "$(COLOR_GREEN)✅ Release v$(VERSION) ready!$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)Push with: git push origin v$(VERSION)$(COLOR_RESET)"
+	@git tag -a v$(BASE).0 -m "Release v$(BASE).0"
+	@echo "$(COLOR_GREEN)✅ Release v$(BASE).0 ready!$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)Push with: git push origin v$(BASE).0$(COLOR_RESET)"
 
 ## version: Show current version
 version:

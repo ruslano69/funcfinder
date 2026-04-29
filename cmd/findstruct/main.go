@@ -8,8 +8,6 @@ import (
 	"github.com/ruslano69/funcfinder/internal"
 )
 
-const Version = "1.6.0"
-
 func main() {
 	// Парсинг аргументов командной строки
 	version := flag.Bool("version", false, "print version and exit")
@@ -26,7 +24,7 @@ func main() {
 
 	// Обработка флага --version
 	if *version {
-		internal.PrintVersion("findstruct", Version)
+		internal.PrintVersion("findstruct")
 		os.Exit(0)
 	}
 

@@ -108,9 +108,9 @@ func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 		}
 
 		// Skip hidden files and directories (starting with .)
-		// except for .gitignore itself and the root "." directory
+		// except for .gitignore itself and the root path itself
 		base := filepath.Base(path)
-		if len(base) > 0 && base[0] == '.' && base != ".gitignore" && base != "." {
+		if len(base) > 0 && base[0] == '.' && base != ".gitignore" && path != rootPath {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
@@ -453,6 +453,9 @@ func formatDirResultsGrep(results []DirResult) string {
 		for _, fn := range r.Functions {
 			output += r.Path + ":" + itoa(fn.Start) + ": " + fn.Name + "\n"
 		}
+		for _, cl := range r.Classes {
+			output += r.Path + ":" + itoa(cl.Start) + ": " + cl.Name + "\n"
+		}
 	}
 	return output
 }
@@ -561,6 +564,64 @@ func (m *IgnoreMatcher) Matches(path string, isDir bool) bool {
 		}
 	}
 	return false
+}
+
+// CollectSourceFiles finds all source files matching langConfig in rootPath.
+// It respects .gitignore, skips hidden files/dirs, and honours the recursive flag.
+// If langConfig is nil every supported extension is accepted.
+func CollectSourceFiles(rootPath string, langConfig *LanguageConfig, recursive bool) ([]string, error) {
+	ignoreMatcher := NewIgnoreMatcher(rootPath)
+
+	extSet := make(map[string]bool)
+	if langConfig != nil {
+		for _, ext := range langConfig.Extensions {
+			extSet[ext] = true
+		}
+	}
+
+	var files []string
+	err := filepath.Walk(rootPath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(rootPath, path)
+		if err != nil {
+			return nil
+		}
+
+		if ignoreMatcher.Matches(relPath, info.IsDir()) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		base := filepath.Base(path)
+		if len(base) > 0 && base[0] == '.' && base != ".gitignore" && path != rootPath {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if info.IsDir() {
+			if !recursive && path != rootPath {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if langConfig == nil {
+			files = append(files, path)
+			return nil
+		}
+		if extSet[filepath.Ext(path)] {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files, err
 }
 
 // Helper functions for JSON formatting

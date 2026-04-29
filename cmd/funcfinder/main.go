@@ -9,8 +9,6 @@ import (
 	"github.com/ruslano69/funcfinder/internal"
 )
 
-const Version = "1.6.0"
-
 func main() {
 	// Парсинг аргументов командной строки
 	version := flag.Bool("version", false, "print version and exit")
@@ -47,11 +45,14 @@ func main() {
 	splitBy := flag.String("split-by", "dir", "split granularity: 'dir' (one shard per directory) or 'file' (one shard per file)")
 	outDir := flag.String("out", ".codemap", "output directory for split files")
 
-	flag.Parse()
+	// Pre-process args to support --struct "TypeA,TypeB" syntax:
+	// transforms "--struct Names --extract" into "--struct --type Names --extract"
+	// before standard flag parsing (flag package stops at first non-flag positional arg).
+	flag.CommandLine.Parse(preprocessStructArg(os.Args[1:])) //nolint:errcheck
 
 	// Обработка флага --version
 	if *version {
-		internal.PrintVersion("funcfinder", Version)
+		internal.PrintVersion("funcfinder")
 	}
 
 	// Валидация: либо -inp либо -dir должно быть указано
@@ -222,8 +223,8 @@ func handleFileMode(config internal.Config, inp, source, funcStr, typeStr string
 			internal.FatalError("--type can only be used with --struct or --all")
 		}
 	} else if workMode == "structs" {
-		if typeStr == "" && !mapMode && !treeMode && !treeFull {
-			internal.FatalError("either --type, --map, or --tree must be specified with --struct")
+		if typeStr == "" && !mapMode && !treeMode && !treeFull && !extract {
+			internal.FatalError("either --type, --map, --tree, or --extract must be specified with --struct")
 		}
 		if typeStr != "" && (mapMode || treeMode || treeFull) {
 			internal.FatalError("--type is mutually exclusive with --map and --tree")
@@ -388,9 +389,11 @@ func processStructs(langConfig *internal.LanguageConfig, typeStr, mode string, e
 	}
 
 	// Создаем struct finder через фабрику
-	// Для tree/map режимов нужно искать все типы (mapMode=true)
+	// Для tree/map режимов нужно искать все типы (mapMode=true).
+	// Также включаем режим "find all" когда typeStr пуст и нужно извлечь все структуры.
+	findAll := mapMode || treeMode || treeFull || (typeStr == "" && extract)
 	factory := internal.NewStructFinderFactory()
-	structFinder := factory.CreateStructFinder(langConfig, typeStr, mapMode || treeMode || treeFull, extractMode)
+	structFinder := factory.CreateStructFinder(langConfig, typeStr, findAll, extractMode)
 
 	var result *internal.StructFindResult
 	var err error
@@ -562,4 +565,52 @@ func outputCombinedJSON(funcResult *internal.FindResult, structResult *internal.
 	}
 	fmt.Println("  ]")
 	fmt.Println("}")
+}
+
+// preprocessStructArg rewrites os.Args before flag.Parse so that
+//   --struct "TypeA,TypeB" --extract
+// is treated the same as:
+//   --struct --type "TypeA,TypeB" --extract
+//
+// Background: Go's flag package stops parsing at the first non-flag
+// positional argument, so with bool --struct the type names string would
+// end up in flag.Args() and all flags that follow it would be ignored.
+// Pre-processing the argument list avoids that by injecting --type before
+// the names and keeping --struct as a plain boolean activator.
+func preprocessStructArg(args []string) []string {
+	result := make([]string, 0, len(args)+2)
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		// Handle --struct=TypeA,TypeB (equals-sign form)
+		for _, prefix := range []string{"--struct=", "-struct="} {
+			if strings.HasPrefix(arg, prefix) {
+				names := strings.TrimPrefix(arg, prefix)
+				result = append(result, "--struct")
+				if names != "" && names != "true" && names != "false" {
+					result = append(result, "--type", names)
+				}
+				arg = "" // mark as consumed
+				break
+			}
+		}
+		if arg == "" {
+			continue
+		}
+
+		// Handle --struct TypeA,TypeB (space-separated form)
+		if arg == "--struct" || arg == "-struct" {
+			result = append(result, arg)
+			// If the next arg exists and does not look like a flag, treat it
+			// as a comma-separated list of struct names (inject as --type).
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				result = append(result, "--type", args[i+1])
+				i++ // consume the names argument
+			}
+			continue
+		}
+
+		result = append(result, arg)
+	}
+	return result
 }

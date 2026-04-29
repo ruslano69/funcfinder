@@ -52,9 +52,12 @@ func PrintUsage(usageFunc func()) {
 	os.Exit(1)
 }
 
+// Version is set at build time via ldflags (-X github.com/ruslano69/funcfinder/internal.Version=...)
+var Version = "dev"
+
 // PrintVersion prints version and exits successfully
-func PrintVersion(toolName, version string) {
-	fmt.Printf("%s version %s\n", toolName, version)
+func PrintVersion(toolName string) {
+	fmt.Printf("%s version %s\n", toolName, Version)
 	os.Exit(0)
 }
 
