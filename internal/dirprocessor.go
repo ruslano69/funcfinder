@@ -2,17 +2,13 @@
 package internal
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -686,14 +682,12 @@ func WriteSplitOutput(results []DirResult, outDir, rootDir, splitBy string) (str
 		return "", fmt.Errorf("creating output directory: %w", err)
 	}
 
-	// Group results by shard key
+	// Group results by shard key.
+	// allShardPaths includes ALL files (for checksum), shards includes only non-empty (for output).
 	shards := make(map[string][]DirResult)
+	allShardPaths := make(map[string][]string)
 
 	for _, r := range results {
-		if len(r.Functions) == 0 && len(r.Classes) == 0 {
-			continue
-		}
-
 		relPath, err := filepath.Rel(rootDir, r.Path)
 		if err != nil {
 			relPath = r.Path
@@ -701,17 +695,22 @@ func WriteSplitOutput(results []DirResult, outDir, rootDir, splitBy string) (str
 
 		var shardKey string
 		if splitBy == "file" {
-			// One shard per file: use full file path (keep extension for uniqueness)
 			shardKey = relPath
 		} else {
-			// One shard per directory: use directory path
 			shardKey = filepath.Dir(relPath)
 			if shardKey == "." {
 				shardKey = ""
 			}
 		}
 
-		shards[shardKey] = append(shards[shardKey], r)
+		// ALL files contribute to checksum
+		shardName := pathToShardName(shardKey)
+		allShardPaths[shardName] = append(allShardPaths[shardName], r.Path)
+
+		// Only files with results go into shard content
+		if len(r.Functions) > 0 || len(r.Classes) > 0 {
+			shards[shardKey] = append(shards[shardKey], r)
+		}
 	}
 
 	// Write each shard and collect manifest info
@@ -732,16 +731,14 @@ func WriteSplitOutput(results []DirResult, outDir, rootDir, splitBy string) (str
 			return "", fmt.Errorf("writing shard %s: %w", shardName, err)
 		}
 
-		// Count totals and compute checksum for this shard
+		// Count totals; checksum covers ALL files in the shard directory
 		totalFuncs := 0
 		totalClasses := 0
-		var paths []string
 		for _, r := range shardResults {
 			totalFuncs += len(r.Functions)
 			totalClasses += len(r.Classes)
-			paths = append(paths, r.Path)
 		}
-		checksum := computeShardChecksum(paths)
+		checksum := computeShardChecksum(allShardPaths[shardName])
 
 		manifest.Shards = append(manifest.Shards, ShardInfo{
 			Path:           shardName,
@@ -795,36 +792,6 @@ func formatManifestJSON(m *Manifest) string {
 	json += "  \"total_classes\": " + itoa(m.TotalClasses) + "\n"
 	json += "}\n"
 	return json
-}
-
-// computeFileChecksum computes MD5 checksum of a file
-func computeFileChecksum(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	h := md5.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// computeShardChecksum computes combined checksum for a list of file paths
-func computeShardChecksum(paths []string) string {
-	sort.Strings(paths)
-	h := md5.New()
-	for _, p := range paths {
-		checksum, err := computeFileChecksum(p)
-		if err != nil {
-			h.Write([]byte(p))
-			continue
-		}
-		h.Write([]byte(p + ":" + checksum + "\n"))
-	}
-	return hex.EncodeToString(h.Sum(nil))
 }
 
 // loadManifest loads existing manifest from outDir
@@ -928,13 +895,11 @@ func WriteSplitOutputIncremental(results []DirResult, outDir, rootDir, splitBy s
 		return "", fmt.Errorf("creating output directory: %w", err)
 	}
 
-	// Group new results by shard key
+	// Group new results by shard key.
+	// allShardPaths tracks ALL files per shard (for checksum), newShards only non-empty (for output).
 	newShards := make(map[string][]DirResult)
+	allShardPaths := make(map[string][]string)
 	for _, r := range results {
-		if len(r.Functions) == 0 && len(r.Classes) == 0 {
-			continue
-		}
-
 		relPath, err := filepath.Rel(rootDir, r.Path)
 		if err != nil {
 			relPath = r.Path
@@ -949,7 +914,11 @@ func WriteSplitOutputIncremental(results []DirResult, outDir, rootDir, splitBy s
 				shardKey = ""
 			}
 		}
-		newShards[shardKey] = append(newShards[shardKey], r)
+		shardName := pathToShardName(shardKey)
+		allShardPaths[shardName] = append(allShardPaths[shardName], r.Path)
+		if len(r.Functions) > 0 || len(r.Classes) > 0 {
+			newShards[shardKey] = append(newShards[shardKey], r)
+		}
 	}
 
 	// Build manifest with both updated and unchanged shards
@@ -973,13 +942,11 @@ func WriteSplitOutputIncremental(results []DirResult, outDir, rootDir, splitBy s
 
 		totalFuncs := 0
 		totalClasses := 0
-		var paths []string
 		for _, r := range shardResults {
 			totalFuncs += len(r.Functions)
 			totalClasses += len(r.Classes)
-			paths = append(paths, r.Path)
 		}
-		checksum := computeShardChecksum(paths)
+		checksum := computeShardChecksum(allShardPaths[shardName])
 
 		manifest.Shards = append(manifest.Shards, ShardInfo{
 			Path:           shardName,
