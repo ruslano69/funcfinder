@@ -8,8 +8,6 @@ import (
 	"github.com/ruslano69/funcfinder/internal"
 )
 
-const Version = "1.0.0"
-
 func main() {
 	// Парсинг аргументов командной строки
 	version := flag.Bool("version", false, "print version and exit")

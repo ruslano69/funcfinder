@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,7 +49,7 @@ public enum LogLevel {
 	// Check for duplicates: no two classes should share (Name, Start)
 	seen := map[string]bool{}
 	for _, c := range result.Classes {
-		key := c.Name + ":" + string(rune(c.Start+'0'))
+		key := fmt.Sprintf("%s:%d", c.Name, c.Start)
 		if seen[key] {
 			t.Errorf("Duplicate class found: %s at line %d", c.Name, c.Start)
 		}
@@ -122,7 +123,7 @@ impl Handler for Config {
 	// Verify no duplicates by (Name, Start)
 	seen := map[string]bool{}
 	for _, c := range result.Classes {
-		key := c.Name + ":" + string(rune(c.Start+'0'))
+		key := fmt.Sprintf("%s:%d", c.Name, c.Start)
 		if seen[key] {
 			t.Errorf("Duplicate class found: %s at line %d", c.Name, c.Start)
 		}

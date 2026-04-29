@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
 	"github.com/ruslano69/funcfinder/internal"
 )
 

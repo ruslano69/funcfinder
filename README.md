@@ -38,32 +38,18 @@
 ### 📈 Real-World Performance
 
 ```bash
-# Small project (21 files, mixed languages)
-funcfinder -dir test_examples --all --map
-→ 273 functions + 438 types in ~30-45ms
-
-# Medium project (25 Go files)
-funcfinder -dir internal --all --json
-→ 228 functions + 69 classes in ~40ms
-
-# Parallel speedup
---workers 1: 45ms  →  --workers 4: 29ms (1.55x faster)
+./build.sh && ./funcfinder --dir . --all --json > map.json
 ```
 
-## 🌐 Core Capabilities
+## Why?
 
-- 🔍 **Single File Analysis**: `--inp file.go --map` for targeted extraction
-- 📁 **Directory Scanning**: `--dir ./src --all` for entire codebases
-- 🏗️ **Type Extraction**: `--struct` finds classes, structs, interfaces, enums
-- 🔄 **Combined Analysis**: `--all` gets both functions and types in one pass
-- 🗺️ **Codebase Mapping**: `--tree` shows hierarchical structure
-- 📏 **Precise Extraction**: `--lines 50:100` for specific code ranges
-- 📤 **Body Extraction**: `--extract` pulls complete function bodies
-- 📊 **JSON Export**: `--json` for programmatic processing
-- ⚡ **Performance**: 763K lines/sec sanitizer, parallel worker pools
-- 🎯 **Zero Dependencies**: Single static binary
-
-## 🌐 Supported Languages (15)
+| Without funcfinder | With funcfinder |
+|-------------------|-----------------|
+| AI reads README, avoids code (too expensive) | AI sees full structure, reads only what matters |
+| Hours browsing files: "what depends on what?" | `map.json` + one `jq` query = instant answer |
+| 80% API budget on exploration | 99% reduction — map once, extract targeted |
+| ctags + LSP + grep + manual work | One binary, 15 languages, zero setup |
+| Learn tools, then teach model | Drop `map.json` in context — model just works |
 
 | Category | Languages |
 |----------|-----------|
@@ -73,180 +59,71 @@ funcfinder -dir internal --all --json
 | **Scripting** | Python, Ruby |
 | **Mobile** | Swift, C# |
 
-## 📦 Installation
+| Category | Languages |
+|----------|-----------|
+| **Systems** | C, C++, Rust, Go, D |
+| **JVM** | Java, Kotlin, Scala |
+| **Web** | JavaScript, TypeScript, PHP |
+| **Scripting** | Python, Ruby |
+| **Mobile** | Swift, C# |
 
-### Via Go Install (Recommended)
+## Installation
 
 ```bash
+# Option 1: Go install
 go install github.com/ruslano69/funcfinder@latest
-```
 
-### Pre-built Binaries
-
-Download from [Releases](https://github.com/ruslano69/funcfinder/releases):
-
-```bash
-# Linux
-wget https://github.com/ruslano69/funcfinder/releases/download/v1.6.0/funcfinder-linux-amd64.tar.gz
-tar -xzf funcfinder-linux-amd64.tar.gz
-sudo mv funcfinder /usr/local/bin/
-
-# macOS
-wget https://github.com/ruslano69/funcfinder/releases/download/v1.6.0/funcfinder-darwin-amd64.tar.gz
-tar -xzf funcfinder-darwin-amd64.tar.gz
-sudo mv funcfinder /usr/local/bin/
-
-# Windows
-# Download funcfinder-windows-amd64.zip and add to PATH
-```
-
-### From Source
-
-```bash
+# Option 2: Build from source
 git clone https://github.com/ruslano69/funcfinder.git
-cd funcfinder
-
-# Linux/macOS: Build all utilities (funcfinder, stat, deps, complexity)
-./build.sh
-
-# Windows (PowerShell): Build all utilities
-.\build.ps1
-
-# Or build funcfinder only
-go build  # Now works! ✅
+cd funcfinder && ./build.sh
 ```
 
-**✅ Fixed:** `go build` now works without errors! Other utilities use build tags and are built via `build.sh`/`build.ps1`.
-
-For Windows-specific instructions, see [docs/WINDOWS.md](docs/WINDOWS.md).
-
-
-## 🚀 Quick Start
-
-### Directory Mode (⭐ Most Powerful)
+## Quick Start
 
 ```bash
-# Scan entire project (auto-detects languages)
-funcfinder --dir ./myproject --map --tree
+# Map entire codebase (functions + classes)
+./funcfinder --dir . --all --json > map.json
 
-# Find all functions + classes in repository
-funcfinder --dir ./src --all --json > codebase.json
+# Search the map
+jq '.files[] | select(.path | contains("auth"))' map.json
 
-# Fast parallel scan with 8 workers
-funcfinder --dir . --map --workers 8
+# Extract specific function
+./funcfinder --inp api.go --source go --func Handler --extract
 
-# Only structs/classes (skip functions)
-funcfinder --dir ./models --struct --map
-
-# Output:
-# INFO: Scanning directory: ./src (mode=all, workers=8, gitignore=true)
-# └── src
-# ├── main.go
-# │   ├── def main (line 10)
-# │   └── class Server (line 25)
-# ├── handler.py
-# │   ├── def process (line 5)
-# │   └── class Handler (line 20)
-# INFO: Processed 15 files, found 45 functions, 12 classes/types
+# Tree view
+./funcfinder --dir ./src --tree
 ```
 
-### Single File Mode
+## Usage Reference
 
-#### Check version
+```
+funcfinder --dir <path> [OPTIONS]    # Directory mode
+funcfinder --inp <file> [OPTIONS]    # File mode (requires --source)
+
+Mode flags (pick one):
+  --map          List all functions (default for --dir)
+  --struct       List all classes/structs/types
+  --all          Both functions and types
+  --tree         Hierarchical view
+
+File mode flags:
+  --source <lang>   Language: go/py/js/ts/java/cs/cpp/c/rust/swift/kotlin/php/ruby/scala/d
+  --func <name>     Find specific function
+  --type <name>     Find specific type (with --struct)
+  --extract         Output function body
+  --lines <range>   Line range (e.g., 100:200)
+
+Output:
+  --json         JSON format
+  --workers N    Parallel workers (default: CPU cores)
+```
+
+## Additional Tools
 
 ```bash
-funcfinder --version
-# Output: funcfinder version 1.6.0
-```
-
-#### Map all functions in a file
-
-```bash
-funcfinder --inp main.go --source go --map
-# Output: main: 10-25; Handler: 45-78; helper: 65-72;
-```
-
-### Find specific functions
-
-```bash
-funcfinder --inp api.go --source go --func Handler,Middleware
-# Output: Handler: 45-78; Middleware: 80-95;
-```
-
-### JSON output for AI
-
-```bash
-funcfinder --inp api.go --source go --map --json
-```
-
-```json
-{
-  "Handler": {"start": 45, "end": 78},
-  "Middleware": {"start": 80, "end": 95}
-}
-```
-
-### Extract function body
-
-```bash
-funcfinder --inp api.go --source go --func Handler --extract
-```
-
-```go
-// Handler: 45-78
-func Handler(w http.ResponseWriter, r *http.Request) {
-    // function body...
-}
-```
-
-### Find structs/classes/types (NEW in v1.5.0)
-
-```bash
-# Map all types in a Go file
-funcfinder --inp models.go --source go --struct --map
-# Output: User: 10-15; fields: ID, Name, Email Address: 20-25; fields: Street, City, Zip
-
-# Find specific types
-funcfinder --inp models.go --source go --struct --type User,Address
-# Output: User: 10-15; fields: ID, Name, Email Address: 20-25; fields: Street, City, Zip
-
-# JSON output for types
-funcfinder --inp models.py --source py --struct --map --json
-```
-
-```json
-{
-  "filename": "models.py",
-  "types": [
-    {
-      "name": "User",
-      "kind": "class",
-      "start": 5,
-      "end": 12,
-      "fields": [
-        {"name": "id", "type": "int", "line": 6},
-        {"name": "name", "type": "str", "line": 7}
-      ]
-    }
-  ]
-}
-```
-
-### Combined mode: functions + structs (NEW in v1.5.0)
-
-```bash
-# Get complete file structure in one call
-funcfinder --inp service.go --source go --all --map
-
-# Output:
-# === FUNCTIONS ===
-# NewService: 30-35; Process: 40-55; Validate: 60-70;
-#
-# === TYPES ===
-# Service: 10-15; fields: db, cache Config: 20-25; fields: Host, Port
-
-# JSON output with both functions and types
-funcfinder --inp api.go --source go --all --json
+./stat file.go -l go           # Function call hotspots
+./deps file.go -l go -json     # Import analysis
+./complexity file.go -l go     # Nesting depth analysis
 ```
 
 ```json
@@ -1001,14 +878,15 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-Built for AI-driven development workflows. Inspired by the need to minimize token usage in large codebases.
+- **[AGENTS.md](AGENTS.md)** — AI agent quick reference
+- **[docs/WINDOWS.md](docs/WINDOWS.md)** — Windows build guide
+- **[docs/USE_CASES.md](docs/USE_CASES.md)** — Detailed examples
+- **[CHANGELOG.md](CHANGELOG.md)** — Version history
 
-## 📞 Support
+## License
 
-- 🐛 [Report Issues](https://github.com/ruslano69/funcfinder/issues)
-- 💡 [Feature Requests](https://github.com/ruslano69/funcfinder/issues)
-- 📖 [Documentation](https://github.com/ruslano69/funcfinder/wiki)
+MIT — see [LICENSE](LICENSE)
 
 ---
 
-**funcfinder** - Navigate code efficiently, save tokens intelligently 🚀
+*Built by a developer who couldn't afford to waste tokens on exploration.*
