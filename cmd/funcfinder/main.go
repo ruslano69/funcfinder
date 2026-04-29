@@ -44,6 +44,7 @@ func main() {
 	splitMode := flag.Bool("split", false, "split output into manifest + shard files (--dir mode only)")
 	splitBy := flag.String("split-by", "dir", "split granularity: 'dir' (one shard per directory) or 'file' (one shard per file)")
 	outDir := flag.String("out", ".codemap", "output directory for split files")
+	incMode := flag.Bool("inc", false, "incremental split update using shard checksums (--split --json --dir)")
 
 	// Pre-process args to support --struct "TypeA,TypeB" syntax:
 	// transforms "--struct Names --extract" into "--struct --type Names --extract"
@@ -77,7 +78,7 @@ func main() {
 		if !*mapMode && !*treeMode && !*treeFull {
 			autoMapMode = true
 		}
-		handleDirectoryMode(config, *dir, *workers, *recursive, !*noGitignore, *funcStr, autoMapMode, *treeMode, *treeFull, *jsonOut, *extract, *structMode, *allMode, *splitMode, *splitBy, *outDir)
+		handleDirectoryMode(config, *dir, *workers, *recursive, !*noGitignore, *funcStr, autoMapMode, *treeMode, *treeFull, *jsonOut, *extract, *structMode, *allMode, *splitMode, *splitBy, *outDir, *incMode)
 		return
 	}
 
@@ -85,7 +86,7 @@ func main() {
 	handleFileMode(config, *inp, *source, *funcStr, *typeStr, *structMode, *allMode, *mapMode, *treeMode, *treeFull, *jsonOut, *extract, *rawMode, *linesRange)
 }
 
-func handleDirectoryMode(config internal.Config, dirPath string, workers int, recursive, useGitignore bool, funcStr string, mapMode, treeMode, treeFull, jsonOut, extract, structMode, allMode, splitMode bool, splitBy, outDir string) {
+func handleDirectoryMode(config internal.Config, dirPath string, workers int, recursive, useGitignore bool, funcStr string, mapMode, treeMode, treeFull, jsonOut, extract, structMode, allMode, splitMode bool, splitBy, outDir string, incMode bool) {
 	// Проверяем существование директории
 	info, err := os.Stat(dirPath)
 	if err != nil {
@@ -128,6 +129,9 @@ func handleDirectoryMode(config internal.Config, dirPath string, workers int, re
 		if splitBy != "dir" && splitBy != "file" {
 			internal.FatalError("--split-by must be 'dir' or 'file'")
 		}
+		if incMode {
+			internal.InfoMessage("Incremental split mode enabled (--inc)")
+		}
 	}
 
 	internal.InfoMessage("Scanning directory: %s (mode=%s, recursive=%v, workers=%d, gitignore=%v)", dirPath, workMode, recursive, workers, useGitignore)
@@ -136,14 +140,24 @@ func handleDirectoryMode(config internal.Config, dirPath string, workers int, re
 	processor := internal.NewDirProcessor(config, workers, recursive, useGitignore, workMode)
 
 	// Обрабатываем директорию
-	results, err := processor.ProcessDirectory(dirPath)
+	var results []internal.DirResult
+	if splitMode && incMode {
+		results, err = processor.ProcessDirectoryIncremental(dirPath, outDir, splitBy)
+	} else {
+		results, err = processor.ProcessDirectory(dirPath)
+	}
 	if err != nil {
 		internal.FatalError("processing directory: %v", err)
 	}
 
 	// Handle split output mode
 	if splitMode {
-		manifest, err := internal.WriteSplitOutput(results, outDir, dirPath, splitBy)
+		var manifest string
+		if incMode {
+			manifest, err = internal.WriteSplitOutputIncremental(results, outDir, dirPath, splitBy)
+		} else {
+			manifest, err = internal.WriteSplitOutput(results, outDir, dirPath, splitBy)
+		}
 		if err != nil {
 			internal.FatalError("writing split output: %v", err)
 		}

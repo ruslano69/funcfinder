@@ -2,12 +2,17 @@
 package internal
 
 import (
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -644,6 +649,7 @@ type ShardInfo struct {
 	Files          int    `json:"files"`
 	TotalFunctions int    `json:"total_functions"`
 	TotalClasses   int    `json:"total_classes"`
+	Checksum       string `json:"checksum,omitempty"`
 }
 
 // Manifest represents the index of all shards
@@ -726,19 +732,23 @@ func WriteSplitOutput(results []DirResult, outDir, rootDir, splitBy string) (str
 			return "", fmt.Errorf("writing shard %s: %w", shardName, err)
 		}
 
-		// Count totals for this shard
+		// Count totals and compute checksum for this shard
 		totalFuncs := 0
 		totalClasses := 0
+		var paths []string
 		for _, r := range shardResults {
 			totalFuncs += len(r.Functions)
 			totalClasses += len(r.Classes)
+			paths = append(paths, r.Path)
 		}
+		checksum := computeShardChecksum(paths)
 
 		manifest.Shards = append(manifest.Shards, ShardInfo{
 			Path:           shardName,
 			Files:          len(shardResults),
 			TotalFunctions: totalFuncs,
 			TotalClasses:   totalClasses,
+			Checksum:       checksum,
 		})
 
 		manifest.TotalFiles += len(shardResults)
@@ -770,6 +780,9 @@ func formatManifestJSON(m *Manifest) string {
 		json += "\"files\": " + itoa(s.Files) + ", "
 		json += "\"total_functions\": " + itoa(s.TotalFunctions) + ", "
 		json += "\"total_classes\": " + itoa(s.TotalClasses)
+		if s.Checksum != "" {
+			json += ", \"checksum\": \"" + s.Checksum + "\""
+		}
 		json += "}"
 		if i < len(m.Shards)-1 {
 			json += ","
@@ -782,4 +795,227 @@ func formatManifestJSON(m *Manifest) string {
 	json += "  \"total_classes\": " + itoa(m.TotalClasses) + "\n"
 	json += "}\n"
 	return json
+}
+
+// computeFileChecksum computes MD5 checksum of a file
+func computeFileChecksum(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := md5.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// computeShardChecksum computes combined checksum for a list of file paths
+func computeShardChecksum(paths []string) string {
+	sort.Strings(paths)
+	h := md5.New()
+	for _, p := range paths {
+		checksum, err := computeFileChecksum(p)
+		if err != nil {
+			h.Write([]byte(p))
+			continue
+		}
+		h.Write([]byte(p + ":" + checksum + "\n"))
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// loadManifest loads existing manifest from outDir
+func loadManifest(outDir string) (*Manifest, error) {
+	manifestPath := filepath.Join(outDir, "manifest.json")
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+	var m Manifest
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// ProcessDirectoryIncremental processes only changed files based on shard checksums
+func (dp *DirProcessor) ProcessDirectoryIncremental(rootPath, outDir, splitBy string) ([]DirResult, error) {
+	// Load existing manifest if present
+	oldManifest, _ := loadManifest(outDir)
+	oldChecksums := make(map[string]string)
+	if oldManifest != nil {
+		for _, s := range oldManifest.Shards {
+			oldChecksums[s.Path] = s.Checksum
+		}
+	}
+
+	// Collect all files first
+	files, err := dp.collectFiles(rootPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(files) == 0 {
+		return []DirResult{}, nil
+	}
+
+	// Group files by shard key
+	shardFiles := make(map[string][]Job)
+	for _, job := range files {
+		relPath, err := filepath.Rel(rootPath, job.Path)
+		if err != nil {
+			relPath = job.Path
+		}
+
+		var shardKey string
+		if splitBy == "file" {
+			shardKey = relPath
+		} else {
+			shardKey = filepath.Dir(relPath)
+			if shardKey == "." {
+				shardKey = ""
+			}
+		}
+		shardFiles[shardKey] = append(shardFiles[shardKey], job)
+	}
+
+	// Compute checksums and filter changed shards
+	var changedJobs []Job
+	changedShards := 0
+	unchangedShards := 0
+
+	for shardKey, jobs := range shardFiles {
+		shardName := pathToShardName(shardKey)
+
+		// Collect file paths for checksum
+		var paths []string
+		for _, j := range jobs {
+			paths = append(paths, j.Path)
+		}
+		newChecksum := computeShardChecksum(paths)
+
+		// Compare with old checksum
+		if oldChecksum, exists := oldChecksums[shardName]; exists && oldChecksum == newChecksum {
+			unchangedShards++
+			continue
+		}
+
+		changedShards++
+		changedJobs = append(changedJobs, jobs...)
+	}
+
+	InfoMessage("Incremental: %d shards changed, %d unchanged", changedShards, unchangedShards)
+
+	if len(changedJobs) == 0 {
+		// Nothing changed, return empty but load existing results
+		return []DirResult{}, nil
+	}
+
+	// Process only changed files
+	return dp.processFilesParallel(changedJobs)
+}
+
+// WriteSplitOutputIncremental writes results merging with unchanged shards from old manifest
+func WriteSplitOutputIncremental(results []DirResult, outDir, rootDir, splitBy string) (string, error) {
+	// Load old manifest
+	oldManifest, _ := loadManifest(outDir)
+
+	// Create output directory
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		return "", fmt.Errorf("creating output directory: %w", err)
+	}
+
+	// Group new results by shard key
+	newShards := make(map[string][]DirResult)
+	for _, r := range results {
+		if len(r.Functions) == 0 && len(r.Classes) == 0 {
+			continue
+		}
+
+		relPath, err := filepath.Rel(rootDir, r.Path)
+		if err != nil {
+			relPath = r.Path
+		}
+
+		var shardKey string
+		if splitBy == "file" {
+			shardKey = relPath
+		} else {
+			shardKey = filepath.Dir(relPath)
+			if shardKey == "." {
+				shardKey = ""
+			}
+		}
+		newShards[shardKey] = append(newShards[shardKey], r)
+	}
+
+	// Build manifest with both updated and unchanged shards
+	var manifest Manifest
+	manifest.Version = "1.0"
+	manifest.RootDir = rootDir
+	manifest.SplitBy = splitBy
+
+	updatedShardNames := make(map[string]bool)
+
+	// Write updated shards
+	for shardKey, shardResults := range newShards {
+		shardName := pathToShardName(shardKey)
+		shardPath := filepath.Join(outDir, shardName)
+		updatedShardNames[shardName] = true
+
+		content := formatDirResultsJSON(shardResults)
+		if err := os.WriteFile(shardPath, []byte(content), 0644); err != nil {
+			return "", fmt.Errorf("writing shard %s: %w", shardName, err)
+		}
+
+		totalFuncs := 0
+		totalClasses := 0
+		var paths []string
+		for _, r := range shardResults {
+			totalFuncs += len(r.Functions)
+			totalClasses += len(r.Classes)
+			paths = append(paths, r.Path)
+		}
+		checksum := computeShardChecksum(paths)
+
+		manifest.Shards = append(manifest.Shards, ShardInfo{
+			Path:           shardName,
+			Files:          len(shardResults),
+			TotalFunctions: totalFuncs,
+			TotalClasses:   totalClasses,
+			Checksum:       checksum,
+		})
+
+		manifest.TotalFiles += len(shardResults)
+		manifest.TotalFunctions += totalFuncs
+		manifest.TotalClasses += totalClasses
+	}
+
+	// Copy unchanged shards from old manifest
+	if oldManifest != nil {
+		for _, oldShard := range oldManifest.Shards {
+			if !updatedShardNames[oldShard.Path] {
+				manifest.Shards = append(manifest.Shards, oldShard)
+				manifest.TotalFiles += oldShard.Files
+				manifest.TotalFunctions += oldShard.TotalFunctions
+				manifest.TotalClasses += oldShard.TotalClasses
+			}
+		}
+	}
+
+	// Write manifest
+	manifestJSON := formatManifestJSON(&manifest)
+	manifestPath := filepath.Join(outDir, "manifest.json")
+	if err := os.WriteFile(manifestPath, []byte(manifestJSON), 0644); err != nil {
+		return "", fmt.Errorf("writing manifest: %w", err)
+	}
+
+	updatedCount := len(newShards)
+	unchangedCount := len(manifest.Shards) - updatedCount
+
+	return fmt.Sprintf("Split output written to %s/\n  Manifest: manifest.json\n  Shards: %d updated, %d unchanged\n  Total: %d files, %d functions, %d classes",
+		outDir, updatedCount, unchangedCount, manifest.TotalFiles, manifest.TotalFunctions, manifest.TotalClasses), nil
 }
