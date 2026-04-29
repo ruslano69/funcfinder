@@ -2,73 +2,87 @@
 
 ## v1.6.0 - 2026-04-29
 
-### Directory Mode Scaling & Split Output for Large Codebases
+### Large Codebase Support: Split, Incremental & Fast Checksums
 
-**Новые возможности:**
-- ✅ **--split flag** - split large JSON output into manifest + shard files (dir mode only)
-- ✅ **--split-by** - choose granularity: `dir` (one shard per directory) or `file` (one shard per file)
-- ✅ **--out** - specify output directory for split files (default: `.codemap/`)
-- ✅ **Flat naming** - consistent naming: `internal_config_go.json` (no parallel dirs)
-- ✅ **Manifest index** - centralized manifest.json with shard metadata
-- ✅ **Backward compatible** - each shard uses standard JSON format
+#### Проблема которую решает v1.6.0
 
-**Синтаксис:**
+На проекте из 500 файлов `--dir . --json` генерирует ~375KB (~93K токенов) — это
+половина контекстного окна только на карту кода. AI агент вынужден загружать всё,
+чтобы найти один модуль. v1.6.0 решает это через sharding и инкрементальные
+обновления.
+
+#### --split: разбивка вывода на шарды
+
 ```bash
-# Split by directory (default): internal/, cmd/deps/, etc. → separate shards
+# Разбить по директориям (default)
 funcfinder --dir . --all --json --split
 
-# Split by file: each .go/.py/.ts → separate shard
+# Разбить по файлам (гранулярнее)
 funcfinder --dir . --all --json --split --split-by file --out .codemap
-
-# Custom output directory
-funcfinder --dir . --json --split --out ./analysis
 ```
 
-**Примеры выхода:**
+Результат — плоская структура файлов (`ls` даёт полный обзор):
+```
+.codemap/
+  manifest.json          ← индекс, 500 байт
+  internal.json          ← 27 файлов, 15KB
+  cmd_funcfinder.json    ← 6 файлов, 3KB
+  test_examples.json     ← 26 файлов, 22KB
+```
+
+Manifest содержит метаданные без загрузки шардов:
 ```json
-// .codemap/manifest.json
-{
-  "version": "1.0",
-  "root_dir": ".",
-  "split_by": "dir",
-  "shards": [
-    {"path": "internal.json", "files": 27, "total_functions": 242, "total_classes": 40}
-  ],
-  "total_files": 57,
-  "total_functions": 604,
-  "total_classes": 378
-}
+{"path": "internal.json", "files": 27, "total_functions": 248, "total_classes": 40, "checksum": "5583a4ba..."}
 ```
 
-**Улучшения directory mode:**
-- ✅ **--struct shorthand** - `--struct "TypeA,TypeB"` equivalent to `--struct --type "TypeA,TypeB"`
-- ✅ **Directory mode for stat** - analyze entire directories with unified statistics
-- ✅ **Bug fixes** - hidden file check now uses `path != rootPath` (works with any root)
+#### --inc: инкрементальные обновления
 
-**Архитектура:**
-- Добавлены `ShardInfo`, `Manifest` структуры в `internal/dirprocessor.go`
-- Добавлена функция `WriteSplitOutput()` для манифеста и шардов
-- Добавлена `pathToShardName()` для flat naming convention
-- Реализована `preprocessStructArg()` для parsing shorthand syntax
-
-**Примеры использования:**
 ```bash
-# Analyze 500+ file project, split into shards
-funcfinder --dir . --all --json --split --out analysis/
-# Output: analysis/internal.json, analysis/cmd_stat.json, ...
+# Первый запуск — создаёт шарды с чексуммами
+funcfinder --dir . --json --split
 
-# Split by individual files for granular access
-funcfinder --dir src/ --json --split --split-by file
-# Output: one shard per file, no directory grouping
-
-# Check manifest for overview
-cat .codemap/manifest.json | jq '.shards[] | {path, total_functions}'
+# Повторные запуски — пересчитывает только изменённые
+funcfinder --dir . --json --split --inc
+# INFO: Incremental: 1 shards changed, 32 unchanged
 ```
 
-**Token efficiency:**
-- 99%+ token savings vs reading all files
-- Manifest provides quick statistics without loading all shards
-- Useful for large codebase analysis with AI agents
+Чексумма вычисляется по содержимому файлов (не по mtime), поэтому `git checkout`
+не вызывает ложных пересчётов.
+
+#### Быстрые хэши: FNV-1a 128-bit и XXH3
+
+| Хэш | Скорость | Зависимости | Как включить |
+|-----|----------|-------------|--------------|
+| FNV-1a 128-bit | базовая | нет (stdlib) | дефолт |
+| XXH3-128 | ~3-5x быстрее | `zeebo/xxh3` | `-tags xxh3` |
+
+```bash
+# Стандартная сборка (FNV-1a, zero deps)
+./build.sh
+
+# С XXH3
+go build -tags xxh3 -ldflags "..." -o funcfinder ./cmd/funcfinder
+```
+
+#### Производительность на больших проектах
+
+| Размер проекта | Полный JSON | Manifest | Один шард | Экономия токенов |
+|---------------|-------------|----------|-----------|-----------------|
+| 60 файлов     | 44KB / 11K tok | 0.5KB | 15KB / 4K tok | **3x** |
+| 500 файлов    | ~375KB / 93K tok | 1KB | ~15KB / 4K tok | **~25x** |
+| 5000 файлов   | ~3.7MB / 930K tok* | 5KB | ~15KB / 4K tok | **~230x** |
+
+*превышает контекстное окно без --split
+
+**Инкрементальный режим (500 файлов, 33 шарда):**
+- Изменён 1 файл → пересчитывается 1 шард (3% работы), 32 пропускаются
+- ~33x быстрее полного пересчёта на больших проектах
+
+#### Остальные улучшения v1.6.0
+
+- ✅ `--struct "TypeA,TypeB"` — shorthand вместо `--struct --type "TypeA,TypeB"`
+- ✅ `stat` — поддержка директорий (режим `--dir`)
+- ✅ Исправлен баг: `--dir .` пропускал все файлы из-за hidden-file check на root path
 
 ---
 

@@ -15,7 +15,7 @@
 ## Three Essential Commands
 
 ```bash
-# 1. MAP codebase (your starting point)
+# 1. MAP codebase — small project (your starting point)
 ./funcfinder --dir . --all --json > map.json
 
 # 2. SEARCH the map
@@ -23,6 +23,23 @@ grep -i "auth" map.json
 
 # 3. EXTRACT specific function
 ./funcfinder --inp path/to/file.go --source go --func AuthHandler --extract
+```
+
+### Large Codebase? Use --split instead of step 1
+
+```bash
+# 1. SPLIT into shards (500+ files, saves 25-230x tokens)
+./funcfinder --dir . --all --json --split
+
+# 2. READ manifest to orient (2-10KB, not 100KB+)
+cat .codemap/manifest.json
+
+# 3. LOAD only the relevant shard
+cat .codemap/internal_auth.json
+
+# Subsequent runs: only reprocess changed directories
+./funcfinder --dir . --all --json --split --inc
+# INFO: Incremental: 1 shards changed, 32 unchanged
 ```
 
 ---
@@ -34,6 +51,10 @@ grep -i "auth" map.json
 | Map entire codebase | `./funcfinder --dir . --all --json` |
 | Map only functions | `./funcfinder --dir . --json` |
 | Map only types/classes | `./funcfinder --dir . --struct --json` |
+| **Split large codebase** | `./funcfinder --dir . --all --json --split` |
+| **Incremental update** | `./funcfinder --dir . --all --json --split --inc` |
+| Split by file | `./funcfinder --dir . --all --json --split --split-by file` |
+| Custom output dir | `./funcfinder --dir . --json --split --out ./analysis` |
 | Map single file | `./funcfinder --inp file.go --source go --map` |
 | Find specific function | `./funcfinder --inp file.go --source go --func Name` |
 | Extract function body | `./funcfinder --inp file.go --source go --func Name --extract` |
@@ -78,28 +99,34 @@ grep -i "auth" map.json
 ./funcfinder --inp file.go --source go --func Main
 ```
 
-### 4. Using --struct to extract named types (old mistake)
+### 4. Using --struct to extract named types
 ```bash
-# Error: either --type, --map, --tree, or --extract must be specified with --struct
-./funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract  # ← this NOW works!
-
-# Old workaround (still valid):
+# Both forms work:
+./funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract
 ./funcfinder --inp file.go --source go --struct --type "TypeA,TypeB" --extract
 ```
 
-### 5. Using --struct to extract named types (old mistake)
+### 5. Using --split without --json
 ```bash
-# Error: either --type, --map, --tree, or --extract must be specified with --struct
-./funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract  # ← this NOW works!
+# Error: --split requires --json output mode
+./funcfinder --dir . --split
 
-# Old workaround (still valid):
-./funcfinder --inp file.go --source go --struct --type "TypeA,TypeB" --extract
+# Fix:
+./funcfinder --dir . --json --split
+```
+
+### 6. Using --inc without existing .codemap/
+```bash
+# --inc with no prior manifest silently falls back to full scan
+./funcfinder --dir . --json --split --inc  # first run = full scan, creates manifest
+./funcfinder --dir . --json --split --inc  # second run = incremental
 ```
 
 ---
 
 ## JSON Output Structure
 
+### Standard (`--json`)
 ```json
 {
   "files": [
@@ -116,6 +143,23 @@ grep -i "auth" map.json
 ```
 
 **Important**: `path` is at file level only, not inside function objects!
+
+### Split manifest (`.codemap/manifest.json`)
+```json
+{
+  "version": "1.0",
+  "root_dir": ".",
+  "split_by": "dir",
+  "shards": [
+    {"path": "internal.json", "files": 27, "total_functions": 248, "total_classes": 40, "checksum": "5583a4ba..."}
+  ],
+  "total_files": 57,
+  "total_functions": 610,
+  "total_classes": 378
+}
+```
+
+Each shard file uses the same format as standard `--json` output.
 
 ### jq Recipes
 
@@ -160,14 +204,22 @@ After `./build.sh`:
 - **Parallel**: Auto-uses all CPU cores
 - **Token savings**: 99%+ vs reading full files
 
-**Example**: 25 files, 228 functions → ~30ms
+| Project size | Full JSON | With `--split` (1 shard) | Savings |
+|-------------|-----------|--------------------------|---------|
+| 60 files    | 44KB / 11K tok | 15KB / 4K tok | **3x** |
+| 500 files   | 375KB / 93K tok | 15KB / 4K tok | **~25x** |
+| 5000 files  | 3.7MB / 930K tok* | 15KB / 4K tok | **~230x** |
+
+*without `--split` exceeds context window
+
+**Incremental (`--inc`)**: change 1 file in a 500-file project → reprocess 1/33 shards, skip 32.
 
 ---
 
 ## Workflow Example
 
 ```bash
-# Task: Find and modify user authentication
+# Task: Find and modify user authentication (small project)
 
 # 1. Map (30ms)
 ./funcfinder --dir . --all --json > map.json
@@ -178,16 +230,32 @@ grep -i "auth" map.json
 
 # 3. Extract (instant)
 ./funcfinder --inp auth/handler.go --source go --func AuthenticateUser --extract
+```
 
-# Total: 2 operations vs reading 50 files
+```bash
+# Task: Explore large unknown codebase
+
+# 1. Split (one-time, ~100ms)
+./funcfinder --dir . --all --json --split
+
+# 2. Orient via manifest (2KB, instant)
+cat .codemap/manifest.json
+# → see all modules, function counts, find what's relevant
+
+# 3. Load one shard (15KB instead of 375KB)
+cat .codemap/internal_auth.json
+
+# 4. On next session — incremental update only
+./funcfinder --dir . --all --json --split --inc
 ```
 
 ---
 
 ## Golden Rule
 
-> If you're about to read a file to find a function, use `./funcfinder --dir . --all --json` first.
-> The map tells you exactly where to look. Save 99% tokens.
+> On small projects use `--dir . --all --json`.
+> On large projects (50+ files) use `--split`: read manifest first, then load one shard.
+> Never read source files to find functions — that's what funcfinder is for.
 
 ---
 
