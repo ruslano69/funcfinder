@@ -1,5 +1,77 @@
 # Changelog
 
+## v1.6.0 - 2026-04-29
+
+### Directory Mode Scaling & Split Output for Large Codebases
+
+**Новые возможности:**
+- ✅ **--split flag** - split large JSON output into manifest + shard files (dir mode only)
+- ✅ **--split-by** - choose granularity: `dir` (one shard per directory) or `file` (one shard per file)
+- ✅ **--out** - specify output directory for split files (default: `.codemap/`)
+- ✅ **Flat naming** - consistent naming: `internal_config_go.json` (no parallel dirs)
+- ✅ **Manifest index** - centralized manifest.json with shard metadata
+- ✅ **Backward compatible** - each shard uses standard JSON format
+
+**Синтаксис:**
+```bash
+# Split by directory (default): internal/, cmd/deps/, etc. → separate shards
+funcfinder --dir . --all --json --split
+
+# Split by file: each .go/.py/.ts → separate shard
+funcfinder --dir . --all --json --split --split-by file --out .codemap
+
+# Custom output directory
+funcfinder --dir . --json --split --out ./analysis
+```
+
+**Примеры выхода:**
+```json
+// .codemap/manifest.json
+{
+  "version": "1.0",
+  "root_dir": ".",
+  "split_by": "dir",
+  "shards": [
+    {"path": "internal.json", "files": 27, "total_functions": 242, "total_classes": 40}
+  ],
+  "total_files": 57,
+  "total_functions": 604,
+  "total_classes": 378
+}
+```
+
+**Улучшения directory mode:**
+- ✅ **--struct shorthand** - `--struct "TypeA,TypeB"` equivalent to `--struct --type "TypeA,TypeB"`
+- ✅ **Directory mode for stat** - analyze entire directories with unified statistics
+- ✅ **Bug fixes** - hidden file check now uses `path != rootPath` (works with any root)
+
+**Архитектура:**
+- Добавлены `ShardInfo`, `Manifest` структуры в `internal/dirprocessor.go`
+- Добавлена функция `WriteSplitOutput()` для манифеста и шардов
+- Добавлена `pathToShardName()` для flat naming convention
+- Реализована `preprocessStructArg()` для parsing shorthand syntax
+
+**Примеры использования:**
+```bash
+# Analyze 500+ file project, split into shards
+funcfinder --dir . --all --json --split --out analysis/
+# Output: analysis/internal.json, analysis/cmd_stat.json, ...
+
+# Split by individual files for granular access
+funcfinder --dir src/ --json --split --split-by file
+# Output: one shard per file, no directory grouping
+
+# Check manifest for overview
+cat .codemap/manifest.json | jq '.shards[] | {path, total_functions}'
+```
+
+**Token efficiency:**
+- 99%+ token savings vs reading all files
+- Manifest provides quick statistics without loading all shards
+- Useful for large codebase analysis with AI agents
+
+---
+
 ## v1.5.0 - 2026-01-12
 
 ### Extended Language Support: 4 New Languages
