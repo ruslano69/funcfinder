@@ -568,10 +568,14 @@ func (m *IgnoreMatcher) Matches(path string, isDir bool) bool {
 }
 
 // CollectSourceFiles finds all source files matching langConfig in rootPath.
-// It respects .gitignore, skips hidden files/dirs, and honours the recursive flag.
+// It optionally respects .gitignore, skips hidden files/dirs, and honours recursive.
 // If langConfig is nil every supported extension is accepted.
-func CollectSourceFiles(rootPath string, langConfig *LanguageConfig, recursive bool) ([]string, error) {
-	ignoreMatcher := NewIgnoreMatcher(rootPath)
+func CollectSourceFiles(rootPath string, langConfig *LanguageConfig, recursive bool, useGitignore ...bool) ([]string, error) {
+	respectGitignore := len(useGitignore) == 0 || useGitignore[0]
+	var ignoreMatcher *IgnoreMatcher
+	if respectGitignore {
+		ignoreMatcher = NewIgnoreMatcher(rootPath)
+	}
 
 	extSet := make(map[string]bool)
 	if langConfig != nil {
@@ -591,7 +595,7 @@ func CollectSourceFiles(rootPath string, langConfig *LanguageConfig, recursive b
 			return nil
 		}
 
-		if ignoreMatcher.Matches(relPath, info.IsDir()) {
+		if ignoreMatcher != nil && ignoreMatcher.Matches(relPath, info.IsDir()) {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
@@ -641,11 +645,12 @@ func itoa(n int) string {
 
 // ShardInfo represents metadata about a single shard file
 type ShardInfo struct {
-	Path           string `json:"path"`
-	Files          int    `json:"files"`
-	TotalFunctions int    `json:"total_functions"`
-	TotalClasses   int    `json:"total_classes"`
-	Checksum       string `json:"checksum,omitempty"`
+	Path           string   `json:"path"`
+	Files          int      `json:"files"`
+	TotalFunctions int      `json:"total_functions"`
+	TotalClasses   int      `json:"total_classes"`
+	Checksum       string   `json:"checksum,omitempty"`
+	DependsOn      []string `json:"depends_on,omitempty"`
 }
 
 // Manifest represents the index of all shards
@@ -659,21 +664,8 @@ type Manifest struct {
 	TotalClasses   int         `json:"total_classes"`
 }
 
-// pathToShardName converts a path to flat shard filename
-// e.g., "internal/auth" -> "internal_auth.json"
-// e.g., "internal/config.go" -> "internal_config_go.json"
-func pathToShardName(path string) string {
-	// Replace all path separators and dots with underscores
-	normalized := strings.ReplaceAll(path, string(filepath.Separator), "_")
-	normalized = strings.ReplaceAll(normalized, ".", "_")
-	// Remove leading underscores
-	normalized = strings.TrimLeft(normalized, "_")
-	// Handle empty path (root)
-	if normalized == "" {
-		normalized = "root"
-	}
-	return normalized + ".json"
-}
+// pathToShardName is an alias for the exported PathToShardName in shardutil.go.
+func pathToShardName(path string) string { return PathToShardName(path) }
 
 // WriteSplitOutput writes results to split shard files with a manifest
 func WriteSplitOutput(results []DirResult, outDir, rootDir, splitBy string) (string, error) {
@@ -779,6 +771,16 @@ func formatManifestJSON(m *Manifest) string {
 		json += "\"total_classes\": " + itoa(s.TotalClasses)
 		if s.Checksum != "" {
 			json += ", \"checksum\": \"" + s.Checksum + "\""
+		}
+		if len(s.DependsOn) > 0 {
+			json += ", \"depends_on\": ["
+			for j, d := range s.DependsOn {
+				if j > 0 {
+					json += ", "
+				}
+				json += "\"" + escapeJSON(d) + "\""
+			}
+			json += "]"
 		}
 		json += "}"
 		if i < len(m.Shards)-1 {
