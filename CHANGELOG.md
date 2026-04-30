@@ -1,5 +1,86 @@
 # Changelog
 
+## v1.7.0 - 2026-04-30
+
+### Inter-Shard Dependency Graph (`deps --shards`)
+
+Расширение `deps` для работы с шардами: строит граф зависимостей между шардами
+и записывает `depends_on` в `manifest.json`. Агент видит архитектуру проекта без
+чтения исходников.
+
+#### Новые флаги `deps`
+
+```bash
+# Граф зависимостей между шардами
+deps . -l go --shards --json
+
+# Записать depends_on в manifest.json
+deps . -l go --shards --update-manifest .codemap/manifest.json
+
+# Без gitignore (нужно для cmd/ пакетов)
+deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
+```
+
+#### Автоматическое определение алиасов (TypeScript / Next.js)
+
+Читает `tsconfig.json` и резолвит `@/` алиасы в реальные пути:
+
+```bash
+# На Next.js проекте: @/ → src/, граф строится корректно
+deps frontend -l ts --shards --update-manifest .codemap/manifest.json
+```
+
+Результат в `manifest.json`:
+```json
+{
+  "path": "cmd_funcfinder.json",
+  "files": 1,
+  "total_functions": 8,
+  "checksum": "5ddb4d84...",
+  "depends_on": ["internal.json"]
+}
+```
+
+#### Пример на реальном проекте (meetily, 269 файлов, TypeScript + Rust)
+
+```
+src_app.json          → src_components, src_hooks, src_lib, src_services, src_types
+src_components.json   → src_hooks, src_lib, src_services, src_types
+src_contexts.json     → src_hooks, src_lib, src_services
+src_lib.json          → (нет зависимостей — дно стека)
+src_types.json        → (нет зависимостей — дно стека)
+```
+
+Агент загружает `src_components_AISummary` и сразу знает: нужен ещё `src_types`.
+
+#### Полный workflow
+
+```bash
+# 1. Карта кода с шардами
+funcfinder --dir . --all --json --split
+
+# 2. Граф зависимостей между шардами
+deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
+
+# 3. Агент читает манифест — видит и функции, и зависимости
+cat .codemap/manifest.json
+```
+
+#### Новые внутренние модули
+
+- `internal/shardutil.go` — `PathToShardName`, `ShardKeyForPath` (вынесено из dirprocessor)
+- `internal/importresolver.go` — `BuildShardGraph`, `DetectModulePrefix`, `DetectTSAliases`
+- `ShardInfo.DependsOn []string` — новое поле в манифесте
+
+#### `CollectSourceFiles` — новый параметр `useGitignore`
+
+```go
+// Опциональный параметр, по умолчанию true
+CollectSourceFiles(dir, langConfig, recursive, useGitignore...)
+```
+
+---
+
 ## v1.6.0 - 2026-04-29
 
 ### Large Codebase Support: Split, Incremental & Fast Checksums
