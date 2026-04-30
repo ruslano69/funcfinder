@@ -253,13 +253,17 @@ func main() {
 			fileImports[abs] = collectFileImports(path, langConfig, excludeREs)
 		}
 
-		// Auto-detect module prefix for Go
+		// Auto-detect module prefix / aliases per language
 		modulePrefix := ""
-		if langConfig.LangKey == "go" {
+		var aliases map[string]string
+		switch langConfig.LangKey {
+		case "go":
 			modulePrefix = internal.DetectModulePrefix(absDir)
+		case "ts", "js":
+			aliases = internal.DetectTSAliases(absDir)
 		}
 
-		graph := internal.BuildShardGraph(absDir, splitBy, modulePrefix, fileImports)
+		graph := internal.BuildShardGraph(absDir, splitBy, modulePrefix, fileImports, aliases)
 		list := internal.ShardGraphToList(graph)
 
 		if updateManifest != "" {
