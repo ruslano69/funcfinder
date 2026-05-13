@@ -9,6 +9,7 @@ findstruct
 stat
 deps
 complexity
+callgraph
 dist/
 
 # Test binary, built with `go test -c`
