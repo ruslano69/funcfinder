@@ -1,6 +1,6 @@
 # funcfinder for AI Agents
 
-**Quick Reference**: Map codebases, extract functions, save 99% tokens.
+**Quick Reference**: Map codebases, extract functions, trace calls, save 99% tokens.
 
 ---
 
@@ -10,41 +10,158 @@
 ./build.sh   # Required before first use (~5 sec)
 ```
 
+Builds 5 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`.
+
 ---
 
-## Three Essential Commands
+## The Toolkit at a Glance
+
+| Tool | Purpose | Input |
+|------|---------|-------|
+| `funcfinder` | Map functions & types, extract bodies | file or dir |
+| `deps` | Import dependencies + shard graph | dir |
+| `callgraph` | Who calls whom | file or dir |
+| `stat` | Call frequency & hotspots | file |
+| `complexity` | Cognitive complexity per function | file |
+
+---
+
+## Investigation Workflow
+
+### Small project (< 50 files)
 
 ```bash
-# 1. MAP codebase — small project (your starting point)
+# 1. Orient — full map in one shot (~30ms)
 ./funcfinder --dir . --all --json > map.json
 
-# 2. SEARCH the map
+# 2. Find the target
 grep -i "auth" map.json
+# → auth/handler.go:42: AuthenticateUser
 
-# 3. EXTRACT specific function
-./funcfinder --inp path/to/file.go --source go --func AuthHandler --extract
+# 3. Extract the body
+./funcfinder --inp auth/handler.go --source go --func AuthenticateUser --extract
+
+# 4. Trace who it calls
+./callgraph --inp auth/handler.go -l go --func AuthenticateUser
+
+# 5. Trace who calls it (impact)
+./callgraph --dir . -l go --reverse --func AuthenticateUser
 ```
 
-### Large Codebase? Use --split instead of step 1
+### Large project (50+ files)
 
 ```bash
-# 1. SPLIT into shards (500+ files, saves 25-230x tokens)
+# 1. Split into shards (one-time, ~100ms)
 ./funcfinder --dir . --all --json --split
 
-# 2. READ manifest to orient (2-10KB, not 100KB+)
+# 2. Read manifest — 2KB overview of entire codebase
 cat .codemap/manifest.json
+# → see shards, function counts, depends_on links
 
-# 3. LOAD only the relevant shard
+# 3. Load the relevant shard
 cat .codemap/internal_auth.json
 
-# Subsequent runs: only reprocess changed directories
+# 4. Extract the function
+./funcfinder --inp internal/auth.go --source go --func Authenticate --extract
+
+# 5. Check call graph for impact
+./callgraph --dir . -l go --reverse --func Authenticate
+```
+
+### Incremental update (repeat sessions)
+
+```bash
 ./funcfinder --dir . --all --json --split --inc
 # INFO: Incremental: 1 shards changed, 32 unchanged
 ```
 
+### Full architecture index (once per project)
+
+```bash
+# Build shard map
+./funcfinder --dir . --all --json --split --no-gitignore
+
+# Add inter-shard dependency graph to manifest
+./deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
+
+# manifest.json now contains:
+# {"path": "cmd_funcfinder.json", "depends_on": ["internal.json"], ...}
+```
+
 ---
 
-## Flag Reference
+## callgraph — New Tool
+
+```bash
+# Call tree from a function (with depth)
+./callgraph --dir . -l go --func ProcessDirectory
+./callgraph --dir . -l go --func ProcessDirectory --depth 2
+
+# Who calls a function (impact analysis)
+./callgraph --dir . -l go --reverse --func computeShardChecksum
+
+# Full call graph, JSON
+./callgraph --dir . -l go --json
+
+# Single file
+./callgraph --inp internal/finder.go -l go
+
+# Include gitignore-excluded files
+./callgraph --dir . -l go --no-gitignore
+```
+
+**Output examples:**
+
+```
+# Forward graph (plain text)
+internal/dirprocessor.go
+  ProcessDirectory → collectFiles
+  ProcessDirectory → processFilesParallel
+  collectFiles → NewIgnoreMatcher
+  collectFiles → filepath.Walk
+
+# Reverse (who calls computeShardChecksum)
+computeShardChecksum is called by:
+  ProcessDirectoryIncremental
+  WriteSplitOutput
+  WriteSplitOutputIncremental
+```
+
+**JSON format:**
+```json
+{
+  "files": [
+    {
+      "path": "internal/dirprocessor.go",
+      "calls": [
+        {"caller": "ProcessDirectory", "callee": "collectFiles", "line": 66},
+        {"caller": "ProcessDirectory", "callee": "processFilesParallel", "line": 76}
+      ]
+    }
+  ],
+  "total_calls": 956,
+  "total_functions": 256
+}
+```
+
+---
+
+## deps — Shard Dependency Graph
+
+```bash
+# Inter-shard graph (plain text)
+./deps . -l go --shards --no-gitignore
+
+# Write depends_on into manifest.json
+./deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
+
+# TypeScript with @/ alias auto-detection
+./deps frontend -l ts --shards --update-manifest .codemap/manifest.json
+```
+
+---
+
+## funcfinder Flag Reference
 
 | Task | Command |
 |------|---------|
@@ -65,7 +182,7 @@ cat .codemap/internal_auth.json
 **Key Rules**:
 - `--dir` mode: `--map` is DEFAULT
 - `--inp` mode: requires `--source <lang>` AND (`--map` or `--func` or `--tree` or `--extract`)
-- `--struct "TypeA,TypeB"` — activates struct mode and filters by names (shorthand for `--struct --type "TypeA,TypeB"`)
+- `--struct "TypeA,TypeB"` — shorthand for `--struct --type "TypeA,TypeB"`
 - Languages: `go`, `py`, `js`, `ts`, `java`, `cs`, `cpp`, `c`, `rust`, `swift`, `kotlin`, `php`, `ruby`, `scala`, `d`
 
 ---
@@ -74,28 +191,16 @@ cat .codemap/internal_auth.json
 
 ### 1. Forgot to build
 ```bash
-# Error: command not found
-./funcfinder --dir .
-
-# Fix:
 ./build.sh
 ```
 
 ### 2. Missing --map in file mode
 ```bash
-# Error: either --func, --map, or --tree must be specified
-./funcfinder --inp file.go --source go
-
-# Fix:
 ./funcfinder --inp file.go --source go --map
 ```
 
 ### 3. Missing --source in file mode
 ```bash
-# Error: --source parameter is required
-./funcfinder --inp file.go --func Main
-
-# Fix:
 ./funcfinder --inp file.go --source go --func Main
 ```
 
@@ -108,18 +213,23 @@ cat .codemap/internal_auth.json
 
 ### 5. Using --split without --json
 ```bash
-# Error: --split requires --json output mode
-./funcfinder --dir . --split
-
-# Fix:
 ./funcfinder --dir . --json --split
 ```
 
 ### 6. Using --inc without existing .codemap/
 ```bash
-# --inc with no prior manifest silently falls back to full scan
-./funcfinder --dir . --json --split --inc  # first run = full scan, creates manifest
-./funcfinder --dir . --json --split --inc  # second run = incremental
+# First run = full scan, creates manifest
+./funcfinder --dir . --json --split --inc
+# Second run = incremental
+./funcfinder --dir . --json --split --inc
+```
+
+### 7. cmd/ excluded by gitignore in deps/callgraph
+```bash
+# Bare names like "deps", "stat" in .gitignore match directories.
+# Use --no-gitignore to include cmd/ packages:
+./deps . -l go --shards --no-gitignore
+./callgraph --dir . -l go --no-gitignore
 ```
 
 ---
@@ -151,7 +261,14 @@ cat .codemap/internal_auth.json
   "root_dir": ".",
   "split_by": "dir",
   "shards": [
-    {"path": "internal.json", "files": 27, "total_functions": 248, "total_classes": 40, "checksum": "5583a4ba..."}
+    {
+      "path": "internal.json",
+      "files": 27,
+      "total_functions": 248,
+      "total_classes": 40,
+      "checksum": "5583a4ba...",
+      "depends_on": ["internal_db.json", "internal_config.json"]
+    }
   ],
   "total_files": 57,
   "total_functions": 610,
@@ -164,37 +281,18 @@ Each shard file uses the same format as standard `--json` output.
 ### jq Recipes
 
 ```bash
-# Functions with paths (most common!)
+# Functions with paths
 jq -r '.files[] | .path as $p | .functions[] | "\($p):\(.line): \(.name)"' map.json
 
 # Find by name
 jq '.files[] | .path as $p | .functions[] | select(.name | contains("Auth")) | {path: $p, name, line}' map.json
 
-# Count per file
-jq -r '.files[] | "\(.path): \(.functions | length)"' map.json
+# Shards that depend on internal.json
+jq '.shards[] | select(.depends_on[]? == "internal.json") | .path' .codemap/manifest.json
 
 # Simple grep often faster
 grep -i "functionname" map.json
 ```
-
----
-
-## Additional Tools
-
-After `./build.sh`:
-
-```bash
-# Function call statistics
-./stat file.go -l go
-
-# Import/dependency analysis
-./deps file.go -l go -json
-
-# Cognitive complexity (skip trivial with --nosimple)
-./complexity file.go -l go --nosimple
-```
-
-**Note**: These tools work on single files only. Use `funcfinder --dir` for directories.
 
 ---
 
@@ -216,47 +314,13 @@ After `./build.sh`:
 
 ---
 
-## Workflow Example
-
-```bash
-# Task: Find and modify user authentication (small project)
-
-# 1. Map (30ms)
-./funcfinder --dir . --all --json > map.json
-
-# 2. Search (instant)
-grep -i "auth" map.json
-# Found: auth/handler.go:42: AuthenticateUser
-
-# 3. Extract (instant)
-./funcfinder --inp auth/handler.go --source go --func AuthenticateUser --extract
-```
-
-```bash
-# Task: Explore large unknown codebase
-
-# 1. Split (one-time, ~100ms)
-./funcfinder --dir . --all --json --split
-
-# 2. Orient via manifest (2KB, instant)
-cat .codemap/manifest.json
-# → see all modules, function counts, find what's relevant
-
-# 3. Load one shard (15KB instead of 375KB)
-cat .codemap/internal_auth.json
-
-# 4. On next session — incremental update only
-./funcfinder --dir . --all --json --split --inc
-```
-
----
-
 ## Golden Rule
 
-> On small projects use `--dir . --all --json`.
-> On large projects (50+ files) use `--split`: read manifest first, then load one shard.
+> On small projects: `--dir . --all --json`, then grep.
+> On large projects (50+ files): `--split` → read manifest → load one shard.
+> To understand impact of a change: `callgraph --reverse --func Name`.
 > Never read source files to find functions — that's what funcfinder is for.
 
 ---
 
-*Full documentation: [docs/](docs/) | Advanced Python --lines: [docs/UTILITIES.md](docs/UTILITIES.md)*
+*Full documentation: [docs/](docs/)*
