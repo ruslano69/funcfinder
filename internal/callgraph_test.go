@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// hasEdge reports whether the call graph contains a caller->callee edge.
+// hasEdge reports whether the call graph contains a caller→callee edge.
 func hasEdge(fcg *FileCallGraph, caller, callee string) bool {
 	for _, e := range fcg.Calls {
 		if e.Caller == caller && e.Callee == callee {
@@ -17,13 +17,13 @@ func hasEdge(fcg *FileCallGraph, caller, callee string) bool {
 
 // TestBuildFileCallGraph_CallAfterDocstring is a regression test for the bug
 // where Python triple-quoted docstrings were configured as block comments
-// (block_comment_start equal to block_comment_end). The nested-aware block
-// comment scanner mistook the closing delimiter for a nested opening, so the
+// (block_comment_start == block_comment_end == """). The nested-aware block
+// comment scanner mistook the closing """ for a nested opening, so the
 // sanitizer stayed "inside a comment" forever and every call after the first
-// docstring was blanked out, silently dropping ~80% of Python call edges.
+// docstring was blanked out — silently dropping ~80% of Python call edges.
 //
-// The fix routes triple-quoted strings through doc_string_markers instead.
-// This test ensures calls placed after a docstring are still detected.
+// The fix routes """/''' through doc_string_markers instead. This test ensures
+// calls placed after a docstring are still detected.
 func TestBuildFileCallGraph_CallAfterDocstring(t *testing.T) {
 	config := getPyConfig(t)
 
