@@ -5,9 +5,26 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/ledongthuc/pdf"
 )
+
+// OCRQualityError is returned when the PDF appears to contain bad OCR output
+// that would pollute the knowledge base with unreadable text.
+// The caller can decide whether to skip the file or log a warning.
+type OCRQualityError struct {
+	Path  string
+	Score float64 // 0.0 = garbage, 1.0 = perfect
+}
+
+func (e *OCRQualityError) Error() string {
+	return fmt.Sprintf("bad OCR quality in %s (score %.2f): text is likely unreadable", e.Path, e.Score)
+}
+
+// minOCRQuality is the threshold below which a PDF is rejected as bad OCR.
+// Score is averaged over sampled pages; tune if needed.
+const minOCRQuality = 0.45
 
 func ingestPDF(path string, opts ChunkOpts) ([]Chunk, error) {
 	f, r, err := pdf.Open(path)
@@ -16,10 +33,18 @@ func ingestPDF(path string, opts ChunkOpts) ([]Chunk, error) {
 	}
 	defer f.Close()
 
-	var sections []docSection
 	total := r.NumPage()
 	// Shared font cache used only by the GetPlainText fallback path.
 	fonts := map[string]*pdf.Font{}
+
+	// Sample up to 10 evenly-spaced pages to estimate OCR quality before
+	// committing to a full parse. Skip the first and last few pages
+	// (often covers/indices with little prose).
+	if score := sampleOCRQuality(r, total, fonts); score < minOCRQuality {
+		return nil, &OCRQualityError{Path: path, Score: score}
+	}
+
+	var sections []docSection
 
 	for i := 1; i <= total; i++ {
 		page := r.Page(i)
@@ -52,6 +77,134 @@ func ingestPDF(path string, opts ChunkOpts) ([]Chunk, error) {
 		return nil, fmt.Errorf("no extractable text found in %s", path)
 	}
 	return sectionsToChunks(sections, path, opts), nil
+}
+
+// sampleOCRQuality reads up to 10 evenly-spaced pages (skipping first 5% and
+// last 5% which are often covers/indices) and returns the average pageTextQuality.
+func sampleOCRQuality(r *pdf.Reader, total int, fonts map[string]*pdf.Font) float64 {
+	if total == 0 {
+		return 1.0
+	}
+
+	skip := total / 20 // skip ~5% at each end
+	if skip < 1 {
+		skip = 1
+	}
+	start, end := skip+1, total-skip
+	if start > end {
+		start, end = 1, total
+	}
+
+	const maxSamples = 10
+	span := end - start + 1
+	step := span / maxSamples
+	if step < 1 {
+		step = 1
+	}
+
+	var sum float64
+	var n int
+	for i := start; i <= end; i += step {
+		page := r.Page(i)
+		if page.V.IsNull() {
+			continue
+		}
+		text := extractPageText(page)
+		if looksGlued(text) {
+			if plain, err := page.GetPlainText(fonts); err == nil {
+				text = plain
+			}
+		}
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		sum += pageTextQuality(text)
+		n++
+		if n >= maxSamples {
+			break
+		}
+	}
+	if n == 0 {
+		return 1.0 // all pages empty — let the main loop handle it
+	}
+	return sum / float64(n)
+}
+
+// pageTextQuality returns a quality score in [0.0, 1.0] for a page's text.
+// It combines three signals:
+//
+//  1. letterRatio  — fraction of non-space runes that are letters.
+//     Bad OCR often has many garbage symbols (□■ÃÂ©) pulling this down.
+//
+//  2. wordRatio    — fraction of whitespace-separated tokens that look like
+//     real words (≥2 letters, ≤30 chars). Broken OCR splits text into
+//     single-char tokens or produces unrecognisable symbol runs.
+//
+//  3. singleRatio  — fraction of tokens that are exactly 1 character.
+//     Spaced-out OCR ("T e x t") produces almost all length-1 tokens.
+//     A high value is penalised.
+func pageTextQuality(text string) float64 {
+	if strings.TrimSpace(text) == "" {
+		return 0.0
+	}
+
+	// --- letter ratio ---
+	var letters, nonSpaceRunes int
+	for _, r := range text {
+		if unicode.IsSpace(r) {
+			continue
+		}
+		nonSpaceRunes++
+		if unicode.IsLetter(r) {
+			letters++
+		}
+	}
+	var letterRatio float64
+	if nonSpaceRunes > 0 {
+		letterRatio = float64(letters) / float64(nonSpaceRunes)
+	}
+
+	// --- word ratio and single-char ratio ---
+	tokens := strings.Fields(text)
+	if len(tokens) == 0 {
+		return 0.0
+	}
+	var wordLike, singleChar int
+	for _, tok := range tokens {
+		runes := []rune(tok)
+		if len(runes) == 1 {
+			singleChar++
+		}
+		// "word-like": between 2 and 30 chars, at least half are letters
+		if len(runes) >= 2 && len(runes) <= 30 {
+			var lc int
+			for _, r := range runes {
+				if unicode.IsLetter(r) {
+					lc++
+				}
+			}
+			if float64(lc)/float64(len(runes)) >= 0.5 {
+				wordLike++
+			}
+		}
+	}
+	wordRatio := float64(wordLike) / float64(len(tokens))
+	singleRatio := float64(singleChar) / float64(len(tokens))
+
+	// Penalise heavily when most tokens are single chars (spaced-out OCR).
+	singlePenalty := 0.0
+	if singleRatio > 0.4 {
+		singlePenalty = (singleRatio - 0.4) * 2.0 // up to ~1.2 extra penalty
+	}
+
+	score := 0.4*letterRatio + 0.6*wordRatio - singlePenalty
+	if score < 0 {
+		score = 0
+	}
+	if score > 1 {
+		score = 1
+	}
+	return score
 }
 
 // extractPageText rebuilds page text from individual positioned text elements.
