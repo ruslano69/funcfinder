@@ -86,6 +86,8 @@ func runAdd(dbPath string, args []string) {
 	title := fs.String("title", "", "document title (required without --file)")
 	content := fs.String("content", "", "document content (required without --file)")
 	file := fs.String("file", "", "ingest a .txt/.md/.pdf file (splits into chunks)")
+	urlFlag := fs.String("url", "", "crawl a documentation website and ingest all pages")
+	maxPages := fs.Int("max-pages", 200, "max pages to crawl (with --url)")
 	chunkSize := fs.Int("chunk-size", 800, "max chunk size in runes (with --file)")
 	chunkOverlap := fs.Int("chunk-overlap", 80, "overlap runes between chunks (with --file)")
 	docType := fs.String("type", "general", "document type: general|tool_usage|error|scenario")
@@ -102,6 +104,41 @@ func runAdd(dbPath string, args []string) {
 		fatalf("open db: %v", err)
 	}
 	defer db.Close()
+
+	if *urlFlag != "" {
+		opts := knowledge.CrawlOpts{
+			MaxPages:  *maxPages,
+			ChunkOpts: knowledge.ChunkOpts{MaxRunes: *chunkSize, OverlapRunes: *chunkOverlap},
+		}
+		var fetched int
+		progress := func(done, queued int, pageURL string) {
+			fetched = done
+			if !*jsonOut {
+				fmt.Fprintf(os.Stderr, "\r  crawling [%d fetched, %d queued] %s", done, queued, truncate(pageURL, 60))
+			}
+		}
+		chunks, err := knowledge.IngestWeb(*urlFlag, opts, progress)
+		if !*jsonOut {
+			fmt.Fprintln(os.Stderr) // newline after progress line
+		}
+		if err != nil {
+			fatalf("crawl: %v", err)
+		}
+		var ids []int64
+		for _, ch := range chunks {
+			id, err := knowledge.Add(db, ch.Title, ch.Content, *docType, *meta, nil)
+			if err != nil {
+				fatalf("add chunk: %v", err)
+			}
+			ids = append(ids, id)
+		}
+		if *jsonOut {
+			json.NewEncoder(os.Stdout).Encode(map[string]any{"ids": ids, "chunks": len(ids), "pages": fetched})
+		} else {
+			fmt.Fprintf(os.Stderr, "ingested %d chunks from %d pages (%s)\n", len(ids), fetched, *urlFlag)
+		}
+		return
+	}
 
 	if *file != "" {
 		opts := knowledge.ChunkOpts{MaxRunes: *chunkSize, OverlapRunes: *chunkOverlap}
@@ -302,12 +339,20 @@ Usage:
   docsearch [--db <path>] init
   docsearch [--db <path>] add    --title <t> --content <c> [--type <t>] [--meta <json>] [--embedding <floats>] [--json]
   docsearch [--db <path>] add    --file <path.txt|md|pdf>  [--type <t>] [--chunk-size N] [--chunk-overlap N] [--json]
+  docsearch [--db <path>] add    --url  <https://...>      [--type <t>] [--chunk-size N] [--max-pages N] [--json]
   docsearch [--db <path>] search --query <q>               [--embedding <floats>] [--mode fts|vec|hybrid] [--metric cosine|l2] [--filter-type <type>] [--limit N] [--json]
   docsearch [--db <path>] count  [--json]
 
 Default --db: .knowledge/docs.sqlite
 Embedding format: comma-separated float32 values, e.g. "0.1,0.2,0.3" or "[0.1,0.2,0.3]"
 `)
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n-3] + "..."
 }
 
 func fatalf(format string, args ...any) {
