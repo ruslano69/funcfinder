@@ -23,6 +23,7 @@ Builds 5 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`.
 | `callgraph` | Who calls whom | file or dir |
 | `stat` | Call frequency & hotspots | file |
 | `complexity` | Cognitive complexity per function | file |
+| `docsearch` | Knowledge base: FTS5 + vector hybrid search | SQLite file |
 
 ---
 
@@ -87,6 +88,41 @@ cat .codemap/internal_auth.json
 # manifest.json now contains:
 # {"path": "cmd_funcfinder.json", "depends_on": ["internal.json"], ...}
 ```
+
+---
+
+## docsearch — Knowledge Base
+
+```bash
+# Initialize (creates .knowledge/docs.sqlite by default)
+./docsearch init
+./docsearch --db /path/to/custom.sqlite init
+
+# Add a document (plain text, no embedding)
+./docsearch add --title "Title" --content "..." --type general
+
+# Add with embedding (float32 comma-separated, e.g. from Ollama)
+./docsearch add --title "Error: connection refused" --content "..." --type error \
+  --embedding "0.12,0.34,..." --meta '{"scenario":"db-setup"}'
+
+# FTS keyword search
+./docsearch search --query "candidate storage" --mode fts
+
+# Semantic vector search
+./docsearch search --embedding "0.12,0.34,..." --mode vec
+
+# Hybrid (default) — FTS + vector, Reciprocal Rank Fusion
+./docsearch search --query "connection error" --embedding "0.12,0.34,..." --limit 5 --json
+
+# Count total documents
+./docsearch count
+```
+
+**Document types**: `general`, `tool_usage`, `error`, `scenario` (or any custom string).
+
+**Hybrid mode**: RRF combines BM25 ranks and cosine ranks. Pass both `--query` and `--embedding` for best results. Without an embedding, falls back to FTS only; without a query, falls back to vector only.
+
+**Embedding source**: generate externally (Ollama, OpenAI, local model) and pass as `--embedding`. The tool stores and retrieves — it does not generate.
 
 ---
 
@@ -414,5 +450,6 @@ When the user requests a durable behavior change, record it here or in the relev
 - `docs/` → User-facing documentation and usage examples — see [docs/AGENTS.md](docs/AGENTS.md)
 - `examples/` → Shell script usage examples and swe-agent integration workflows — see [examples/AGENTS.md](examples/AGENTS.md)
 - `skills/` → Claude Code skill definition for funcfinder — see [skills/AGENTS.md](skills/AGENTS.md)
+- `internal/knowledge/` → SQLite knowledge base package (FTS5 + vector hybrid) — see [internal/knowledge/AGENTS.md](internal/knowledge/AGENTS.md)
 - `test_examples/` → Multi-language source fixtures used by parser tests — see [test_examples/AGENTS.md](test_examples/AGENTS.md)
 - `test_files/` → Edge-case source fixtures (raw strings, docstrings, verbatim literals) — see [test_files/AGENTS.md](test_files/AGENTS.md)

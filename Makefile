@@ -6,7 +6,7 @@
 # Bump VERSION_BASE manually only for major/minor releases.
 VERSION_BASE := 1.6
 VERSION := $(VERSION_BASE).$(shell git rev-list --count HEAD)
-BINARIES := funcfinder stat deps complexity findstruct
+BINARIES := funcfinder stat deps complexity findstruct docsearch
 BUILD_DIR := build
 DIST_DIR := dist
 GO := go
@@ -45,6 +45,8 @@ build:
 	@echo "  ✓ complexity"
 	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o findstruct ./cmd/findstruct
 	@echo "  ✓ findstruct"
+	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o docsearch ./cmd/docsearch
+	@echo "  ✓ docsearch"
 	@echo "$(COLOR_GREEN)✅ All binaries built successfully!$(COLOR_RESET)"
 
 ## build-all: Build binaries for all platforms
@@ -71,6 +73,7 @@ install: build
 	@sudo cp deps /usr/local/bin/
 	@sudo cp complexity /usr/local/bin/
 	@sudo cp findstruct /usr/local/bin/
+	@sudo cp docsearch /usr/local/bin/
 	@echo "$(COLOR_GREEN)✅ Installation complete!$(COLOR_RESET)"
 
 ## uninstall: Remove binaries from /usr/local/bin
@@ -81,6 +84,7 @@ uninstall:
 	@sudo rm -f /usr/local/bin/deps
 	@sudo rm -f /usr/local/bin/complexity
 	@sudo rm -f /usr/local/bin/findstruct
+	@sudo rm -f /usr/local/bin/docsearch
 	@echo "$(COLOR_GREEN)✅ Uninstallation complete!$(COLOR_RESET)"
 
 ##@ Testing
