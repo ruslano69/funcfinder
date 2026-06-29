@@ -25,6 +25,13 @@ func sectionsToChunks(sections []docSection, source string, opts ChunkOpts) []Ch
 }
 
 func chunkSection(sec docSection, source string, opts ChunkOpts) []Chunk {
+	// Expand paragraphs that individually exceed MaxRunes into word-sized pieces
+	// so that e.g. a PDF page extracted as one long text block is still split.
+	expandedParas := make([]string, 0, len(sec.paras))
+	for _, p := range sec.paras {
+		expandedParas = append(expandedParas, splitLongParagraph(p, opts.MaxRunes)...)
+	}
+
 	var chunks []Chunk
 	var acc []string
 	accRunes := 0
@@ -49,7 +56,7 @@ func chunkSection(sec docSection, source string, opts ChunkOpts) []Chunk {
 		})
 	}
 
-	for _, para := range sec.paras {
+	for _, para := range expandedParas {
 		paraRunes := utf8.RuneCountInString(para)
 		// If adding this paragraph overflows AND we already have content, flush first.
 		if accRunes+paraRunes > opts.MaxRunes && accRunes > 0 {
@@ -90,6 +97,46 @@ func splitParagraphs(text string) []string {
 		}
 	}
 	return out
+}
+
+// splitLongParagraph splits a single paragraph that exceeds maxRunes into
+// smaller pieces at whitespace boundaries (spaces or newlines). Used to
+// handle e.g. PDF pages extracted as one large text block.
+func splitLongParagraph(para string, maxRunes int) []string {
+	if maxRunes <= 0 {
+		return []string{para}
+	}
+	runes := []rune(para)
+	if len(runes) <= maxRunes {
+		return []string{para}
+	}
+	var parts []string
+	start := 0
+	for start < len(runes) {
+		end := start + maxRunes
+		if end >= len(runes) {
+			parts = append(parts, string(runes[start:]))
+			break
+		}
+		// Find last whitespace in [start, end) to avoid mid-word splits.
+		split := -1
+		for i := end - 1; i >= start; i-- {
+			if runes[i] == ' ' || runes[i] == '\n' {
+				split = i
+				break
+			}
+		}
+		if split == -1 {
+			// No whitespace in window — hard split at maxRunes.
+			split = end
+			parts = append(parts, string(runes[start:split]))
+			start = split
+		} else {
+			parts = append(parts, string(runes[start:split]))
+			start = split + 1
+		}
+	}
+	return parts
 }
 
 // splitParagraphsMD is like splitParagraphs but treats fenced code blocks as
