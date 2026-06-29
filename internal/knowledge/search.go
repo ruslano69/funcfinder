@@ -3,9 +3,25 @@ package knowledge
 import (
 	"database/sql"
 	"sort"
+	"strings"
 )
 
-// SearchFTS performs full-text search using FTS5 / BM25.
+// Metric selects the distance function used for vector search.
+type Metric string
+
+const (
+	MetricCosine Metric = "cosine"
+	MetricL2     Metric = "l2"
+)
+
+func (m Metric) sqlFunc() string {
+	if m == MetricL2 {
+		return "vec_distance_l2"
+	}
+	return "vec_distance_cosine"
+}
+
+// SearchFTS performs full-text keyword search via FTS5 / BM25.
 func SearchFTS(db *sql.DB, query string, limit int) ([]Result, error) {
 	rows, err := db.Query(`
 		SELECT d.id, d.title, d.content, d.type, d.created_at, d.metadata,
@@ -35,57 +51,52 @@ func SearchFTS(db *sql.DB, query string, limit int) ([]Result, error) {
 	return results, rows.Err()
 }
 
-// SearchVec performs vector similarity search using cosine distance.
-// It loads all stored embeddings and computes distances in Go.
-func SearchVec(db *sql.DB, embedding []float32, limit int) ([]Result, error) {
-	rows, err := db.Query(`
+// SearchVec performs vector similarity search. The distance function runs
+// inside SQLite via a registered custom function — no bulk BLOB loading into Go.
+// Pass docType="" to search all types; pass a non-empty string to pre-filter.
+func SearchVec(db *sql.DB, embedding []float32, limit int, metric Metric, docType string) ([]Result, error) {
+	blob := float32SliceToBlob(embedding)
+	fn := metric.sqlFunc()
+
+	var sb strings.Builder
+	sb.WriteString(`
 		SELECT d.id, d.title, d.content, d.type, d.created_at, d.metadata,
-		       v.embedding
+		       ` + fn + `(v.embedding, ?) AS dist
 		FROM docs d
 		JOIN docs_vec v ON v.doc_id = d.id
 	`)
+
+	args := []any{blob}
+	if docType != "" {
+		sb.WriteString(" WHERE d.type = ?")
+		args = append(args, docType)
+	}
+	sb.WriteString(" ORDER BY dist LIMIT ?")
+	args = append(args, limit)
+
+	rows, err := db.Query(sb.String(), args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	type scored struct {
-		Result
-		dist float64
-	}
-	var all []scored
+	var results []Result
 	for rows.Next() {
 		var r Result
-		var blob []byte
 		if err = rows.Scan(
 			&r.ID, &r.Title, &r.Content, &r.Type, &r.CreatedAt, &r.Metadata,
-			&blob,
+			&r.VecDist,
 		); err != nil {
 			return nil, err
 		}
-		dist := cosineDistance(embedding, blobToFloat32Slice(blob))
-		all = append(all, scored{r, dist})
+		results = append(results, r)
 	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	sort.Slice(all, func(i, j int) bool { return all[i].dist < all[j].dist })
-	if limit > 0 && len(all) > limit {
-		all = all[:limit]
-	}
-
-	results := make([]Result, len(all))
-	for i, s := range all {
-		results[i] = s.Result
-		results[i].VecDist = s.dist
-	}
-	return results, nil
+	return results, rows.Err()
 }
 
 // SearchHybrid combines FTS5 and vector results via Reciprocal Rank Fusion.
-// Pass an empty query to skip FTS; pass a nil/empty embedding to skip vector.
-func SearchHybrid(db *sql.DB, query string, embedding []float32, limit int) ([]Result, error) {
+// Pass query="" to skip FTS; pass nil/empty embedding to skip vector.
+func SearchHybrid(db *sql.DB, query string, embedding []float32, limit int, metric Metric, docType string) ([]Result, error) {
 	const rrfK = 60
 	fetch := limit * 3
 	if fetch < 30 {
@@ -107,7 +118,7 @@ func SearchHybrid(db *sql.DB, query string, embedding []float32, limit int) ([]R
 	}
 
 	if len(embedding) > 0 {
-		vec, err := SearchVec(db, embedding, fetch)
+		vec, err := SearchVec(db, embedding, fetch, metric, docType)
 		if err != nil {
 			return nil, err
 		}

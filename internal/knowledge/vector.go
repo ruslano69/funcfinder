@@ -1,9 +1,46 @@
 package knowledge
 
 import (
+	"database/sql/driver"
 	"encoding/binary"
+	"fmt"
 	"math"
+
+	sqlite "modernc.org/sqlite"
 )
+
+func init() {
+	sqlite.MustRegisterDeterministicScalarFunction("vec_distance_cosine", 2, sqlVecDistanceCosine)
+	sqlite.MustRegisterDeterministicScalarFunction("vec_distance_l2", 2, sqlVecDistanceL2)
+}
+
+func sqlVecDistanceCosine(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+	a, b, err := blobArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	return cosineDistance(a, b), nil
+}
+
+func sqlVecDistanceL2(_ *sqlite.FunctionContext, args []driver.Value) (driver.Value, error) {
+	a, b, err := blobArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	return l2Distance(a, b), nil
+}
+
+func blobArgs(args []driver.Value) ([]float32, []float32, error) {
+	ba, ok := args[0].([]byte)
+	if !ok {
+		return nil, nil, fmt.Errorf("arg 0: expected BLOB, got %T", args[0])
+	}
+	bb, ok := args[1].([]byte)
+	if !ok {
+		return nil, nil, fmt.Errorf("arg 1: expected BLOB, got %T", args[1])
+	}
+	return blobToFloat32Slice(ba), blobToFloat32Slice(bb), nil
+}
 
 func float32SliceToBlob(v []float32) []byte {
 	b := make([]byte, len(v)*4)
@@ -23,7 +60,7 @@ func blobToFloat32Slice(b []byte) []float32 {
 }
 
 // cosineDistance returns 1 - cosine_similarity(a, b).
-// Returns 1.0 (maximum distance) for zero vectors or length mismatches.
+// Returns 1.0 for zero vectors or length mismatches.
 func cosineDistance(a, b []float32) float64 {
 	if len(a) == 0 || len(a) != len(b) {
 		return 1.0
@@ -39,4 +76,18 @@ func cosineDistance(a, b []float32) float64 {
 		return 1.0
 	}
 	return 1.0 - dot/(math.Sqrt(normA)*math.Sqrt(normB))
+}
+
+// l2Distance returns the Euclidean distance between a and b.
+// Returns +Inf for zero-length or mismatched vectors.
+func l2Distance(a, b []float32) float64 {
+	if len(a) == 0 || len(a) != len(b) {
+		return math.Inf(1)
+	}
+	var sum float64
+	for i := range a {
+		d := float64(a[i]) - float64(b[i])
+		sum += d * d
+	}
+	return math.Sqrt(sum)
 }

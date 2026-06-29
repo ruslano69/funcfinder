@@ -10,7 +10,7 @@ stat
 deps
 complexity
 callgraph
-docsearch
+/docsearch
 dist/
 
 # Test binary, built with `go test -c`

@@ -111,12 +111,19 @@ func runSearch(dbPath string, args []string) {
 	query := fs.String("query", "", "FTS query string")
 	embeddingRaw := fs.String("embedding", "", "comma-separated float32 values")
 	mode := fs.String("mode", "hybrid", "search mode: fts|vec|hybrid")
+	metricRaw := fs.String("metric", "cosine", "distance metric: cosine|l2 (vec/hybrid modes)")
+	filterType := fs.String("filter-type", "", "pre-filter by document type before vector search")
 	limit := fs.Int("limit", 10, "maximum results")
 	jsonOut := fs.Bool("json", false, "output JSON")
 	fs.Parse(args)
 
 	if *query == "" && *embeddingRaw == "" {
 		fatalf("--query or --embedding required")
+	}
+
+	metric := knowledge.MetricCosine
+	if *metricRaw == "l2" {
+		metric = knowledge.MetricL2
 	}
 
 	db, err := knowledge.Open(dbPath)
@@ -134,9 +141,9 @@ func runSearch(dbPath string, args []string) {
 		if len(emb) == 0 {
 			fatalf("--embedding required for vec mode")
 		}
-		results, err = knowledge.SearchVec(db, emb, *limit)
+		results, err = knowledge.SearchVec(db, emb, *limit, metric, *filterType)
 	default:
-		results, err = knowledge.SearchHybrid(db, *query, emb, *limit)
+		results, err = knowledge.SearchHybrid(db, *query, emb, *limit, metric, *filterType)
 	}
 	if err != nil {
 		fatalf("search: %v", err)
@@ -240,7 +247,7 @@ Actions:
 Usage:
   docsearch [--db <path>] init
   docsearch [--db <path>] add    --title <t> --content <c> [--type <t>] [--meta <json>] [--embedding <floats>] [--json]
-  docsearch [--db <path>] search --query <q>               [--embedding <floats>] [--mode fts|vec|hybrid] [--limit N] [--json]
+  docsearch [--db <path>] search --query <q>               [--embedding <floats>] [--mode fts|vec|hybrid] [--metric cosine|l2] [--filter-type <type>] [--limit N] [--json]
   docsearch [--db <path>] count  [--json]
 
 Default --db: .knowledge/docs.sqlite
