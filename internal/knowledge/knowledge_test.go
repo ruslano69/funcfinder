@@ -42,12 +42,106 @@ func TestFTSSearch(t *testing.T) {
 	Add(db, "storage docs", "how to store candidate data in sqlite", "general", "{}", nil)
 	Add(db, "network errors", "connection refused check the port and host", "error", "{}", nil)
 
-	results, err := SearchFTS(db, "candidate", 10)
+	results, err := SearchFTS(db, "candidate", 10, false)
 	if err != nil {
 		t.Fatalf("SearchFTS: %v", err)
 	}
 	if len(results) != 1 || results[0].Title != "storage docs" {
 		t.Fatalf("unexpected results: %v", results)
+	}
+}
+
+func TestBuildFTSQuery_Prefix(t *testing.T) {
+	cases := []struct {
+		in     string
+		prefix bool
+		want   string
+	}{
+		{"call graph", true, `"call"* "graph"*`},
+		{"call graph", false, "call graph"},
+		// existing wildcard — kept as-is
+		{"call*", true, "call*"},
+		// explicit boolean — passed through unchanged
+		{`"exact phrase"`, true, `"exact phrase"`},
+		{"sqlite AND fts", true, "sqlite AND fts"},
+		// token with a double-quote inside — escaped
+		{`O"Brien`, true, `"O""Brien"*`},
+	}
+	for _, c := range cases {
+		got := BuildFTSQuery(c.in, c.prefix)
+		if got != c.want {
+			t.Errorf("BuildFTSQuery(%q, %v) = %q, want %q", c.in, c.prefix, got, c.want)
+		}
+	}
+}
+
+func TestFTSSearch_Prefix(t *testing.T) {
+	db := openDB(t)
+	// Content has "callgraph" as a single token — "call" alone won't match without prefix.
+	Add(db, "callgraph tool", "builds callgraph for go source", "general", "{}", nil)
+	Add(db, "network errors", "connection refused check the port", "error", "{}", nil)
+
+	// "call" alone should NOT match with prefix=false (FTS5 needs exact token)
+	res, err := SearchFTS(db, "call", 10, false)
+	if err != nil {
+		t.Fatalf("SearchFTS no-prefix: %v", err)
+	}
+	if len(res) != 0 {
+		t.Errorf("expected 0 results without prefix, got %d", len(res))
+	}
+
+	// with prefix=true "call" → "call"* and should match "callgraph"
+	res, err = SearchFTS(db, "call", 10, true)
+	if err != nil {
+		t.Fatalf("SearchFTS prefix: %v", err)
+	}
+	if len(res) != 1 || res[0].Title != "callgraph tool" {
+		t.Errorf("expected 'callgraph tool', got %v", res)
+	}
+}
+
+func TestSearchRegex(t *testing.T) {
+	db := openDB(t)
+	Add(db, "auth handler", "JWT token is validated in AuthMiddleware function", "general", "{}", nil)
+	Add(db, "db layer", "Open connection to postgres://localhost:5432", "general", "{}", nil)
+	Add(db, "unrelated", "nothing interesting here", "general", "{}", nil)
+
+	// match Go identifier pattern in content
+	res, err := SearchRegex(db, `Auth\w+`, 10, "")
+	if err != nil {
+		t.Fatalf("SearchRegex: %v", err)
+	}
+	if len(res) != 1 || res[0].Title != "auth handler" {
+		t.Errorf("expected 'auth handler', got %v", res)
+	}
+
+	// match URL-like pattern
+	res, err = SearchRegex(db, `\w+://\S+`, 10, "")
+	if err != nil {
+		t.Fatalf("SearchRegex URL: %v", err)
+	}
+	if len(res) != 1 || res[0].Title != "db layer" {
+		t.Errorf("expected 'db layer', got %v", res)
+	}
+
+	// invalid regex returns error
+	_, err = SearchRegex(db, `[invalid`, 10, "")
+	if err == nil {
+		t.Error("expected error for invalid regex, got nil")
+	}
+}
+
+func TestSearchRegex_FilterType(t *testing.T) {
+	db := openDB(t)
+	Add(db, "auth error", "AuthError occurred", "error", "{}", nil)
+	Add(db, "auth guide", "AuthMiddleware usage guide", "general", "{}", nil)
+
+	res, err := SearchRegex(db, `Auth\w+`, 10, "error")
+	if err != nil {
+		t.Fatalf("SearchRegex filter: %v", err)
+	}
+	if len(res) != 1 || res[0].Type != "error" {
+		t.Errorf("expected 1 error doc, got %v", res)
 	}
 }
 
@@ -102,7 +196,7 @@ func TestHybridSearch(t *testing.T) {
 	Add(db, "sqlite storage", "store data in sqlite database fts5", "general", "{}", []float32{1, 0})
 	Add(db, "network fix", "fix connection refused postgres error", "error", "{}", []float32{0, 1})
 
-	results, err := SearchHybrid(db, "sqlite database", []float32{0.9, 0.1}, 5, MetricCosine, "")
+	results, err := SearchHybrid(db, "sqlite database", []float32{0.9, 0.1}, 5, MetricCosine, "", false)
 	if err != nil {
 		t.Fatalf("SearchHybrid: %v", err)
 	}
