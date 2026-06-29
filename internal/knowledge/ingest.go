@@ -32,6 +32,11 @@ func (o *ChunkOpts) withDefaults() ChunkOpts {
 	return out
 }
 
+// IngestWeb crawls a URL and returns indexable chunks. See CrawlOpts for options.
+func IngestWeb(rootURL string, opts CrawlOpts, progress CrawlProgress) ([]Chunk, error) {
+	return IngestURL(rootURL, opts, progress)
+}
+
 // IngestFile reads a .txt, .md/.markdown, or .pdf file and returns indexable chunks.
 func IngestFile(path string, opts ChunkOpts) ([]Chunk, error) {
 	opts = opts.withDefaults()
