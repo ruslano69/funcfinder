@@ -5,7 +5,6 @@
 *.so
 *.dylib
 funcfinder
-findstruct
 stat
 deps
 complexity
@@ -47,10 +46,10 @@ bin/
 *.log
 benchmark
 cmd/*/funcfinder
-cmd/*/findstruct
 cmd/*/stat
 cmd/*/deps
 cmd/*/complexity
 cmd/*/benchmark
 codebase_map.json
 .codemap/
+.knowledge/

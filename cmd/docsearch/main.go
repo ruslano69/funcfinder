@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ruslano69/funcfinder/internal"
 	"github.com/ruslano69/funcfinder/internal/knowledge"
 )
 
@@ -22,6 +23,14 @@ func main() {
 	globalFS := flag.NewFlagSet("docsearch", flag.ContinueOnError)
 	dbPath := globalFS.String("db", ".knowledge/docs.sqlite", "path to SQLite knowledge base")
 	globalFS.Usage = printUsage
+
+	// Handle --version before action parsing.
+	for _, a := range os.Args[1:] {
+		if a == "--version" || a == "-version" {
+			internal.PrintVersion("docsearch")
+			return
+		}
+	}
 
 	// Collect args up to (not including) the action word.
 	var preAction, postAction []string

@@ -1,62 +1,46 @@
 # Build script for funcfinder toolkit (PowerShell)
-# Builds: funcfinder, stat, deps, complexity
+# Builds: funcfinder, stat, deps, complexity, callgraph, docsearch
 # Usage: .\build.ps1
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "Building funcfinder toolkit v1.4.0..." -ForegroundColor Cyan
+$VersionBase = "1.7"
+$Patch = (git rev-list --count HEAD 2>$null)
+if (-not $Patch) { $Patch = "0" }
+$Version = "$VersionBase.$Patch"
+$LdFlags = "-s -w -X github.com/ruslano69/funcfinder/internal.Version=$Version"
+
+Write-Host "Building funcfinder toolkit v$Version..." -ForegroundColor Cyan
 Write-Host ""
 
-# Build funcfinder
-Write-Host "→ Building funcfinder..." -ForegroundColor Yellow
-go build -o funcfinder.exe .\cmd\funcfinder
+$Binaries = @(
+    @{ Name = "funcfinder"; Cmd = ".\cmd\funcfinder" },
+    @{ Name = "stat";       Cmd = ".\cmd\stat" },
+    @{ Name = "deps";       Cmd = ".\cmd\deps" },
+    @{ Name = "complexity"; Cmd = ".\cmd\complexity" },
+    @{ Name = "callgraph";  Cmd = ".\cmd\callgraph" },
+    @{ Name = "docsearch";  Cmd = ".\cmd\docsearch" }
+)
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "  ✓ funcfinder.exe" -ForegroundColor Green
-} else {
-    Write-Host "  ✗ funcfinder.exe failed" -ForegroundColor Red
-    exit 1
-}
-
-# Build stat
-Write-Host "→ Building stat..." -ForegroundColor Yellow
-go build -o stat.exe .\cmd\stat
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "  ✓ stat.exe" -ForegroundColor Green
-} else {
-    Write-Host "  ✗ stat.exe failed" -ForegroundColor Red
-    exit 1
-}
-
-# Build deps
-Write-Host "→ Building deps..." -ForegroundColor Yellow
-go build -o deps.exe .\cmd\deps
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "  ✓ deps.exe" -ForegroundColor Green
-} else {
-    Write-Host "  ✗ deps.exe failed" -ForegroundColor Red
-    exit 1
-}
-
-# Build complexity
-Write-Host "→ Building complexity..." -ForegroundColor Yellow
-go build -o complexity.exe .\cmd\complexity
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "  ✓ complexity.exe" -ForegroundColor Green
-} else {
-    Write-Host "  ✗ complexity.exe failed" -ForegroundColor Red
-    exit 1
+foreach ($b in $Binaries) {
+    Write-Host "-> Building $($b.Name)..." -ForegroundColor Yellow
+    go build -ldflags $LdFlags -o "$($b.Name).exe" $b.Cmd
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "   OK $($b.Name).exe" -ForegroundColor Green
+    } else {
+        Write-Host "   FAIL $($b.Name).exe" -ForegroundColor Red
+        exit 1
+    }
 }
 
 Write-Host ""
-Write-Host "✅ All binaries built successfully!" -ForegroundColor Green
+Write-Host "All binaries built successfully!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Usage:" -ForegroundColor Cyan
 Write-Host "  .\funcfinder.exe --inp file.go --source go --map"
 Write-Host "  .\stat.exe file.go -l go -n 10"
 Write-Host "  .\deps.exe . -l go -j"
 Write-Host "  .\complexity.exe file.go -l go"
+Write-Host "  .\callgraph.exe --dir . -l go"
+Write-Host "  .\docsearch.exe --db .knowledge\docs.sqlite search --query 'your query'"
 Write-Host ""
