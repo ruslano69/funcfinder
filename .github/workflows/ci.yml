@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ['1.21', '1.22', '1.23']
+        go-version: ['1.23', '1.24']
 
     steps:
     - name: Checkout code
@@ -64,7 +64,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version: '1.24'
 
     - name: Build all binaries
       run: |
@@ -77,6 +77,8 @@ jobs:
         ./stat --version
         ./deps --version
         ./complexity --version
+        ./callgraph --version
+        ./docsearch --version
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -87,6 +89,8 @@ jobs:
           stat
           deps
           complexity
+          callgraph
+          docsearch
         retention-days: 7
 
   build-windows:
@@ -101,7 +105,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version: '1.24'
 
     - name: Build Windows binaries
       run: .\build.ps1
@@ -112,6 +116,8 @@ jobs:
         .\stat.exe --version
         .\deps.exe --version
         .\complexity.exe --version
+        .\callgraph.exe --version
+        .\docsearch.exe --version
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -122,6 +128,8 @@ jobs:
           stat.exe
           deps.exe
           complexity.exe
+          callgraph.exe
+          docsearch.exe
         retention-days: 7
 
   build-macos:
@@ -136,7 +144,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version: '1.24'
 
     - name: Build macOS binaries
       run: ./build.sh
@@ -147,6 +155,8 @@ jobs:
         ./stat --version
         ./deps --version
         ./complexity --version
+        ./callgraph --version
+        ./docsearch --version
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -157,4 +167,6 @@ jobs:
           stat
           deps
           complexity
+          callgraph
+          docsearch
         retention-days: 7
