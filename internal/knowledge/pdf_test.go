@@ -200,6 +200,32 @@ func TestIngestPDF_EmptyPages(t *testing.T) {
 	}
 }
 
+func TestLooksGlued(t *testing.T) {
+	cases := []struct {
+		text string
+		want bool
+	}{
+		// Normal readable text — not glued
+		{"Left returns characters from the left side of a string.", false},
+		{"The quick brown fox jumps over the lazy dog.", false},
+		// Empty / whitespace — looksGlued returns false (nothing to fall back to)
+		{"", false},
+		{"   ", false},
+		// Fewer than 3 words but non-empty — treat as glued (can't judge quality)
+		{"LeftStrRightMid", true},
+		{"AB", true},
+		// Long average word length — classic glued symptom
+		{"LeftStr()Right()Mid()InsertString()RemoveString()FindString()", true},
+		{"CreateWindowEx(WS_OVERLAPPEDWINDOW,NULL,NULL,0,0,CW_USEDEFAULT,CW_USEDEFAULT)", true},
+	}
+	for _, c := range cases {
+		got := looksGlued(c.text)
+		if got != c.want {
+			t.Errorf("looksGlued(%q) = %v, want %v", c.text, got, c.want)
+		}
+	}
+}
+
 var chapterTopics = []string{
 	"Variables and Data Types",
 	"Control Flow Statements",

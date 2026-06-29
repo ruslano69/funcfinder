@@ -18,6 +18,8 @@ func ingestPDF(path string, opts ChunkOpts) ([]Chunk, error) {
 
 	var sections []docSection
 	total := r.NumPage()
+	// Shared font cache used only by the GetPlainText fallback path.
+	fonts := map[string]*pdf.Font{}
 
 	for i := 1; i <= total; i++ {
 		page := r.Page(i)
@@ -25,6 +27,13 @@ func ingestPDF(path string, opts ChunkOpts) ([]Chunk, error) {
 			continue
 		}
 		text := extractPageText(page)
+		// Fall back to GetPlainText when position-based extraction looks glued
+		// (average word length > 15 chars typically means W=0 in the PDF).
+		if looksGlued(text) {
+			if plain, err := page.GetPlainText(fonts); err == nil {
+				text = plain
+			}
+		}
 		if strings.TrimSpace(text) == "" {
 			continue
 		}
@@ -116,6 +125,22 @@ func extractPageText(page pdf.Page) string {
 		sb.WriteByte('\n')
 	}
 	return sb.String()
+}
+
+// looksGlued returns true when the text looks like words were concatenated
+// without spaces — a sign that all text elements had W=0 in the PDF and the
+// gap-based space insertion produced nothing useful.
+// Heuristic: fewer than 3 words OR average word length > 15 characters.
+func looksGlued(s string) bool {
+	words := strings.Fields(s)
+	if len(words) < 3 {
+		return strings.TrimSpace(s) != ""
+	}
+	total := 0
+	for _, w := range words {
+		total += len(w)
+	}
+	return total/len(words) > 15
 }
 
 // normalizeWhitespace collapses runs of spaces and trims lines.
