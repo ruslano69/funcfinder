@@ -73,17 +73,16 @@ func runInit(dbPath string) {
 
 func runAdd(dbPath string, args []string) {
 	fs := flag.NewFlagSet("add", flag.ExitOnError)
-	title := fs.String("title", "", "document title")
-	content := fs.String("content", "", "document content")
+	title := fs.String("title", "", "document title (required without --file)")
+	content := fs.String("content", "", "document content (required without --file)")
+	file := fs.String("file", "", "ingest a .txt/.md/.pdf file (splits into chunks)")
+	chunkSize := fs.Int("chunk-size", 800, "max chunk size in runes (with --file)")
+	chunkOverlap := fs.Int("chunk-overlap", 80, "overlap runes between chunks (with --file)")
 	docType := fs.String("type", "general", "document type: general|tool_usage|error|scenario")
 	meta := fs.String("meta", "{}", "document metadata as JSON")
-	embeddingRaw := fs.String("embedding", "", "comma-separated float32 values")
+	embeddingRaw := fs.String("embedding", "", "comma-separated float32 values (single doc only)")
 	jsonOut := fs.Bool("json", false, "output JSON")
 	fs.Parse(args)
-
-	if *title == "" || *content == "" {
-		fatalf("--title and --content are required")
-	}
 
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		fatalf("mkdir: %v", err)
@@ -94,6 +93,31 @@ func runAdd(dbPath string, args []string) {
 	}
 	defer db.Close()
 
+	if *file != "" {
+		opts := knowledge.ChunkOpts{MaxRunes: *chunkSize, OverlapRunes: *chunkOverlap}
+		chunks, err := knowledge.IngestFile(*file, opts)
+		if err != nil {
+			fatalf("ingest: %v", err)
+		}
+		var ids []int64
+		for _, ch := range chunks {
+			id, err := knowledge.Add(db, ch.Title, ch.Content, *docType, *meta, nil)
+			if err != nil {
+				fatalf("add chunk: %v", err)
+			}
+			ids = append(ids, id)
+		}
+		if *jsonOut {
+			json.NewEncoder(os.Stdout).Encode(map[string]any{"ids": ids, "chunks": len(ids)})
+		} else {
+			fmt.Fprintf(os.Stderr, "ingested %d chunks from %s\n", len(ids), *file)
+		}
+		return
+	}
+
+	if *title == "" || *content == "" {
+		fatalf("--title and --content are required (or use --file)")
+	}
 	emb := parseEmbedding(*embeddingRaw)
 	id, err := knowledge.Add(db, *title, *content, *docType, *meta, emb)
 	if err != nil {
@@ -247,6 +271,7 @@ Actions:
 Usage:
   docsearch [--db <path>] init
   docsearch [--db <path>] add    --title <t> --content <c> [--type <t>] [--meta <json>] [--embedding <floats>] [--json]
+  docsearch [--db <path>] add    --file <path.txt|md|pdf>  [--type <t>] [--chunk-size N] [--chunk-overlap N] [--json]
   docsearch [--db <path>] search --query <q>               [--embedding <floats>] [--mode fts|vec|hybrid] [--metric cosine|l2] [--filter-type <type>] [--limit N] [--json]
   docsearch [--db <path>] count  [--json]
 
