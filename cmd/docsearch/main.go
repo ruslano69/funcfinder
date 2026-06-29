@@ -141,12 +141,13 @@ func runAdd(dbPath string, args []string) {
 
 func runSearch(dbPath string, args []string) {
 	fs := flag.NewFlagSet("search", flag.ExitOnError)
-	query := fs.String("query", "", "FTS query string")
+	query := fs.String("query", "", "FTS/regex query string")
 	embeddingRaw := fs.String("embedding", "", "comma-separated float32 values")
-	mode := fs.String("mode", "hybrid", "search mode: fts|vec|hybrid")
+	mode := fs.String("mode", "hybrid", "search mode: fts|vec|hybrid|regex")
 	metricRaw := fs.String("metric", "cosine", "distance metric: cosine|l2 (vec/hybrid modes)")
-	filterType := fs.String("filter-type", "", "pre-filter by document type before vector search")
+	filterType := fs.String("filter-type", "", "pre-filter by document type before vector or regex search")
 	limit := fs.Int("limit", 10, "maximum results")
+	prefix := fs.Bool("prefix", true, "auto-append wildcard to FTS tokens (e.g. call → call*)")
 	jsonOut := fs.Bool("json", false, "output JSON")
 	fs.Parse(args)
 
@@ -169,14 +170,19 @@ func runSearch(dbPath string, args []string) {
 	var results []knowledge.Result
 	switch *mode {
 	case "fts":
-		results, err = knowledge.SearchFTS(db, *query, *limit)
+		results, err = knowledge.SearchFTS(db, *query, *limit, *prefix)
 	case "vec":
 		if len(emb) == 0 {
 			fatalf("--embedding required for vec mode")
 		}
 		results, err = knowledge.SearchVec(db, emb, *limit, metric, *filterType)
+	case "regex":
+		if *query == "" {
+			fatalf("--query required for regex mode")
+		}
+		results, err = knowledge.SearchRegex(db, *query, *limit, *filterType)
 	default:
-		results, err = knowledge.SearchHybrid(db, *query, emb, *limit, metric, *filterType)
+		results, err = knowledge.SearchHybrid(db, *query, emb, *limit, metric, *filterType, *prefix)
 	}
 	if err != nil {
 		fatalf("search: %v", err)

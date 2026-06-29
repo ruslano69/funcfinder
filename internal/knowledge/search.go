@@ -2,6 +2,7 @@ package knowledge
 
 import (
 	"database/sql"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -21,8 +22,52 @@ func (m Metric) sqlFunc() string {
 	return "vec_distance_cosine"
 }
 
+// BuildFTSQuery transforms a plain query string into an FTS5 MATCH expression.
+//
+// Rules:
+//   - Tokens that look like raw FTS5 operators (AND, OR, NOT, quoted phrases,
+//     existing prefix wildcards) are passed through unchanged so callers can
+//     write explicit boolean queries.
+//   - All other plain tokens get a trailing "*" (prefix match) when prefix=true,
+//     so "call graph" → "call* graph*" and matches callgraph, callback, etc.
+//   - Special FTS5 characters inside plain tokens are escaped with double-quotes
+//     so they don't corrupt the MATCH syntax.
+func BuildFTSQuery(query string, prefix bool) string {
+	// If the query looks like an explicit FTS5 expression, return it as-is:
+	// starts with a phrase quote, contains grouping parens, or uses boolean operators.
+	trimmed := strings.TrimSpace(query)
+	if strings.HasPrefix(trimmed, `"`) ||
+		strings.ContainsAny(trimmed, `()`) ||
+		strings.Contains(trimmed, " AND ") ||
+		strings.Contains(trimmed, " OR ") ||
+		strings.Contains(trimmed, " NOT ") {
+		return trimmed
+	}
+
+	if !prefix {
+		return trimmed
+	}
+
+	tokens := strings.Fields(trimmed)
+	out := make([]string, 0, len(tokens))
+	for _, tok := range tokens {
+		// Already has wildcard or is a bare operator word — keep as-is.
+		if strings.HasSuffix(tok, "*") || tok == "AND" || tok == "OR" || tok == "NOT" {
+			out = append(out, tok)
+			continue
+		}
+		// Escape any FTS5-special characters by wrapping in double quotes,
+		// then append the prefix wildcard outside the quotes.
+		safe := `"` + strings.ReplaceAll(tok, `"`, `""`) + `"` + "*"
+		out = append(out, safe)
+	}
+	return strings.Join(out, " ")
+}
+
 // SearchFTS performs full-text keyword search via FTS5 / BM25.
-func SearchFTS(db *sql.DB, query string, limit int) ([]Result, error) {
+// Set prefix=true to automatically append wildcard "*" to each plain token.
+func SearchFTS(db *sql.DB, query string, limit int, prefix bool) ([]Result, error) {
+	ftsQuery := BuildFTSQuery(query, prefix)
 	rows, err := db.Query(`
 		SELECT d.id, d.title, d.content, d.type, d.created_at, d.metadata,
 		       bm25(docs_fts) AS rank
@@ -31,7 +76,7 @@ func SearchFTS(db *sql.DB, query string, limit int) ([]Result, error) {
 		WHERE docs_fts MATCH ?
 		ORDER BY rank
 		LIMIT ?
-	`, query, limit)
+	`, ftsQuery, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -94,9 +139,50 @@ func SearchVec(db *sql.DB, embedding []float32, limit int, metric Metric, docTyp
 	return results, rows.Err()
 }
 
+// SearchRegex scans all documents and returns those whose title or content
+// matches the Go regular expression pattern. Results are ordered by title.
+// docType="" matches all types.
+func SearchRegex(db *sql.DB, pattern string, limit int, docType string) ([]Result, error) {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	var sb strings.Builder
+	sb.WriteString(`SELECT id, title, content, type, created_at, metadata FROM docs`)
+	args := []any{}
+	if docType != "" {
+		sb.WriteString(" WHERE type = ?")
+		args = append(args, docType)
+	}
+	sb.WriteString(" ORDER BY id")
+
+	rows, err := db.Query(sb.String(), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []Result
+	for rows.Next() {
+		var r Result
+		if err = rows.Scan(&r.ID, &r.Title, &r.Content, &r.Type, &r.CreatedAt, &r.Metadata); err != nil {
+			return nil, err
+		}
+		if re.MatchString(r.Title) || re.MatchString(r.Content) {
+			results = append(results, r)
+			if limit > 0 && len(results) >= limit {
+				break
+			}
+		}
+	}
+	return results, rows.Err()
+}
+
 // SearchHybrid combines FTS5 and vector results via Reciprocal Rank Fusion.
 // Pass query="" to skip FTS; pass nil/empty embedding to skip vector.
-func SearchHybrid(db *sql.DB, query string, embedding []float32, limit int, metric Metric, docType string) ([]Result, error) {
+// prefix controls whether plain FTS tokens get auto-wildcard expansion.
+func SearchHybrid(db *sql.DB, query string, embedding []float32, limit int, metric Metric, docType string, prefix bool) ([]Result, error) {
 	const rrfK = 60
 	fetch := limit * 3
 	if fetch < 30 {
@@ -107,7 +193,7 @@ func SearchHybrid(db *sql.DB, query string, embedding []float32, limit int, metr
 	byID := map[int64]Result{}
 
 	if query != "" {
-		fts, err := SearchFTS(db, query, fetch)
+		fts, err := SearchFTS(db, query, fetch, prefix)
 		if err != nil {
 			return nil, err
 		}
