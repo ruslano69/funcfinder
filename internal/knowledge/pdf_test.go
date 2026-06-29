@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"errors"
 	"fmt"
 	"go/build"
 	"os"
@@ -196,6 +197,123 @@ func TestIngestPDF_EmptyPages(t *testing.T) {
 	for _, c := range chunks {
 		if strings.TrimSpace(c.Content) == "" {
 			t.Error("chunk with empty content returned for blank page")
+		}
+	}
+}
+
+func TestPageTextQuality(t *testing.T) {
+	cases := []struct {
+		name    string
+		text    string
+		wantMin float64
+		wantMax float64
+	}{
+		{
+			name:    "good prose",
+			text:    "The quick brown fox jumps over the lazy dog. This is a normal sentence with readable words.",
+			wantMin: 0.8, wantMax: 1.0,
+		},
+		{
+			name:    "code sample",
+			text:    "Result$ = Left(String$, Length)\nDebug InsertString(\"Hello\", \"World\", 7)",
+			wantMin: 0.5, wantMax: 1.0,
+		},
+		{
+			name:    "spaced-out OCR (T e x t)",
+			text:    "T h e   q u i c k   b r o w n   f o x   j u m p s   o v e r   t h e   l a z y   d o g",
+			wantMin: 0.0, wantMax: 0.44,
+		},
+		{
+			name:    "garbage symbols",
+			text:    "ÃÂ©â€™â€œâ€ □■▪▫ \x00\x01\x02 ÃÂ©â€™ □■ ÃÂ© â€™",
+			wantMin: 0.0, wantMax: 0.44, // below minOCRQuality threshold (0.45)
+		},
+		{
+			name:    "empty",
+			text:    "",
+			wantMin: 0.0, wantMax: 0.0,
+		},
+		{
+			name:    "mixed bad OCR",
+			text:    "F i l e N a m e $ = G e t F i l e N a m e ( ) R e s u l t = O p e n F i l e ( F i l e N a m e $ )",
+			wantMin: 0.0, wantMax: 0.44,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := pageTextQuality(c.text)
+			if got < c.wantMin || got > c.wantMax {
+				t.Errorf("pageTextQuality = %.3f, want [%.2f, %.2f]", got, c.wantMin, c.wantMax)
+			}
+		})
+	}
+}
+
+func TestOCRQualityError_GoodPDF(t *testing.T) {
+	// A synthetic PDF with normal text should pass OCR quality check.
+	path := filepath.Join(t.TempDir(), "good.pdf")
+	if err := generatePDFWithStreamFn(path, 20, buildPageStream); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	_, err := IngestFile(path, ChunkOpts{})
+	if err != nil {
+		t.Errorf("expected no error for good PDF, got: %v", err)
+	}
+}
+
+func TestOCRQualityError_BadOCR(t *testing.T) {
+	// A synthetic PDF where every page is spaced-out OCR garbage.
+	path := filepath.Join(t.TempDir(), "bad_ocr.pdf")
+	badStream := func(_ int) string {
+		// Simulate spaced-out OCR: each letter separated by space
+		line := "T h i s   i s   b a d   O C R   t e x t   w i t h   s p a c e d   c h a r s"
+		var sb strings.Builder
+		sb.WriteString("BT\n/F1 12 Tf\n50 750 Td\n")
+		for i := 0; i < 10; i++ {
+			sb.WriteString(fmt.Sprintf("0 -16 Td\n(%s) Tj\n", line))
+		}
+		sb.WriteString("ET\n")
+		return sb.String()
+	}
+	if err := generatePDFWithStreamFn(path, 20, badStream); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	_, err := IngestFile(path, ChunkOpts{})
+	if err == nil {
+		t.Fatal("expected OCRQualityError for bad OCR PDF, got nil")
+	}
+	var ocrErr *OCRQualityError
+	if !errors.As(err, &ocrErr) {
+		t.Fatalf("expected *OCRQualityError, got %T: %v", err, err)
+	}
+	if ocrErr.Score >= minOCRQuality {
+		t.Errorf("expected score < %.2f, got %.2f", minOCRQuality, ocrErr.Score)
+	}
+	t.Logf("bad OCR score: %.3f", ocrErr.Score)
+}
+
+func TestLooksGlued(t *testing.T) {
+	cases := []struct {
+		text string
+		want bool
+	}{
+		// Normal readable text — not glued
+		{"Left returns characters from the left side of a string.", false},
+		{"The quick brown fox jumps over the lazy dog.", false},
+		// Empty / whitespace — looksGlued returns false (nothing to fall back to)
+		{"", false},
+		{"   ", false},
+		// Fewer than 3 words but non-empty — treat as glued (can't judge quality)
+		{"LeftStrRightMid", true},
+		{"AB", true},
+		// Long average word length — classic glued symptom
+		{"LeftStr()Right()Mid()InsertString()RemoveString()FindString()", true},
+		{"CreateWindowEx(WS_OVERLAPPEDWINDOW,NULL,NULL,0,0,CW_USEDEFAULT,CW_USEDEFAULT)", true},
+	}
+	for _, c := range cases {
+		got := looksGlued(c.text)
+		if got != c.want {
+			t.Errorf("looksGlued(%q) = %v, want %v", c.text, got, c.want)
 		}
 	}
 }

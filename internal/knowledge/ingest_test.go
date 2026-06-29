@@ -7,6 +7,37 @@ import (
 	"testing"
 )
 
+func TestHasRepetitiveRuns(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		want bool
+	}{
+		// TOC lines with dot leaders — should be filtered
+		{"dot leaders spaced", "StartFingerprint . . . . . . . . . . . . . . . 474", true},
+		{"dot leaders dense", "StartFingerprint................474", true},
+		{"dash line", "--------------------------------", true},
+		{"mixed TOC", "99.4 Alpha . . . . . . . . . . . . . . . 346\n99.5 RGB . . . . . . . . . . . . . 346", true},
+
+		// Good content — should NOT be filtered
+		{"normal prose", "StartFingerprint initialises a fingerprint calculation.", false},
+		{"code sample", "Result = StartFingerprint(0, #PB_Cipher_MD5)", false},
+		{"short sentence", "Returns nonzero if the key was generated.", false},
+		// Dots in URLs / ellipsis are fine (< 25% threshold)
+		{"url", "See http://www.purebasic.com/ for details on how to use this.", false},
+		// A few dashes as separator are fine
+		{"short dash", "--- note ---", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := hasRepetitiveRuns(c.text)
+			if got != c.want {
+				t.Errorf("hasRepetitiveRuns(%q) = %v, want %v", c.text, got, c.want)
+			}
+		})
+	}
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 func writeFile(t *testing.T, name, content string) string {

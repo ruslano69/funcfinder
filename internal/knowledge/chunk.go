@@ -2,6 +2,7 @@ package knowledge
 
 import (
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -19,9 +20,82 @@ type docSection struct {
 func sectionsToChunks(sections []docSection, source string, opts ChunkOpts) []Chunk {
 	var out []Chunk
 	for _, sec := range sections {
-		out = append(out, chunkSection(sec, source, opts)...)
+		for _, ch := range chunkSection(sec, source, opts) {
+			if !hasRepetitiveRuns(ch.Content) {
+				out = append(out, ch)
+			}
+		}
 	}
 	return out
+}
+
+// hasRepetitiveRuns returns true when a chunk looks like a table of contents or
+// other low-value filler — detected by a high density of runs of the same
+// non-alphanumeric character appearing 4+ times consecutively or separated by
+// single spaces (e.g. ". . . . 374" or "--------").
+//
+// Rule: if more than 25% of the non-space runes in the content belong to such
+// repetitive runs, the chunk is considered noise and should be skipped.
+func hasRepetitiveRuns(s string) bool {
+	runes := []rune(strings.TrimSpace(s))
+	if len(runes) == 0 {
+		return false
+	}
+
+	// Count runes that are part of a repetitive run.
+	// A run is: the same non-alphanumeric rune appearing at positions i, i+1, i+2, i+3
+	// (consecutive) OR at i, i+2, i+4, i+6 (separated by single spaces).
+	inRun := make([]bool, len(runes))
+
+	markRun := func(start, step, minLen int) {
+		r := runes[start]
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return
+		}
+		count := 1
+		pos := start + step
+		for pos < len(runes) {
+			if step == 2 && pos-1 >= 0 && runes[pos-1] != ' ' {
+				break
+			}
+			if runes[pos] == r {
+				count++
+				pos += step
+			} else {
+				break
+			}
+		}
+		if count >= minLen {
+			for p := start; p < pos && p < len(runes); p += step {
+				inRun[p] = true
+				if step == 2 && p+1 < len(runes) {
+					inRun[p+1] = true // include the space between
+				}
+			}
+		}
+	}
+
+	for i := range runes {
+		markRun(i, 1, 4) // consecutive: ....
+		if i+1 < len(runes) && runes[i+1] == ' ' {
+			markRun(i, 2, 4) // spaced: . . . .
+		}
+	}
+
+	runRunes := 0
+	nonSpace := 0
+	for i, r := range runes {
+		if r != ' ' {
+			nonSpace++
+			if inRun[i] {
+				runRunes++
+			}
+		}
+	}
+	if nonSpace == 0 {
+		return false
+	}
+	return float64(runRunes)/float64(nonSpace) > 0.25
 }
 
 func chunkSection(sec docSection, source string, opts ChunkOpts) []Chunk {

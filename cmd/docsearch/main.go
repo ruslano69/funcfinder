@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -106,6 +107,20 @@ func runAdd(dbPath string, args []string) {
 		opts := knowledge.ChunkOpts{MaxRunes: *chunkSize, OverlapRunes: *chunkOverlap}
 		chunks, err := knowledge.IngestFile(*file, opts)
 		if err != nil {
+			var ocrErr *knowledge.OCRQualityError
+			if errors.As(err, &ocrErr) {
+				if *jsonOut {
+					json.NewEncoder(os.Stdout).Encode(map[string]any{
+						"error": "bad_ocr",
+						"score": ocrErr.Score,
+						"file":  ocrErr.Path,
+					})
+					os.Exit(2)
+				}
+				fmt.Fprintf(os.Stderr, "skipped: bad OCR quality in %s (score %.2f)\n", ocrErr.Path, ocrErr.Score)
+				fmt.Fprintf(os.Stderr, "hint: run OCR correction (e.g. ocrmypdf) before indexing\n")
+				os.Exit(2)
+			}
 			fatalf("ingest: %v", err)
 		}
 		var ids []int64
