@@ -38,3 +38,4 @@ CLI entrypoints for all six funcfinder tools. Each subdirectory contains a singl
 - `cmd/complexity/` — cognitive complexity scoring per function
 - `cmd/findstruct/` — struct/class extraction (legacy entrypoint, also accessible via `funcfinder --struct`)
 - `cmd/benchmark/` — internal throughput benchmark, not a user-facing tool
+- `cmd/docsearch/` — knowledge base CLI: init/add/search/count via SQLite FTS5 + vector hybrid search

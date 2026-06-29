@@ -35,4 +35,4 @@ go test -bench=. ./internal/... # run benchmarks (includes enhanced_sanitizer)
 
 ## Child DOX Index
 
-No child AGENTS.md files. All internal sub-concerns are documented in this file.
+- `internal/knowledge/` — SQLite knowledge base: FTS5 + vector hybrid search for agent memory — see [internal/knowledge/AGENTS.md](knowledge/AGENTS.md)
