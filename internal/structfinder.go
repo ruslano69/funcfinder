@@ -192,8 +192,18 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 							} else if f.config.IndentBased {
 								// Indent-based type, will find end by indentation
 								depth = 1 // Mark as inside
+							} else if typeKind == "named" || typeKind == "type_alias" {
+								// Single-line type definitions (Go `type X string`,
+								// `type X func(...)`, `type X = Y`) complete on their
+								// own line. Close immediately so they don't stay "open"
+								// and swallow following declarations while waiting for
+								// a brace that never comes.
+								currentType.End = lineNum + 1 + lineOffset
+								types = append(types, *currentType)
+								currentType = nil
 							} else {
-								// Multi-line signature, waiting for brace
+								// Multi-line signature (e.g. C++ `class Foo` with the
+								// opening brace on the next line) — wait for the brace.
 								depth = 0
 							}
 							found = true

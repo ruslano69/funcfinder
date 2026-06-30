@@ -54,11 +54,26 @@ python benchmarks/specsheet.py \
 
 | Project | Commit | Lang | Recall | Precision | Token savings | Notes |
 |---|---|---|---|---|---|---|
-| ruslano69/tdtp-framework | `4ff012e` | Go | 98.1% | 99.5% | 88.8%* | *verbose `--all --json`, chars/4 approx; higher with `--split`/compact map |
+| ruslano69/tdtp-framework | `4ff012e` | Go | 98.1% → **99.1%** | 99.5% | 88.8%* | after the defined-type fix below |
 
-**tdtp finding (cheap regex gap):** the 1.9% recall miss is almost entirely Go
-*defined types* — `type X string`, `type X func(...)`, `type X []byte` — which
-funcfinder doesn't detect because its Go `struct_type_patterns` only cover
-`struct` / `interface` / `= alias`, not named non-struct types. ~66 instances in
-tdtp. Fixable with one added pattern (community engine). Grouped `type ( … )`
-blocks are a deeper regex limit (AST-only) — a candidate for the parser tier.
+\* verbose `--all --json`, chars/4 approx; higher with `--split`/compact map.
+
+**The dovodka loop, demonstrated end-to-end on this row:**
+
+1. *Ruler found the gap.* The original 1.9% recall miss was one clean category:
+   Go *defined types* — `type X string`, `type X func(...)`, `type X []byte` —
+   which funcfinder didn't detect (its `struct_type_patterns` only covered
+   `struct` / `interface` / `= alias`). 66 instances.
+2. *Cheap regex fix (community engine).* Added a `named` pattern plus
+   single-line closing for brace-less type kinds (so they don't swallow the
+   declarations after them). Pinned by `TestGoStructFinder_DefinedTypes`.
+3. *Re-measured.* Recall **98.1% → 99.1%**, misses **66 → 30**, precision
+   unchanged at 99.5%.
+
+**The residual ~30 — where regex should stop.** It is no longer a tidy
+category: it's mostly normal functions/structs *swallowed by an upstream
+brace miscount* (e.g. a lexer with `'{'` / `'}'` char literals throwing off
+`CountBraces`). That's the harder layer — a sanitizer refinement at best, and
+otherwise exactly the "only AST gets it" territory that justifies the parser
+tier. We deliberately do **not** chase it with more regex: past here the cost
+of fixing exceeds what the missed symbols are worth to navigation.
