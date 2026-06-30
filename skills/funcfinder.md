@@ -31,13 +31,13 @@ Is the project already indexed (.codemap/ exists)?
 
 ### Small project
 ```bash
-./funcfinder --dir . --all --json > map.json
+funcfinder --dir . --all --json > map.json
 grep -i "<keyword>" map.json
 ```
 
 ### Large project
 ```bash
-./funcfinder --dir . --all --json --split
+funcfinder --dir . --all --json --split
 cat .codemap/manifest.json
 ```
 
@@ -69,13 +69,13 @@ jq '.files[] | .path as $p | .functions[] | select(.name | contains("Auth")) | {
 
 ```bash
 # Extract function body (the only time you need to read actual code)
-./funcfinder --inp auth/handler.go --source go --func AuthenticateUser --extract
+funcfinder --inp auth/handler.go --source go --func AuthenticateUser --extract
 
 # Extract multiple functions
-./funcfinder --inp auth/handler.go --source go --func "AuthenticateUser,ValidateToken" --extract
+funcfinder --inp auth/handler.go --source go --func "AuthenticateUser,ValidateToken" --extract
 
 # Extract a type/struct
-./funcfinder --inp auth/handler.go --source go --struct "User,Session" --extract
+funcfinder --inp auth/handler.go --source go --struct "User,Session" --extract
 ```
 
 **Rule**: extract only the specific function you need, not the whole file.
@@ -86,18 +86,18 @@ jq '.files[] | .path as $p | .functions[] | select(.name | contains("Auth")) | {
 
 ```bash
 # What does AuthenticateUser call?
-./callgraph --inp auth/handler.go -l go --func AuthenticateUser
+callgraph --inp auth/handler.go -l go --func AuthenticateUser
 
 # Full call tree with depth limit
-./callgraph --dir . -l go --func AuthenticateUser --depth 3
+callgraph --dir . -l go --func AuthenticateUser --depth 3
 
 # Who calls AuthenticateUser? (impact analysis)
-./callgraph --dir . -l go --reverse --func AuthenticateUser
+callgraph --dir . -l go --reverse --func AuthenticateUser
 ```
 
 Combine with deps for import-level context:
 ```bash
-./deps auth/ -l go --json
+deps auth/ -l go --json
 ```
 
 ---
@@ -108,10 +108,10 @@ Run once, reuse across sessions:
 
 ```bash
 # Build shard map
-./funcfinder --dir . --all --json --split --no-gitignore
+funcfinder --dir . --all --json --split --no-gitignore
 
 # Add inter-shard dependency graph
-./deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
+deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
 
 # Now manifest.json has depends_on per shard:
 # cmd_funcfinder.json → depends_on: [internal.json]
@@ -120,7 +120,7 @@ Run once, reuse across sessions:
 
 For TypeScript/Next.js projects (auto-detects @/ alias from tsconfig.json):
 ```bash
-./deps frontend -l ts --shards --update-manifest .codemap/manifest.json
+deps frontend -l ts --shards --update-manifest .codemap/manifest.json
 ```
 
 ---
@@ -129,13 +129,13 @@ For TypeScript/Next.js projects (auto-detects @/ alias from tsconfig.json):
 
 ```bash
 # Which functions are called most often (hotspots)
-./stat internal/finder.go -l go
+stat internal/finder.go -l go
 
 # Cognitive complexity — find the hard functions
-./complexity internal/dirprocessor.go -l go --nosimple
+complexity internal/dirprocessor.go -l go --nosimple
 
 # Import graph for one file
-./deps internal/finder.go -l go --json
+deps internal/finder.go -l go --json
 ```
 
 ---
@@ -157,7 +157,7 @@ For TypeScript/Next.js projects (auto-detects @/ alias from tsconfig.json):
 
 ```bash
 # 1. Locate (~50 tokens)
-./funcfinder --dir . --all --json --split
+funcfinder --dir . --all --json --split
 cat .codemap/manifest.json
 # → see internal_auth.json shard
 
@@ -166,10 +166,10 @@ cat .codemap/internal_auth.json
 # → AuthenticateUser at auth/handler.go:42
 
 # 3. Extract the function (~200 tokens)
-./funcfinder --inp auth/handler.go --source go --func AuthenticateUser --extract
+funcfinder --inp auth/handler.go --source go --func AuthenticateUser --extract
 
 # 4. Check impact before fixing (~100 tokens)
-./callgraph --dir . -l go --reverse --func AuthenticateUser
+callgraph --dir . -l go --reverse --func AuthenticateUser
 # → called by: LoginHandler, RefreshHandler, AdminMiddleware
 
 # Total: ~1350 tokens vs ~15000 reading files directly
@@ -193,17 +193,17 @@ cat .codemap/internal_auth.json
 
 ```bash
 # Orient
-./funcfinder --dir . --all --json --split && cat .codemap/manifest.json
+funcfinder --dir . --all --json --split && cat .codemap/manifest.json
 
 # Find
 grep -i "<name>" .codemap/<shard>.json
 
 # Extract
-./funcfinder --inp <file> --source <lang> --func <Name> --extract
+funcfinder --inp <file> --source <lang> --func <Name> --extract
 
 # Impact
-./callgraph --dir . -l <lang> --reverse --func <Name>
+callgraph --dir . -l <lang> --reverse --func <Name>
 
 # Architecture
-./deps . -l <lang> --shards --no-gitignore --update-manifest .codemap/manifest.json
+deps . -l <lang> --shards --no-gitignore --update-manifest .codemap/manifest.json
 ```

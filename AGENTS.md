@@ -33,27 +33,27 @@ Builds 5 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`.
 
 ```bash
 # 1. Orient — full map in one shot (~30ms)
-./funcfinder --dir . --all --json > map.json
+funcfinder --dir . --all --json > map.json
 
 # 2. Find the target
 grep -i "auth" map.json
 # → auth/handler.go:42: AuthenticateUser
 
 # 3. Extract the body
-./funcfinder --inp auth/handler.go --source go --func AuthenticateUser --extract
+funcfinder --inp auth/handler.go --source go --func AuthenticateUser --extract
 
 # 4. Trace who it calls
-./callgraph --inp auth/handler.go -l go --func AuthenticateUser
+callgraph --inp auth/handler.go -l go --func AuthenticateUser
 
 # 5. Trace who calls it (impact)
-./callgraph --dir . -l go --reverse --func AuthenticateUser
+callgraph --dir . -l go --reverse --func AuthenticateUser
 ```
 
 ### Large project (50+ files)
 
 ```bash
 # 1. Split into shards (one-time, ~100ms)
-./funcfinder --dir . --all --json --split
+funcfinder --dir . --all --json --split
 
 # 2. Read manifest — 2KB overview of entire codebase
 cat .codemap/manifest.json
@@ -63,16 +63,16 @@ cat .codemap/manifest.json
 cat .codemap/internal_auth.json
 
 # 4. Extract the function
-./funcfinder --inp internal/auth.go --source go --func Authenticate --extract
+funcfinder --inp internal/auth.go --source go --func Authenticate --extract
 
 # 5. Check call graph for impact
-./callgraph --dir . -l go --reverse --func Authenticate
+callgraph --dir . -l go --reverse --func Authenticate
 ```
 
 ### Incremental update (repeat sessions)
 
 ```bash
-./funcfinder --dir . --all --json --split --inc
+funcfinder --dir . --all --json --split --inc
 # INFO: Incremental: 1 shards changed, 32 unchanged
 ```
 
@@ -80,10 +80,10 @@ cat .codemap/internal_auth.json
 
 ```bash
 # Build shard map
-./funcfinder --dir . --all --json --split --no-gitignore
+funcfinder --dir . --all --json --split --no-gitignore
 
 # Add inter-shard dependency graph to manifest
-./deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
+deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
 
 # manifest.json now contains:
 # {"path": "cmd_funcfinder.json", "depends_on": ["internal.json"], ...}
@@ -95,27 +95,27 @@ cat .codemap/internal_auth.json
 
 ```bash
 # Initialize (creates .knowledge/docs.sqlite by default)
-./docsearch init
-./docsearch --db /path/to/custom.sqlite init
+docsearch init
+docsearch --db /path/to/custom.sqlite init
 
 # Add a document (plain text, no embedding)
-./docsearch add --title "Title" --content "..." --type general
+docsearch add --title "Title" --content "..." --type general
 
 # Add with embedding (float32 comma-separated, e.g. from Ollama)
-./docsearch add --title "Error: connection refused" --content "..." --type error \
+docsearch add --title "Error: connection refused" --content "..." --type error \
   --embedding "0.12,0.34,..." --meta '{"scenario":"db-setup"}'
 
 # FTS keyword search
-./docsearch search --query "candidate storage" --mode fts
+docsearch search --query "candidate storage" --mode fts
 
 # Semantic vector search
-./docsearch search --embedding "0.12,0.34,..." --mode vec
+docsearch search --embedding "0.12,0.34,..." --mode vec
 
 # Hybrid (default) — FTS + vector, Reciprocal Rank Fusion
-./docsearch search --query "connection error" --embedding "0.12,0.34,..." --limit 5 --json
+docsearch search --query "connection error" --embedding "0.12,0.34,..." --limit 5 --json
 
 # Count total documents
-./docsearch count
+docsearch count
 ```
 
 **Document types**: `general`, `tool_usage`, `error`, `scenario` (or any custom string).
@@ -130,20 +130,20 @@ cat .codemap/internal_auth.json
 
 ```bash
 # Call tree from a function (with depth)
-./callgraph --dir . -l go --func ProcessDirectory
-./callgraph --dir . -l go --func ProcessDirectory --depth 2
+callgraph --dir . -l go --func ProcessDirectory
+callgraph --dir . -l go --func ProcessDirectory --depth 2
 
 # Who calls a function (impact analysis)
-./callgraph --dir . -l go --reverse --func computeShardChecksum
+callgraph --dir . -l go --reverse --func computeShardChecksum
 
 # Full call graph, JSON
-./callgraph --dir . -l go --json
+callgraph --dir . -l go --json
 
 # Single file
-./callgraph --inp internal/finder.go -l go
+callgraph --inp internal/finder.go -l go
 
 # Include gitignore-excluded files
-./callgraph --dir . -l go --no-gitignore
+callgraph --dir . -l go --no-gitignore
 ```
 
 **Output examples:**
@@ -186,13 +186,13 @@ computeShardChecksum is called by:
 
 ```bash
 # Inter-shard graph (plain text)
-./deps . -l go --shards --no-gitignore
+deps . -l go --shards --no-gitignore
 
 # Write depends_on into manifest.json
-./deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
+deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
 
 # TypeScript with @/ alias auto-detection
-./deps frontend -l ts --shards --update-manifest .codemap/manifest.json
+deps frontend -l ts --shards --update-manifest .codemap/manifest.json
 ```
 
 ---
@@ -201,19 +201,19 @@ computeShardChecksum is called by:
 
 | Task | Command |
 |------|---------|
-| Map entire codebase | `./funcfinder --dir . --all --json` |
-| Map only functions | `./funcfinder --dir . --json` |
-| Map only types/classes | `./funcfinder --dir . --struct --json` |
-| **Split large codebase** | `./funcfinder --dir . --all --json --split` |
-| **Incremental update** | `./funcfinder --dir . --all --json --split --inc` |
-| Split by file | `./funcfinder --dir . --all --json --split --split-by file` |
-| Custom output dir | `./funcfinder --dir . --json --split --out ./analysis` |
-| Map single file | `./funcfinder --inp file.go --source go --map` |
-| Find specific function | `./funcfinder --inp file.go --source go --func Name` |
-| Extract function body | `./funcfinder --inp file.go --source go --func Name --extract` |
-| Extract named structs | `./funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract` |
-| Extract all structs | `./funcfinder --inp file.go --source go --struct --extract` |
-| Tree view | `./funcfinder --dir . --tree` |
+| Map entire codebase | `funcfinder --dir . --all --json` |
+| Map only functions | `funcfinder --dir . --json` |
+| Map only types/classes | `funcfinder --dir . --struct --json` |
+| **Split large codebase** | `funcfinder --dir . --all --json --split` |
+| **Incremental update** | `funcfinder --dir . --all --json --split --inc` |
+| Split by file | `funcfinder --dir . --all --json --split --split-by file` |
+| Custom output dir | `funcfinder --dir . --json --split --out ./analysis` |
+| Map single file | `funcfinder --inp file.go --source go --map` |
+| Find specific function | `funcfinder --inp file.go --source go --func Name` |
+| Extract function body | `funcfinder --inp file.go --source go --func Name --extract` |
+| Extract named structs | `funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract` |
+| Extract all structs | `funcfinder --inp file.go --source go --struct --extract` |
+| Tree view | `funcfinder --dir . --tree` |
 
 **Key Rules**:
 - `--dir` mode: `--map` is DEFAULT
@@ -232,40 +232,40 @@ computeShardChecksum is called by:
 
 ### 2. Missing --map in file mode
 ```bash
-./funcfinder --inp file.go --source go --map
+funcfinder --inp file.go --source go --map
 ```
 
 ### 3. Missing --source in file mode
 ```bash
-./funcfinder --inp file.go --source go --func Main
+funcfinder --inp file.go --source go --func Main
 ```
 
 ### 4. Using --struct to extract named types
 ```bash
 # Both forms work:
-./funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract
-./funcfinder --inp file.go --source go --struct --type "TypeA,TypeB" --extract
+funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract
+funcfinder --inp file.go --source go --struct --type "TypeA,TypeB" --extract
 ```
 
 ### 5. Using --split without --json
 ```bash
-./funcfinder --dir . --json --split
+funcfinder --dir . --json --split
 ```
 
 ### 6. Using --inc without existing .codemap/
 ```bash
 # First run = full scan, creates manifest
-./funcfinder --dir . --json --split --inc
+funcfinder --dir . --json --split --inc
 # Second run = incremental
-./funcfinder --dir . --json --split --inc
+funcfinder --dir . --json --split --inc
 ```
 
 ### 7. cmd/ excluded by gitignore in deps/callgraph
 ```bash
 # Bare names like "deps", "stat" in .gitignore match directories.
 # Use --no-gitignore to include cmd/ packages:
-./deps . -l go --shards --no-gitignore
-./callgraph --dir . -l go --no-gitignore
+deps . -l go --shards --no-gitignore
+callgraph --dir . -l go --no-gitignore
 ```
 
 ---
