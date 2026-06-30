@@ -31,7 +31,7 @@ Full reference: [docs/DOCSEARCH.md](../docs/DOCSEARCH.md).
 ## Phase 1 — Init (once per project)
 
 ```bash
-./docsearch --db .knowledge/docs.sqlite init
+docsearch --db .knowledge/docs.sqlite init
 ```
 
 Idempotent — safe to call at the start of every session.
@@ -42,7 +42,7 @@ Idempotent — safe to call at the start of every session.
 
 ### A single note or finding
 ```bash
-./docsearch add --title "<short title>" --content "<the actual text>" \
+docsearch add --title "<short title>" --content "<the actual text>" \
   --type general --json
 ```
 
@@ -52,15 +52,15 @@ used later for `--filter-type`.
 
 ### A whole file (chunked automatically)
 ```bash
-./docsearch add --file README.md --type general --json
-./docsearch add --file spec.pdf  --type general --json
+docsearch add --file README.md --type general --json
+docsearch add --file spec.pdf  --type general --json
 ```
 
 Supports `.txt`, `.md`, `.pdf`. One call = one file — to ingest a directory,
 loop over it:
 ```bash
 for f in docs/*.md; do
-  ./docsearch add --file "$f" --type general --json
+  docsearch add --file "$f" --type general --json
 done
 ```
 
@@ -74,16 +74,16 @@ source PDF needs re-OCR'ing (e.g. `ocrmypdf`), not a retry.
 
 ```bash
 # Keyword search (fast, no embedding needed)
-./docsearch search --query "<keywords>" --mode fts --limit 5 --json
+docsearch search --query "<keywords>" --mode fts --limit 5 --json
 
 # Default: hybrid (FTS + vector if you have embeddings; degrades to FTS alone if not)
-./docsearch search --query "<keywords>" --json
+docsearch search --query "<keywords>" --json
 
 # Structural/pattern match
-./docsearch search --query "<regex>" --mode regex --json
+docsearch search --query "<regex>" --mode regex --json
 
 # Semantic search (requires an embedding you generated yourself)
-./docsearch search --embedding "0.1,0.2,..." --mode vec --json
+docsearch search --embedding "0.1,0.2,..." --mode vec --json
 ```
 
 `--mode fts` (or the `hybrid` default without an embedding) covers the
@@ -97,7 +97,7 @@ model wired into the session — otherwise it's a no-op.
 ## Phase 4 — Sanity check
 
 ```bash
-./docsearch count --json
+docsearch count --json
 ```
 
 Confirms the knowledge base isn't empty before relying on search results.
