@@ -82,6 +82,43 @@ fix sequence (safe → risky). Checkboxes track progress.
 
 ---
 
+## Reference-project findings (meetily run, 2026-06-30)
+
+Surfaced while running the toolkit on Zackriya-Solutions/meetily (Tauri app:
+TS frontend + Rust `src-tauri` + Python backend) as a candidate golden
+reference project. Both are about honesty of output, which matters most for an
+enterprise/Pro correctness story.
+
+### `deps` silently returns an empty graph when rooted wrong (trust bug)
+
+**Priority:** high — silent wrong answer, the worst failure mode for a
+correctness tool.
+
+`deps frontend -l ts --shards` resolves `@/` aliases via `frontend/tsconfig.json`
+and produces a real graph (47 edges on meetily). `deps frontend/src -l ts
+--shards` — rooted one level too deep, below the tsconfig — resolves **zero**
+aliases and reports **every shard as a leaf with no edges**, with no warning.
+A user who roots one directory off gets "this project has no dependencies"
+instead of an error.
+
+**Fix:** when alias-based import resolution is in play, surface a diagnostic:
+no tsconfig/module root found, 0 aliases resolved, or "N% of imports were
+unresolved". Failing loudly (or at least warning) beats returning a confident
+empty graph. Candidate signal: ratio of resolved-to-total imports below a
+threshold → stderr warning.
+
+### `callgraph --dir` `-l` flag is a hint, not a filter — decide & document
+
+`callgraph --dir backend -l rust` on meetily's Python backend still parsed the
+`.py` files (via per-file language auto-detect) and emitted Python-looking
+edges, ignoring `-l rust` as a filter. Decide the intended contract:
+- (a) `-l` is only a fallback default and auto-detect wins per file — then
+  document it (and arguably the same for `funcfinder`/`stat` dir-mode), or
+- (b) `-l` should restrict the scan to that language — then it's a bug.
+Either way, pin it with a test once decided.
+
+---
+
 ## Bugs
 
 ### HybridStructFinder: brace-less `type_alias` swallows following types (TS/JS)
