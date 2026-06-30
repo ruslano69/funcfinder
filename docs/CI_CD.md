@@ -15,18 +15,18 @@ funcfinder uses GitHub Actions for continuous integration and deployment. The CI
 **Jobs:**
 
 #### Test Job
-- **Matrix:** Tests on Go 1.21, 1.22, and 1.23
+- **Matrix:** Tests on Go 1.23 and 1.24
 - **Steps:**
   1. Checkout code
   2. Set up Go environment
   3. Cache Go modules
   4. Run tests with race detector
-  5. Generate coverage report (84.8% coverage!)
+  5. Generate coverage report
   6. Upload coverage to Codecov
   7. Display coverage in GitHub summary
 
 #### Build Job (Linux)
-- Builds all 4 binaries using `build.sh`
+- Builds all 6 binaries using `build.sh`
 - Tests each binary with `--version`
 - Uploads artifacts for 7 days
 - **Artifacts:** `binaries-linux`
@@ -62,8 +62,8 @@ funcfinder uses GitHub Actions for continuous integration and deployment. The CI
 
 **Steps:**
 1. Checkout code
-2. Set up Go 1.23
-3. Build binaries for all platforms (5 × 4 = 20 binaries)
+2. Set up Go 1.24
+3. Build all 6 tools (`funcfinder`, `stat`, `deps`, `complexity`, `callgraph`, `docsearch`) for 5 platform targets (6 × 5 = 30 binaries)
 4. Create platform-specific archives:
    - `.tar.gz` for Linux/macOS
    - `.zip` for Windows
@@ -76,13 +76,15 @@ funcfinder uses GitHub Actions for continuous integration and deployment. The CI
 
 **Release Assets:**
 ```
-funcfinder-1.4.0-linux-amd64.tar.gz
-funcfinder-1.4.0-linux-arm64.tar.gz
-funcfinder-1.4.0-windows-amd64.zip
-funcfinder-1.4.0-darwin-amd64.tar.gz
-funcfinder-1.4.0-darwin-arm64.tar.gz
+funcfinder-<version>-linux-amd64.tar.gz
+funcfinder-<version>-linux-arm64.tar.gz
+funcfinder-<version>-windows-amd64.zip
+funcfinder-<version>-darwin-amd64.tar.gz
+funcfinder-<version>-darwin-arm64.tar.gz
 checksums.txt
 ```
+
+Each archive bundles all 6 tool binaries for that platform.
 
 ---
 
@@ -202,16 +204,16 @@ git push origin v1.5.0
 
 View workflow runs at:
 ```
-https://github.com/YOUR_USERNAME/funcfinder/actions
+https://github.com/ruslano69/funcfinder/actions
 ```
 
 ### CI Status Badges
 
 Add to README.md:
 ```markdown
-[![CI](https://github.com/YOUR_USERNAME/funcfinder/workflows/CI/badge.svg)](https://github.com/YOUR_USERNAME/funcfinder/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/YOUR_USERNAME/funcfinder/branch/main/graph/badge.svg)](https://codecov.io/gh/YOUR_USERNAME/funcfinder)
-[![Go Report Card](https://goreportcard.com/badge/github.com/YOUR_USERNAME/funcfinder)](https://goreportcard.com/report/github.com/YOUR_USERNAME/funcfinder)
+[![CI](https://github.com/ruslano69/funcfinder/workflows/CI/badge.svg)](https://github.com/ruslano69/funcfinder/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/ruslano69/funcfinder/branch/main/graph/badge.svg)](https://codecov.io/gh/ruslano69/funcfinder)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ruslano69/funcfinder)](https://goreportcard.com/report/github.com/ruslano69/funcfinder)
 ```
 
 ---
@@ -284,9 +286,9 @@ Add to README.md:
 
 ### Test Suite
 
-- **Duration:** ~5 seconds
-- **Tests:** 60+
-- **Coverage:** 84.8%
+- **Duration:** ~10 seconds
+- **Tests:** 360+
+- **Coverage:** ~51% overall (`internal/knowledge` ~91%, `internal` core ~42%)
 - **Parallel:** Yes (race detector enabled)
 
 ---

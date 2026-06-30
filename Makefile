@@ -6,7 +6,7 @@
 # Bump VERSION_BASE manually only for major/minor releases.
 VERSION_BASE := 1.6
 VERSION := $(VERSION_BASE).$(shell git rev-list --count HEAD)
-BINARIES := funcfinder stat deps complexity findstruct docsearch
+BINARIES := funcfinder stat deps complexity callgraph docsearch
 BUILD_DIR := build
 DIST_DIR := dist
 GO := go
@@ -43,8 +43,8 @@ build:
 	@echo "  ✓ deps"
 	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o complexity ./cmd/complexity
 	@echo "  ✓ complexity"
-	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o findstruct ./cmd/findstruct
-	@echo "  ✓ findstruct"
+	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o callgraph ./cmd/callgraph
+	@echo "  ✓ callgraph"
 	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o docsearch ./cmd/docsearch
 	@echo "  ✓ docsearch"
 	@echo "$(COLOR_GREEN)✅ All binaries built successfully!$(COLOR_RESET)"
@@ -72,7 +72,7 @@ install: build
 	@sudo cp stat /usr/local/bin/
 	@sudo cp deps /usr/local/bin/
 	@sudo cp complexity /usr/local/bin/
-	@sudo cp findstruct /usr/local/bin/
+	@sudo cp callgraph /usr/local/bin/
 	@sudo cp docsearch /usr/local/bin/
 	@echo "$(COLOR_GREEN)✅ Installation complete!$(COLOR_RESET)"
 
@@ -83,7 +83,7 @@ uninstall:
 	@sudo rm -f /usr/local/bin/stat
 	@sudo rm -f /usr/local/bin/deps
 	@sudo rm -f /usr/local/bin/complexity
-	@sudo rm -f /usr/local/bin/findstruct
+	@sudo rm -f /usr/local/bin/callgraph
 	@sudo rm -f /usr/local/bin/docsearch
 	@echo "$(COLOR_GREEN)✅ Uninstallation complete!$(COLOR_RESET)"
 
@@ -160,6 +160,9 @@ analyze: build
 	@echo ""
 	@echo "$(COLOR_BOLD)=== Complexity ===$(COLOR_RESET)"
 	@./complexity -l go -nosimple ./internal
+	@echo ""
+	@echo "$(COLOR_BOLD)=== Call Graph ===$(COLOR_RESET)"
+	@./callgraph --dir . -l go
 
 ## watch: Watch for changes and rebuild (requires entr)
 watch:
@@ -178,7 +181,6 @@ clean:
 	@rm -f $(BINARIES)
 	@rm -rf $(BUILD_DIR) $(DIST_DIR)
 	@rm -f coverage.txt coverage.html
-	@rm -f findstruct
 	@echo "$(COLOR_GREEN)✅ Cleanup complete$(COLOR_RESET)"
 
 ## deps: Download dependencies
