@@ -220,20 +220,10 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 						depth = 0
 					}
 				}
-			} else if currentFunc != nil && depth == 0 {
-				// Продолжаем многострочную сигнатуру
-				if f.extractMode {
-					currentFunc.Lines = append(currentFunc.Lines, line)
-				}
-				braceCount := CountBraces(cleaned)
-				if braceCount > 0 {
-					depth = braceCount
-					if depth == 0 {
-						currentFunc.End = lineNum + 1 + lineOffset
-						result.Functions = append(result.Functions, *currentFunc)
-						currentFunc = nil
-					}
-				}
+				// NB: there is no `else` here. A multiline signature opened
+				// above (currentFunc set, depth == 0) is continued by the
+				// `if currentFunc != nil` branch on the following lines, not
+				// here — inside this `else` block currentFunc is always nil.
 			}
 		}
 	}

@@ -43,12 +43,12 @@ fix sequence (safe → risky). Checkboxes track progress.
   code; the gap is purely in the finder regexes. Low priority (most code uses
   ASCII identifiers). Fix would be auditing `languages.json` patterns to use
   Unicode-aware classes (`(?u)` / `\p{L}`) — needs care to avoid over-matching.
-- [ ] **`finder.go` dead branch** (`findFunctionsSimple`, line 223) —
-  `} else if currentFunc != nil && depth == 0 {` lives inside the `else` of
-  `if currentFunc != nil`, so `currentFunc` is always nil there; the
-  multiline-signature continuation never runs in the simple path. Investigate
-  whether it's a real lost feature or removable dead code; add a multiline-
-  signature test for a non-nesting language to pin the intended behavior.
+- [x] **`finder.go` dead branch** (`findFunctionsSimple`) — REMOVED. Confirmed
+  dead: `} else if currentFunc != nil ...` sat inside the `else` of
+  `if currentFunc != nil`, so `currentFunc` was always nil there. Multiline
+  signatures (e.g. Rust where-clauses) are actually continued by the
+  `if currentFunc != nil` branch on following lines. Pinned by
+  `finder_multiline_test.go` (passes identically before and after removal).
 
 ### Needs a decision before touching
 
