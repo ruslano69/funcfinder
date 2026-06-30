@@ -2,7 +2,41 @@
 
 ## v1.8.0 - 2026-06-30
 
-Сессия код-ревью горячих путей + поддержка Unicode-идентификаторов.
+Первый бинарный релиз с времён v1.6: два новых инструмента (**docsearch**,
+**callgraph**), поддержка Unicode-идентификаторов и ревью горячих путей.
+
+### 🆕 docsearch — база знаний для агентов
+
+Новый инструмент: персистентная база знаний на проект в одном SQLite-файле
+(`.knowledge/docs.sqlite`), которую агент может наполнять и опрашивать между
+сессиями — дешевле, чем перечитывать файлы или заново выводить уже известное.
+
+- **Гибридный поиск**: FTS5 (полнотекстовый) + векторный (cosine/L2) + regex,
+  и режим `hybrid` (FTS+вектор, корректно деградирует до FTS без эмбеддингов).
+- **Ингест файлов** `.txt`/`.md`/`.pdf` с автоматическим чанкингом по секциям
+  и overlap; PDF проходит через OCR-quality gate (плохие сканы отклоняются, а
+  не засоряют базу).
+- Действия: `init` / `add` / `search` / `count`. Эмбеддинги не считаются
+  внутри — передаются снаружи, инструмент их хранит и сравнивает.
+
+```bash
+docsearch --db .knowledge/docs.sqlite init
+docsearch add --file README.md --type general
+docsearch search --query "как работает X" --limit 5
+```
+
+Документация: [docs/DOCSEARCH.md](docs/DOCSEARCH.md), скилл: [skills/docsearch.md](skills/docsearch.md).
+
+### 🆕 callgraph — кто кого вызывает
+
+Новый инструмент: строит граф вызовов (forward и reverse) по файлу или
+директории. `--reverse --func Name` — impact-анализ «что сломается, если
+поменять Name».
+
+```bash
+callgraph --dir . -l go --func ProcessDirectory --depth 2
+callgraph --dir . -l go --reverse --func computeShardChecksum
+```
 
 ### Unicode-идентификаторы (все 15 языков)
 
