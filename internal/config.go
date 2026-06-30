@@ -108,7 +108,7 @@ func LoadConfig() (Config, error) {
 		// Convert struct_type_patterns map to compiled regexes
 		conf.structPatterns = make(map[string]*regexp.Regexp)
 		for typeKind, pattern := range langConf.StructTypePatternsMap {
-			re, err := regexp.Compile(pattern)
+			re, err := regexp.Compile(expandIdentPlaceholder(pattern))
 			if err != nil {
 				return nil, fmt.Errorf("invalid struct pattern for %s (%s): %w", lang, typeKind, err)
 			}
@@ -122,7 +122,7 @@ func LoadConfig() (Config, error) {
 
 		// Compile function regex
 		if conf.FuncPattern != "" {
-			re, err := regexp.Compile(conf.FuncPattern)
+			re, err := regexp.Compile(expandIdentPlaceholder(conf.FuncPattern))
 			if err != nil {
 				return nil, fmt.Errorf("invalid func regex for %s: %w", lang, err)
 			}
@@ -131,7 +131,7 @@ func LoadConfig() (Config, error) {
 
 		// Compile class regex if specified
 		if conf.ClassPattern != "" {
-			classRe, err := regexp.Compile(conf.ClassPattern)
+			classRe, err := regexp.Compile(expandIdentPlaceholder(conf.ClassPattern))
 			if err != nil {
 				return nil, fmt.Errorf("invalid class regex for %s: %w", lang, err)
 			}
@@ -140,7 +140,7 @@ func LoadConfig() (Config, error) {
 
 		// Compile field pattern if specified
 		if conf.FieldPattern != "" {
-			fieldRe, err := regexp.Compile(conf.FieldPattern)
+			fieldRe, err := regexp.Compile(expandIdentPlaceholder(conf.FieldPattern))
 			if err != nil {
 				return nil, fmt.Errorf("invalid field pattern for %s: %w", lang, err)
 			}
@@ -149,7 +149,7 @@ func LoadConfig() (Config, error) {
 
 		// Compile call regex if specified
 		if conf.CallPattern != "" {
-			callRe, err := regexp.Compile(conf.CallPattern)
+			callRe, err := regexp.Compile(expandIdentPlaceholder(conf.CallPattern))
 			if err != nil {
 				return nil, fmt.Errorf("invalid call regex for %s: %w", lang, err)
 			}

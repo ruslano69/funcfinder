@@ -36,13 +36,31 @@ fix sequence (safe → risky). Checkboxes track progress.
   at a rune index. Covered by `sanitizer_nonascii_test.go` (6 tests:
   rune-length invariance, code preservation, block/line comment and multiline
   docstring handling across multibyte runes).
-- [ ] **Unicode identifiers not detected** (NEW, found during smoke test) —
-  funcfinder/callgraph miss function/type names that use non-ASCII letters
-  (e.g. cyrillic `func Привет()`), because the language `func_pattern`/etc. use
-  `\w`, which is ASCII-only in Go's RE2. The sanitizer correctly preserves such
-  code; the gap is purely in the finder regexes. Low priority (most code uses
-  ASCII identifiers). Fix would be auditing `languages.json` patterns to use
-  Unicode-aware classes (`(?u)` / `\p{L}`) — needs care to avoid over-matching.
+- **Unicode identifiers** (NEW, found during smoke test) — DONE across all 15
+  languages. funcfinder, findstruct, callgraph and stat now detect
+  function/type/call names with non-ASCII letters (`func Привет()`, `type Café`).
+  - [x] **Single source of truth** — `internal/identifiers.go` defines
+    `identClass` (`[\p{L}\p{Nd}_]`, Unicode equivalent of `\w`) and `identStart`
+    (`[\p{L}_]`, no leading digit). Language patterns reference it via the
+    `{IDENT}` placeholder, expanded at config-load time (`expandIdentPlaceholder`,
+    applied in `config.go` to every compiled pattern). callgraph.go builds its
+    call-site regex from the same constants — identifier recognition can no
+    longer drift between "where is X defined" and "who calls X".
+  - [x] **All 15 languages** — every name capture in `func_pattern`,
+    `class_pattern`, `call_pattern`, `struct_type_patterns` switched
+    `(\w+)` → `({IDENT}+)` (112 patterns). `\w` inside char classes
+    (return-type matchers) and keyword groups left untouched.
+  - [x] **callgraph** — hardcoded ASCII `callIdentRe` (ASCII-only `\b`) replaced
+    with one built from `identStart`/`identClass`, no `\b`. Resolves
+    `Привет → Старт`.
+  - [x] **stat** — picks it up for free via each language's `call_pattern`.
+  - Out-of-the-box, no flag: ASCII output unchanged (regression-guarded in
+    `finder_unicode_test.go`). Cost: Unicode RE2 classes ~28% slower on the
+    affected patterns (microseconds/line), dwarfed by the 2.5x sanitizer speed-up
+    and negligible end-to-end. Benchmarks in `identifiers_bench_test.go`.
+  - Note (left as-is, minor): return-type matchers in C/C++/C#/Java/D
+    (`[\w\s\*]+`) and decorator/annotation patterns stay ASCII — a Unicode-named
+    *return type* or attribute won't match, though the *name* will.
 - [x] **`finder.go` dead branch** (`findFunctionsSimple`) — REMOVED. Confirmed
   dead: `} else if currentFunc != nil ...` sat inside the `else` of
   `if currentFunc != nil`, so `currentFunc` was always nil there. Multiline

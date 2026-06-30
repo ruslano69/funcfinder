@@ -29,9 +29,19 @@ type CallGraphResult struct {
 }
 
 // callIdentRe matches a bare call candidate: word( or word.word(
-// Captures: 1=receiver (optional), 2=function name
-var callIdentRe = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*\(|` +
-	`\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
+// Captures: 1=receiver, 2=method (for the pkg.Func form); 3=function name (bare).
+//
+// Built from the shared identifier classes (identStart/identClass) so call-site
+// detection recognises exactly the same identifiers as the language patterns
+// that detect definitions — including non-ASCII names. Each identifier must
+// start with a letter/underscore (identStart) so numeric literals like `123(`
+// are not mistaken for calls. The leading `\b` of the old ASCII regex is
+// dropped because RE2 word boundaries are ASCII-only (they never fire before a
+// non-ASCII letter); leftmost-longest matching of the receiver form already
+// prevents a method name from also matching as a separate bare call.
+var ident = identStart + identClass + `*`
+var callIdentRe = regexp.MustCompile(`(` + ident + `)\.(` + ident + `)\s*\(|` +
+	`(` + ident + `)\s*\(`)
 
 // BuildFileCallGraph extracts the call graph from a single file.
 //
