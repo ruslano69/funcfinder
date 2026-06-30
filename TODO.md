@@ -4,6 +4,65 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
+## Code review: hot-path optimizations, bugs, stdlib wheels (2026-06-30)
+
+Findings from reviewing the most heavily-executed code paths. Ordered by the
+fix sequence (safe → risky). Checkboxes track progress.
+
+### Stdlib "wheels" — low risk, output-identical
+
+- [x] **`checksum_stdlib.go` hand-rolled hex** (`hexUint64Pair` + `uint64Hex`)
+  → `encoding/hex.EncodeToString(h.Sum(nil))`. Byte order identical; verified
+  by the incremental split round-trip tests.
+- [x] **`config.go` bubble sort** in `GetSupportedLanguages` → `sort.Strings`.
+- [x] **`dirprocessor.go` `itoa`** — inlined to `strconv.Itoa`.
+- [x] **`callgraph_test.go` `containsSubstr`** → `strings.Contains`.
+
+### Hot-path performance — no output change, benchmark before/after
+
+- [x] **`enhanced_sanitizer.go` `matchesAt`** — rewritten to range over the
+  pattern's runes directly (no `[]rune(pattern)`, no `string(runes[pos:...])`).
+  **~2.5x faster** on the realistic CleanLine benchmark (16148 → 6592 ns/op).
+- [x] **`enhanced_sanitizer.go` repeated `[]rune(s.config.X)`** — replaced with
+  allocation-free `runeLen`/`firstRune` helpers; delimiter rune lengths are no
+  longer recomputed via `[]rune(...)` slices.
+
+### Bugs
+
+- [x] **`enhanced_sanitizer.go` byte/rune index mismatch** (`CleanLine`) —
+  FIXED. Buffer is now sized by rune count, and `handleBlockComment`,
+  `handleMultiLineString`, `tryHandleBlockComment`, `tryHandleMultiLineString`
+  scan via the rune-based `indexRunesFrom` instead of byte-slicing `line[idx:]`
+  at a rune index. Covered by `sanitizer_nonascii_test.go` (6 tests:
+  rune-length invariance, code preservation, block/line comment and multiline
+  docstring handling across multibyte runes).
+- [ ] **Unicode identifiers not detected** (NEW, found during smoke test) —
+  funcfinder/callgraph miss function/type names that use non-ASCII letters
+  (e.g. cyrillic `func Привет()`), because the language `func_pattern`/etc. use
+  `\w`, which is ASCII-only in Go's RE2. The sanitizer correctly preserves such
+  code; the gap is purely in the finder regexes. Low priority (most code uses
+  ASCII identifiers). Fix would be auditing `languages.json` patterns to use
+  Unicode-aware classes (`(?u)` / `\p{L}`) — needs care to avoid over-matching.
+- [ ] **`finder.go` dead branch** (`findFunctionsSimple`, line 223) —
+  `} else if currentFunc != nil && depth == 0 {` lives inside the `else` of
+  `if currentFunc != nil`, so `currentFunc` is always nil there; the
+  multiline-signature continuation never runs in the simple path. Investigate
+  whether it's a real lost feature or removable dead code; add a multiline-
+  signature test for a non-nesting language to pin the intended behavior.
+
+### Needs a decision before touching
+
+- [ ] **`dirprocessor.go` hand-rolled JSON** (`formatDirResultsJSON` line 296,
+  `formatManifestJSON` line 760) + **incomplete `escapeJSON`** (line 633,
+  doesn't escape control chars < 0x20 → can emit invalid JSON). Switching to
+  `encoding/json` fixes the escaping bug and removes ~120 lines, BUT changes
+  the exact on-disk format of `.codemap/*.json` shard/manifest files that
+  users grep and that downstream tooling may expect. **Decide:** preserve the
+  current format byte-for-byte (keep custom writer, just fix `escapeJSON`), or
+  accept a one-time format change and migrate to `encoding/json`.
+
+---
+
 ## Bugs
 
 ### HybridStructFinder: brace-less `type_alias` swallows following types (TS/JS)

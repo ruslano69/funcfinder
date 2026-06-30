@@ -109,16 +109,67 @@ func replaceCharWithSpace(result []rune, idx int) {
 	}
 }
 
+// runeLen returns the number of runes in s without allocating a []rune.
+func runeLen(s string) int {
+	n := 0
+	for range s {
+		n++
+	}
+	return n
+}
+
+// firstRune returns the first rune of s (or utf8.RuneError-equivalent 0 for
+// an empty string), without allocating a []rune.
+func firstRune(s string) rune {
+	for _, r := range s {
+		return r
+	}
+	return 0
+}
+
+// indexRunesFrom returns the absolute rune index >= start of the first
+// occurrence of needle in runes, or -1. Matching is rune-by-rune and
+// allocation-free (it ranges over needle's runes directly).
+func indexRunesFrom(runes []rune, start int, needle string) int {
+	if needle == "" {
+		return start
+	}
+	nlen := runeLen(needle)
+	for i := start; i+nlen <= len(runes); i++ {
+		match := true
+		j := i
+		for _, nr := range needle {
+			if runes[j] != nr {
+				match = false
+				break
+			}
+			j++
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
+}
+
 // Pattern matching functions
+//
+// matchesAt reports whether runes, starting at pos, matches pattern rune for
+// rune. It ranges over pattern's runes directly so it allocates nothing — this
+// matters because it runs for (nearly) every character of every line of every
+// file scanned, making it the single hottest path in the toolkit.
 func (s *Sanitizer) matchesAt(runes []rune, pos int, pattern string) bool {
 	if pattern == "" {
 		return true
 	}
-	patternRunes := []rune(pattern)
-	if pos+len(patternRunes) > len(runes) {
-		return false
+	i := pos
+	for _, pr := range pattern {
+		if i >= len(runes) || runes[i] != pr {
+			return false
+		}
+		i++
 	}
-	return string(runes[pos:pos+len(patternRunes)]) == pattern
+	return true
 }
 
 func (s *Sanitizer) matchesStringDelimiter(runes []rune, pos int) bool {
@@ -161,11 +212,12 @@ func (s *Sanitizer) matchesDocStringStart(runes []rune, pos int) bool {
 
 // State handlers
 func (s *Sanitizer) handleBlockComment(line string, runes []rune, result []rune, idx int) (int, ParserState) {
-	remaining := line[idx:]
-	if pos := strings.Index(remaining, s.config.BlockCommentEnd); pos >= 0 {
-		// Found closing - replace entire block
-		fillWithSpaces(result, idx, pos+len([]rune(s.config.BlockCommentEnd)))
-		return idx + pos + len([]rune(s.config.BlockCommentEnd)), StateNormal
+	_ = line // retained for signature symmetry; scanning is rune-based
+	endLen := runeLen(s.config.BlockCommentEnd)
+	if pos := indexRunesFrom(runes, idx, s.config.BlockCommentEnd); pos >= 0 {
+		// Found closing - blank from idx through the end delimiter (rune-based).
+		fillWithSpaces(result, idx, pos+endLen-idx)
+		return pos + endLen, StateNormal
 	}
 	// No closing found - replace rest of line
 	fillToEndWithSpaces(result, idx)
@@ -173,7 +225,7 @@ func (s *Sanitizer) handleBlockComment(line string, runes []rune, result []rune,
 }
 
 func (s *Sanitizer) handleString(runes []rune, result []rune, idx int) (int, ParserState) {
-	if s.config.EscapeChar != "" && runes[idx] == []rune(s.config.EscapeChar)[0] && idx+1 < len(runes) {
+	if s.config.EscapeChar != "" && runes[idx] == firstRune(s.config.EscapeChar) && idx+1 < len(runes) {
 		replaceCharWithSpace(result, idx)
 		replaceCharWithSpace(result, idx+1)
 		return idx + 2, StateString
@@ -195,7 +247,7 @@ func (s *Sanitizer) handleRawString(runes []rune, result []rune, idx int) (int, 
 }
 
 func (s *Sanitizer) handleCharLiteral(runes []rune, result []rune, idx int) (int, ParserState) {
-	if s.config.EscapeChar != "" && runes[idx] == []rune(s.config.EscapeChar)[0] && idx+1 < len(runes) {
+	if s.config.EscapeChar != "" && runes[idx] == firstRune(s.config.EscapeChar) && idx+1 < len(runes) {
 		replaceCharWithSpace(result, idx)
 		replaceCharWithSpace(result, idx+1)
 		return idx + 2, StateCharLiteral
@@ -208,16 +260,16 @@ func (s *Sanitizer) handleCharLiteral(runes []rune, result []rune, idx int) (int
 }
 
 func (s *Sanitizer) handleMultiLineString(line string, runes []rune, result []rune, idx int) (int, ParserState) {
-	remaining := line[idx:]
-	foundEnd := -1
+	_ = line // retained for signature symmetry; scanning is rune-based
+	foundEnd := -1 // absolute rune index of the closing delimiter
 	foundDelim := ""
 	newState := StateMultiLineString
 
 	// Special case: C# verbatim strings end with " not @"
 	// Check if we started with @" by looking for " as closing
-	if pos := strings.Index(remaining, `"`); pos >= 0 {
+	if pos := indexRunesFrom(runes, idx, `"`); pos >= 0 {
 		// Check if it's unescaped (not "")
-		if pos+1 >= len(remaining) || remaining[pos+1] != '"' {
+		if pos+1 >= len(runes) || runes[pos+1] != '"' {
 			foundEnd = pos
 			foundDelim = `"`
 		}
@@ -226,7 +278,7 @@ func (s *Sanitizer) handleMultiLineString(line string, runes []rune, result []ru
 	// Standard docstring markers
 	if foundEnd < 0 {
 		for _, marker := range s.config.DocStringMarkers {
-			if pos := strings.Index(remaining, marker); pos >= 0 {
+			if pos := indexRunesFrom(runes, idx, marker); pos >= 0 {
 				if foundEnd == -1 || pos < foundEnd {
 					foundEnd = pos
 					foundDelim = marker
@@ -236,8 +288,9 @@ func (s *Sanitizer) handleMultiLineString(line string, runes []rune, result []ru
 	}
 
 	if foundEnd >= 0 {
-		fillWithSpaces(result, idx, foundEnd+len([]rune(foundDelim)))
-		idx += foundEnd + len([]rune(foundDelim))
+		end := foundEnd + runeLen(foundDelim)
+		fillWithSpaces(result, idx, end-idx)
+		idx = end
 		newState = StateNormal
 	}
 	// Always replace rest of line with spaces (even if closing delimiter found)
@@ -253,7 +306,7 @@ func (s *Sanitizer) tryHandleCharDelimiter(runes []rune, result []rune, idx int)
 	for _, char := range s.config.CharDelimiters {
 		if char != "" && s.matchesAt(runes, idx, char) {
 			replaceCharWithSpace(result, idx)
-			return idx + len([]rune(char)), StateCharLiteral, true
+			return idx + runeLen(char), StateCharLiteral, true
 		}
 	}
 	return idx, StateNormal, false
@@ -293,40 +346,39 @@ func (s *Sanitizer) tryHandleMultiLineString(line string, runes []rune, result [
 		return idx, StateNormal, false
 	}
 
-	afterStart := line[idx+len([]rune(matchedMarker)):]
-	foundEnd := -1
+	startSearch := idx + runeLen(matchedMarker)
+	foundEnd := -1 // absolute rune index of the closing delimiter
 	closingDelim := matchedMarker
 
 	// Special case: C# verbatim strings @"..." close with " not @"
 	if matchedMarker == `@"` {
 		// Search for unescaped " (in verbatim, "" is escaped ")
-		searchPos := 0
-		for searchPos < len(afterStart) {
-			pos := strings.Index(afterStart[searchPos:], `"`)
+		p := startSearch
+		for p < len(runes) {
+			pos := indexRunesFrom(runes, p, `"`)
 			if pos < 0 {
 				break
 			}
 			// Check if it's "" (escaped)
-			actualPos := searchPos + pos
-			if actualPos+1 < len(afterStart) && afterStart[actualPos+1] == '"' {
-				searchPos = actualPos + 2 // Skip ""
+			if pos+1 < len(runes) && runes[pos+1] == '"' {
+				p = pos + 2 // Skip ""
 				continue
 			}
 			// Found unescaped "
-			foundEnd = actualPos
+			foundEnd = pos
 			closingDelim = `"`
 			break
 		}
 	} else {
 		// Standard docstring markers - search for same marker
-		if pos := strings.Index(afterStart, matchedMarker); pos >= 0 {
+		if pos := indexRunesFrom(runes, startSearch, matchedMarker); pos >= 0 {
 			foundEnd = pos
 		}
 	}
 
 	if foundEnd >= 0 {
 		// Found closing in same line
-		endIdx := idx + len([]rune(matchedMarker)) + foundEnd + len([]rune(closingDelim))
+		endIdx := foundEnd + runeLen(closingDelim)
 		fillWithSpaces(result, idx, endIdx-idx)
 		return endIdx, StateNormal, true
 	} else {
@@ -341,39 +393,41 @@ func (s *Sanitizer) tryHandleBlockComment(line string, runes []rune, result []ru
 		return idx, StateNormal, false
 	}
 
-	afterStart := line[idx+len([]rune(s.config.BlockCommentStart)):]
+	startLen := runeLen(s.config.BlockCommentStart)
+	endLen := runeLen(s.config.BlockCommentEnd)
 
-	// Search for closing delimiter considering nesting
+	// Search for closing delimiter considering nesting (rune-based).
 	depth := 1
-	searchPos := 0
-	foundEnd := -1
+	p := idx + startLen
+	foundEnd := -1 // absolute rune index where the closing delimiter starts
 
-	for searchPos < len(afterStart) {
+	for p < len(runes) {
 		// Check for nested comment start
-		if strings.HasPrefix(afterStart[searchPos:], s.config.BlockCommentStart) {
+		if s.matchesAt(runes, p, s.config.BlockCommentStart) {
 			depth++
-			searchPos += len([]rune(s.config.BlockCommentStart))
+			p += startLen
 			continue
 		}
 
 		// Check for comment closing
-		if strings.HasPrefix(afterStart[searchPos:], s.config.BlockCommentEnd) {
+		if s.matchesAt(runes, p, s.config.BlockCommentEnd) {
 			depth--
 			if depth == 0 {
-				foundEnd = searchPos
+				foundEnd = p
 				break
 			}
-			searchPos += len([]rune(s.config.BlockCommentEnd))
+			p += endLen
 			continue
 		}
 
-		searchPos++
+		p++
 	}
 
 	if foundEnd >= 0 {
 		// Found closing in same line
-		fillWithSpaces(result, idx, len([]rune(s.config.BlockCommentStart))+foundEnd+len([]rune(s.config.BlockCommentEnd)))
-		return idx + len([]rune(s.config.BlockCommentStart)) + foundEnd + len([]rune(s.config.BlockCommentEnd)), StateNormal, true
+		endIdx := foundEnd + endLen
+		fillWithSpaces(result, idx, endIdx-idx)
+		return endIdx, StateNormal, true
 	} else {
 		// No closing - fill rest of line and transition to StateBlockComment
 		fillToEndWithSpaces(result, idx)
@@ -386,12 +440,14 @@ func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserSta
 		return line, state
 	}
 
-	result := make([]rune, len(line))
-	for idx := range result {
-		result[idx] = ' '
+	// Size the buffer by rune count, not byte count: a byte-sized buffer would
+	// leave (bytes-runes) trailing spaces on lines containing multibyte runes.
+	runes := []rune(line)
+	result := make([]rune, len(runes))
+	for i := range result {
+		result[i] = ' '
 	}
 
-	runes := []rune(line)
 	idx := 0
 
 	for idx < len(runes) {

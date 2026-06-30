@@ -3,7 +3,7 @@
 package internal
 
 import (
-	"encoding/binary"
+	"encoding/hex"
 	"hash/fnv"
 	"io"
 	"os"
@@ -23,7 +23,7 @@ func computeFileChecksum(path string) (string, error) {
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
 	}
-	return hexUint64Pair(h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // computeShardChecksum computes combined checksum for a list of file paths.
@@ -38,23 +38,5 @@ func computeShardChecksum(paths []string) string {
 		}
 		h.Write([]byte(p + ":" + checksum + "\n"))
 	}
-	return hexUint64Pair(h.Sum(nil))
-}
-
-// hexUint64Pair encodes a 16-byte slice as hex string.
-func hexUint64Pair(b []byte) string {
-	hi := binary.BigEndian.Uint64(b[:8])
-	lo := binary.BigEndian.Uint64(b[8:])
-	return uint64Hex(hi) + uint64Hex(lo)
-}
-
-const hexChars = "0123456789abcdef"
-
-func uint64Hex(v uint64) string {
-	buf := make([]byte, 16)
-	for i := 15; i >= 0; i-- {
-		buf[i] = hexChars[v&0xf]
-		v >>= 4
-	}
-	return string(buf)
+	return hex.EncodeToString(h.Sum(nil))
 }

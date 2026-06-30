@@ -327,7 +327,7 @@ func formatDirResultsJSON(results []DirResult) string {
 			if j > 0 {
 				jsonStr += ", "
 			}
-			jsonStr += "{\"name\": \"" + escapeJSON(fn.Name) + "\", \"line\": " + itoa(fn.Start) + "}"
+			jsonStr += "{\"name\": \"" + escapeJSON(fn.Name) + "\", \"line\": " + strconv.Itoa(fn.Start) + "}"
 		}
 		jsonStr += "],\n"
 		jsonStr += "      \"classes\": ["
@@ -335,7 +335,7 @@ func formatDirResultsJSON(results []DirResult) string {
 			if j > 0 {
 				jsonStr += ", "
 			}
-			jsonStr += "{\"name\": \"" + escapeJSON(c.Name) + "\", \"line\": " + itoa(c.Start) + "}"
+			jsonStr += "{\"name\": \"" + escapeJSON(c.Name) + "\", \"line\": " + strconv.Itoa(c.Start) + "}"
 		}
 		jsonStr += "]\n"
 		jsonStr += "    }"
@@ -345,9 +345,9 @@ func formatDirResultsJSON(results []DirResult) string {
 		jsonStr += "\n"
 	}
 	jsonStr += "  ],\n"
-	jsonStr += "  \"total_files\": " + itoa(len(files)) + ",\n"
-	jsonStr += "  \"total_functions\": " + itoa(totalFuncs) + ",\n"
-	jsonStr += "  \"total_classes\": " + itoa(totalClasses) + "\n"
+	jsonStr += "  \"total_files\": " + strconv.Itoa(len(files)) + ",\n"
+	jsonStr += "  \"total_functions\": " + strconv.Itoa(totalFuncs) + ",\n"
+	jsonStr += "  \"total_classes\": " + strconv.Itoa(totalClasses) + "\n"
 	jsonStr += "}\n"
 
 	return jsonStr
@@ -423,14 +423,14 @@ func buildTreeOutput(node *DirTreeNode, prefix string, isLast bool) string {
 				if i == len(node.Functions)+len(node.Classes)-1 {
 					funcPrefix = newPrefix + "└── "
 				}
-				output += funcPrefix + "def " + fn.Name + " (line " + itoa(fn.Start) + ")\n"
+				output += funcPrefix + "def " + fn.Name + " (line " + strconv.Itoa(fn.Start) + ")\n"
 			}
 			for i, c := range node.Classes {
 				classPrefix := newPrefix + "├── "
 				if i == len(node.Classes)-1 && len(node.Functions) == 0 {
 					classPrefix = newPrefix + "└── "
 				}
-				output += classPrefix + "class " + c.Name + " (line " + itoa(c.Start) + ")\n"
+				output += classPrefix + "class " + c.Name + " (line " + strconv.Itoa(c.Start) + ")\n"
 			}
 		}
 	}
@@ -452,10 +452,10 @@ func formatDirResultsGrep(results []DirResult) string {
 	var output string
 	for _, r := range results {
 		for _, fn := range r.Functions {
-			output += r.Path + ":" + itoa(fn.Start) + ": " + fn.Name + "\n"
+			output += r.Path + ":" + strconv.Itoa(fn.Start) + ": " + fn.Name + "\n"
 		}
 		for _, cl := range r.Classes {
-			output += r.Path + ":" + itoa(cl.Start) + ": " + cl.Name + "\n"
+			output += r.Path + ":" + strconv.Itoa(cl.Start) + ": " + cl.Name + "\n"
 		}
 	}
 	return output
@@ -639,10 +639,6 @@ func escapeJSON(s string) string {
 	return s
 }
 
-func itoa(n int) string {
-	return strconv.Itoa(n)
-}
-
 // ShardInfo represents metadata about a single shard file
 type ShardInfo struct {
 	Path           string   `json:"path"`
@@ -766,9 +762,9 @@ func formatManifestJSON(m *Manifest) string {
 	for i, s := range m.Shards {
 		json += "    {"
 		json += "\"path\": \"" + escapeJSON(s.Path) + "\", "
-		json += "\"files\": " + itoa(s.Files) + ", "
-		json += "\"total_functions\": " + itoa(s.TotalFunctions) + ", "
-		json += "\"total_classes\": " + itoa(s.TotalClasses)
+		json += "\"files\": " + strconv.Itoa(s.Files) + ", "
+		json += "\"total_functions\": " + strconv.Itoa(s.TotalFunctions) + ", "
+		json += "\"total_classes\": " + strconv.Itoa(s.TotalClasses)
 		if s.Checksum != "" {
 			json += ", \"checksum\": \"" + s.Checksum + "\""
 		}
@@ -789,9 +785,9 @@ func formatManifestJSON(m *Manifest) string {
 		json += "\n"
 	}
 	json += "  ],\n"
-	json += "  \"total_files\": " + itoa(m.TotalFiles) + ",\n"
-	json += "  \"total_functions\": " + itoa(m.TotalFunctions) + ",\n"
-	json += "  \"total_classes\": " + itoa(m.TotalClasses) + "\n"
+	json += "  \"total_files\": " + strconv.Itoa(m.TotalFiles) + ",\n"
+	json += "  \"total_functions\": " + strconv.Itoa(m.TotalFunctions) + ",\n"
+	json += "  \"total_classes\": " + strconv.Itoa(m.TotalClasses) + "\n"
 	json += "}\n"
 	return json
 }

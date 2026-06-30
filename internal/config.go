@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"sort"
 )
 
 //go:embed languages.json
@@ -221,15 +222,7 @@ func (c Config) GetSupportedLanguages() []string {
 		languages = append(languages, lang)
 	}
 
-	// Simple bubble sort for consistency
-	for i := 0; i < len(languages)-1; i++ {
-		for j := i + 1; j < len(languages); j++ {
-			if languages[i] > languages[j] {
-				languages[i], languages[j] = languages[j], languages[i]
-			}
-		}
-	}
-
+	sort.Strings(languages)
 	return languages
 }
 

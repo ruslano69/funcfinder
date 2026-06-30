@@ -258,12 +258,6 @@ func TestEscapeJSON(t *testing.T) {
 	}
 }
 
-func TestItoa(t *testing.T) {
-	if itoa(42) != "42" {
-		t.Errorf("itoa(42) = %q, want %q", itoa(42), "42")
-	}
-}
-
 func TestPathToShardNameAlias(t *testing.T) {
 	if pathToShardName("internal/sub") != PathToShardName("internal/sub") {
 		t.Error("pathToShardName alias diverges from PathToShardName")

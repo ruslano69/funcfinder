@@ -2,6 +2,7 @@ package internal
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -86,16 +87,7 @@ func TestSanitizer_DocstringDoesNotLeakState(t *testing.T) {
 	if state != StateNormal {
 		t.Errorf("line after docstring, state = %v, want StateNormal", state)
 	}
-	if !containsSubstr(clean, "target") {
+	if !strings.Contains(clean, "target") {
 		t.Errorf("call after docstring was blanked: cleaned line = %q", clean)
 	}
-}
-
-func containsSubstr(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
