@@ -4,7 +4,7 @@
 
 set -e
 
-VERSION_BASE="1.7"
+VERSION_BASE="1.8"
 PATCH=$(git rev-list --count HEAD 2>/dev/null || echo "0")
 VERSION="${VERSION_BASE}.${PATCH}"
 LDFLAGS="-s -w -X github.com/ruslano69/funcfinder/internal.Version=${VERSION}"

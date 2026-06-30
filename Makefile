@@ -4,7 +4,7 @@
 # Variables
 # Patch version is derived from total git commit count — increments automatically with every commit.
 # Bump VERSION_BASE manually only for major/minor releases.
-VERSION_BASE := 1.6
+VERSION_BASE := 1.8
 VERSION := $(VERSION_BASE).$(shell git rev-list --count HEAD)
 BINARIES := funcfinder stat deps complexity callgraph docsearch
 BUILD_DIR := build
