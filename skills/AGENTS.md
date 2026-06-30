@@ -2,16 +2,17 @@
 
 ## Purpose
 
-Claude Code skill definition that teaches the agent how to use funcfinder during coding sessions.
+Claude Code skill definitions that teach the agent how to use the funcfinder toolkit's binaries during coding sessions.
 
 ## Ownership
 
-- `funcfinder.md` is the single skill file; it defines the invocation pattern and workflow steps for the `/funcfinder` slash command inside Claude Code.
+- `funcfinder.md` defines the invocation pattern and workflow steps for code navigation (map/extract/callgraph/deps/complexity).
+- `docsearch.md` defines the invocation pattern and workflow steps for the project-local knowledge base (init/add/search/count).
 
 ## Local Contracts
 
-- The skill file must reflect the current CLI flags and output format.
-- When the funcfinder API changes (new flags, renamed flags, JSON schema changes), update `funcfinder.md` in the same commit.
+- Each skill file must reflect the current CLI flags and output format of its tool.
+- When a tool's API changes (new flags, renamed flags, JSON schema changes), update the matching skill file in the same commit.
 
 ## Work Guidance
 
