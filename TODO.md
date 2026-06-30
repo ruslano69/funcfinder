@@ -50,16 +50,17 @@ fix sequence (safe → risky). Checkboxes track progress.
   `if currentFunc != nil` branch on following lines. Pinned by
   `finder_multiline_test.go` (passes identically before and after removal).
 
-### Needs a decision before touching
+### Resolved
 
-- [ ] **`dirprocessor.go` hand-rolled JSON** (`formatDirResultsJSON` line 296,
-  `formatManifestJSON` line 760) + **incomplete `escapeJSON`** (line 633,
-  doesn't escape control chars < 0x20 → can emit invalid JSON). Switching to
-  `encoding/json` fixes the escaping bug and removes ~120 lines, BUT changes
-  the exact on-disk format of `.codemap/*.json` shard/manifest files that
-  users grep and that downstream tooling may expect. **Decide:** preserve the
-  current format byte-for-byte (keep custom writer, just fix `escapeJSON`), or
-  accept a one-time format change and migrate to `encoding/json`.
+- [x] **`dirprocessor.go` hand-rolled JSON** (`formatDirResultsJSON`,
+  `formatManifestJSON`) + **incomplete `escapeJSON`** — MIGRATED to
+  `encoding/json` (decision: accept the one-time format change). This fixes the
+  control-char escaping bug and removes ~120 lines. Bonus: the manifest format
+  is now byte-identical to what `deps --update-manifest` already wrote
+  (cmd/deps used `json.MarshalIndent` all along), so the two tools no longer
+  disagree on format. `escapeJSON` removed. Covered by
+  `TestFormatDirResultsJSON_EscapesSpecialChars` (round-trips special chars
+  through `json.Unmarshal`) plus the existing manifest round-trip tests.
 
 ---
 

@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -245,16 +246,35 @@ func TestFormatDirResultsTree_Empty(t *testing.T) {
 	}
 }
 
-// --- escapeJSON / itoa ---
+// --- JSON output validity ---
 
-func TestEscapeJSON(t *testing.T) {
-	in := "line1\nline2\ttab\\back\"quote\rcr"
-	out := escapeJSON(in)
-	if strings.ContainsRune(out, '\n') || strings.ContainsRune(out, '\t') || strings.ContainsRune(out, '\r') {
-		t.Errorf("escapeJSON left raw control characters: %q", out)
+// formatDirResultsJSON must emit valid JSON even when paths/names contain
+// characters that need escaping (quotes, backslashes, control chars). The old
+// hand-rolled escaper missed control chars < 0x20 and could emit invalid JSON;
+// encoding/json handles them. This round-trips the output to prove validity.
+func TestFormatDirResultsJSON_EscapesSpecialChars(t *testing.T) {
+	results := []DirResult{
+		{
+			Path:      "pkg/weird\t\"name\".go",
+			Functions: []FunctionBounds{{Name: "Func\"With\\Quotes", Start: 3}},
+			Classes:   []ClassBounds{{Name: "Type\x07Bell", Start: 1}},
+		},
 	}
-	if !strings.Contains(out, `\n`) || !strings.Contains(out, `\t`) || !strings.Contains(out, `\"`) || !strings.Contains(out, `\\`) {
-		t.Errorf("escapeJSON missing expected escape sequences: %q", out)
+	out := AggregateDirResults(results, true, false, false)
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("output is not valid JSON: %v\noutput:\n%s", err, out)
+	}
+	if got := int(parsed["total_functions"].(float64)); got != 1 {
+		t.Errorf("total_functions = %d, want 1", got)
+	}
+	files := parsed["files"].([]any)
+	if len(files) != 1 {
+		t.Fatalf("got %d files, want 1", len(files))
+	}
+	if got := files[0].(map[string]any)["path"].(string); got != "pkg/weird\t\"name\".go" {
+		t.Errorf("path round-trip mismatch: %q", got)
 	}
 }
 

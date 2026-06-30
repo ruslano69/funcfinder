@@ -293,64 +293,54 @@ func AggregateDirResults(results []DirResult, jsonOut, treeMode, treeFull bool) 
 	return formatDirResultsGrep(results)
 }
 
+// jsonSymbol is the on-disk shape for a mapped function or type: just its name
+// and starting line, not the internal Start/End/Lines/Decorators fields.
+type jsonSymbol struct {
+	Name string `json:"name"`
+	Line int    `json:"line"`
+}
+
+type jsonFile struct {
+	Path      string       `json:"path"`
+	Functions []jsonSymbol `json:"functions"`
+	Classes   []jsonSymbol `json:"classes"`
+}
+
+type jsonDirResults struct {
+	Files          []jsonFile `json:"files"`
+	TotalFiles     int        `json:"total_files"`
+	TotalFunctions int        `json:"total_functions"`
+	TotalClasses   int        `json:"total_classes"`
+}
+
 func formatDirResultsJSON(results []DirResult) string {
-	totalFuncs := 0
-	totalClasses := 0
-
-	type FileResult struct {
-		Path      string           `json:"path"`
-		Functions []FunctionBounds `json:"functions"`
-		Classes   []ClassBounds    `json:"classes,omitempty"`
-	}
-
-	files := make([]FileResult, 0, len(results))
+	out := jsonDirResults{Files: []jsonFile{}}
 	for _, r := range results {
-		if len(r.Functions) > 0 || len(r.Classes) > 0 {
-			files = append(files, FileResult{
-				Path:      r.Path,
-				Functions: r.Functions,
-				Classes:   r.Classes,
-			})
-			totalFuncs += len(r.Functions)
-			totalClasses += len(r.Classes)
+		if len(r.Functions) == 0 && len(r.Classes) == 0 {
+			continue
 		}
+		jf := jsonFile{
+			Path:      r.Path,
+			Functions: make([]jsonSymbol, 0, len(r.Functions)),
+			Classes:   make([]jsonSymbol, 0, len(r.Classes)),
+		}
+		for _, fn := range r.Functions {
+			jf.Functions = append(jf.Functions, jsonSymbol{Name: fn.Name, Line: fn.Start})
+		}
+		for _, c := range r.Classes {
+			jf.Classes = append(jf.Classes, jsonSymbol{Name: c.Name, Line: c.Start})
+		}
+		out.Files = append(out.Files, jf)
+		out.TotalFiles++
+		out.TotalFunctions += len(r.Functions)
+		out.TotalClasses += len(r.Classes)
 	}
 
-	// Simple JSON formatting without external dependency
-	jsonStr := "{\n"
-	jsonStr += "  \"files\": [\n"
-	for i, f := range files {
-		jsonStr += "    {\n"
-		jsonStr += "      \"path\": \"" + escapeJSON(f.Path) + "\",\n"
-		jsonStr += "      \"functions\": ["
-		for j, fn := range f.Functions {
-			if j > 0 {
-				jsonStr += ", "
-			}
-			jsonStr += "{\"name\": \"" + escapeJSON(fn.Name) + "\", \"line\": " + strconv.Itoa(fn.Start) + "}"
-		}
-		jsonStr += "],\n"
-		jsonStr += "      \"classes\": ["
-		for j, c := range f.Classes {
-			if j > 0 {
-				jsonStr += ", "
-			}
-			jsonStr += "{\"name\": \"" + escapeJSON(c.Name) + "\", \"line\": " + strconv.Itoa(c.Start) + "}"
-		}
-		jsonStr += "]\n"
-		jsonStr += "    }"
-		if i < len(files)-1 {
-			jsonStr += ","
-		}
-		jsonStr += "\n"
+	b, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return "{}\n"
 	}
-	jsonStr += "  ],\n"
-	jsonStr += "  \"total_files\": " + strconv.Itoa(len(files)) + ",\n"
-	jsonStr += "  \"total_functions\": " + strconv.Itoa(totalFuncs) + ",\n"
-	jsonStr += "  \"total_classes\": " + strconv.Itoa(totalClasses) + "\n"
-	jsonStr += "}\n"
-
-	return jsonStr
+	return string(b) + "\n"
 }
 
 func formatDirResultsTree(results []DirResult, full bool) string {
@@ -629,16 +619,6 @@ func CollectSourceFiles(rootPath string, langConfig *LanguageConfig, recursive b
 	return files, err
 }
 
-// Helper functions for JSON formatting
-func escapeJSON(s string) string {
-	s = strings.ReplaceAll(s, "\\", "\\\\")
-	s = strings.ReplaceAll(s, "\"", "\\\"")
-	s = strings.ReplaceAll(s, "\n", "\\n")
-	s = strings.ReplaceAll(s, "\r", "\\r")
-	s = strings.ReplaceAll(s, "\t", "\\t")
-	return s
-}
-
 // ShardInfo represents metadata about a single shard file
 type ShardInfo struct {
 	Path           string   `json:"path"`
@@ -753,43 +733,16 @@ func WriteSplitOutput(results []DirResult, outDir, rootDir, splitBy string) (str
 		outDir, len(manifest.Shards), manifest.TotalFiles, manifest.TotalFunctions, manifest.TotalClasses), nil
 }
 
+// formatManifestJSON serialises the manifest with encoding/json. This matches
+// byte-for-byte what `deps --update-manifest` writes (cmd/deps applyGraphToManifest
+// also uses json.MarshalIndent with the same indent), so the manifest format is
+// now identical no matter which tool wrote it last.
 func formatManifestJSON(m *Manifest) string {
-	json := "{\n"
-	json += "  \"version\": \"" + m.Version + "\",\n"
-	json += "  \"root_dir\": \"" + escapeJSON(m.RootDir) + "\",\n"
-	json += "  \"split_by\": \"" + m.SplitBy + "\",\n"
-	json += "  \"shards\": [\n"
-	for i, s := range m.Shards {
-		json += "    {"
-		json += "\"path\": \"" + escapeJSON(s.Path) + "\", "
-		json += "\"files\": " + strconv.Itoa(s.Files) + ", "
-		json += "\"total_functions\": " + strconv.Itoa(s.TotalFunctions) + ", "
-		json += "\"total_classes\": " + strconv.Itoa(s.TotalClasses)
-		if s.Checksum != "" {
-			json += ", \"checksum\": \"" + s.Checksum + "\""
-		}
-		if len(s.DependsOn) > 0 {
-			json += ", \"depends_on\": ["
-			for j, d := range s.DependsOn {
-				if j > 0 {
-					json += ", "
-				}
-				json += "\"" + escapeJSON(d) + "\""
-			}
-			json += "]"
-		}
-		json += "}"
-		if i < len(m.Shards)-1 {
-			json += ","
-		}
-		json += "\n"
+	b, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return "{}\n"
 	}
-	json += "  ],\n"
-	json += "  \"total_files\": " + strconv.Itoa(m.TotalFiles) + ",\n"
-	json += "  \"total_functions\": " + strconv.Itoa(m.TotalFunctions) + ",\n"
-	json += "  \"total_classes\": " + strconv.Itoa(m.TotalClasses) + "\n"
-	json += "}\n"
-	return json
+	return string(b) + "\n"
 }
 
 // loadManifest loads existing manifest from outDir
