@@ -413,6 +413,7 @@ func runSuggest(s *truth.Store, args []string) {
 	fs := flag.NewFlagSet("suggest", flag.ExitOnError)
 	prefix := fs.String("prefix", "", "term prefix — the vocabulary front-door for FTS (required)")
 	ref := fs.String("channel", truth.ChannelStable, "channel or release version")
+	relativeTo := fs.String("relative-to", "", "compute IDF relative to a partition (a doc type, e.g. reference_ru) instead of the whole corpus")
 	limit := fs.Int("limit", 20, "max terms")
 	jsonOut := fs.Bool("json", false, "output JSON")
 	fs.Parse(args)
@@ -430,7 +431,12 @@ func runSuggest(s *truth.Store, args []string) {
 	}
 	defer db.Close()
 
-	terms, err := knowledge.Suggest(db, *prefix, *limit)
+	var terms []knowledge.Term
+	if *relativeTo != "" {
+		terms, err = knowledge.SuggestRelativeTo(db, *prefix, *relativeTo, *limit)
+	} else {
+		terms, err = knowledge.Suggest(db, *prefix, *limit)
+	}
 	if err != nil {
 		fatalf("suggest: %v", err)
 	}
@@ -438,8 +444,12 @@ func runSuggest(s *truth.Store, args []string) {
 		json.NewEncoder(os.Stdout).Encode(terms)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "# %d terms matching %q* in %s  (IDF = discriminating power; higher = sharper key)\n",
-		len(terms), *prefix, filepath.Base(path))
+	scope := "corpus"
+	if *relativeTo != "" {
+		scope = "partition " + *relativeTo
+	}
+	fmt.Fprintf(os.Stderr, "# %d terms matching %q* in %s  (IDF relative to %s; higher = sharper key)\n",
+		len(terms), *prefix, filepath.Base(path), scope)
 	for _, t := range terms {
 		mark := ""
 		if t.Weak() {
@@ -481,7 +491,7 @@ Rewrite (truth flows in):
 
 Readonly (grounding):
   search      --query <q> [--channel stable|testing|unstable|<ver>] [--mode --embedding --limit]
-  suggest     --prefix <p> [--channel <c> --limit N]                  (FTS vocabulary: which terms actually exist, ranked by frequency)
+  suggest     --prefix <p> [--channel <c> --relative-to <type> --limit N]   (FTS vocabulary + IDF; --relative-to fixes IDF for a mixed-corpus partition)
   serve       --addr <a> --channel stable|testing [--pool N --lite]   (async read-server, hot-swaps on channel repoint)
   mcp         (MCP server over stdio — first-class interface for LLM agents)
   releases    [--json]

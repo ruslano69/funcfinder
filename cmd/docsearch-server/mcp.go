@@ -259,6 +259,7 @@ func (m *mcpServer) toolSuggest(args map[string]any) (string, error) {
 		return "", fmt.Errorf("prefix is required")
 	}
 	ref := argStr(args, "channel", truth.ChannelStable)
+	relativeTo := argStr(args, "relative_to", "")
 	limit := argInt(args, "limit", 20)
 
 	path, err := m.store.Resolve(ref)
@@ -271,11 +272,16 @@ func (m *mcpServer) toolSuggest(args map[string]any) (string, error) {
 	}
 	defer db.Close()
 
-	terms, err := knowledge.Suggest(db, prefix, limit)
+	var terms []knowledge.Term
+	if relativeTo != "" {
+		terms, err = knowledge.SuggestRelativeTo(db, prefix, relativeTo, limit)
+	} else {
+		terms, err = knowledge.Suggest(db, prefix, limit)
+	}
 	if err != nil {
 		return "", err
 	}
-	return jsonString(map[string]any{"channel": ref, "prefix": prefix, "terms": terms}), nil
+	return jsonString(map[string]any{"channel": ref, "prefix": prefix, "relative_to": relativeTo, "terms": terms}), nil
 }
 
 func (m *mcpServer) toolListReleases() (string, error) {
@@ -409,9 +415,10 @@ func toolSchemas() []map[string]any {
 			}, "topic"),
 		tool("suggest_terms", "Discover which terms actually exist in the corpus's FTS index for a prefix, ranked by frequency — look this up BEFORE searching so you use real corpus terms (and see inflected/foreign-language forms) instead of guessing.",
 			map[string]any{
-				"prefix":  strProp("term prefix, e.g. 'sort' or 'сорт'"),
-				"channel": strProp("stable|testing|unstable or a release version"),
-				"limit":   intProp("max terms (default 20)"),
+				"prefix":      strProp("term prefix, e.g. 'sort' or 'сорт'"),
+				"channel":     strProp("stable|testing|unstable or a release version"),
+				"relative_to": strProp("optional: compute IDF relative to a partition (a doc type, e.g. reference_ru) for a mixed-language/source corpus"),
+				"limit":       intProp("max terms (default 20)"),
 			}, "prefix"),
 		tool("list_releases", "List published, immutable releases of truth (newest first).", map[string]any{}),
 		tool("channels", "Show channels (stable/testing/unstable) and which release each points at.", map[string]any{}),
