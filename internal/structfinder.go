@@ -178,14 +178,9 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 							}
 
 							if braceCount > 0 {
-								// Opening brace on same line
+								// Opening brace(s) unmatched on this line — the body
+								// continues below; count down to find the end.
 								depth = braceCount
-								if depth == 0 {
-									// Single-line type definition
-									currentType.End = lineNum + 1 + lineOffset
-									types = append(types, *currentType)
-									currentType = nil
-								}
 							} else if f.config.BlockEndKeyword != "" {
 								// Ruby-like: will find end by matching 'end' keyword
 								depth = 1 // Mark as inside
@@ -198,6 +193,16 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 								// own line. Close immediately so they don't stay "open"
 								// and swallow following declarations while waiting for
 								// a brace that never comes.
+								currentType.End = lineNum + 1 + lineOffset
+								types = append(types, *currentType)
+								currentType = nil
+							} else if strings.ContainsRune(cleaned, '{') {
+								// Balanced braces on the same line (`type Foo struct{}`,
+								// `struct{ io.Writer }`, inline interface): the type is
+								// complete here. braceCount nets to 0, but the braces
+								// *were* present — distinguish this from a genuine
+								// multi-line signature (no brace yet) so we don't stay
+								// open and swallow the next declaration.
 								currentType.End = lineNum + 1 + lineOffset
 								types = append(types, *currentType)
 								currentType = nil
@@ -248,20 +253,19 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 						}
 
 						if braceCount > 0 {
-							// Opening brace on same line
+							// Opening brace(s) unmatched on this line — body continues.
 							depth = braceCount
-							if depth == 0 {
-								// Single-line type definition
-								currentType.End = lineNum + 1 + lineOffset
-								types = append(types, *currentType)
-								currentType = nil
-							}
 						} else if f.config.BlockEndKeyword != "" {
 							// Ruby-like: will find end by matching 'end' keyword
 							depth = 1 // Mark as inside
 						} else if f.config.IndentBased {
 							// Indent-based type, will find end by indentation
 							depth = 1 // Mark as inside
+						} else if strings.ContainsRune(cleaned, '{') {
+							// Balanced braces on the same line — complete inline type.
+							currentType.End = lineNum + 1 + lineOffset
+							types = append(types, *currentType)
+							currentType = nil
 						} else {
 							// Multi-line signature, waiting for brace
 							depth = 0

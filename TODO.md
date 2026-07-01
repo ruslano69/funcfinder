@@ -4,6 +4,20 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
+## Rust/Scala char literals vs single-quote ambiguity (deferred)
+
+Loop #2 of the tdtp spec-sheet fixed char/rune-literal brace leakage by setting
+`"char_delimiters": ["'"]` for Go, C#, Java, D, Kotlin. Rust and Scala were
+**intentionally left out**: a lone `'` there is legal and unpaired — Rust
+lifetimes (`&'a str`, `fn f<'a>()`) and Scala symbol literals (`'sym`). Treating
+`'` as a char delimiter would open `StateCharLiteral` and blank the rest of the
+line. If Rust/Scala char literals (`'{'`, `'}'`) ever show up as a measured
+recall miss on a reference project, the fix is a *context-aware* char rule
+(e.g. require a closing `'` within N chars, or a lookahead that rejects
+`'<ident>` lifetime/symbol shapes), not a blanket delimiter.
+
+---
+
 ## Code review: hot-path optimizations, bugs, stdlib wheels (2026-06-30)
 
 Findings from reviewing the most heavily-executed code paths. Ordered by the

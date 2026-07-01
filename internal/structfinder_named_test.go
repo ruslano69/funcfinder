@@ -55,3 +55,49 @@ type Handler = Config
 		}
 	}
 }
+
+// An inline struct/interface with balanced braces on one line (`type X struct{}`,
+// `struct{ io.Writer }`) must close on its own line. Otherwise it stays "open"
+// (braceCount nets to 0, looking like a multi-line signature) and swallows the
+// next type declaration — the residual category the ruler surfaced on tdtp.
+func TestGoStructFinder_InlineBraces_NoSwallow(t *testing.T) {
+	goCfg := getGoConfig(t)
+	code := `package main
+
+type MetadataService struct{}
+
+type ColumnInfo struct {
+	Name string
+}
+
+type nopWriteCloser struct{ io.Writer }
+
+type nopReadCloser struct{ io.Reader }
+
+type Empty interface{}
+
+type Stringer interface{ String() string }
+`
+	factory := NewStructFinderFactory()
+	sf := factory.CreateStructFinder(goCfg, "", true, false)
+	res, err := sf.FindStructuresInLines(strings.Split(code, "\n"), 1, "t.go")
+	if err != nil {
+		t.Fatalf("FindStructuresInLines() error = %v", err)
+	}
+
+	got := map[string]int{}
+	for _, ty := range res.Types {
+		got[ty.Name] = ty.Start
+	}
+
+	// The ones after an inline struct are the canaries: if the inline struct
+	// stayed open, ColumnInfo / nopReadCloser / Stringer would be swallowed.
+	for name, wantStart := range map[string]int{
+		"MetadataService": 3, "ColumnInfo": 5, "nopWriteCloser": 9,
+		"nopReadCloser": 11, "Empty": 13, "Stringer": 15,
+	} {
+		if got[name] != wantStart {
+			t.Errorf("type %q start = %d, want %d (all: %v)", name, got[name], wantStart, got)
+		}
+	}
+}

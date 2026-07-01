@@ -25,6 +25,9 @@
     "string_chars": [
       "\""
     ],
+    "char_delimiters": [
+      "'"
+    ],
     "raw_string_chars": [
       "`"
     ],
@@ -161,6 +164,9 @@
     "string_chars": [
       "\""
     ],
+    "char_delimiters": [
+      "'"
+    ],
     "raw_string_chars": [
       "@\""
     ],
@@ -210,6 +216,9 @@
     "string_chars": [
       "\""
     ],
+    "char_delimiters": [
+      "'"
+    ],
     "raw_string_chars": [],
     "escape_char": "\\",
     "exclude_words": [
@@ -253,6 +262,9 @@
     ],
     "string_chars": [
       "\""
+    ],
+    "char_delimiters": [
+      "'"
     ],
     "raw_string_chars": [
       "`",
@@ -599,6 +611,9 @@
     ],
     "string_chars": [
       "\""
+    ],
+    "char_delimiters": [
+      "'"
     ],
     "raw_string_chars": [
       "\"\"\""

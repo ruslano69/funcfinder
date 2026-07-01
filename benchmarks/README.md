@@ -54,26 +54,47 @@ python benchmarks/specsheet.py \
 
 | Project | Commit | Lang | Recall | Precision | Token savings | Notes |
 |---|---|---|---|---|---|---|
-| ruslano69/tdtp-framework | `4ff012e` | Go | 98.1% → **99.1%** | 99.5% | 88.8%* | after the defined-type fix below |
+| ruslano69/tdtp-framework | `4ff012e` | Go | 98.1% → 99.1% | 99.5% | 88.8%* | after the defined-type fix (loop #1) |
+| ruslano69/tdtp-framework | `2028d38` | Go | 99.1% → **100.0%** | 99.6% | 88.8%* | after char-literal + inline-brace fixes (loop #2) |
 
 \* verbose `--all --json`, chars/4 approx; higher with `--split`/compact map.
+Recall/precision are over the file intersection with the ruler.
 
-**The dovodka loop, demonstrated end-to-end on this row:**
+**The dovodka loop, demonstrated end-to-end over two passes:**
 
-1. *Ruler found the gap.* The original 1.9% recall miss was one clean category:
-   Go *defined types* — `type X string`, `type X func(...)`, `type X []byte` —
-   which funcfinder didn't detect (its `struct_type_patterns` only covered
-   `struct` / `interface` / `= alias`). 66 instances.
-2. *Cheap regex fix (community engine).* Added a `named` pattern plus
-   single-line closing for brace-less type kinds (so they don't swallow the
-   declarations after them). Pinned by `TestGoStructFinder_DefinedTypes`.
-3. *Re-measured.* Recall **98.1% → 99.1%**, misses **66 → 30**, precision
-   unchanged at 99.5%.
+*Loop #1 — defined types.* The first 1.9% recall miss was one clean category:
+Go *defined types* — `type X string`, `type X func(...)`, `type X []byte` —
+which funcfinder didn't detect (its `struct_type_patterns` only covered
+`struct` / `interface` / `= alias`). 66 instances. Fixed with a `named` pattern
+plus single-line closing for brace-less type kinds. Recall **98.1% → 99.1%**,
+misses 66 → 30. Pinned by `TestGoStructFinder_DefinedTypes`.
 
-**The residual ~30 — where regex should stop.** It is no longer a tidy
-category: it's mostly normal functions/structs *swallowed by an upstream
-brace miscount* (e.g. a lexer with `'{'` / `'}'` char literals throwing off
-`CountBraces`). That's the harder layer — a sanitizer refinement at best, and
-otherwise exactly the "only AST gets it" territory that justifies the parser
-tier. We deliberately do **not** chase it with more regex: past here the cost
-of fixing exceeds what the missed symbols are worth to navigation.
+*Loop #2 — the residual 30, which turned out to be two more clean categories,
+not "only AST gets it":*
+
+1. **Char/rune literals leaking braces (22 of 30).** `char_delimiters` was
+   *unset for every language* in `languages.json`, so the sanitizer's
+   char-literal machinery was dead code. A lexer line like `if c == '{' {` fed
+   a phantom `{` into `CountBraces`, and the enclosing function stayed open and
+   swallowed everything after it. Fix: set `"char_delimiters": ["'"]` for the
+   languages where `'` is a rune/char literal (Go, C#, Java, D, Kotlin — C/C++
+   already carried `'` in `string_chars`). *Not* Rust (lifetimes `'a`) or Scala
+   (symbol literals `'sym`), where a lone `'` is legal and unpaired. Pinned by
+   `TestCharLiteralBraces_NoSwallow` / `TestCharLiteralSanitized`.
+2. **Inline balanced braces (the last 7).** `type Foo struct{}` /
+   `struct{ io.Writer }` net to `braceCount == 0`, which the struct finder read
+   as "multi-line signature, wait for a brace" — so it stayed open and swallowed
+   the next type. Fix: when the line has no unmatched brace but *did* contain a
+   `{`, close the type on its own line. Pinned by
+   `TestGoStructFinder_InlineBraces_NoSwallow`.
+
+Result: recall **99.1% → 100.0%** on the file intersection, misses 30 → 0,
+precision unchanged.
+
+**The lesson for the tier boundary.** What looked like "harder, parser-only"
+territory after loop #1 was, on inspection, two more *cheap* config/regex fixes
+— a dead config key and a single-line-closing edge case. The ruler earns its
+keep precisely here: it stops us from hand-waving "the rest needs AST" and makes
+us look. The genuine parser-tier cases are the ones that survive *after* the
+cheap fixes are exhausted — and on tdtp, at 100% recall, there are none left to
+point at. The next honest test is a project that still has residuals here.
