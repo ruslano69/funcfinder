@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ruslano69/funcfinder/internal/embed"
 	"github.com/ruslano69/funcfinder/internal/truth"
 )
 
@@ -19,7 +20,7 @@ func runSession(t *testing.T, dir string, lines ...string) []rpcResponse {
 	defer store.Close()
 
 	var buf strings.Builder
-	m := &mcpServer{store: store, out: json.NewEncoder(&buf)}
+	m := &mcpServer{store: store, embc: embed.New("", ""), out: json.NewEncoder(&buf)}
 	for _, l := range lines {
 		m.dispatch(l)
 	}

@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ruslano69/funcfinder/internal/embed"
 	"github.com/ruslano69/funcfinder/internal/knowledge"
 	"github.com/ruslano69/funcfinder/internal/truth"
 )
@@ -31,6 +32,7 @@ type server struct {
 	channel  string
 	lite     bool
 	poolSize int
+	embc     *embed.Client // enables semantic/hybrid grounding when configured
 	cur      atomic.Pointer[activeRelease]
 	served   atomic.Int64
 }
@@ -122,7 +124,19 @@ func (s *server) search(db *sql.DB, query string) string {
 		return fmt.Sprintf("count=%d\n###END###\n", n)
 	}
 
-	res, err := knowledge.SearchFTS(db, query, 5, true)
+	// Semantic depth: when an embedder is configured, ground via hybrid
+	// (FTS + vector); otherwise pure FTS.
+	var res []knowledge.Result
+	var err error
+	if s.embc.Enabled() {
+		if qv, e := s.embc.Embed(query); e == nil {
+			res, err = knowledge.SearchHybrid(db, query, qv, 5, knowledge.MetricCosine, "", true)
+		} else {
+			res, err = knowledge.SearchFTS(db, query, 5, true)
+		}
+	} else {
+		res, err = knowledge.SearchFTS(db, query, 5, true)
+	}
 	if err != nil {
 		return "count=0\n###END###\n"
 	}
@@ -139,7 +153,7 @@ func (s *server) search(db *sql.DB, query string) string {
 	return b.String()
 }
 
-func runServe(s *truth.Store, args []string) {
+func runServe(s *truth.Store, embc *embed.Client, args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	addr := fs.String("addr", "127.0.0.1:9099", "listen address")
 	channel := fs.String("channel", truth.ChannelStable, "channel to serve (stable|testing)")
@@ -148,7 +162,7 @@ func runServe(s *truth.Store, args []string) {
 	swapMs := fs.Int("swap-check-ms", 500, "channel repoint poll interval")
 	fs.Parse(args)
 
-	srv := &server{store: s, channel: *channel, lite: *lite, poolSize: *pool}
+	srv := &server{store: s, channel: *channel, lite: *lite, poolSize: *pool, embc: embc}
 
 	rel, err := srv.openRelease()
 	if err != nil {

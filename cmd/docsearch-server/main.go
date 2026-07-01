@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/ruslano69/funcfinder/internal"
+	"github.com/ruslano69/funcfinder/internal/embed"
 	"github.com/ruslano69/funcfinder/internal/knowledge"
 	"github.com/ruslano69/funcfinder/internal/truth"
 )
@@ -41,6 +42,8 @@ func main() {
 	// by that action's own flag set (same convention as cmd/docsearch).
 	globalFS := flag.NewFlagSet("docsearch-server", flag.ContinueOnError)
 	root := globalFS.String("root", ".docsearch", "data root (control DB, write-log, releases)")
+	embedModel := globalFS.String("embed-model", "", "Ollama-compatible embedding model; enables vector search (e.g. qwen3-embedding:0.6b). Empty = pure BYO/FTS")
+	embedURL := globalFS.String("embed-url", embed.DefaultURL, "embedding endpoint URL")
 	globalFS.Usage = printUsage
 
 	actions := map[string]bool{
@@ -72,11 +75,13 @@ func main() {
 	}
 	defer store.Close()
 
+	emb := embed.New(*embedURL, *embedModel)
+
 	switch action {
 	case "ingest":
-		runIngest(store, postAction)
+		runIngest(store, emb, postAction)
 	case "record":
-		runRecord(store, postAction)
+		runRecord(store, emb, postAction)
 	case "publish":
 		runPublish(store, postAction)
 	case "set-channel":
@@ -86,11 +91,11 @@ func main() {
 	case "releases":
 		runReleases(store, postAction)
 	case "search":
-		runSearch(store, postAction)
+		runSearch(store, emb, postAction)
 	case "serve":
-		runServe(store, postAction)
+		runServe(store, emb, postAction)
 	case "mcp":
-		runMCP(store, postAction)
+		runMCP(store, emb, postAction)
 	}
 }
 
@@ -114,7 +119,22 @@ func metaJSON(author, roleTags, sourceVersion, sourceRef string) string {
 	return string(b)
 }
 
-func runIngest(s *truth.Store, args []string) {
+// embedOrNil returns the vector for text when the embedder is enabled, or nil
+// (pure BYO/FTS) otherwise. Embedding failures degrade to nil with a warning
+// rather than aborting an ingest.
+func embedOrNil(emb *embed.Client, text string) []float32 {
+	if !emb.Enabled() {
+		return nil
+	}
+	v, err := emb.Embed(text)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warn: embed failed (%v); storing without vector\n", err)
+		return nil
+	}
+	return v
+}
+
+func runIngest(s *truth.Store, emb *embed.Client, args []string) {
 	fs := flag.NewFlagSet("ingest", flag.ExitOnError)
 	title := fs.String("title", "", "document title (required without --file)")
 	content := fs.String("content", "", "document content (required without --file)")
@@ -145,18 +165,34 @@ func runIngest(s *truth.Store, args []string) {
 			}
 			fatalf("ingest: %v", err)
 		}
+		// Batch-embed chunk bodies when embedding is enabled (one round-trip).
+		var vecs [][]float32
+		if emb.Enabled() {
+			texts := make([]string, len(chunks))
+			for i, ch := range chunks {
+				texts[i] = ch.Content
+			}
+			if vecs, err = emb.EmbedBatch(texts); err != nil {
+				fmt.Fprintf(os.Stderr, "warn: batch embed failed (%v); storing without vectors\n", err)
+				vecs = nil
+			}
+		}
 		var ids []int64
-		for _, ch := range chunks {
-			id, err := knowledge.Add(db, ch.Title, ch.Content, *docType, meta, nil)
+		for i, ch := range chunks {
+			var v []float32
+			if vecs != nil {
+				v = vecs[i]
+			}
+			id, err := knowledge.Add(db, ch.Title, ch.Content, *docType, meta, v)
 			if err != nil {
 				fatalf("add chunk: %v", err)
 			}
 			ids = append(ids, id)
 		}
 		if *jsonOut {
-			json.NewEncoder(os.Stdout).Encode(map[string]any{"chunks": len(ids), "ids": ids})
+			json.NewEncoder(os.Stdout).Encode(map[string]any{"chunks": len(ids), "ids": ids, "embedded": vecs != nil})
 		} else {
-			fmt.Fprintf(os.Stderr, "ingested %d chunks from %s (type=%s)\n", len(ids), *file, *docType)
+			fmt.Fprintf(os.Stderr, "ingested %d chunks from %s (type=%s, embedded=%v)\n", len(ids), *file, *docType, vecs != nil)
 		}
 		return
 	}
@@ -164,7 +200,7 @@ func runIngest(s *truth.Store, args []string) {
 	if *title == "" || *content == "" {
 		fatalf("--title and --content required (or use --file)")
 	}
-	id, err := knowledge.Add(db, *title, *content, *docType, meta, nil)
+	id, err := knowledge.Add(db, *title, *content, *docType, meta, embedOrNil(emb, *content))
 	if err != nil {
 		fatalf("add: %v", err)
 	}
@@ -175,7 +211,7 @@ func runIngest(s *truth.Store, args []string) {
 	}
 }
 
-func runRecord(s *truth.Store, args []string) {
+func runRecord(s *truth.Store, emb *embed.Client, args []string) {
 	fs := flag.NewFlagSet("record", flag.ExitOnError)
 	title := fs.String("title", "", "short title of the result (required)")
 	result := fs.String("result", "", "the result body: changelog/decision/closed task (required)")
@@ -195,7 +231,7 @@ func runRecord(s *truth.Store, args []string) {
 	defer db.Close()
 
 	meta := metaJSON(*author, "", "", *sourceRef)
-	id, err := knowledge.Add(db, *title, *result, *docType, meta, nil)
+	id, err := knowledge.Add(db, *title, *result, *docType, meta, embedOrNil(emb, *result))
 	if err != nil {
 		fatalf("record: %v", err)
 	}
@@ -298,12 +334,12 @@ func runReleases(s *truth.Store, args []string) {
 	}
 }
 
-func runSearch(s *truth.Store, args []string) {
+func runSearch(s *truth.Store, embc *embed.Client, args []string) {
 	fs := flag.NewFlagSet("search", flag.ExitOnError)
 	query := fs.String("query", "", "query string (required)")
 	ref := fs.String("channel", truth.ChannelStable, "channel (stable|testing|unstable) or a release version")
 	mode := fs.String("mode", "hybrid", "fts|vec|hybrid|regex")
-	embeddingRaw := fs.String("embedding", "", "comma-separated float32 for vec/hybrid (BYO)")
+	embeddingRaw := fs.String("embedding", "", "comma-separated float32 for vec/hybrid (BYO; overrides --embed-model)")
 	limit := fs.Int("limit", 10, "max results")
 	prefix := fs.Bool("prefix", true, "auto-append wildcard to FTS tokens")
 	jsonOut := fs.Bool("json", false, "output JSON")
@@ -322,7 +358,14 @@ func runSearch(s *truth.Store, args []string) {
 	}
 	defer db.Close()
 
+	// Query embedding: explicit --embedding wins; else the configured
+	// --embed-model embeds the query live for vec/hybrid modes.
 	emb := parseEmbedding(*embeddingRaw)
+	if len(emb) == 0 && embc.Enabled() && (*mode == "vec" || *mode == "hybrid") {
+		if emb, err = embc.Embed(*query); err != nil {
+			fatalf("embed query: %v", err)
+		}
+	}
 	var results []knowledge.Result
 	switch *mode {
 	case "fts":
@@ -395,7 +438,9 @@ Readonly (grounding):
   channels    [--json]
 
 Global:
-  --root <dir>   data root (default .docsearch)
+  --root <dir>          data root (default .docsearch)
+  --embed-model <m>     Ollama-compatible embedding model to enable vector search (e.g. qwen3-embedding:0.6b)
+  --embed-url <url>     embedding endpoint (default http://localhost:11434/api/embed)
   --version
 `)
 }

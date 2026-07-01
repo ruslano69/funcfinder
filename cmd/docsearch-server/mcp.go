@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ruslano69/funcfinder/internal/embed"
 	"github.com/ruslano69/funcfinder/internal/knowledge"
 	"github.com/ruslano69/funcfinder/internal/truth"
 )
@@ -46,14 +47,15 @@ type rpcError struct {
 // the write-log never sees concurrent access from this transport.
 type mcpServer struct {
 	store *truth.Store
+	embc  *embed.Client
 	out   *json.Encoder
 }
 
-func runMCP(store *truth.Store, args []string) {
+func runMCP(store *truth.Store, embc *embed.Client, args []string) {
 	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
 	fs.Parse(args)
 
-	m := &mcpServer{store: store, out: json.NewEncoder(os.Stdout)}
+	m := &mcpServer{store: store, embc: embc, out: json.NewEncoder(os.Stdout)}
 	// Progress/diagnostics go to stderr so they never corrupt the JSON-RPC
 	// stream on stdout.
 	fmt.Fprintln(os.Stderr, "docsearch-server MCP on stdio (protocol "+mcpProtocolVersion+")")
@@ -210,6 +212,14 @@ func (m *mcpServer) toolSearch(args map[string]any) (string, error) {
 	mode := argStr(args, "mode", "hybrid")
 	limit := argInt(args, "limit", 10)
 	emb := argFloats(args, "embedding")
+
+	// Embed the query live when no explicit vector was passed and a model is
+	// configured — this is what makes semantic/hybrid grounding just work.
+	if len(emb) == 0 && m.embc.Enabled() && (mode == "vec" || mode == "hybrid") {
+		if v, err := m.embc.Embed(query); err == nil {
+			emb = v
+		}
+	}
 
 	path, err := m.store.Resolve(ref)
 	if err != nil {
