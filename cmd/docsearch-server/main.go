@@ -438,9 +438,14 @@ func runSuggest(s *truth.Store, args []string) {
 		json.NewEncoder(os.Stdout).Encode(terms)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "# %d terms matching %q* in %s\n", len(terms), *prefix, filepath.Base(path))
+	fmt.Fprintf(os.Stderr, "# %d terms matching %q* in %s  (IDF = discriminating power; higher = sharper key)\n",
+		len(terms), *prefix, filepath.Base(path))
 	for _, t := range terms {
-		fmt.Printf("  %-24s docs=%-5d count=%d\n", t.Term, t.Docs, t.Count)
+		mark := ""
+		if t.Weak() {
+			mark = "  ← weak key (too common)"
+		}
+		fmt.Printf("  %-24s docs=%-5d count=%-5d idf=%.2f%s\n", t.Term, t.Docs, t.Count, t.IDF, mark)
 	}
 }
 

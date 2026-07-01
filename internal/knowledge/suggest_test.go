@@ -33,14 +33,14 @@ func TestSuggest(t *testing.T) {
 	}
 	defer db.Close()
 
-	docs := []string{
-		"SORT records ascending",
-		"SORT and MERGE files",
-		"the SORT statement is powerful",
-		"PERFORM a paragraph",
-	}
-	for i, d := range docs {
-		if _, err := Add(db, "doc", d, "spec", "{}", nil); err != nil {
+	// 20-doc corpus with a real frequency spread: "sort" is common (weak key),
+	// "merge" is rare (sharp key).
+	for i := 0; i < 20; i++ {
+		body := "sort records" // "sort" in all 20 docs → weak
+		if i < 2 {
+			body += " merge files" // "merge" in only 2 → sharp
+		}
+		if _, err := Add(db, "doc", body, "spec", "{}", nil); err != nil {
 			t.Fatalf("add %d: %v", i, err)
 		}
 	}
@@ -49,12 +49,17 @@ func TestSuggest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("suggest: %v", err)
 	}
-	if len(terms) == 0 || terms[0].Term != "sort" {
-		t.Fatalf("expected 'sort' top term, got %+v", terms)
+	if len(terms) == 0 || terms[0].Term != "sort" || terms[0].Docs != 20 {
+		t.Fatalf("expected 'sort' in all 20 docs, got %+v", terms)
 	}
-	// "sort" appears in 3 of 4 docs, 3 times total.
-	if terms[0].Docs != 3 || terms[0].Count != 3 {
-		t.Fatalf("sort stats = docs %d count %d, want 3/3", terms[0].Docs, terms[0].Count)
+	// "sort" in 20/20 docs → IDF=0, a weak key.
+	if terms[0].IDF != 0 || !terms[0].Weak() {
+		t.Fatalf("sort IDF=%.3f Weak=%v, want 0 and weak", terms[0].IDF, terms[0].Weak())
+	}
+	// "merge" in 2/20 (10%) → IDF=ln(10)≈2.30, a sharp key.
+	m, _ := Suggest(db, "merge", 5)
+	if len(m) == 0 || m[0].Weak() || m[0].IDF <= terms[0].IDF {
+		t.Fatalf("merge should be a sharper (non-weak) key than sort: %+v", m)
 	}
 	// case-insensitive prefix (vocab is lowercased).
 	if up, _ := Suggest(db, "SORT", 10); len(up) == 0 || up[0].Term != "sort" {
