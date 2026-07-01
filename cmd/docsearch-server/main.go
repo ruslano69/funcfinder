@@ -414,6 +414,7 @@ func runSuggest(s *truth.Store, args []string) {
 	prefix := fs.String("prefix", "", "term prefix — the vocabulary front-door for FTS (required)")
 	ref := fs.String("channel", truth.ChannelStable, "channel or release version")
 	relativeTo := fs.String("relative-to", "", "compute IDF relative to a partition (a doc type, e.g. reference_ru) instead of the whole corpus")
+	numbers := fs.Bool("numbers", false, "include pure-digit tokens (page/line numbers), off by default as they are useless keys")
 	limit := fs.Int("limit", 20, "max terms")
 	jsonOut := fs.Bool("json", false, "output JSON")
 	fs.Parse(args)
@@ -433,9 +434,9 @@ func runSuggest(s *truth.Store, args []string) {
 
 	var terms []knowledge.Term
 	if *relativeTo != "" {
-		terms, err = knowledge.SuggestRelativeTo(db, *prefix, *relativeTo, *limit)
+		terms, err = knowledge.SuggestRelativeTo(db, *prefix, *relativeTo, *limit, *numbers)
 	} else {
-		terms, err = knowledge.Suggest(db, *prefix, *limit)
+		terms, err = knowledge.Suggest(db, *prefix, *limit, *numbers)
 	}
 	if err != nil {
 		fatalf("suggest: %v", err)
@@ -491,7 +492,7 @@ Rewrite (truth flows in):
 
 Readonly (grounding):
   search      --query <q> [--channel stable|testing|unstable|<ver>] [--mode --embedding --limit]
-  suggest     --prefix <p> [--channel <c> --relative-to <type> --limit N]   (FTS vocabulary + IDF; --relative-to fixes IDF for a mixed-corpus partition)
+  suggest     --prefix <p> [--channel <c> --relative-to <type> --numbers --limit N]   (FTS vocabulary + IDF; pure-digit tokens filtered unless --numbers)
   serve       --addr <a> --channel stable|testing [--pool N --lite]   (async read-server, hot-swaps on channel repoint)
   mcp         (MCP server over stdio — first-class interface for LLM agents)
   releases    [--json]

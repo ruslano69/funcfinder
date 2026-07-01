@@ -29,6 +29,15 @@ type Term struct {
 // Weak reports whether the term is too common to be a good search key.
 func (t Term) Weak() bool { return t.IDF < WeakKeyIDF }
 
+// numericFilter returns the SQL clause that excludes pure-digit tokens (kept
+// tokens contain at least one non-digit), or empty to include them.
+func numericFilter(includeNumbers bool) string {
+	if includeNumbers {
+		return ""
+	}
+	return ` AND term GLOB '*[^0-9]*'`
+}
+
 // Suggest returns vocabulary terms that begin with prefix, most frequent first —
 // the tokens that actually exist in the corpus's FTS index. It turns "guess a
 // keyword and hope it's in the docs" into "look up what's really there", which
@@ -36,7 +45,12 @@ func (t Term) Weak() bool { return t.IDF < WeakKeyIDF }
 // morphologically rich languages: "сорт" -> сортировки, сортируемого, ...).
 //
 // The FTS5 tokenizer lowercase-folds terms, so the prefix is lowercased to match.
-func Suggest(db *sql.DB, prefix string, limit int) ([]Term, error) {
+//
+// includeNumbers=false (the usual case) drops pure-digit tokens — page/line/
+// section numbers that dominate the vocabulary but are useless search keys.
+// They stay in the FTS index, so a direct search for a specific value still
+// works; they are only omitted from the suggestion list.
+func Suggest(db *sql.DB, prefix string, limit int, includeNumbers bool) ([]Term, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -47,7 +61,8 @@ func Suggest(db *sql.DB, prefix string, limit int) ([]Term, error) {
 	}
 
 	rows, err := db.Query(
-		`SELECT term, doc, cnt FROM docs_vocab WHERE term LIKE ? ORDER BY cnt DESC, term LIMIT ?`,
+		`SELECT term, doc, cnt FROM docs_vocab WHERE term LIKE ?`+numericFilter(includeNumbers)+
+			` ORDER BY cnt DESC, term LIMIT ?`,
 		strings.ToLower(prefix)+"%", limit)
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") {
@@ -80,7 +95,7 @@ func Suggest(db *sql.DB, prefix string, limit int) ([]Term, error) {
 //
 // Docs and IDF in the returned terms are partition-relative; Count stays the
 // corpus-global occurrence count for magnitude reference.
-func SuggestRelativeTo(db *sql.DB, prefix, partitionType string, limit int) ([]Term, error) {
+func SuggestRelativeTo(db *sql.DB, prefix, partitionType string, limit int, includeNumbers bool) ([]Term, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -99,7 +114,8 @@ func SuggestRelativeTo(db *sql.DB, prefix, partitionType string, limit int) ([]T
 		pool = 50
 	}
 	rows, err := db.Query(
-		`SELECT term, cnt FROM docs_vocab WHERE term LIKE ? ORDER BY cnt DESC, term LIMIT ?`,
+		`SELECT term, cnt FROM docs_vocab WHERE term LIKE ?`+numericFilter(includeNumbers)+
+			` ORDER BY cnt DESC, term LIMIT ?`,
 		strings.ToLower(prefix)+"%", pool)
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") {

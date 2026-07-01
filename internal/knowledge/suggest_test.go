@@ -45,7 +45,7 @@ func TestSuggest(t *testing.T) {
 		}
 	}
 
-	terms, err := Suggest(db, "sort", 10)
+	terms, err := Suggest(db, "sort", 10, false)
 	if err != nil {
 		t.Fatalf("suggest: %v", err)
 	}
@@ -57,17 +57,59 @@ func TestSuggest(t *testing.T) {
 		t.Fatalf("sort IDF=%.3f Weak=%v, want 0 and weak", terms[0].IDF, terms[0].Weak())
 	}
 	// "merge" in 2/20 (10%) → IDF=ln(10)≈2.30, a sharp key.
-	m, _ := Suggest(db, "merge", 5)
+	m, _ := Suggest(db, "merge", 5, false)
 	if len(m) == 0 || m[0].Weak() || m[0].IDF <= terms[0].IDF {
 		t.Fatalf("merge should be a sharper (non-weak) key than sort: %+v", m)
 	}
 	// case-insensitive prefix (vocab is lowercased).
-	if up, _ := Suggest(db, "SORT", 10); len(up) == 0 || up[0].Term != "sort" {
+	if up, _ := Suggest(db, "SORT", 10, false); len(up) == 0 || up[0].Term != "sort" {
 		t.Fatalf("uppercase prefix should match lowercased vocab: %+v", up)
 	}
 	// unknown prefix -> empty, no error.
-	if none, err := Suggest(db, "zzz", 10); err != nil || len(none) != 0 {
+	if none, err := Suggest(db, "zzz", 10, false); err != nil || len(none) != 0 {
 		t.Fatalf("unknown prefix: err=%v n=%d", err, len(none))
+	}
+}
+
+// TestSuggestNumericFilter: pure-digit tokens are useless keys, filtered by
+// default but reachable with includeNumbers.
+func TestSuggestNumericFilter(t *testing.T) {
+	db, err := Open(t.TempDir() + "/n.sqlite")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+	// "15" is a page-number-like token; "15th" is a real word.
+	Add(db, "d", "section 15 on page 15 line 15", "spec", "{}", nil)
+	Add(db, "d", "the 15th edition", "spec", "{}", nil)
+
+	// Default: "15" filtered out, "15th" kept.
+	def, _ := Suggest(db, "15", 10, false)
+	for _, tm := range def {
+		if tm.Term == "15" {
+			t.Fatalf("pure-digit '15' should be filtered by default: %+v", def)
+		}
+	}
+	found15th := false
+	for _, tm := range def {
+		if tm.Term == "15th" {
+			found15th = true
+		}
+	}
+	if !found15th {
+		t.Fatalf("alphanumeric '15th' should survive the numeric filter: %+v", def)
+	}
+
+	// include=true: "15" reappears (for a deliberate value search).
+	inc, _ := Suggest(db, "15", 10, true)
+	has15 := false
+	for _, tm := range inc {
+		if tm.Term == "15" {
+			has15 = true
+		}
+	}
+	if !has15 {
+		t.Fatalf("include-numbers should surface '15': %+v", inc)
 	}
 }
 
@@ -94,7 +136,7 @@ func TestSuggestRelativeTo(t *testing.T) {
 		Add(db, "b", body, "ru", "{}", nil)
 	}
 
-	rel, err := SuggestRelativeTo(db, "данных", "ru", 10)
+	rel, err := SuggestRelativeTo(db, "данных", "ru", 10, false)
 	if err != nil {
 		t.Fatalf("relative: %v", err)
 	}
@@ -107,13 +149,13 @@ func TestSuggestRelativeTo(t *testing.T) {
 	}
 	// Global counts all 10 docs → IDF=ln(10/4)=0.916 > partition IDF: the
 	// dilution correction lowers the score toward the honest value.
-	glob, _ := Suggest(db, "данных", 10)
+	glob, _ := Suggest(db, "данных", 10, false)
 	if len(glob) == 0 || glob[0].IDF <= rel[0].IDF {
 		t.Fatalf("global IDF %.3f should exceed partition IDF %.3f (dilution)", glob[0].IDF, rel[0].IDF)
 	}
 
 	// Unknown partition type → error.
-	if _, err := SuggestRelativeTo(db, "данных", "nope", 10); err == nil {
+	if _, err := SuggestRelativeTo(db, "данных", "nope", 10, false); err == nil {
 		t.Fatal("expected error for unknown partition type")
 	}
 }

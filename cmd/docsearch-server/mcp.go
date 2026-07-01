@@ -260,6 +260,7 @@ func (m *mcpServer) toolSuggest(args map[string]any) (string, error) {
 	}
 	ref := argStr(args, "channel", truth.ChannelStable)
 	relativeTo := argStr(args, "relative_to", "")
+	includeNumbers, _ := args["include_numbers"].(bool)
 	limit := argInt(args, "limit", 20)
 
 	path, err := m.store.Resolve(ref)
@@ -274,9 +275,9 @@ func (m *mcpServer) toolSuggest(args map[string]any) (string, error) {
 
 	var terms []knowledge.Term
 	if relativeTo != "" {
-		terms, err = knowledge.SuggestRelativeTo(db, prefix, relativeTo, limit)
+		terms, err = knowledge.SuggestRelativeTo(db, prefix, relativeTo, limit, includeNumbers)
 	} else {
-		terms, err = knowledge.Suggest(db, prefix, limit)
+		terms, err = knowledge.Suggest(db, prefix, limit, includeNumbers)
 	}
 	if err != nil {
 		return "", err
@@ -417,8 +418,9 @@ func toolSchemas() []map[string]any {
 			map[string]any{
 				"prefix":      strProp("term prefix, e.g. 'sort' or 'сорт'"),
 				"channel":     strProp("stable|testing|unstable or a release version"),
-				"relative_to": strProp("optional: compute IDF relative to a partition (a doc type, e.g. reference_ru) for a mixed-language/source corpus"),
-				"limit":       intProp("max terms (default 20)"),
+				"relative_to":     strProp("optional: compute IDF relative to a partition (a doc type, e.g. reference_ru) for a mixed-language/source corpus"),
+				"include_numbers": map[string]any{"type": "boolean", "description": "include pure-digit tokens (off by default — they are useless search keys)"},
+				"limit":           intProp("max terms (default 20)"),
 			}, "prefix"),
 		tool("list_releases", "List published, immutable releases of truth (newest first).", map[string]any{}),
 		tool("channels", "Show channels (stable/testing/unstable) and which release each points at.", map[string]any{}),
