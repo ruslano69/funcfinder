@@ -77,8 +77,15 @@ func main() {
 		}
 
 		fo := fileOut{Path: path, Functions: []sym{}, Classes: []sym{}}
-		for _, decl := range f.Decls {
-			switch d := decl.(type) {
+		// Walk the whole tree, not just f.Decls: Go allows type declarations
+		// inside function bodies (`func f() { type T interface{...} }`), and
+		// funcfinder — being line-based — reports those. If the ruler only looked
+		// at top-level decls it would undercount and unfairly dent funcfinder's
+		// precision. Named functions are always top-level FuncDecls; anonymous
+		// func literals (FuncLit) carry no name, and funcfinder doesn't report
+		// them either, so we skip them too.
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch d := n.(type) {
 			case *ast.FuncDecl:
 				// Both plain funcs and methods; name is the bare identifier, the
 				// way funcfinder reports it. Line is the `func` keyword.
@@ -92,7 +99,8 @@ func main() {
 					}
 				}
 			}
-		}
+			return true
+		})
 
 		if len(fo.Functions) > 0 || len(fo.Classes) > 0 {
 			o.Files = append(o.Files, fo)
