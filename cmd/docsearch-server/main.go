@@ -49,7 +49,7 @@ func main() {
 	actions := map[string]bool{
 		"ingest": true, "record": true, "publish": true,
 		"set-channel": true, "channels": true, "releases": true, "search": true,
-		"serve": true, "mcp": true,
+		"suggest": true, "serve": true, "mcp": true,
 	}
 	var preAction, postAction []string
 	action := ""
@@ -92,6 +92,8 @@ func main() {
 		runReleases(store, postAction)
 	case "search":
 		runSearch(store, emb, postAction)
+	case "suggest":
+		runSuggest(store, postAction)
 	case "serve":
 		runServe(store, emb, postAction)
 	case "mcp":
@@ -145,6 +147,7 @@ func runIngest(s *truth.Store, emb *embed.Client, args []string) {
 	sourceVersion := fs.String("source-version", "", "source version (provenance)")
 	chunkSize := fs.Int("chunk-size", 800, "max chunk runes (with --file)")
 	chunkOverlap := fs.Int("chunk-overlap", 80, "chunk overlap runes (with --file)")
+	stripRunes := fs.String("strip-runes", "", "extra junk runes to strip at index time (e.g. an OCR separator glyph: --strip-runes Ω)")
 	jsonOut := fs.Bool("json", false, "output JSON")
 	fs.Parse(args)
 
@@ -164,6 +167,11 @@ func runIngest(s *truth.Store, emb *embed.Client, args []string) {
 				fatalf("bad OCR in %s (score %.2f); fix the PDF first", ocr.Path, ocr.Score)
 			}
 			fatalf("ingest: %v", err)
+		}
+		// Normalize each chunk before indexing/embedding: strips unambiguous
+		// garbage always, plus --strip-runes, keeping the FTS vocabulary clean.
+		for i := range chunks {
+			chunks[i].Content = knowledge.NormalizeForIndex(chunks[i].Content, *stripRunes)
 		}
 		// Batch-embed chunk bodies when embedding is enabled (one round-trip).
 		var vecs [][]float32
@@ -200,7 +208,8 @@ func runIngest(s *truth.Store, emb *embed.Client, args []string) {
 	if *title == "" || *content == "" {
 		fatalf("--title and --content required (or use --file)")
 	}
-	id, err := knowledge.Add(db, *title, *content, *docType, meta, embedOrNil(emb, *content))
+	normalized := knowledge.NormalizeForIndex(*content, *stripRunes)
+	id, err := knowledge.Add(db, *title, normalized, *docType, meta, embedOrNil(emb, normalized))
 	if err != nil {
 		fatalf("add: %v", err)
 	}
@@ -400,6 +409,41 @@ func runSearch(s *truth.Store, embc *embed.Client, args []string) {
 	}
 }
 
+func runSuggest(s *truth.Store, args []string) {
+	fs := flag.NewFlagSet("suggest", flag.ExitOnError)
+	prefix := fs.String("prefix", "", "term prefix — the vocabulary front-door for FTS (required)")
+	ref := fs.String("channel", truth.ChannelStable, "channel or release version")
+	limit := fs.Int("limit", 20, "max terms")
+	jsonOut := fs.Bool("json", false, "output JSON")
+	fs.Parse(args)
+
+	if *prefix == "" {
+		fatalf("--prefix required")
+	}
+	path, err := s.Resolve(*ref)
+	if err != nil {
+		fatalf("resolve %q: %v", *ref, err)
+	}
+	db, err := truth.OpenRelease(path)
+	if err != nil {
+		fatalf("open %s: %v", path, err)
+	}
+	defer db.Close()
+
+	terms, err := knowledge.Suggest(db, *prefix, *limit)
+	if err != nil {
+		fatalf("suggest: %v", err)
+	}
+	if *jsonOut {
+		json.NewEncoder(os.Stdout).Encode(terms)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "# %d terms matching %q* in %s\n", len(terms), *prefix, filepath.Base(path))
+	for _, t := range terms {
+		fmt.Printf("  %-24s docs=%-5d count=%d\n", t.Term, t.Docs, t.Count)
+	}
+}
+
 func parseEmbedding(raw string) []float32 {
 	raw = strings.Trim(strings.TrimSpace(raw), "[]")
 	if raw == "" {
@@ -425,13 +469,14 @@ func printUsage() {
 	fmt.Fprint(os.Stderr, `docsearch-server — versioned truth server for teams (see docs/docsearch-server/TZ.md)
 
 Rewrite (truth flows in):
-  ingest      --title/--content or --file [--type --role-tags --author --source-version]
+  ingest      --title/--content or --file [--type --role-tags --author --source-version --strip-runes]
   record      --title --result [--type changelog|task|decision --source-ref --author]
   publish     --name <ver> [--notes --channel]
   set-channel --name stable|testing --release <ver>
 
 Readonly (grounding):
   search      --query <q> [--channel stable|testing|unstable|<ver>] [--mode --embedding --limit]
+  suggest     --prefix <p> [--channel <c> --limit N]                  (FTS vocabulary: which terms actually exist, ranked by frequency)
   serve       --addr <a> --channel stable|testing [--pool N --lite]   (async read-server, hot-swaps on channel repoint)
   mcp         (MCP server over stdio — first-class interface for LLM agents)
   releases    [--json]

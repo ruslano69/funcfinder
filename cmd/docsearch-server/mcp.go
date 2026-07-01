@@ -154,6 +154,8 @@ func (m *mcpServer) callTool(name string, args map[string]any) (string, error) {
 			args["query"] = t
 		}
 		return m.toolSearch(args)
+	case "suggest_terms":
+		return m.toolSuggest(args)
 	case "list_releases":
 		return m.toolListReleases()
 	case "channels":
@@ -249,6 +251,31 @@ func (m *mcpServer) toolSearch(args map[string]any) (string, error) {
 		return "", err
 	}
 	return jsonString(map[string]any{"release": ref, "results": res}), nil
+}
+
+func (m *mcpServer) toolSuggest(args map[string]any) (string, error) {
+	prefix := argStr(args, "prefix", "")
+	if prefix == "" {
+		return "", fmt.Errorf("prefix is required")
+	}
+	ref := argStr(args, "channel", truth.ChannelStable)
+	limit := argInt(args, "limit", 20)
+
+	path, err := m.store.Resolve(ref)
+	if err != nil {
+		return "", err
+	}
+	db, err := truth.OpenRelease(path)
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+
+	terms, err := knowledge.Suggest(db, prefix, limit)
+	if err != nil {
+		return "", err
+	}
+	return jsonString(map[string]any{"channel": ref, "prefix": prefix, "terms": terms}), nil
 }
 
 func (m *mcpServer) toolListReleases() (string, error) {
@@ -380,6 +407,12 @@ func toolSchemas() []map[string]any {
 				"channel": strProp("stable|testing|unstable or a release version"),
 				"limit":   intProp("max results"),
 			}, "topic"),
+		tool("suggest_terms", "Discover which terms actually exist in the corpus's FTS index for a prefix, ranked by frequency — look this up BEFORE searching so you use real corpus terms (and see inflected/foreign-language forms) instead of guessing.",
+			map[string]any{
+				"prefix":  strProp("term prefix, e.g. 'sort' or 'сорт'"),
+				"channel": strProp("stable|testing|unstable or a release version"),
+				"limit":   intProp("max terms (default 20)"),
+			}, "prefix"),
 		tool("list_releases", "List published, immutable releases of truth (newest first).", map[string]any{}),
 		tool("channels", "Show channels (stable/testing/unstable) and which release each points at.", map[string]any{}),
 

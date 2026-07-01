@@ -25,6 +25,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS docs_fts USING fts5(
     content_rowid='id'
 );
 
+-- Read-only view over the FTS5 index exposing (term, doc-frequency, count).
+-- Free from the existing index; carried into releases by VACUUM INTO. Powers
+-- Suggest() — "which terms actually exist to search for".
+CREATE VIRTUAL TABLE IF NOT EXISTS docs_vocab USING fts5vocab('docs_fts', 'row');
+
 CREATE TABLE IF NOT EXISTS docs_vec (
     doc_id    INTEGER PRIMARY KEY REFERENCES docs(id) ON DELETE CASCADE,
     dim       INTEGER NOT NULL,
