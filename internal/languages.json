@@ -4,13 +4,13 @@
     "extensions": [
       ".go"
     ],
-    "func_pattern": "^\\s*func\\s+(\\([^)]*\\)\\s+)?({IDENT}+)\\s*\\(",
+    "func_pattern": "^\\s*func\\s+(\\([^)]*\\)\\s+)?({IDENT}+)(?:\\[[^\\]]*\\])?\\s*\\(",
     "class_pattern": "^\\s*type\\s+({IDENT}+)\\s+(struct|interface)\\s*\\{",
     "struct_type_patterns": {
       "struct": "^\\s*type\\s+({IDENT}+)\\s+struct\\s*\\{",
       "interface": "^\\s*type\\s+({IDENT}+)\\s+interface\\s*\\{",
       "type_alias": "^\\s*type\\s+({IDENT}+)\\s*=\\s*",
-      "named": "^\\s*type\\s+({IDENT}+)\\s+[^={\\s][^{]*$"
+      "named": "^\\s*type\\s+({IDENT}+)\\s+[^={\\s](?:.*[^{])?\\s*$"
     },
     "field_pattern": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s+([a-zA-Z_][\\w\\[\\]*\\s]*)\\s*$",
     "call_pattern": "({IDENT}+)\\s*\\(",

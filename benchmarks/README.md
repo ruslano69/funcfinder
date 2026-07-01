@@ -62,9 +62,28 @@ python benchmarks/specsheet.py \
 |---|---|---|---|---|---|---|
 | ruslano69/tdtp-framework | `4ff012e` | Go | 98.1% → 99.1% | 99.5% | 88.8%* | after the defined-type fix (loop #1) |
 | ruslano69/tdtp-framework | `2028d38` | Go | 99.1% → **100.0%** | **100.0%** | 88.8%* | after char-literal + inline-brace fixes; ruler corrected (loop #2) |
+| **funcfinder (self-host)** | `HEAD` | Go | 99.3% → **100.0%** | **100.0%** | — | the bootstrap test: funcfinder on its own source (loop #3) |
 
 \* verbose `--all --json`, chars/4 approx; higher with `--split`/compact map.
 Recall/precision are over the file intersection with the ruler.
+
+**Loop #3 — the bootstrap test ("the compiler must compile itself").** Running
+funcfinder on its *own* source surfaced two more clean categories, both fixed in
+config/regex:
+
+1. **Generics.** `func GenericFunction[T any](…)` — the func pattern expected
+   `(` right after the name and choked on the `[type params]` list. Fixed with a
+   non-capturing `(?:\[[^\]]*\])?` between name and args (methods and multi-param
+   constraints included). Pinned by `TestGoFinder_GenericFunctions`.
+2. **Composite defined types.** `type ShardGraph map[string]map[string]struct{}`
+   — the `named` pattern forbade *any* `{`, to avoid grabbing multi-line
+   `type X struct {`. But a nested `struct{}` / `interface{}` in a `map` value is
+   balanced. Relaxed to allow interior braces while still rejecting a *trailing*
+   unmatched `{`. Pinned by `TestGoStructFinder_CompositeDefinedTypes`.
+
+Result: **606 / 606 symbols, recall and precision both 100.0%.** funcfinder maps
+its own codebase symbol-for-symbol with `go/ast`. The tdtp row is unchanged
+(3366/3366) — no regression.
 
 **The dovodka loop, demonstrated end-to-end over two passes:**
 
