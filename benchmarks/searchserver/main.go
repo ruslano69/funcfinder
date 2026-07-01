@@ -35,22 +35,32 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// A small vocabulary so generated docs and queries actually match under FTS5.
-var vocab = buildVocab(2048)
-
-func buildVocab(n int) []string {
-	const letters = "abcdefghijklmnopqrstuvwxyz"
-	rng := rand.New(rand.NewSource(1))
-	out := make([]string, n)
-	for i := range out {
-		l := 4 + rng.Intn(6)
-		b := make([]byte, l)
-		for j := range b {
-			b[j] = letters[rng.Intn(len(letters))]
-		}
-		out[i] = string(b)
-	}
-	return out
+// Real PureBasic manual vocabulary so generated docs and queries actually
+// match content in the funcfinder docsearch knowledge base (docs_fts).
+var vocab = []string{
+	"While", "Wend", "Repeat", "Until", "Forever", "For", "Next", "ForEach",
+	"Break", "Continue", "Select", "Case", "Default", "If", "Else", "EndIf",
+	"Structure", "EndStructure", "Procedure", "EndProcedure", "ProcedureReturn",
+	"Macro", "EndMacro", "Interface", "EndInterface", "Import", "EndImport",
+	"Database", "OpenDatabase", "DatabaseQuery", "DatabaseUpdate", "SQLite",
+	"UseSQLiteDatabase", "GetDatabaseString", "GetDatabaseLong", "GetDatabaseBlob",
+	"Thread", "CreateThread", "Mutex", "CreateMutex", "LockMutex", "Semaphore",
+	"CreateSemaphore", "WaitSemaphore", "SignalSemaphore", "CountCPUs",
+	"Network", "CreateNetworkServer", "NetworkServerEvent", "ReceiveNetworkData",
+	"SendNetworkData", "OpenNetworkConnection", "HTTPRequest", "HTTPInfo",
+	"ReceiveHTTPMemory", "ParseJSON", "GetJSONMember", "GetJSONElement",
+	"ExtractJSONArray", "SortList", "SortArray", "CustomSortList", "AddElement",
+	"DeleteElement", "FirstElement", "NextElement", "NewList", "NewMap",
+	"Pointer", "AllocateMemory", "FreeMemory", "PeekF", "PeekS", "CopyMemory",
+	"Array", "Dim", "ReDim", "String", "StringField", "ReplaceString", "Trim",
+	"Window", "OpenWindow", "Gadget", "ButtonGadget", "EventGadget",
+	"WaitWindowEvent", "Debug", "OpenConsole", "PrintN", "Delay",
+	"ElapsedMilliseconds", "RunProgram", "KillProgram", "CountProgramParameters",
+	"OpenFile", "ReadFile", "WriteFile", "CreateFile", "CloseFile",
+	"Sprite", "OpenScreen", "InitSprite", "InitEngine3D", "Camera3D",
+	"Compiler", "CompilerIf", "EnableExplicit", "Protected", "Global", "Shared",
+	"Sort", "Regular", "Expression", "PCRE", "MatchRegularExpression",
+	"Date", "AddDate", "FormatDate", "Random", "Sin", "Cos", "Sqr",
 }
 
 func openDB(path string, maxConns int) (*sql.DB, error) {
@@ -81,13 +91,13 @@ func cmdSeed(args []string) {
 	must(err)
 	defer db.Close()
 
-	_, err = db.Exec(`CREATE VIRTUAL TABLE docs USING fts5(body)`)
+	_, err = db.Exec(`CREATE VIRTUAL TABLE docs_fts USING fts5(body)`)
 	must(err)
 
 	rng := rand.New(rand.NewSource(42))
 	tx, err := db.Begin()
 	must(err)
-	stmt, err := tx.Prepare(`INSERT INTO docs(body) VALUES (?)`)
+	stmt, err := tx.Prepare(`INSERT INTO docs_fts(body) VALUES (?)`)
 	must(err)
 
 	start := time.Now()
@@ -106,7 +116,7 @@ func cmdSeed(args []string) {
 			must(tx.Commit())
 			tx, err = db.Begin()
 			must(err)
-			stmt, err = tx.Prepare(`INSERT INTO docs(body) VALUES (?)`)
+			stmt, err = tx.Prepare(`INSERT INTO docs_fts(body) VALUES (?)`)
 			must(err)
 		}
 	}
@@ -152,7 +162,7 @@ func cmdServe(args []string) {
 
 	// One prepared statement, reused for the whole server lifetime. database/sql
 	// re-binds it to whichever pooled connection a worker gets.
-	stmt, err := db.Prepare(`SELECT rowid FROM docs WHERE docs MATCH ? LIMIT 20`)
+	stmt, err := db.Prepare(`SELECT rowid FROM docs_fts WHERE docs_fts MATCH ? LIMIT 20`)
 	must(err)
 	defer stmt.Close()
 
@@ -377,7 +387,7 @@ func cmdQuery(args []string) {
 	db, err := openDB(*dbPath, 1)
 	must(err)
 	defer db.Close()
-	stmt, err := db.Prepare(`SELECT rowid FROM docs WHERE docs MATCH ? LIMIT 20`)
+	stmt, err := db.Prepare(`SELECT rowid FROM docs_fts WHERE docs_fts MATCH ? LIMIT 20`)
 	must(err)
 	defer stmt.Close()
 
