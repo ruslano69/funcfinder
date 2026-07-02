@@ -101,18 +101,19 @@ out-of-context picture.
 Once `search` gives you an anchor (a chapter number, a page number, a chunk
 id), pull the **contiguous id range** around it and read it whole:
 
-```sql
-SELECT id, content FROM docs WHERE id BETWEEN ? AND ? ORDER BY id;
+```bash
+docsearch-server read --id <n> --context 3
 ```
 
 or, to reconstruct one ingested source file completely, by its `source_version`
 provenance tag:
 
-```sql
-SELECT id, content FROM docs
-WHERE json_extract(metadata, '$.source_version') = ?
-ORDER BY id;
+```bash
+docsearch-server read --source "manual.pdf"
 ```
+
+(`read` is a first-class CLI/MCP primitive — see below; it used to require a
+throwaway SQL script, which is how this gap was found in the first place.)
 
 This is the step that turned "here are some snippets that mention inspect" into
 a complete, accurate description of the HR/AX2009 integration doc, the full
@@ -133,22 +134,21 @@ happens on the full text, never on fragments.**
 - **`SearchHybrid`**: reciprocal-rank-fusion of FTS + vector when an embedder
   is configured — same loop applies, just with a second candidate-generation
   path.
+- **`read --id <n> [--context k]` / `read --source <tag>`**: step 5's
+  primitive. Returns the contiguous chunk neighborhood around a match, or an
+  entire ingested source file by its `source_version` provenance tag, in id
+  order — bypassing FTS entirely. Implemented in
+  `internal/knowledge/read.go` (`ReadRange`, `ReadBySource`), wired into the
+  CLI in `cmd/docsearch-server/main.go`. This used to require a throwaway SQL
+  script every time; it doesn't anymore.
 
-## What's missing (gap this document exposes)
+## What's still missing
 
-Steps 4 and 5 above were done **by hand** this session — a throwaway Go
-program (`SELECT ... WHERE id BETWEEN`) and a raw `grep` over JSON output,
-because there is no first-class primitive for "read the contiguous
-neighborhood of a match" or "enumerate all matches of a constant/pattern
-across the corpus". Candidates for MCP tools / CLI subcommands:
-
-- `docsearch-server read --id <n> --context <k>` — return chunk `n` plus `k`
-  chunks before/after (or the whole source document by `source_version`),
-  bypassing FTS entirely. This is the single highest-leverage missing
-  primitive — it's what step 5 needs every time.
-- `docsearch-server enumerate --pattern <regex>` (or extend `SearchRegex`'s
-  CLI/MCP exposure) — the completeness-audit move in step 4, without a
-  detour through JSON + grep.
-
-Until these exist, the workflow above is the manual substitute — follow it
-deliberately rather than trusting a single `search` call.
+Step 4 (the completeness audit — "did I miss a category") was still done **by
+hand** this session: a raw `grep` over `search --json` output to enumerate
+every `PB_Cipher_*` constant mentioned in the corpus. There is no first-class
+primitive for "enumerate all matches of a pattern across the corpus" yet — a
+candidate: `docsearch-server enumerate --pattern <regex>` (or expose
+`SearchRegex` more directly for this use), returning distinct matches rather
+than ranked documents. Until it exists, step 4's manual substitute is a
+`search --json` + `grep`/`jq` pass over the output.

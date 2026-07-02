@@ -49,7 +49,7 @@ func main() {
 	actions := map[string]bool{
 		"ingest": true, "record": true, "publish": true,
 		"set-channel": true, "channels": true, "releases": true, "search": true,
-		"suggest": true, "serve": true, "mcp": true,
+		"suggest": true, "read": true, "serve": true, "mcp": true,
 	}
 	var preAction, postAction []string
 	action := ""
@@ -94,6 +94,8 @@ func main() {
 		runSearch(store, emb, postAction)
 	case "suggest":
 		runSuggest(store, postAction)
+	case "read":
+		runRead(store, postAction)
 	case "serve":
 		runServe(store, emb, postAction)
 	case "mcp":
@@ -456,6 +458,66 @@ func runSuggest(s *truth.Store, args []string) {
 	}
 }
 
+// runRead is the "read the full page/chunk range" primitive from
+// docs/docsearch-server/HOW_TO_USE.md step 5: a search snippet tells you
+// *where* to look; this is how you actually read it, instead of answering
+// from one truncated chunk. Two modes:
+//
+//	--id N [--context K]   the contiguous neighborhood id-K..id+K (default K=2)
+//	--source <tag>         the whole ingested source file (its --source-version
+//	                        provenance tag), in ingest order
+//
+// Before this command existed, reconstructing a document or a chunk's
+// neighborhood required a throwaway SQL script against the release file
+// directly — this is that script, promoted to a first-class primitive.
+func runRead(s *truth.Store, args []string) {
+	fs := flag.NewFlagSet("read", flag.ExitOnError)
+	id := fs.Int64("id", 0, "chunk id to read (with --context)")
+	context := fs.Int("context", 2, "chunks before/after --id to include")
+	source := fs.String("source", "", "read the whole source file by its source_version provenance tag, instead of --id")
+	ref := fs.String("channel", truth.ChannelStable, "channel or release version")
+	jsonOut := fs.Bool("json", false, "output JSON")
+	fs.Parse(args)
+
+	if *source == "" && *id == 0 {
+		fatalf("--id (with optional --context) or --source required")
+	}
+	path, err := s.Resolve(*ref)
+	if err != nil {
+		fatalf("resolve %q: %v", *ref, err)
+	}
+	db, err := truth.OpenRelease(path)
+	if err != nil {
+		fatalf("open %s: %v", path, err)
+	}
+	defer db.Close()
+
+	var docs []knowledge.Doc
+	if *source != "" {
+		docs, err = knowledge.ReadBySource(db, *source)
+	} else {
+		docs, err = knowledge.ReadRange(db, *id, *context)
+	}
+	if err != nil {
+		fatalf("read: %v", err)
+	}
+
+	if *jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(docs)
+		return
+	}
+	if len(docs) == 0 {
+		fmt.Fprintln(os.Stderr, "(no chunks found)")
+		return
+	}
+	fmt.Fprintf(os.Stderr, "# %d chunks from %s\n", len(docs), filepath.Base(path))
+	for _, d := range docs {
+		fmt.Printf("--- id=%d  %s  (%s) ---\n%s\n\n", d.ID, d.Title, d.Type, d.Content)
+	}
+}
+
 func parseEmbedding(raw string) []float32 {
 	raw = strings.Trim(strings.TrimSpace(raw), "[]")
 	if raw == "" {
@@ -489,6 +551,7 @@ Rewrite (truth flows in):
 Readonly (grounding):
   search      --query <q> [--channel stable|testing|unstable|<ver>] [--mode --embedding --limit]
   suggest     --prefix <p> [--channel <c> --relative-to <type> --numbers --limit N]   (FTS vocabulary + IDF; pure-digit tokens filtered unless --numbers)
+  read        --id <n> [--context K] | --source <tag> [--channel <c>]   (read the full contiguous chunk range or whole source file — see docs/docsearch-server/HOW_TO_USE.md)
   serve       --addr <a> --channel stable|testing [--pool N --lite]   (async read-server, hot-swaps on channel repoint)
   mcp         (MCP server over stdio — first-class interface for LLM agents)
   releases    [--json]
