@@ -210,6 +210,77 @@ func SearchRegex(db *sql.DB, pattern string, limit int, docType string) ([]Resul
 	return results, rows.Err()
 }
 
+// Match is one distinct regex match found across the corpus by Enumerate: the
+// matched text, how many documents contain it, and how many times it occurs
+// in total.
+type Match struct {
+	Value string `json:"value"`
+	Docs  int    `json:"docs"`
+	Count int    `json:"count"`
+}
+
+// Enumerate is the completeness-audit primitive from
+// docs/docsearch-server/HOW_TO_USE.md step 4: "did I miss a category" —
+// distinct from SearchRegex, which returns whole matching *documents*.
+// Enumerate extracts every distinct substring the pattern matches across the
+// whole corpus (title+content) and tallies it, so a question like "which
+// PB_Cipher_* constants actually exist in this corpus" is answered directly
+// instead of by guessing a candidate list and checking each one. This is the
+// first-class replacement for `search --json | grep -o <pattern> | sort -u`.
+//
+// Results are sorted by Count descending, then Value ascending, and capped at
+// limit (0 or negative = no cap). A pattern that matches empty strings (e.g.
+// unanchored `.*`) will produce one match per position and is the caller's
+// own responsibility — Enumerate does not special-case it.
+func Enumerate(db *sql.DB, pattern string, limit int) ([]Match, error) {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.Query(`SELECT title, content FROM docs`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := map[string]int{}
+	docFreq := map[string]int{}
+	for rows.Next() {
+		var title, content string
+		if err := rows.Scan(&title, &content); err != nil {
+			return nil, err
+		}
+		matches := re.FindAllString(title+"\n"+content, -1)
+		seenInDoc := map[string]bool{}
+		for _, m := range matches {
+			counts[m]++
+			if !seenInDoc[m] {
+				docFreq[m]++
+				seenInDoc[m] = true
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]Match, 0, len(counts))
+	for v, c := range counts {
+		out = append(out, Match{Value: v, Docs: docFreq[v], Count: c})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].Value < out[j].Value
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
 // SearchHybrid combines FTS5 and vector results via Reciprocal Rank Fusion.
 // Pass query="" to skip FTS; pass nil/empty embedding to skip vector.
 // prefix controls whether plain FTS tokens get auto-wildcard expansion.

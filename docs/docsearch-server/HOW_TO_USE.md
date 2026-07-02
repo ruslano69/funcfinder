@@ -79,11 +79,21 @@ underspecified — tighten it before reading further.
 ### 4. Audit for completeness — don't stop at the first hit
 
 Once you have a real anchor (a section, a constant, a naming pattern), check
-whether you found *all* instances of the category, not just the first one.
-For the crypto-hash question, extracting every `PB_Cipher_*` constant
-mentioned in the corpus (`grep -o 'PB_Cipher_[A-Za-z0-9]*' | sort -u` over the
-JSON output) surfaced `PB_Cipher_HMAC` — a real algorithm-modifier that wasn't
-in the original guess list (`MD5/SHA1/SHA2/SHA3/CRC32`).
+whether you found *all* instances of the category, not just the first one:
+
+```bash
+docsearch-server enumerate --pattern 'PB_Cipher_[A-Za-z0-9]+'
+```
+
+This is the first-class version of what was originally done by hand
+(`grep -o 'PB_Cipher_[A-Za-z0-9]*' | sort -u` over `search --json` output) — and
+it does *better*, not just more conveniently: `enumerate` scans the whole
+corpus, while the hand version only saw the constants mentioned in `search`'s
+top-N ranked documents. On the PureBasic manual, `enumerate` surfaced **12**
+distinct `PB_Cipher_*` constants (including `PB_Cipher_CBC`, `PB_Cipher_ECB`,
+`PB_Cipher_URL` — cipher-mode/encoding flags, not just the five hash
+algorithms) versus 6 found by the manual grep pass. A candidate list assembled
+by guessing was missing more than it looked like.
 
 This is a different move from steps 1–3: it's not "find the answer", it's
 "prove I'm not missing part of the answer". Do it whenever the question has
@@ -141,14 +151,17 @@ happens on the full text, never on fragments.**
   `internal/knowledge/read.go` (`ReadRange`, `ReadBySource`), wired into the
   CLI in `cmd/docsearch-server/main.go`. This used to require a throwaway SQL
   script every time; it doesn't anymore.
+- **`enumerate --pattern <regex>`**: step 4's primitive. Returns every
+  distinct regex match across the whole corpus (title+content), tallied by
+  document frequency and total count — not whole matching documents (that's
+  `search --mode regex`). Implemented in `internal/knowledge/search.go`
+  (`Enumerate`), wired into the CLI. This replaced `search --json | grep -o
+  <pattern> | sort -u`, and does it *better*: it scans every document, not
+  just `search`'s top-N ranked results, so it can't silently miss a rare
+  match the way the by-hand grep pass over a truncated result set could.
 
-## What's still missing
-
-Step 4 (the completeness audit — "did I miss a category") was still done **by
-hand** this session: a raw `grep` over `search --json` output to enumerate
-every `PB_Cipher_*` constant mentioned in the corpus. There is no first-class
-primitive for "enumerate all matches of a pattern across the corpus" yet — a
-candidate: `docsearch-server enumerate --pattern <regex>` (or expose
-`SearchRegex` more directly for this use), returning distinct matches rather
-than ranked documents. Until it exists, step 4's manual substitute is a
-`search --json` + `grep`/`jq` pass over the output.
+Both `read` and `enumerate` were found missing by *doing* the workflow above
+without them (a throwaway Go script, a raw grep) — the gap only became visible
+by hitting it, which is itself worth remembering: if you catch yourself
+reaching for ad-hoc SQL or shell plumbing around `docsearch-server`, that's a
+signal a primitive is missing, not that the workflow is wrong.

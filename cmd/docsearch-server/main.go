@@ -49,7 +49,7 @@ func main() {
 	actions := map[string]bool{
 		"ingest": true, "record": true, "publish": true,
 		"set-channel": true, "channels": true, "releases": true, "search": true,
-		"suggest": true, "read": true, "serve": true, "mcp": true,
+		"suggest": true, "read": true, "enumerate": true, "serve": true, "mcp": true,
 	}
 	var preAction, postAction []string
 	action := ""
@@ -96,6 +96,8 @@ func main() {
 		runSuggest(store, postAction)
 	case "read":
 		runRead(store, postAction)
+	case "enumerate":
+		runEnumerate(store, postAction)
 	case "serve":
 		runServe(store, emb, postAction)
 	case "mcp":
@@ -518,6 +520,49 @@ func runRead(s *truth.Store, args []string) {
 	}
 }
 
+// runEnumerate is the completeness-audit primitive from
+// docs/docsearch-server/HOW_TO_USE.md step 4: "did I find every X, not just
+// the first one" — e.g. every PB_Cipher_* constant actually used in the
+// corpus, not just the ones a guess list happened to include. Distinct from
+// `search --mode regex`, which returns whole matching *documents*; this
+// returns the distinct matched *substrings*, tallied. Replaces the
+// `search --json | grep -o <pattern> | sort -u` this session did by hand.
+func runEnumerate(s *truth.Store, args []string) {
+	fs := flag.NewFlagSet("enumerate", flag.ExitOnError)
+	pattern := fs.String("pattern", "", "regex pattern to enumerate distinct matches of, across the whole corpus (required)")
+	ref := fs.String("channel", truth.ChannelStable, "channel or release version")
+	limit := fs.Int("limit", 50, "max distinct matches (0 = unlimited)")
+	jsonOut := fs.Bool("json", false, "output JSON")
+	fs.Parse(args)
+
+	if *pattern == "" {
+		fatalf("--pattern required")
+	}
+	path, err := s.Resolve(*ref)
+	if err != nil {
+		fatalf("resolve %q: %v", *ref, err)
+	}
+	db, err := truth.OpenRelease(path)
+	if err != nil {
+		fatalf("open %s: %v", path, err)
+	}
+	defer db.Close()
+
+	matches, err := knowledge.Enumerate(db, *pattern, *limit)
+	if err != nil {
+		fatalf("enumerate: %v", err)
+	}
+
+	if *jsonOut {
+		json.NewEncoder(os.Stdout).Encode(matches)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "# %d distinct matches of /%s/ in %s\n", len(matches), *pattern, filepath.Base(path))
+	for _, m := range matches {
+		fmt.Printf("  %-30s docs=%-5d count=%d\n", m.Value, m.Docs, m.Count)
+	}
+}
+
 func parseEmbedding(raw string) []float32 {
 	raw = strings.Trim(strings.TrimSpace(raw), "[]")
 	if raw == "" {
@@ -552,6 +597,7 @@ Readonly (grounding):
   search      --query <q> [--channel stable|testing|unstable|<ver>] [--mode --embedding --limit]
   suggest     --prefix <p> [--channel <c> --relative-to <type> --numbers --limit N]   (FTS vocabulary + IDF; pure-digit tokens filtered unless --numbers)
   read        --id <n> [--context K] | --source <tag> [--channel <c>]   (read the full contiguous chunk range or whole source file — see docs/docsearch-server/HOW_TO_USE.md)
+  enumerate   --pattern <regex> [--channel <c> --limit N]   (distinct matches across the corpus, tallied — the completeness-audit step)
   serve       --addr <a> --channel stable|testing [--pool N --lite]   (async read-server, hot-swaps on channel repoint)
   mcp         (MCP server over stdio — first-class interface for LLM agents)
   releases    [--json]
