@@ -22,6 +22,24 @@ func (m Metric) sqlFunc() string {
 	return "vec_distance_cosine"
 }
 
+// Preview returns a keyword-in-context excerpt for displaying a search result:
+// the FTS Snippet when the result came from a keyword match (already centered
+// on the match, token-safe), or else a rune-safe truncation of Content — never
+// a byte-index slice, which can split a multi-byte rune (Cyrillic/CJK/etc) and
+// print U+FFFD. maxRunes bounds the fallback path only; the FTS snippet's own
+// length is controlled by ftsSnippetTokens at query time.
+func (r Result) Preview(maxRunes int) string {
+	if r.Snippet != "" {
+		return strings.ReplaceAll(r.Snippet, "\n", " ")
+	}
+	flat := strings.ReplaceAll(r.Content, "\n", " ")
+	runes := []rune(flat)
+	if len(runes) <= maxRunes {
+		return flat
+	}
+	return string(runes[:maxRunes]) + "..."
+}
+
 // BuildFTSQuery transforms a plain query string into an FTS5 MATCH expression.
 //
 // Rules:
@@ -64,19 +82,32 @@ func BuildFTSQuery(query string, prefix bool) string {
 	return strings.Join(out, " ")
 }
 
+// ftsSnippetTokens is the number of tokens SQLite's snippet() includes around
+// the match — enough context to see why a chunk matched without dumping the
+// whole (possibly 800-rune) chunk.
+const ftsSnippetTokens = 16
+
 // SearchFTS performs full-text keyword search via FTS5 / BM25.
 // Set prefix=true to automatically append wildcard "*" to each plain token.
+//
+// Each result carries a Snippet: a keyword-in-context excerpt built by
+// SQLite's snippet() function, which operates on the tokenizer's token
+// boundaries (never mid-word, never mid-UTF-8-rune — Cyrillic/CJK/etc are
+// safe). Column -1 lets FTS5 pick whichever indexed column (title or content)
+// actually contains the match, so the excerpt centers on it instead of always
+// showing the start of the chunk.
 func SearchFTS(db *sql.DB, query string, limit int, prefix bool) ([]Result, error) {
 	ftsQuery := BuildFTSQuery(query, prefix)
 	rows, err := db.Query(`
 		SELECT d.id, d.title, d.content, d.type, d.created_at, d.metadata,
-		       bm25(docs_fts) AS rank
+		       bm25(docs_fts) AS rank,
+		       snippet(docs_fts, -1, '**', '**', '...', ?) AS snip
 		FROM docs_fts
 		JOIN docs d ON docs_fts.rowid = d.id
 		WHERE docs_fts MATCH ?
 		ORDER BY rank
 		LIMIT ?
-	`, ftsQuery, limit)
+	`, ftsSnippetTokens, ftsQuery, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +118,7 @@ func SearchFTS(db *sql.DB, query string, limit int, prefix bool) ([]Result, erro
 		var r Result
 		if err = rows.Scan(
 			&r.ID, &r.Title, &r.Content, &r.Type, &r.CreatedAt, &r.Metadata,
-			&r.FTSRank,
+			&r.FTSRank, &r.Snippet,
 		); err != nil {
 			return nil, err
 		}

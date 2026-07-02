@@ -143,11 +143,7 @@ func (s *server) search(db *sql.DB, query string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "count=%d\n", len(res))
 	for _, r := range res {
-		snippet := strings.ReplaceAll(r.Content, "\n", " ")
-		if len(snippet) > 80 {
-			snippet = snippet[:80]
-		}
-		fmt.Fprintf(&b, "[%d] %s :: %s\n", r.ID, r.Title, snippet)
+		fmt.Fprintf(&b, "[%d] %s :: %s\n", r.ID, r.Title, r.Preview(80))
 	}
 	b.WriteString("###END###\n")
 	return b.String()

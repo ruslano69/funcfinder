@@ -16,4 +16,9 @@ type Result struct {
 	FTSRank     float64
 	VecDist     float64
 	HybridScore float64
+	// Snippet is a keyword-in-context excerpt around the matched term(s),
+	// populated by FTS searches via SQLite's snippet() (empty for vec/regex
+	// results, which have no FTS match to center on — callers fall back to
+	// Content in that case).
+	Snippet string
 }
