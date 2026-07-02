@@ -402,8 +402,10 @@ func runSearch(s *truth.Store, embc *embed.Client, args []string) {
 	fmt.Fprintf(os.Stderr, "# %d results against %s\n", len(results), filepath.Base(path))
 	for _, r := range results {
 		snippet := strings.ReplaceAll(r.Content, "\n", " ")
-		if len(snippet) > 120 {
-			snippet = snippet[:117] + "..."
+		if runes := []rune(snippet); len(runes) > 120 {
+			// Rune-safe truncation: a byte-index slice can land mid-UTF-8-
+			// sequence (Cyrillic/CJK/etc are multi-byte) and print U+FFFD.
+			snippet = string(runes[:117]) + "..."
 		}
 		fmt.Printf("[%d] %s  (%s)\n    %s\n\n", r.ID, r.Title, r.Type, snippet)
 	}
