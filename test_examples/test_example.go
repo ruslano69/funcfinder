@@ -1,3 +1,9 @@
+//go:build ignore
+
+// This file is a funcfinder parser fixture, not a buildable Go package — it
+// shares test_examples/ with .c/.cpp sources that trip `go build ./...`
+// (Go treats any dir with a .go file as a package and then chokes on the
+// C files without cgo/SWIG). The ignore tag excludes it from build/vet.
 package main
 
 import (

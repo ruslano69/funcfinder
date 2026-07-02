@@ -1,4 +1,7 @@
-// test_structs_go.go - Test file for Go struct detection
+//go:build ignore
+
+// test_structs_go.go - Test file for Go struct detection. Parser fixture only,
+// not a buildable package — see test_example.go for why the tag is needed.
 package main
 
 // Simple struct
