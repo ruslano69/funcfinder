@@ -8,7 +8,8 @@ Persistent knowledge base backed by a single SQLite file. Combines FTS5 (BM25 ke
 
 - All database logic, schema, and search algorithms live here.
 - `cmd/docsearch/` is the only consumer; it must not duplicate business logic.
-- Embeddings are stored as raw little-endian float32 BLOBs; cosine similarity is computed in Go (no native extension required).
+- Embeddings are stored as raw little-endian float32 BLOBs; distance functions (`vec_distance_cosine`/`vec_distance_l2`) are registered as native SQLite scalar functions (no native extension required — pure Go via `modernc.org/sqlite`).
+- `EmbedOllama(url, model, prompt) ([]float32, error)` — calls an Ollama-compatible `/api/embeddings` endpoint to produce a vector on the fly; wired into `docsearch add`/`search` via `--embed-url`/`--embed-model`.
 
 ## Local Contracts
 
@@ -19,7 +20,7 @@ Persistent knowledge base backed by a single SQLite file. Combines FTS5 (BM25 ke
 - `Delete(db, id)` — remove document and its embedding (cascade).
 - `Count(db) (int64, error)` — total document count.
 - `SearchFTS(db, query, limit)` — BM25 keyword search via FTS5.
-- `SearchVec(db, embedding, limit)` — cosine-distance vector search (loads all embeddings into Go).
+- `SearchVec(db, embedding, limit, metric, docType)` — vector search; distance is computed inside SQLite via the registered scalar function.
 - `SearchHybrid(db, query, embedding, limit)` — Reciprocal Rank Fusion over FTS5 + vector results.
 - Schema is applied idempotently on every `Open` call (all `CREATE ... IF NOT EXISTS`).
 - FTS index is kept in sync via three SQL triggers (insert/delete/update on `docs`).

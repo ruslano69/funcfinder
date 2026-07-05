@@ -81,8 +81,14 @@ func runAdd(dbPath string, args []string) {
 	docType := fs.String("type", "general", "document type: general|tool_usage|error|scenario")
 	meta := fs.String("meta", "{}", "document metadata as JSON")
 	embeddingRaw := fs.String("embedding", "", "comma-separated float32 values (single doc only)")
+	embedURL := fs.String("embed-url", "", "Ollama embeddings endpoint, e.g. http://localhost:11434/api/embeddings")
+	embedModel := fs.String("embed-model", "", "Ollama embedding model, e.g. nomic-embed-text (required with --embed-url)")
 	jsonOut := fs.Bool("json", false, "output JSON")
 	fs.Parse(args)
+
+	if *embedURL != "" && *embedModel == "" {
+		fatalf("--embed-model is required with --embed-url")
+	}
 
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		fatalf("mkdir: %v", err)
@@ -101,7 +107,14 @@ func runAdd(dbPath string, args []string) {
 		}
 		var ids []int64
 		for _, ch := range chunks {
-			id, err := knowledge.Add(db, ch.Title, ch.Content, *docType, *meta, nil)
+			var emb []float32
+			if *embedURL != "" {
+				emb, err = knowledge.EmbedOllama(*embedURL, *embedModel, ch.Content)
+				if err != nil {
+					fatalf("embed chunk: %v", err)
+				}
+			}
+			id, err := knowledge.Add(db, ch.Title, ch.Content, *docType, *meta, emb)
 			if err != nil {
 				fatalf("add chunk: %v", err)
 			}
@@ -119,6 +132,12 @@ func runAdd(dbPath string, args []string) {
 		fatalf("--title and --content are required (or use --file)")
 	}
 	emb := parseEmbedding(*embeddingRaw)
+	if len(emb) == 0 && *embedURL != "" {
+		emb, err = knowledge.EmbedOllama(*embedURL, *embedModel, *content)
+		if err != nil {
+			fatalf("embed: %v", err)
+		}
+	}
 	id, err := knowledge.Add(db, *title, *content, *docType, *meta, emb)
 	if err != nil {
 		fatalf("add: %v", err)
@@ -134,6 +153,8 @@ func runSearch(dbPath string, args []string) {
 	fs := flag.NewFlagSet("search", flag.ExitOnError)
 	query := fs.String("query", "", "FTS query string")
 	embeddingRaw := fs.String("embedding", "", "comma-separated float32 values")
+	embedURL := fs.String("embed-url", "", "Ollama embeddings endpoint, e.g. http://localhost:11434/api/embeddings")
+	embedModel := fs.String("embed-model", "", "Ollama embedding model, e.g. nomic-embed-text (required with --embed-url)")
 	mode := fs.String("mode", "hybrid", "search mode: fts|vec|hybrid")
 	metricRaw := fs.String("metric", "cosine", "distance metric: cosine|l2 (vec/hybrid modes)")
 	filterType := fs.String("filter-type", "", "pre-filter by document type before vector search")
@@ -143,6 +164,9 @@ func runSearch(dbPath string, args []string) {
 
 	if *query == "" && *embeddingRaw == "" {
 		fatalf("--query or --embedding required")
+	}
+	if *embedURL != "" && *embedModel == "" {
+		fatalf("--embed-model is required with --embed-url")
 	}
 
 	metric := knowledge.MetricCosine
@@ -157,6 +181,12 @@ func runSearch(dbPath string, args []string) {
 	defer db.Close()
 
 	emb := parseEmbedding(*embeddingRaw)
+	if len(emb) == 0 && *embedURL != "" && *query != "" {
+		emb, err = knowledge.EmbedOllama(*embedURL, *embedModel, *query)
+		if err != nil {
+			fatalf("embed query: %v", err)
+		}
+	}
 	var results []knowledge.Result
 	switch *mode {
 	case "fts":
@@ -274,6 +304,11 @@ Usage:
   docsearch [--db <path>] add    --file <path.txt|md|pdf>  [--type <t>] [--chunk-size N] [--chunk-overlap N] [--json]
   docsearch [--db <path>] search --query <q>               [--embedding <floats>] [--mode fts|vec|hybrid] [--metric cosine|l2] [--filter-type <type>] [--limit N] [--json]
   docsearch [--db <path>] count  [--json]
+
+Both add and search accept --embed-url/--embed-model instead of --embedding,
+to fetch the vector from a running Ollama server on the fly, e.g.:
+  docsearch add    --file doc.pdf --embed-url http://localhost:11434/api/embeddings --embed-model nomic-embed-text
+  docsearch search --query "foo"  --embed-url http://localhost:11434/api/embeddings --embed-model nomic-embed-text
 
 Default --db: .knowledge/docs.sqlite
 Embedding format: comma-separated float32 values, e.g. "0.1,0.2,0.3" or "[0.1,0.2,0.3]"
