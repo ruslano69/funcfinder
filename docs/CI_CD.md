@@ -26,7 +26,7 @@ funcfinder uses GitHub Actions for continuous integration and deployment. The CI
   7. Display coverage in GitHub summary
 
 #### Build Job (Linux)
-- Builds all 6 binaries using `build.sh`
+- Builds all 7 binaries using `build.sh`
 - Tests each binary with `--version`
 - Uploads artifacts for 7 days
 - **Artifacts:** `binaries-linux`
@@ -63,7 +63,7 @@ funcfinder uses GitHub Actions for continuous integration and deployment. The CI
 **Steps:**
 1. Checkout code
 2. Set up Go 1.24
-3. Build all 6 tools (`funcfinder`, `stat`, `deps`, `complexity`, `callgraph`, `docsearch`) for 5 platform targets (6 × 5 = 30 binaries)
+3. Build all 7 tools (`funcfinder`, `stat`, `deps`, `complexity`, `callgraph`, `docsearch`, `docsearch-server`) for 5 platform targets (7 × 5 = 35 binaries)
 4. Create platform-specific archives:
    - `.tar.gz` for Linux/macOS
    - `.zip` for Windows

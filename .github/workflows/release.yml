@@ -29,7 +29,7 @@ jobs:
     - name: Build cross-platform binaries
       run: |
         mkdir -p dist
-        TOOLS="funcfinder stat deps complexity callgraph docsearch"
+        TOOLS="funcfinder stat deps complexity callgraph docsearch docsearch-server"
 
         for OS_ARCH in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
           GOOS=${OS_ARCH%/*}
@@ -51,7 +51,7 @@ jobs:
       run: |
         cd dist
         VER=${{ steps.get_version.outputs.VERSION }}
-        TOOLS="funcfinder stat deps complexity callgraph docsearch"
+        TOOLS="funcfinder stat deps complexity callgraph docsearch docsearch-server"
 
         for PLATFORM in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
           FILES=""
@@ -104,6 +104,7 @@ jobs:
           - **complexity**: Cognitive complexity per function
           - **callgraph**: Who calls whom
           - **docsearch**: SQLite FTS5 + vector hybrid knowledge base for agents
+          - **docsearch-server**: versioned truth server — releases/channels, hybrid search, MCP, funcfinder code-ingest
         draft: false
         prerelease: false
       env:

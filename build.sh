@@ -1,10 +1,10 @@
 #!/bin/bash
 # Build script for funcfinder toolkit
-# Builds: funcfinder, stat, deps, complexity, callgraph, docsearch
+# Builds: funcfinder, stat, deps, complexity, callgraph, docsearch, docsearch-server
 
 set -e
 
-VERSION_BASE="1.8"
+VERSION_BASE="1.9"
 PATCH=$(git rev-list --count HEAD 2>/dev/null || echo "0")
 VERSION="${VERSION_BASE}.${PATCH}"
 LDFLAGS="-s -w -X github.com/ruslano69/funcfinder/internal.Version=${VERSION}"
@@ -42,6 +42,11 @@ echo "→ Building docsearch..."
 go build -ldflags "${LDFLAGS}" -o docsearch ./cmd/docsearch
 echo "  ✓ docsearch"
 
+# Build docsearch-server
+echo "→ Building docsearch-server..."
+go build -ldflags "${LDFLAGS}" -o docsearch-server ./cmd/docsearch-server
+echo "  ✓ docsearch-server"
+
 echo ""
 echo "✅ All binaries built successfully!"
 echo ""
@@ -52,3 +57,4 @@ echo "  ./deps . -l go -j"
 echo "  ./complexity file.go -l go"
 echo "  ./callgraph --dir . -l go"
 echo "  ./docsearch --db .knowledge/docs.sqlite search --query 'your query'"
+echo "  ./docsearch-server --root .docsearch publish --name 2026.07 --channel stable"

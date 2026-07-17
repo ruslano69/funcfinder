@@ -79,6 +79,7 @@ jobs:
         ./complexity --version
         ./callgraph --version
         ./docsearch --version
+        ./docsearch-server --version
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -91,6 +92,7 @@ jobs:
           complexity
           callgraph
           docsearch
+          docsearch-server
         retention-days: 7
 
   build-windows:
@@ -118,6 +120,7 @@ jobs:
         .\complexity.exe --version
         .\callgraph.exe --version
         .\docsearch.exe --version
+        .\docsearch-server.exe --version
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -130,6 +133,7 @@ jobs:
           complexity.exe
           callgraph.exe
           docsearch.exe
+          docsearch-server.exe
         retention-days: 7
 
   build-macos:
@@ -157,6 +161,7 @@ jobs:
         ./complexity --version
         ./callgraph --version
         ./docsearch --version
+        ./docsearch-server --version
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -169,4 +174,5 @@ jobs:
           complexity
           callgraph
           docsearch
+          docsearch-server
         retention-days: 7

@@ -1,10 +1,10 @@
 # Build script for funcfinder toolkit (PowerShell)
-# Builds: funcfinder, stat, deps, complexity, callgraph, docsearch
+# Builds: funcfinder, stat, deps, complexity, callgraph, docsearch, docsearch-server
 # Usage: .\build.ps1
 
 $ErrorActionPreference = "Stop"
 
-$VersionBase = "1.8"
+$VersionBase = "1.9"
 $Patch = (git rev-list --count HEAD 2>$null)
 if (-not $Patch) { $Patch = "0" }
 $Version = "$VersionBase.$Patch"
@@ -19,7 +19,8 @@ $Binaries = @(
     @{ Name = "deps";       Cmd = ".\cmd\deps" },
     @{ Name = "complexity"; Cmd = ".\cmd\complexity" },
     @{ Name = "callgraph";  Cmd = ".\cmd\callgraph" },
-    @{ Name = "docsearch";  Cmd = ".\cmd\docsearch" }
+    @{ Name = "docsearch";  Cmd = ".\cmd\docsearch" },
+    @{ Name = "docsearch-server"; Cmd = ".\cmd\docsearch-server" }
 )
 
 foreach ($b in $Binaries) {
@@ -43,4 +44,5 @@ Write-Host "  .\deps.exe . -l go -j"
 Write-Host "  .\complexity.exe file.go -l go"
 Write-Host "  .\callgraph.exe --dir . -l go"
 Write-Host "  .\docsearch.exe --db .knowledge\docs.sqlite search --query 'your query'"
+Write-Host "  .\docsearch-server.exe --root .docsearch publish --name 2026.07 --channel stable"
 Write-Host ""
