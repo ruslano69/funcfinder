@@ -169,6 +169,8 @@ func (m *mcpServer) callTool(name string, args map[string]any) (string, error) {
 		return m.toolPublish(args)
 	case "freeze":
 		return m.toolFreeze(args)
+	case "prune":
+		return m.toolPrune(args)
 	case "set_channel":
 		return m.toolSetChannel(args)
 	case "provenance":
@@ -483,6 +485,18 @@ func (m *mcpServer) toolFreeze(args map[string]any) (string, error) {
 	return jsonString(map[string]any{"version": release, "frozen_at": ts}), nil
 }
 
+func (m *mcpServer) toolPrune(args map[string]any) (string, error) {
+	keep := argInt(args, "keep", 0)
+	if keep <= 0 {
+		return "", fmt.Errorf("keep is required and must be > 0")
+	}
+	pruned, err := m.store.PruneReleases(keep)
+	if err != nil {
+		return "", err
+	}
+	return jsonString(map[string]any{"pruned": pruned, "count": len(pruned)}), nil
+}
+
 func (m *mcpServer) toolSetChannel(args map[string]any) (string, error) {
 	name := argStr(args, "name", "")
 	release := argStr(args, "release", "")
@@ -588,6 +602,10 @@ func toolSchemas() []map[string]any {
 			map[string]any{
 				"release": strProp("released version to freeze, e.g. 2026.07"),
 			}, "release"),
+		tool("prune", "Retention policy (TZ FR-15): keep the newest N releases and delete the rest (both the release file and its control-DB row). A release currently pinned by a channel is never pruned, regardless of age.",
+			map[string]any{
+				"keep": intProp("number of newest releases to retain"),
+			}, "keep"),
 		tool("set_channel", "Repoint a channel (stable|testing) at a published release — the release-day pointer flip.",
 			map[string]any{
 				"name":    strProp("channel: stable|testing"),

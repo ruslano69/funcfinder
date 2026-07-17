@@ -48,7 +48,7 @@ func main() {
 	globalFS.Usage = printUsage
 
 	actions := map[string]bool{
-		"ingest": true, "record": true, "publish": true, "freeze": true,
+		"ingest": true, "record": true, "publish": true, "freeze": true, "prune": true,
 		"set-channel": true, "channels": true, "releases": true, "search": true,
 		"suggest": true, "read": true, "enumerate": true, "provenance": true, "context": true,
 		"diff": true, "serve": true, "mcp": true,
@@ -88,6 +88,8 @@ func main() {
 		runPublish(store, postAction)
 	case "freeze":
 		runFreeze(store, postAction)
+	case "prune":
+		runPrune(store, postAction)
 	case "set-channel":
 		runSetChannel(store, postAction)
 	case "channels":
@@ -365,6 +367,30 @@ func runFreeze(s *truth.Store, args []string) {
 	} else {
 		fmt.Fprintf(os.Stderr, "frozen truth-%s — further fixes go to unstable\n", *release)
 	}
+}
+
+func runPrune(s *truth.Store, args []string) {
+	fs := flag.NewFlagSet("prune", flag.ExitOnError)
+	keep := fs.Int("keep", 0, "keep the newest N releases, delete the rest (required, > 0); a release pinned by a channel is never pruned")
+	jsonOut := fs.Bool("json", false, "output JSON")
+	fs.Parse(args)
+
+	if *keep <= 0 {
+		fatalf("--keep required (must be > 0)")
+	}
+	pruned, err := s.PruneReleases(*keep)
+	if err != nil {
+		fatalf("prune: %v", err)
+	}
+	if *jsonOut {
+		json.NewEncoder(os.Stdout).Encode(map[string]any{"pruned": pruned, "count": len(pruned)})
+		return
+	}
+	if len(pruned) == 0 {
+		fmt.Fprintln(os.Stderr, "(nothing to prune)")
+		return
+	}
+	fmt.Fprintf(os.Stderr, "pruned %d release(s): %s\n", len(pruned), strings.Join(pruned, ", "))
 }
 
 func runSetChannel(s *truth.Store, args []string) {
@@ -798,6 +824,7 @@ Rewrite (truth flows in):
   record      --title --result [--type changelog|task|decision --source-ref --author]
   publish     --name <ver> [--notes --channel --code-dir <path>]   (--code-dir bakes in a funcfinder structural code map — FR-22)
   freeze      --release <ver>   (open the stabilization window; further fixes go to unstable)
+  prune       --keep <n>   (retain the newest N releases, delete the rest — channel-pinned releases are never pruned — FR-15)
   set-channel --name stable|testing --release <ver>
 
 Readonly (grounding):

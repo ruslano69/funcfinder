@@ -180,6 +180,69 @@ func (s *Store) ListReleases() ([]Release, error) {
 	return out, rows.Err()
 }
 
+// PruneReleases keeps the newest `keep` releases and deletes the rest — both
+// the release file (ReleasePath) and its control-DB row — implementing TZ
+// FR-15's retention policy. A release currently pinned by a channel
+// (stable/testing) is never pruned regardless of age: breaking what's
+// actually being served is worse than exceeding the retention count by one.
+// keep <= 0 is a no-op (nothing pruned) rather than "prune everything" —
+// FR-15 is about bounding growth, not a footgun for clearing history.
+// Returns the versions actually pruned, oldest first.
+func (s *Store) PruneReleases(keep int) ([]string, error) {
+	if keep <= 0 {
+		return nil, nil
+	}
+	releases, err := s.ListReleases() // newest first
+	if err != nil {
+		return nil, err
+	}
+	if len(releases) <= keep {
+		return nil, nil
+	}
+
+	channels, err := s.Channels()
+	if err != nil {
+		return nil, err
+	}
+	pinned := make(map[string]bool, len(channels))
+	for _, c := range channels {
+		if c.Release != "" && c.Release != ChannelUnstable {
+			pinned[c.Release] = true
+		}
+	}
+
+	var candidates []Release
+	for i, r := range releases {
+		if i < keep || pinned[r.Version] {
+			continue // within the retention window, or pinned — keep
+		}
+		candidates = append(candidates, r)
+	}
+
+	pruned := make([]string, 0, len(candidates))
+	// Delete oldest first so a failure partway through leaves the more
+	// recent (more likely to still matter) releases intact.
+	for i := len(candidates) - 1; i >= 0; i-- {
+		v := candidates[i].Version
+		if err := s.deleteRelease(v); err != nil {
+			return pruned, fmt.Errorf("prune release %s: %w", v, err)
+		}
+		pruned = append(pruned, v)
+	}
+	return pruned, nil
+}
+
+// deleteRelease removes one release's on-disk file and control-DB row. The
+// file may already be gone (a prior partial prune, manual cleanup); that's
+// not an error, only a failed delete of an existing file is.
+func (s *Store) deleteRelease(version string) error {
+	if err := os.Remove(s.ReleasePath(version)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	_, err := s.control.Exec(`DELETE FROM releases WHERE version = ?`, version)
+	return err
+}
+
 // SetChannel repoints a channel at a published release. The pointer swap is a
 // single control-DB write ("release day"). unstable is reserved for the live
 // write-log and cannot be repointed.

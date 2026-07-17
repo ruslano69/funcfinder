@@ -70,8 +70,8 @@ func TestMCPHandshakeAndToolsList(t *testing.T) {
 		t.Fatalf("protocolVersion = %v", init["protocolVersion"])
 	}
 	tools := resp[1].Result.(map[string]any)["tools"].([]any)
-	if len(tools) != 13 {
-		t.Fatalf("want 13 tools, got %d", len(tools))
+	if len(tools) != 14 {
+		t.Fatalf("want 14 tools, got %d", len(tools))
 	}
 }
 

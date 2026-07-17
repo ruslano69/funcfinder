@@ -1,7 +1,10 @@
 package truth
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/ruslano69/funcfinder/internal/knowledge"
@@ -226,5 +229,142 @@ func TestProvenance(t *testing.T) {
 	}
 	if len(none) != 0 {
 		t.Fatalf("want no entries for unknown record, got %d", len(none))
+	}
+}
+
+func TestPruneReleases_KeepsNewestK(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	defer s.Close()
+
+	var versions []string
+	for i := 1; i <= 5; i++ {
+		seedWriteLog(t, s, [2]string{"D", "c"})
+		v := fmt.Sprintf("2026.0%d", i)
+		if _, err := s.Publish(v, ""); err != nil {
+			t.Fatalf("publish %s: %v", v, err)
+		}
+		versions = append(versions, v)
+	}
+	// versions = [2026.01 .. 2026.05], oldest to newest
+
+	pruned, err := s.PruneReleases(2)
+	if err != nil {
+		t.Fatalf("PruneReleases: %v", err)
+	}
+	wantPruned := []string{"2026.01", "2026.02", "2026.03"}
+	if !reflect.DeepEqual(pruned, wantPruned) {
+		t.Fatalf("pruned = %v, want %v (oldest first)", pruned, wantPruned)
+	}
+
+	remaining, err := s.ListReleases()
+	if err != nil {
+		t.Fatalf("ListReleases: %v", err)
+	}
+	if len(remaining) != 2 {
+		t.Fatalf("want 2 releases remaining, got %d: %+v", len(remaining), remaining)
+	}
+	got := map[string]bool{}
+	for _, r := range remaining {
+		got[r.Version] = true
+	}
+	if !got["2026.04"] || !got["2026.05"] {
+		t.Fatalf("want 2026.04 and 2026.05 to survive, got %+v", remaining)
+	}
+
+	// The pruned releases' files must actually be gone from disk, not just
+	// the control-DB rows.
+	for _, v := range wantPruned {
+		if _, err := os.Stat(s.ReleasePath(v)); !os.IsNotExist(err) {
+			t.Errorf("release file for %s still exists on disk", v)
+		}
+	}
+	// The survivors' files must still be there.
+	for _, v := range []string{"2026.04", "2026.05"} {
+		if _, err := os.Stat(s.ReleasePath(v)); err != nil {
+			t.Errorf("release file for %s missing: %v", v, err)
+		}
+	}
+}
+
+func TestPruneReleases_NeverPrunesChannelPinnedRelease(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	defer s.Close()
+
+	for i := 1; i <= 5; i++ {
+		seedWriteLog(t, s, [2]string{"D", "c"})
+		if _, err := s.Publish(fmt.Sprintf("2026.0%d", i), ""); err != nil {
+			t.Fatalf("publish: %v", err)
+		}
+	}
+	// Point stable at the oldest release — it would normally be pruned at
+	// keep=2, but must survive because a channel depends on it.
+	if err := s.SetChannel(ChannelStable, "2026.01"); err != nil {
+		t.Fatalf("set-channel: %v", err)
+	}
+
+	pruned, err := s.PruneReleases(2)
+	if err != nil {
+		t.Fatalf("PruneReleases: %v", err)
+	}
+	for _, v := range pruned {
+		if v == "2026.01" {
+			t.Fatalf("pinned release 2026.01 was pruned; pruned=%v", pruned)
+		}
+	}
+	if _, err := os.Stat(s.ReleasePath("2026.01")); err != nil {
+		t.Fatalf("pinned release's file should still exist: %v", err)
+	}
+	// stable must still resolve.
+	if _, err := s.Resolve(ChannelStable); err != nil {
+		t.Fatalf("stable channel should still resolve after prune: %v", err)
+	}
+}
+
+func TestPruneReleases_KeepZeroOrFewerIsNoop(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	defer s.Close()
+
+	for i := 1; i <= 3; i++ {
+		seedWriteLog(t, s, [2]string{"D", "c"})
+		if _, err := s.Publish(fmt.Sprintf("2026.0%d", i), ""); err != nil {
+			t.Fatalf("publish: %v", err)
+		}
+	}
+
+	for _, keep := range []int{0, -1} {
+		pruned, err := s.PruneReleases(keep)
+		if err != nil {
+			t.Fatalf("PruneReleases(%d): %v", keep, err)
+		}
+		if len(pruned) != 0 {
+			t.Fatalf("PruneReleases(%d): want no-op, pruned %v", keep, pruned)
+		}
+	}
+
+	remaining, _ := s.ListReleases()
+	if len(remaining) != 3 {
+		t.Fatalf("want all 3 releases still present, got %d", len(remaining))
+	}
+}
+
+func TestPruneReleases_FewerReleasesThanKeepIsNoop(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	defer s.Close()
+
+	seedWriteLog(t, s, [2]string{"D", "c"})
+	if _, err := s.Publish("2026.01", ""); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	pruned, err := s.PruneReleases(5)
+	if err != nil {
+		t.Fatalf("PruneReleases: %v", err)
+	}
+	if len(pruned) != 0 {
+		t.Fatalf("want no-op when releases < keep, pruned %v", pruned)
 	}
 }
