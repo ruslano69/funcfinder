@@ -71,7 +71,7 @@ func TestHybridStructFinder_AllTypeKinds(t *testing.T) {
 	// Brace-based kinds only (class/interface/enum). A bare type_alias with
 	// no braces has its own dedicated test below, since it interacts with
 	// brace-depth tracking differently — see
-	// TestHybridStructFinder_TypeAliasWithoutBraces_SwallowsFollowingLines.
+	// TestHybridStructFinder_TypeAliasWithoutBraces_DoesNotSwallowFollowingLines.
 	tsConfig := getTSConfig(t)
 	code := `export class Server {
     start() {}
@@ -135,13 +135,13 @@ func TestHybridStructFinder_TypeAliasWithoutBraces_SingleType(t *testing.T) {
 	}
 }
 
-func TestHybridStructFinder_TypeAliasWithoutBraces_SwallowsFollowingLines(t *testing.T) {
-	// Known limitation, pinned here rather than silently relied upon: since a
-	// brace-less type alias never triggers the depth>0 -> 0 transition that
-	// closes a type, it stays "open" and absorbs every subsequent line —
+func TestHybridStructFinder_TypeAliasWithoutBraces_DoesNotSwallowFollowingLines(t *testing.T) {
+	// Regression test for the bug formerly pinned here: a brace-less type
+	// alias used to never trigger the depth>0 -> 0 transition that closes a
+	// type, so it stayed "open" and absorbed every subsequent line —
 	// including what looks like a separate class — until some later brace
-	// pair drives depth back to 0. That brace event closes the *alias*, not
-	// the class, so the class is never recorded as its own type.
+	// pair drove depth back to 0. Fixed by closing a brace-less, non-indent
+	// type immediately at the line that defines it (see findAllTypes).
 	tsConfig := getTSConfig(t)
 	code := `type Handler = (req: Request) => void;
 
@@ -156,8 +156,27 @@ class Server {
 	if err != nil {
 		t.Fatalf("FindStructuresInLines() error = %v", err)
 	}
-	if len(result.Types) != 1 || result.Types[0].Name != "Handler" {
-		t.Fatalf("got types %+v, want only Handler (Server is swallowed by current depth-tracking behavior)", result.Types)
+
+	kinds := map[string]TypeBounds{}
+	for _, typ := range result.Types {
+		kinds[typ.Name] = typ
+	}
+	if len(result.Types) != 2 {
+		t.Fatalf("got types %+v, want exactly [Handler, Server]", result.Types)
+	}
+	handler, ok := kinds["Handler"]
+	if !ok {
+		t.Fatalf("Handler not found; got types: %+v", result.Types)
+	}
+	if handler.Start != 1 || handler.End != 1 {
+		t.Errorf("Handler span = [%d,%d], want [1,1]", handler.Start, handler.End)
+	}
+	server, ok := kinds["Server"]
+	if !ok {
+		t.Fatalf("Server not found; got types: %+v", result.Types)
+	}
+	if server.Kind != "class" {
+		t.Errorf("Server kind = %q, want %q", server.Kind, "class")
 	}
 }
 

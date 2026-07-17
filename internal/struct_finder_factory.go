@@ -212,7 +212,17 @@ func (f *HybridStructFinder) findAllTypes(lines []string, lineOffset int) []Type
 						} else if f.config.IndentBased {
 							depth = 1
 						} else {
-							depth = 0
+							// No brace on this line and not indent-based: by
+							// construction this is a single-line construct (e.g. a
+							// TS type alias `type Handler = (req: Request) => void;`)
+							// with no depth>0 -> 0 transition ever coming to close
+							// it. Close it immediately instead of leaving it open
+							// with depth=0, where it would silently swallow every
+							// subsequent line until an unrelated brace-balance event
+							// coincidentally drove depth back to 0.
+							currentType.End = lineNum + 1 + lineOffset
+							types = append(types, *currentType)
+							currentType = nil
 						}
 						break
 					}
