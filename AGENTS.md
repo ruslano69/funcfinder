@@ -129,7 +129,7 @@ docsearch count
 
 **Hybrid mode**: RRF combines BM25 ranks and cosine ranks. Pass both `--query` and `--embedding` for best results. Without an embedding, falls back to FTS only; without a query, falls back to vector only.
 
-**Embedding source**: generate externally (Ollama, OpenAI, local model) and pass as `--embedding`. The tool stores and retrieves — it does not generate.
+**Embedding source**: pass `--embed-model <ollama-model>` (e.g. `qwen3-embedding:0.6b`) to auto-embed at add/search time via a local Ollama endpoint, or `--embedding <floats>` to supply a precomputed vector yourself. Use the same model for add and search.
 
 ---
 

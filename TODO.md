@@ -4,6 +4,43 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
+## Single-file `docsearch`: auto-embedding via Ollama for real hybrid/vec search (2026-07-17)
+
+- [x] **DONE (2026-07-17).** Wired `internal/embed` into `cmd/docsearch/main.go`:
+  `add` and `search` take `--embed-model`/`--embed-url`; file/crawl ingests
+  embed all chunks in one batch (`EmbedBatch`), single `add` and `search`
+  queries embed on the fly. Explicit `--embedding` still overrides. Unreachable
+  endpoint warns and degrades to FTS (ingest stores without vectors; search
+  runs keyword-only) rather than crashing. Reused `internal/embed` (not the old
+  branch `embed.go`), as planned. Tests in `cmd/docsearch/main_test.go` (fake
+  httptest embed server + degradation); live-verified against
+  `qwen3-embedding:0.6b` — a semantic query with zero keyword overlap correctly
+  ranked the on-topic doc first. Docs updated (DOCSEARCH.md, skill, AGENTS.md).
+
+  Original problem (for context): the single-file `docsearch` CLI was
+  BYO-embedding only — to use
+  `--mode vec` or a *real* `hybrid` (not FTS-degraded), you must hand-pass
+  `--embedding "0.1,0.2,…"` both at `add` time (to store a per-chunk vector)
+  and at `search` time (to embed the query) — impractical by hand, so in
+  practice `docsearch` runs FTS-only and `hybrid` silently collapses to `fts`
+  (`SearchHybrid` only runs the vector arm when `len(embedding) > 0`).
+
+  `docsearch-server` already solved this cleanly with the `internal/embed`
+  package (`--embed-model`/`--embed-url`, live query embedding, degrade-to-FTS
+  on failure). The fix: wire `internal/embed` into `cmd/docsearch/main.go` —
+  add `--embed-model`/`--embed-url`, embed each chunk on `add` and the query on
+  `search` when a model is set, degrade to FTS if Ollama is unreachable. ~30–40
+  lines + a test. **Reuse `internal/embed`, NOT the older
+  `internal/knowledge/embed.go`** stranded on the deleted `sqlite-vec-docs-system`
+  branch.
+
+  Env is ready: Ollama running locally with `qwen3-embedding:0.6b` (639 MB,
+  **1024-dim**) and `qwen3-embedding:4b` (2.5 GB) pulled; endpoint
+  `http://localhost:11434/api/embed` verified live. `qwen3-embedding:0.6b` is
+  the project's canonical model (the example in every `--embed-model` help
+  string). NB: `add` and `search` must embed with the *same* model — mixing
+  dimensions/spaces makes cosine meaningless.
+
 ## CI: `Test` job failing on every push since 2026-07-01 (2026-07-17)
 
 - [x] **FIXED.** Root cause had nothing to do with `-race` despite every

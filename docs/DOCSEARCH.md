@@ -196,17 +196,33 @@ docsearch count --json   # {"count":4}
 
 ## Vector search & embeddings
 
-`docsearch` does **not** compute embeddings itself — it stores and compares
-whatever float vector you pass in via `--embedding`. Generate embeddings with
-whatever model you have available (local or API) and pass them as
-comma-separated floats. `internal/knowledge/vector.go` implements cosine and
-L2 distance directly in SQL via registered SQLite functions
-(`vec_distance_cosine`, `vec_distance_l2`) operating on the raw float32 BLOB,
-so distance computation happens inside the query, not in Go.
+Two ways to get vectors into the index:
 
-If you never supply embeddings, stick to `--mode fts` or the default
-`hybrid` (which falls back to FTS-only) — `vec` mode simply returns nothing
-useful without them.
+- **Auto (`--embed-model`)** — point `docsearch` at a local Ollama model and it
+  embeds text for you at both `add` and `search` time:
+
+  ```bash
+  docsearch add    --file guide.md --embed-model qwen3-embedding:0.6b
+  docsearch search --query "how do I authenticate" --embed-model qwen3-embedding:0.6b
+  ```
+
+  `--embed-url` overrides the endpoint (default `http://localhost:11434/api/embed`).
+  File/crawl ingests embed all chunks in one batch request. **Use the same model
+  for `add` and `search`** — mixing models mixes vector spaces and makes cosine
+  meaningless. If the endpoint is unreachable, it warns and degrades to FTS
+  rather than failing (ingest stores without vectors; search runs keyword-only).
+
+- **BYO (`--embedding`)** — pass a precomputed float vector directly (overrides
+  `--embed-model`); generate it with whatever model you like. The tool then only
+  stores/compares — it does not call out.
+
+Distance is computed in SQL: `internal/knowledge/vector.go` registers
+`vec_distance_cosine`/`vec_distance_l2` over the raw float32 BLOB, so ranking
+happens inside the query, not in Go.
+
+With neither `--embed-model` nor `--embedding`, `add` stores FTS-only and
+`hybrid`/`vec` have no vectors to match — stick to `--mode fts` (or the
+`hybrid` default, which falls back to FTS).
 
 ---
 

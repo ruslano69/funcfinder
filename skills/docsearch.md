@@ -21,8 +21,9 @@ each time.
 
 One project = one SQLite file (default `.knowledge/docs.sqlite`). Three
 backing tables: `docs` (source of truth), `docs_fts` (full-text index, kept
-in sync via triggers), `docs_vec` (optional embedding per doc). `docsearch`
-does **not** generate embeddings — only stores/compares ones you supply.
+in sync via triggers), `docs_vec` (optional embedding per doc). For vectors,
+either pass `--embed-model <ollama-model>` (auto-embeds at add + search) or
+supply precomputed vectors via `--embedding`; without either, it runs FTS-only.
 
 Full reference: [docs/DOCSEARCH.md](../docs/DOCSEARCH.md).
 
@@ -93,7 +94,11 @@ docsearch search --query "<keywords>" --json
 # Structural/pattern match
 docsearch search --query "<regex>" --mode regex --json
 
-# Semantic search (requires an embedding you generated yourself)
+# Semantic search — auto-embed the query via Ollama (docs must have been
+# added with the SAME --embed-model)
+docsearch search --query "<natural language>" --mode vec --embed-model qwen3-embedding:0.6b --json
+
+# Semantic search with a precomputed vector (BYO)
 docsearch search --embedding "0.1,0.2,..." --mode vec --json
 ```
 
