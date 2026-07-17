@@ -49,7 +49,8 @@ func main() {
 	actions := map[string]bool{
 		"ingest": true, "record": true, "publish": true, "freeze": true,
 		"set-channel": true, "channels": true, "releases": true, "search": true,
-		"suggest": true, "read": true, "enumerate": true, "provenance": true, "serve": true, "mcp": true,
+		"suggest": true, "read": true, "enumerate": true, "provenance": true, "context": true,
+		"serve": true, "mcp": true,
 	}
 	var preAction, postAction []string
 	action := ""
@@ -102,6 +103,8 @@ func main() {
 		runEnumerate(store, postAction)
 	case "provenance":
 		runProvenance(store, postAction)
+	case "context":
+		runContext(store, postAction)
 	case "serve":
 		runServe(store, emb, postAction)
 	case "mcp":
@@ -590,6 +593,51 @@ func runEnumerate(s *truth.Store, args []string) {
 	}
 }
 
+// runContext is the FR-9 "context(role)" primitive: a role-scoped view over
+// the same corpus (one database, different lenses), filtering on the
+// role_tags an --role-tags ingest carried, newest first.
+func runContext(s *truth.Store, args []string) {
+	fs := flag.NewFlagSet("context", flag.ExitOnError)
+	role := fs.String("role", "", "role tag to filter by, e.g. backend (required)")
+	ref := fs.String("channel", truth.ChannelStable, "channel or release version")
+	limit := fs.Int("limit", 20, "max documents")
+	jsonOut := fs.Bool("json", false, "output JSON")
+	fs.Parse(args)
+
+	if *role == "" {
+		fatalf("--role required")
+	}
+	path, err := s.Resolve(*ref)
+	if err != nil {
+		fatalf("resolve %q: %v", *ref, err)
+	}
+	db, err := truth.OpenRelease(path)
+	if err != nil {
+		fatalf("open %s: %v", path, err)
+	}
+	defer db.Close()
+
+	docs, err := knowledge.ByRole(db, *role, *limit)
+	if err != nil {
+		fatalf("context: %v", err)
+	}
+
+	if *jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(docs)
+		return
+	}
+	if len(docs) == 0 {
+		fmt.Fprintf(os.Stderr, "(no documents tagged for role %q)\n", *role)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "# %d documents tagged %q in %s\n", len(docs), *role, filepath.Base(path))
+	for _, d := range docs {
+		fmt.Printf("[%d] %s  (%s, tags=%s)\n", d.ID, d.Title, d.Type, d.RoleTags)
+	}
+}
+
 func runProvenance(s *truth.Store, args []string) {
 	fs := flag.NewFlagSet("provenance", flag.ExitOnError)
 	recordID := fs.Int64("record-id", 0, "recorded document id, e.g. the id printed by `record` (required)")
@@ -657,6 +705,7 @@ Readonly (grounding):
   read        --id <n> [--context K] | --source <tag> [--channel <c>]   (read the full contiguous chunk range or whole source file — see docs/docsearch-server/HOW_TO_USE.md)
   enumerate   --pattern <regex> [--channel <c> --limit N]   (distinct matches across the corpus, tallied — the completeness-audit step)
   provenance  --record-id <id>   (who produced a record, when, against what)
+  context     --role <tag> [--channel <c> --limit N]   (role-scoped view of the same corpus — FR-9)
   serve       --addr <a> --channel stable|testing [--pool N --lite]   (async read-server, hot-swaps on channel repoint)
   mcp         (MCP server over stdio — first-class interface for LLM agents)
   releases    [--json]

@@ -172,6 +172,8 @@ func (m *mcpServer) callTool(name string, args map[string]any) (string, error) {
 		return m.toolSetChannel(args)
 	case "provenance":
 		return m.toolProvenance(args)
+	case "context":
+		return m.toolContext(args)
 	default:
 		return "", fmt.Errorf("unknown tool %q", name)
 	}
@@ -294,6 +296,31 @@ func (m *mcpServer) toolSuggest(args map[string]any) (string, error) {
 		return "", err
 	}
 	return jsonString(map[string]any{"channel": ref, "prefix": prefix, "relative_to": relativeTo, "terms": terms}), nil
+}
+
+func (m *mcpServer) toolContext(args map[string]any) (string, error) {
+	role := argStr(args, "role", "")
+	if role == "" {
+		return "", fmt.Errorf("role is required")
+	}
+	ref := argStr(args, "channel", truth.ChannelStable)
+	limit := argInt(args, "limit", 20)
+
+	path, err := m.store.Resolve(ref)
+	if err != nil {
+		return "", err
+	}
+	db, err := truth.OpenRelease(path)
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+
+	docs, err := knowledge.ByRole(db, role, limit)
+	if err != nil {
+		return "", err
+	}
+	return jsonString(map[string]any{"role": role, "channel": ref, "documents": docs}), nil
 }
 
 func (m *mcpServer) toolListReleases() (string, error) {
@@ -457,6 +484,12 @@ func toolSchemas() []map[string]any {
 				"include_numbers": map[string]any{"type": "boolean", "description": "include pure-digit tokens (off by default — they are useless search keys)"},
 				"limit":           intProp("max terms (default 20)"),
 			}, "prefix"),
+		tool("context", "Role-scoped view over the same corpus (TZ FR-9): documents tagged for a role via ingest's role_tags, newest first — one database, different lenses.",
+			map[string]any{
+				"role":    strProp("role tag to filter by, e.g. backend"),
+				"channel": strProp("stable|testing|unstable or a release version"),
+				"limit":   intProp("max documents (default 20)"),
+			}, "role"),
 		tool("list_releases", "List published, immutable releases of truth (newest first).", map[string]any{}),
 		tool("channels", "Show channels (stable/testing/unstable) and which release each points at.", map[string]any{}),
 		tool("provenance", "Look up who produced a recorded document, when, and against which source task/spec.",
