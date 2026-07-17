@@ -118,6 +118,35 @@ Without `--json` it prints a human-readable warning to stderr suggesting
 `ocrmypdf` to fix the source file. This is a hard rejection, not a soft
 warning — fix the PDF and re-run.
 
+### add — web crawler (`--url`)
+
+```bash
+docsearch add --url https://pkg.go.dev/net/http --max-pages 200 --json
+# {"pages":37,"chunks":412,"ids":[...]}
+```
+
+Crawls a documentation site and ingests every page's text (`internal/knowledge/web.go`).
+The crawl is deliberately scoped and polite:
+
+- **Stays on-site** — only follows links with the same host *and* the start
+  URL's path as a prefix (`isSameSite`), so `…/net/http` won't wander into
+  `…/os` or off to another domain. Query-string variants (tab/pagination
+  links) are skipped unless the start URL itself carries a query.
+- **Deduplicates** — pages with a byte-identical body are indexed once
+  (content-hash set), and versioned URL variants (`@go1.21`, `@v1.2.3`) are
+  normalized to a single canonical path (`normalizeURL`) so mirrored version
+  trees don't multiply the corpus.
+- **Extracts real content** — pulls text from `<main>`/`<article>`/`role="main"`
+  when present, structured by headings/paragraphs, skipping chrome
+  (`script`/`style`/`nav`/`header`/`footer`/`aside`). Non-HTML responses and
+  non-200s are skipped, not fatal; the body is capped at 4 MB per page.
+- **Bounded** — `--max-pages` (default 200) caps the crawl; progress prints to
+  stderr (`crawling [N fetched, M queued] …`) unless `--json`.
+
+Extracted text flows through the same chunker as file ingestion
+(`--chunk-size`/`--chunk-overlap`, `hasRepetitiveRuns` filtering). Embeddings
+are not auto-generated — add them in a follow-up pass if you need vector search.
+
 ### search
 
 ```bash
@@ -195,6 +224,9 @@ docsearch add --title "..." --content "..." --type general
 
 # Ingest a doc, chunked
 docsearch add --file README.md --type general
+
+# Crawl a documentation site
+docsearch add --url https://pkg.go.dev/net/http --max-pages 200
 
 # Search (defaults to hybrid)
 docsearch search --query "your question" --limit 5

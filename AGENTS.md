@@ -106,6 +106,12 @@ docsearch add --title "Title" --content "..." --type general
 docsearch add --title "Error: connection refused" --content "..." --type error \
   --embedding "0.12,0.34,..." --meta '{"scenario":"db-setup"}'
 
+# Ingest a file (chunked): .txt / .md / .pdf
+docsearch add --file README.md --type general
+
+# Crawl a documentation site (same host+path prefix, deduped)
+docsearch add --url https://pkg.go.dev/net/http --max-pages 200
+
 # FTS keyword search
 docsearch search --query "candidate storage" --mode fts
 

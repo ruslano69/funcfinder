@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Persistent knowledge base backed by a single SQLite file. Combines FTS5 (BM25 keyword search) and cosine vector similarity search with Reciprocal Rank Fusion for hybrid retrieval. Ingests `.txt` (with charset detection), `.md`, and `.pdf` files with section-aware chunking. Designed for AI agents that accumulate documentation, error notes, and tool-usage records across sessions.
+Persistent knowledge base backed by a single SQLite file. Combines FTS5 (BM25 keyword search) and cosine vector similarity search with Reciprocal Rank Fusion for hybrid retrieval. Ingests `.txt` (with charset detection), `.md`, and `.pdf` files with section-aware chunking, and crawls documentation websites (`web.go`). Designed for AI agents that accumulate documentation, error notes, and tool-usage records across sessions.
 
 ## Ownership
 
@@ -15,6 +15,7 @@ Persistent knowledge base backed by a single SQLite file. Combines FTS5 (BM25 ke
 - `Open(path string) (*sql.DB, error)` — open or create the knowledge base, apply schema, return a ready connection.
 - `Add(db, title, content, type, metadata, embedding) (int64, error)` — insert a document; embedding may be nil.
 - `IngestFile(path, ChunkOpts) ([]Chunk, error)` — read a file and split into indexable Chunks; dispatches by extension.
+- `IngestURL(rootURL, CrawlOpts, CrawlProgress) ([]Chunk, error)` — crawl a docs site (same host+path prefix, content-hash dedup, `@version` normalization, `<main>`/`<article>` extraction) into Chunks. `IngestWeb` is an alias.
 - `ChunkOpts{MaxRunes, OverlapRunes}` — chunking parameters (defaults: 800 / 80).
 - `Delete(db, id)` — remove document and its embedding (cascade).
 - `Count(db) (int64, error)` — total document count.
@@ -47,6 +48,7 @@ IngestFile → ingestTXT / ingestMD / ingestPDF
 - **TXT**: `toUTF8()` detects encoding via BOM → utf8.Valid → `charset.DetermineEncoding` fallback. Splits on blank lines.
 - **MD**: regex splits on ATX headers (`# … ######`). `splitParagraphsMD` treats fenced code blocks as atomic — blank lines inside ` ``` ` do not create paragraph breaks. Section content never crosses a header boundary.
 - **PDF**: `ledongthuc/pdf`, page by page. `normalizeWhitespace` collapses PDF spacing artefacts before paragraph split.
+- **Web** (`web.go`): `IngestURL` BFS-crawls from a root URL, fetching HTML pages within the same host+path prefix (`isSameSite`), deduping by body hash and normalizing `@version` paths, extracting `<main>`/`<article>` text (chrome tags skipped) into the same `docSection` → `sectionsToChunks` path.
 - **Chunking**: greedy fill up to `MaxRunes`, split only at paragraph boundaries, optional overlap (`OverlapRunes` runes from previous chunk's tail) for RAG context continuity.
 
 ## Work Guidance

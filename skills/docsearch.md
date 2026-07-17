@@ -68,6 +68,17 @@ done
 exit code 2) rather than polluting the knowledge base — if you hit this, the
 source PDF needs re-OCR'ing (e.g. `ocrmypdf`), not a retry.
 
+### A documentation website (crawled)
+```bash
+docsearch add --url https://pkg.go.dev/net/http --max-pages 200 --json
+```
+
+Crawls a docs site into the knowledge base — stays on the same host + path
+prefix (so a start URL of `…/net/http` won't wander into `…/os` or off-domain),
+dedups identical/versioned pages, and extracts `<main>`/`<article>` text while
+skipping nav/header/footer chrome. Use it to make an external library's docs
+searchable offline. `--max-pages` (default 200) bounds the crawl.
+
 ---
 
 ## Phase 3 — Search
