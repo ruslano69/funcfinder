@@ -96,6 +96,39 @@ func TestMCPLifecycleViaTools(t *testing.T) {
 	}
 }
 
+// TestMCPToolPublish_CodeDirWarningSurfacesEvenWithZeroFiles guards against
+// toolPublish only attaching code_map_* fields when code_dir produced at
+// least one document — a misrooted or empty --code-dir would otherwise
+// clear a previous code map and give the calling agent zero indication
+// anything happened.
+func TestMCPToolPublish_CodeDirWarningSurfacesEvenWithZeroFiles(t *testing.T) {
+	dir := t.TempDir()
+	store, err := truth.Open(dir)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer store.Close()
+
+	m := &mcpServer{store: store, embc: embed.New("", "")}
+
+	emptyCodeDir := t.TempDir() // no source files at all
+	out, err := m.toolPublish(map[string]any{"name": "2026.07", "code_dir": emptyCodeDir})
+	if err != nil {
+		t.Fatalf("toolPublish: %v", err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+	if _, ok := result["code_map_files"]; !ok {
+		t.Errorf("want code_map_files present even when 0 files were ingested, got %v", result)
+	}
+	if files, _ := result["code_map_files"].(float64); files != 0 {
+		t.Errorf("code_map_files = %v, want 0", result["code_map_files"])
+	}
+}
+
 func TestMCPErrorSemantics(t *testing.T) {
 	resp := runSession(t, t.TempDir(),
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{}}}`,

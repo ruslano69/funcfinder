@@ -18,7 +18,6 @@ import (
 	"strings"
 
 	"github.com/ruslano69/funcfinder/internal"
-	"github.com/ruslano69/funcfinder/internal/knowledge"
 )
 
 // DocType tags every document Ingest writes, so callers can find (or a
@@ -39,6 +38,8 @@ type Stats struct {
 // questionable, or "" when it looks trustworthy.
 func (s Stats) Warning() string {
 	switch {
+	case s.Files == 0 && s.Replaced > 0:
+		return fmt.Sprintf("%s produced no code-map documents — the previous code map (%d documents) was replaced with an empty one; check that the path is correct", s.CodeDir, s.Replaced)
 	case s.CommitSHA == "":
 		return fmt.Sprintf("could not determine a git commit for %s — code_map documents will carry no source_version provenance", s.CodeDir)
 	case s.Dirty:
@@ -81,7 +82,16 @@ func Ingest(db *sql.DB, codeDir string) (Stats, error) {
 		return stats, fmt.Errorf("scan %s: %w", codeDir, err)
 	}
 
-	replaced, err := knowledge.DeleteByType(db, DocType)
+	// The delete-then-reinsert runs as one transaction so a failure partway
+	// through (a bad file, a closed DB) leaves the previous code map intact
+	// instead of the write-log stuck half-replaced.
+	tx, err := db.Begin()
+	if err != nil {
+		return stats, fmt.Errorf("begin code-map transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	replaced, err := deleteDocsByType(tx, DocType)
 	if err != nil {
 		return stats, fmt.Errorf("clear previous code map: %w", err)
 	}
@@ -101,12 +111,35 @@ func Ingest(db *sql.DB, codeDir string) (Stats, error) {
 		if err != nil {
 			return stats, fmt.Errorf("marshal metadata for %s: %w", rel, err)
 		}
-		if _, err := knowledge.Add(db, rel, formatSkeleton(r), DocType, string(metaJSON), nil); err != nil {
+		if err := insertDoc(tx, rel, formatSkeleton(r), DocType, string(metaJSON)); err != nil {
 			return stats, fmt.Errorf("ingest %s: %w", rel, err)
 		}
 		stats.Files++
 	}
+
+	if err := tx.Commit(); err != nil {
+		return stats, fmt.Errorf("commit code map: %w", err)
+	}
 	return stats, nil
+}
+
+// deleteDocsByType and insertDoc run the delete-then-reinsert against an
+// already-open *sql.Tx, so the whole replace-the-code-map operation commits
+// or rolls back as one unit.
+func deleteDocsByType(tx *sql.Tx, docType string) (int64, error) {
+	res, err := tx.Exec(`DELETE FROM docs WHERE type = ?`, docType)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+func insertDoc(tx *sql.Tx, title, content, docType, metadata string) error {
+	_, err := tx.Exec(
+		`INSERT INTO docs (title, content, type, metadata) VALUES (?, ?, ?, ?)`,
+		title, content, docType, metadata,
+	)
+	return err
 }
 
 // formatSkeleton renders one file's functions and types as a compact,

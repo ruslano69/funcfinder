@@ -211,6 +211,46 @@ func TestIngest_NonGitDirectory(t *testing.T) {
 	}
 }
 
+func TestIngest_EmptyRerunWarnsInsteadOfSilentlyClearingMap(t *testing.T) {
+	dir := t.TempDir()
+	writeGoFile(t, dir, "main.go", "package main\n\nfunc f() {}\n")
+	db := openDB(t)
+
+	stats, err := Ingest(db, dir)
+	if err != nil {
+		t.Fatalf("first Ingest: %v", err)
+	}
+	if stats.Files != 1 {
+		t.Fatalf("want 1 file on first ingest, got %d", stats.Files)
+	}
+
+	// Simulate a misrooted re-ingest (e.g. --code-dir typo'd to an empty or
+	// wrong directory): every prior code_map doc gets replaced with nothing.
+	if err := os.Remove(filepath.Join(dir, "main.go")); err != nil {
+		t.Fatalf("remove main.go: %v", err)
+	}
+	writeGoFile(t, dir, "consts.go", "package main\n\nconst X = 1\n")
+
+	stats2, err := Ingest(db, dir)
+	if err != nil {
+		t.Fatalf("second Ingest: %v", err)
+	}
+	if stats2.Files != 0 {
+		t.Fatalf("want 0 files on second ingest, got %d", stats2.Files)
+	}
+	if stats2.Replaced == 0 {
+		t.Fatalf("want Replaced > 0 (the first ingest's doc was cleared), got %d", stats2.Replaced)
+	}
+	if w := stats2.Warning(); w == "" {
+		t.Error("want a warning when a non-empty code map is replaced by an empty one")
+	}
+
+	n, _ := knowledge.Count(db)
+	if n != 0 {
+		t.Errorf("want 0 code_map docs left after the empty re-ingest, got %d", n)
+	}
+}
+
 func TestIngest_NonexistentDirectoryErrors(t *testing.T) {
 	db := openDB(t)
 	if _, err := Ingest(db, filepath.Join(t.TempDir(), "does-not-exist")); err == nil {

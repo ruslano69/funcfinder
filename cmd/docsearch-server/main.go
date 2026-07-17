@@ -158,9 +158,9 @@ func runIngest(s *truth.Store, emb *embed.Client, args []string) {
 	content := fs.String("content", "", "document content (required without --file)")
 	file := fs.String("file", "", "ingest a .txt/.md/.pdf file (chunked), or a .json file of structured changelog/task/decision records")
 	docType := fs.String("type", "general", "spec|ТЗ|lib_doc|sprint|changelog|task|decision|general")
-	roleTags := fs.String("role-tags", "", "comma-separated role tags for context() view filter")
-	author := fs.String("author", "", "author (provenance)")
-	sourceVersion := fs.String("source-version", "", "source version (provenance)")
+	roleTags := fs.String("role-tags", "", "comma-separated role tags for context() view filter (with --file *.json: default for records that don't set their own role_tags)")
+	author := fs.String("author", "", "author (provenance) (with --file *.json: default for records that don't set their own author)")
+	sourceVersion := fs.String("source-version", "", "source version (provenance) (with --file *.json: default for records that don't set their own source_version)")
 	chunkSize := fs.Int("chunk-size", 800, "max chunk runes (with --file)")
 	chunkOverlap := fs.Int("chunk-overlap", 80, "chunk overlap runes (with --file)")
 	stripRunes := fs.String("strip-runes", "", "extra junk runes to strip at index time (e.g. an OCR separator glyph: --strip-runes Ω)")
@@ -178,6 +178,21 @@ func runIngest(s *truth.Store, emb *embed.Client, args []string) {
 		records, err := knowledge.ParseRecordsFile(*file)
 		if err != nil {
 			fatalf("parse records: %v", err)
+		}
+		// --author/--role-tags/--source-version are per-record fields in the
+		// JSON itself; the flags only fill in where a record left its own
+		// field blank, so a shared author/tag doesn't need repeating in
+		// every record.
+		for i := range records {
+			if records[i].Author == "" {
+				records[i].Author = *author
+			}
+			if records[i].RoleTags == "" {
+				records[i].RoleTags = *roleTags
+			}
+			if records[i].SourceVersion == "" {
+				records[i].SourceVersion = *sourceVersion
+			}
 		}
 		var embedFn func(string) []float32
 		if emb.Enabled() {

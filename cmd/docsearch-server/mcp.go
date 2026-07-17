@@ -463,7 +463,7 @@ func (m *mcpServer) toolPublish(args map[string]any) (string, error) {
 		}
 	}
 	result := map[string]any{"version": rel.Version, "path": m.store.ReleasePath(rel.Version)}
-	if codeStats.Files > 0 {
+	if codeStats.CodeDir != "" {
 		result["code_map_files"] = codeStats.Files
 		result["code_map_commit"] = codeStats.CommitSHA
 		if w := codeStats.Warning(); w != "" {
