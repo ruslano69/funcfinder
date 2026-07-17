@@ -255,6 +255,62 @@ func (s *Store) RecordProvenance(recordID int64, author, sourceRef string) error
 	return err
 }
 
+// ProvenanceEntry answers "who produced this, when, against what" for a
+// recorded document (TZ FR-17).
+type ProvenanceEntry struct {
+	RecordID      int64  `json:"record_id"`
+	Author        string `json:"author"`
+	Ts            int64  `json:"ts"`
+	TargetRelease string `json:"target_release"` // empty until the record's next publish lands
+	SourceRef     string `json:"source_ref"`
+}
+
+// Provenance returns the provenance trail for a recorded document id, oldest
+// first (TZ FR-17).
+func (s *Store) Provenance(recordID int64) ([]ProvenanceEntry, error) {
+	rows, err := s.control.Query(
+		`SELECT record_id, author, ts, target_release, source_ref
+		   FROM provenance WHERE record_id = ? ORDER BY ts`, recordID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ProvenanceEntry
+	for rows.Next() {
+		var p ProvenanceEntry
+		if err = rows.Scan(&p.RecordID, &p.Author, &p.Ts, &p.TargetRelease, &p.SourceRef); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// Freeze marks a published release as frozen (TZ FR-11, §5 glossary): a
+// stabilization-window signal that this release is now the testing candidate
+// and further fixes should land in unstable rather than repointing it.
+// Freezing an unknown or already-frozen release is refused.
+func (s *Store) Freeze(version string) (int64, error) {
+	var frozenAt sql.NullInt64
+	err := s.control.QueryRow(
+		`SELECT frozen_at FROM releases WHERE version = ?`, version).Scan(&frozenAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("no such release %q", version)
+	}
+	if err != nil {
+		return 0, err
+	}
+	if frozenAt.Valid {
+		return 0, fmt.Errorf("release %s already frozen at %d", version, frozenAt.Int64)
+	}
+	ts := time.Now().Unix()
+	if _, err = s.control.Exec(
+		`UPDATE releases SET frozen_at = ? WHERE version = ?`, ts, version); err != nil {
+		return 0, err
+	}
+	return ts, nil
+}
+
 // Resolve maps a reference (a channel name or a raw release version) to the
 // on-disk DB path a reader should open. "unstable" resolves to the live
 // write-log; a channel resolves to its release file; anything else is treated
