@@ -51,7 +51,7 @@ func main() {
 		"ingest": true, "record": true, "publish": true, "freeze": true, "prune": true,
 		"set-channel": true, "channels": true, "releases": true, "search": true,
 		"suggest": true, "read": true, "enumerate": true, "provenance": true, "context": true,
-		"diff": true, "serve": true, "mcp": true,
+		"diff": true, "serve": true, "serve-http": true, "mcp": true,
 	}
 	var preAction, postAction []string
 	action := ""
@@ -112,6 +112,8 @@ func main() {
 		runDiff(store, postAction)
 	case "serve":
 		runServe(store, emb, postAction)
+	case "serve-http":
+		runServeHTTP(store, emb, postAction)
 	case "mcp":
 		runMCP(store, emb, postAction)
 	}
@@ -850,7 +852,8 @@ Readonly (grounding):
   provenance  --record-id <id>   (who produced a record, when, against what)
   context     --role <tag> [--channel <c> --limit N]   (role-scoped view of the same corpus — FR-9)
   diff        --from <ref> --to <ref>   (added/removed/changed documents between two releases or channels — FR-18)
-  serve       --addr <a> --channel stable|testing [--pool N --lite]   (async read-server, hot-swaps on channel repoint)
+  serve       --addr <a> --channel stable|testing [--pool N --lite]   (async TCP read-server, hot-swaps on channel repoint)
+  serve-http  --addr <a> --channel stable|testing [--pool N]   (HTTP/JSON read-server — FR-20; GET /search /read /context /releases /channels /healthz)
   mcp         (MCP server over stdio — first-class interface for LLM agents)
   releases    [--json]
   channels    [--json]

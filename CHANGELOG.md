@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### docsearch-server
+
+- **HTTP/JSON read-server** (`serve-http`, TZ FR-20) — та же stateless
+  read-нода, что и TCP `serve` (общая релизная модель, тот же hot-swap
+  канала), но по HTTP: `GET /search`, `/read`, `/context`, `/releases`,
+  `/channels`, `/healthz`. Строго readonly по CQRS — любой write-verb на
+  любом маршруте отдаёт 405; ингест/паблиш живут на writer/CLI/MCP-стороне.
+  Режим поиска (`fts|vec|hybrid|regex`) и live-эмбеддинг зеркалят CLI
+  `search`, так что HTTP- и CLI-грундинг не расходятся. Завершает §6.6 ТЗ —
+  все функциональные требования реализованы.
+
 ## v1.9.0 - 2026-07-17
 
 Седьмой инструмент: **docsearch-server** — версионированный сервер правды для
