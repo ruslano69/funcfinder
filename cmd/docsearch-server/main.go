@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/ruslano69/funcfinder/internal"
+	"github.com/ruslano69/funcfinder/internal/codemap"
 	"github.com/ruslano69/funcfinder/internal/embed"
 	"github.com/ruslano69/funcfinder/internal/knowledge"
 	"github.com/ruslano69/funcfinder/internal/truth"
@@ -274,12 +275,30 @@ func runPublish(s *truth.Store, args []string) {
 	name := fs.String("name", "", "release version, e.g. 2026.07 or 2026.07.1 (required)")
 	notes := fs.String("notes", "", "release notes")
 	channel := fs.String("channel", "", "optionally point this channel at the new release")
+	codeDir := fs.String("code-dir", "", "path to a source tree to bake in as a structural code map (functions/types per file, tagged with its git commit) — FR-22. Replaces any code map from a previous publish.")
 	jsonOut := fs.Bool("json", false, "output JSON")
 	fs.Parse(args)
 
 	if *name == "" {
 		fatalf("--name required")
 	}
+
+	var codeStats codemap.Stats
+	if *codeDir != "" {
+		db, err := knowledge.Open(s.WriteLogPath())
+		if err != nil {
+			fatalf("open write-log: %v", err)
+		}
+		codeStats, err = codemap.Ingest(db, *codeDir)
+		db.Close()
+		if err != nil {
+			fatalf("code-map ingest: %v", err)
+		}
+		if w := codeStats.Warning(); w != "" {
+			fmt.Fprintf(os.Stderr, "WARNING: %s\n", w)
+		}
+	}
+
 	rel, err := s.Publish(*name, *notes)
 	if err != nil {
 		fatalf("publish: %v", err)
@@ -291,11 +310,15 @@ func runPublish(s *truth.Store, args []string) {
 	}
 	if *jsonOut {
 		json.NewEncoder(os.Stdout).Encode(map[string]any{
-			"version": rel.Version, "path": s.ReleasePath(rel.Version), "channel": *channel})
+			"version": rel.Version, "path": s.ReleasePath(rel.Version), "channel": *channel,
+			"code_map_files": codeStats.Files, "code_map_commit": codeStats.CommitSHA})
 	} else {
 		fmt.Fprintf(os.Stderr, "published truth-%s → %s\n", rel.Version, s.ReleasePath(rel.Version))
 		if *channel != "" {
 			fmt.Fprintf(os.Stderr, "channel %s → %s\n", *channel, rel.Version)
+		}
+		if *codeDir != "" {
+			fmt.Fprintf(os.Stderr, "code map: %d files from %s @ %s\n", codeStats.Files, *codeDir, codeStats.CommitSHA)
 		}
 	}
 }
@@ -752,7 +775,7 @@ func printUsage() {
 Rewrite (truth flows in):
   ingest      --title/--content or --file [--type --role-tags --author --source-version --strip-runes]
   record      --title --result [--type changelog|task|decision --source-ref --author]
-  publish     --name <ver> [--notes --channel]
+  publish     --name <ver> [--notes --channel --code-dir <path>]   (--code-dir bakes in a funcfinder structural code map — FR-22)
   freeze      --release <ver>   (open the stabilization window; further fixes go to unstable)
   set-channel --name stable|testing --release <ver>
 

@@ -45,6 +45,19 @@ func Delete(db *sql.DB, id int64) error {
 	return err
 }
 
+// DeleteByType removes every document of the given type (and any embeddings,
+// via docs_vec's ON DELETE CASCADE). For regenerable document types — code
+// maps compiled fresh from source on every publish (TZ FR-22), say — this is
+// how a re-ingest replaces the previous snapshot instead of accumulating
+// stale copies from earlier commits alongside it.
+func DeleteByType(db *sql.DB, docType string) (int64, error) {
+	res, err := db.Exec(`DELETE FROM docs WHERE type = ?`, docType)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // Count returns the total number of documents in the knowledge base.
 func Count(db *sql.DB) (int64, error) {
 	var n int64

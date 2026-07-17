@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ruslano69/funcfinder/internal/codemap"
 	"github.com/ruslano69/funcfinder/internal/embed"
 	"github.com/ruslano69/funcfinder/internal/knowledge"
 	"github.com/ruslano69/funcfinder/internal/truth"
@@ -436,6 +437,20 @@ func (m *mcpServer) toolPublish(args map[string]any) (string, error) {
 	if name == "" {
 		return "", fmt.Errorf("name is required")
 	}
+
+	var codeStats codemap.Stats
+	if codeDir := argStr(args, "code_dir", ""); codeDir != "" {
+		db, err := knowledge.Open(m.store.WriteLogPath())
+		if err != nil {
+			return "", err
+		}
+		codeStats, err = codemap.Ingest(db, codeDir)
+		db.Close()
+		if err != nil {
+			return "", err
+		}
+	}
+
 	rel, err := m.store.Publish(name, argStr(args, "notes", ""))
 	if err != nil {
 		return "", err
@@ -445,7 +460,15 @@ func (m *mcpServer) toolPublish(args map[string]any) (string, error) {
 			return "", err
 		}
 	}
-	return jsonString(map[string]any{"version": rel.Version, "path": m.store.ReleasePath(rel.Version)}), nil
+	result := map[string]any{"version": rel.Version, "path": m.store.ReleasePath(rel.Version)}
+	if codeStats.Files > 0 {
+		result["code_map_files"] = codeStats.Files
+		result["code_map_commit"] = codeStats.CommitSHA
+		if w := codeStats.Warning(); w != "" {
+			result["code_map_warning"] = w
+		}
+	}
+	return jsonString(result), nil
 }
 
 func (m *mcpServer) toolFreeze(args map[string]any) (string, error) {
@@ -554,11 +577,12 @@ func toolSchemas() []map[string]any {
 				"source_ref": strProp("link to the source task/spec this answers"),
 				"author":     strProp("who produced this"),
 			}, "title", "result"),
-		tool("publish", "Snapshot the write-log into an immutable named release; optionally point a channel at it.",
+		tool("publish", "Snapshot the write-log into an immutable named release; optionally point a channel at it and bake in a funcfinder structural code map.",
 			map[string]any{
-				"name":    strProp("release version, e.g. 2026.07 or 2026.07.1"),
-				"notes":   strProp("release notes"),
-				"channel": strProp("optionally point this channel at the new release"),
+				"name":     strProp("release version, e.g. 2026.07 or 2026.07.1"),
+				"notes":    strProp("release notes"),
+				"channel":  strProp("optionally point this channel at the new release"),
+				"code_dir": strProp("optional: path to a source tree to bake in as a structural code map (functions/types per file, tagged with its git commit) — TZ FR-22. Replaces any code map from a previous publish."),
 			}, "name"),
 		tool("freeze", "Open the stabilization window on a published release: a signal that further fixes should land in unstable rather than repointing this release.",
 			map[string]any{
