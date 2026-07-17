@@ -34,18 +34,21 @@ jobs:
     - name: Install dependencies
       run: go mod download
 
-    - name: Run tests
-      # DIAGNOSTIC (temporary): every prior push since the docsearch-server
-      # merge has died right here with a bare exit 1 and no FAIL/panic in
-      # the log, immediately after the last package's "ok" line — not
-      # reproducible locally. Bisecting: -coverprofile/-covermode dropped to
-      # find out whether coverage-profile writing under -race on Go 1.24 is
-      # the trigger, or whether it's deeper (runner/toolchain). Restore
-      # coverage once the cause is confirmed.
+    - name: Run tests (race)
+      # Every push since the docsearch-server merge (2026-07-01) died here
+      # with a bare exit 1 and no FAIL/panic in the log, immediately after
+      # the last package's "ok" line — not reproducible locally. Bisected
+      # by dropping -coverprofile/-covermode: confirmed the tests themselves
+      # were always fine, and it's specifically -race + coverage-profile
+      # finalization (multi-package merge) that fails on this runner/Go
+      # version. Split into two runs so a real race still fails CI without
+      # coverage collection dragging it down.
       run: go test -v -race -p 1 ./internal/...
 
+    - name: Run tests (coverage)
+      run: go test -coverprofile=coverage.txt -covermode=atomic ./internal/...
+
     - name: Upload coverage to Codecov
-      if: false # DIAGNOSTIC: no coverage.txt produced while bisecting, see "Run tests" above
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.txt
@@ -53,7 +56,6 @@ jobs:
         name: codecov-umbrella
 
     - name: Generate coverage report
-      if: false # DIAGNOSTIC: no coverage.txt produced while bisecting, see "Run tests" above
       run: |
         go tool cover -func=coverage.txt > coverage.txt.summary
         echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
