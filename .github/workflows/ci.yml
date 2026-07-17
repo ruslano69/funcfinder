@@ -35,18 +35,21 @@ jobs:
       run: go mod download
 
     - name: Run tests (race)
-      # Every push since the docsearch-server merge (2026-07-01) died here
-      # with a bare exit 1 and no FAIL/panic in the log, immediately after
-      # the last package's "ok" line — not reproducible locally. Bisected
-      # by dropping -coverprofile/-covermode: confirmed the tests themselves
-      # were always fine, and it's specifically -race + coverage-profile
-      # finalization (multi-package merge) that fails on this runner/Go
-      # version. Split into two runs so a real race still fails CI without
-      # coverage collection dragging it down.
       run: go test -v -race -p 1 ./internal/...
 
     - name: Run tests (coverage)
-      run: go test -coverprofile=coverage.txt -covermode=atomic ./internal/...
+      # Every push since the docsearch-server merge (2026-07-01) died with a
+      # bare exit 1 and no FAIL/panic anywhere in the log — root cause
+      # traced to `go: no such tool "covdata"` for internal/embed (the only
+      # package with zero test files): computing its coverage line needs
+      # covdata, which this runner's Go install doesn't have. Excluding the
+      # untested package sidesteps it entirely; -race was never the actual
+      # cause, but the split into a separate step (kept from the bisection)
+      # still stands on its own merits — a real race no longer risks being
+      # masked by an unrelated coverage-tooling failure.
+      run: |
+        PKGS=$(go list ./internal/... | grep -v '/internal/embed$')
+        go test -coverprofile=coverage.txt -covermode=atomic $PKGS
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
