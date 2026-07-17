@@ -2,7 +2,7 @@
 
 ## Purpose
 
-User-facing documentation: CI/CD integration guide and Windows setup guide.
+User-facing documentation: CI/CD integration guide (`CI_CD.md`), Windows setup guide (`WINDOWS.md`), the docsearch knowledge-base guide (`DOCSEARCH.md`), and the `docsearch-server/` subtree — the full spec, differentiation, and usage guide for the versioned truth server.
 
 ## Ownership
 
@@ -27,3 +27,4 @@ No automated check. Manually verify that commands in shell scripts match current
 ## Child DOX Index
 
 - `docs/examples/` — runnable shell script demos; keep in sync with current CLI flags
+- `docs/docsearch-server/` — versioned truth server docs: `TZ.md` (spec, FR-1..FR-22 all implemented), `DIFFERENTIATION.md`, `HOW_TO_USE.md` (agent-facing grounding guide)

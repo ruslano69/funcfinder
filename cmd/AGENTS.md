@@ -2,7 +2,7 @@
 
 ## Purpose
 
-CLI entrypoints for all six funcfinder tools. Each subdirectory contains a single `main.go` that wires flags to the `internal` package and writes output to stdout.
+CLI entrypoints for the funcfinder toolkit. Each subdirectory contains a single `main.go` that wires flags to the `internal` package and writes output to stdout. Seven binaries ship via `build.sh`; the rest are internal dev/benchmark tools.
 
 ## Ownership
 
@@ -25,7 +25,7 @@ CLI entrypoints for all six funcfinder tools. Each subdirectory contains a singl
 ## Verification
 
 ```bash
-./build.sh          # compiles all six binaries
+./build.sh          # compiles all seven shipped binaries
 ./funcfinder --help # spot-check flag registration
 ```
 
@@ -36,6 +36,7 @@ CLI entrypoints for all six funcfinder tools. Each subdirectory contains a singl
 - `cmd/deps/` — import dependency and inter-shard graph
 - `cmd/callgraph/` — forward/reverse call graph traversal
 - `cmd/complexity/` — cognitive complexity scoring per function
-- `cmd/findstruct/` — struct/class extraction (legacy entrypoint, also accessible via `funcfinder --struct`)
-- `cmd/benchmark/` — internal throughput benchmark, not a user-facing tool
 - `cmd/docsearch/` — knowledge base CLI: init/add/search/count via SQLite FTS5 + vector hybrid search
+- `cmd/docsearch-server/` — versioned truth server: releases/channels, provenance, MCP + TCP/HTTP read-servers, funcfinder code-ingest (see [docs/docsearch-server/](../docs/docsearch-server/))
+- `cmd/benchmark/` — internal throughput benchmark, not a user-facing tool
+- `cmd/astoracle/` — Go-only ground-truth symbol oracle (go/ast) for benchmarking funcfinder's regex output; not shipped

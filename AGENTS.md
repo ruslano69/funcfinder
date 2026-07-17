@@ -10,7 +10,7 @@
 ./build.sh   # Required before first use (~5 sec)
 ```
 
-Builds 5 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`.
+Builds 7 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`, `docsearch`, `docsearch-server`.
 
 ---
 
@@ -24,6 +24,7 @@ Builds 5 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`.
 | `stat` | Call frequency & hotspots | file |
 | `complexity` | Cognitive complexity per function | file |
 | `docsearch` | Knowledge base: FTS5 + vector hybrid search | SQLite file |
+| `docsearch-server` | Versioned truth server: releases/channels, hybrid search, MCP, TCP/HTTP | data-root dir |
 
 ---
 
@@ -123,6 +124,35 @@ docsearch count
 **Hybrid mode**: RRF combines BM25 ranks and cosine ranks. Pass both `--query` and `--embedding` for best results. Without an embedding, falls back to FTS only; without a query, falls back to vector only.
 
 **Embedding source**: generate externally (Ollama, OpenAI, local model) and pass as `--embedding`. The tool stores and retrieves — it does not generate.
+
+---
+
+## docsearch-server — Versioned Truth Server
+
+A team-scale "truth server" on the same engine. `ingest`/`record` accumulate in a
+live write-log; `publish` snapshots an immutable `truth-YYYY.MM` release; channels
+`stable`/`testing`/`unstable` are atomic pointers at releases. An agent pins to a
+release and grounds against it — identical results forever, while the release is
+retained. Strictly split by CQRS: readonly grounding vs. the rewrite loop.
+
+```bash
+# Rewrite side (truth flows in)
+docsearch-server --root .docsearch ingest --title "..." --content "..." --type decision
+docsearch-server --root .docsearch publish --name 2026.07 --channel stable
+docsearch-server --root .docsearch publish --name 2026.07 --code-dir .   # bake in a funcfinder code map (FR-22)
+
+# Readonly side (grounding)
+docsearch-server --root .docsearch search --query "..." --channel stable
+docsearch-server --root .docsearch context --role backend --channel stable
+
+# Interfaces
+docsearch-server --root .docsearch mcp                                # MCP over stdio — primary agent interface
+docsearch-server --root .docsearch serve-http --addr 127.0.0.1:9100   # HTTP/JSON: GET /search /read /context /releases /channels /healthz
+docsearch-server --root .docsearch serve --addr 127.0.0.1:9099        # TCP line protocol
+```
+
+Both read-servers hot-swap with zero downtime when a channel is repointed. Full
+spec, interface list, and usage: [docs/docsearch-server/](docs/docsearch-server/).
 
 ---
 
@@ -445,7 +475,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
-- `cmd/` → CLI entrypoints for all 6 tools (funcfinder, stat, deps, callgraph, complexity, findstruct) — see [cmd/AGENTS.md](cmd/AGENTS.md)
+- `cmd/` → CLI entrypoints for all 7 shipped tools (funcfinder, stat, deps, callgraph, complexity, docsearch, docsearch-server) — see [cmd/AGENTS.md](cmd/AGENTS.md)
 - `internal/` → Core parsing engine: language finders, formatters, call graph, shard logic — see [internal/AGENTS.md](internal/AGENTS.md)
 - `docs/` → User-facing documentation and usage examples — see [docs/AGENTS.md](docs/AGENTS.md)
 - `examples/` → Shell script usage examples and swe-agent integration workflows — see [examples/AGENTS.md](examples/AGENTS.md)
