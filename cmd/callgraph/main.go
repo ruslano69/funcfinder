@@ -121,8 +121,16 @@ func runDirMode(config internal.Config, dir, lang string, jsonOut, reverseMode b
 		internal.FatalError("collecting files: %v", err)
 	}
 
-	// Run funcfinder on each file to get function boundaries
-	processor := internal.NewDirProcessor(config, 0, true, !noGitignore, "functions")
+	// Run funcfinder on each file to get function boundaries. When -l is set,
+	// scope this to that single language too — otherwise DirProcessor
+	// auto-detects and processes every supported language in dir regardless
+	// of -l, silently mixing in e.g. Python functions/edges on a "-l rust"
+	// run over a Python backend (TODO.md "-l is a hint, not a filter" bug).
+	procConfig := config
+	if langConfig != nil {
+		procConfig = internal.Config{lang: langConfig}
+	}
+	processor := internal.NewDirProcessor(procConfig, 0, true, !noGitignore, "functions")
 	results, err := processor.ProcessDirectory(dir)
 	if err != nil {
 		internal.FatalError("processing directory: %v", err)
@@ -334,7 +342,7 @@ func printHelp() {
 	fmt.Println("Usage: callgraph [OPTIONS]")
 	fmt.Println("  --dir <path>       Analyze directory")
 	fmt.Println("  --inp <file>       Analyze single file")
-	fmt.Println("  -l <lang>          Language (required with --inp)")
+	fmt.Println("  -l <lang>          Language (required with --inp; with --dir, restricts the scan to this language only — omit to auto-detect every supported language)")
 	fmt.Println("  --json, -j         JSON output")
 	fmt.Println("  --reverse, -r      Reverse graph: who calls each function")
 	fmt.Println("  --func <name>      Focus on one function (with optional --depth)")

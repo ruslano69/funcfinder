@@ -128,13 +128,26 @@ enterprise/Pro correctness story.
 
 ### `callgraph --dir` `-l` flag is a hint, not a filter — decide & document
 
-`callgraph --dir backend -l rust` on meetily's Python backend still parsed the
-`.py` files (via per-file language auto-detect) and emitted Python-looking
-edges, ignoring `-l rust` as a filter. Decide the intended contract:
-- (a) `-l` is only a fallback default and auto-detect wins per file — then
-  document it (and arguably the same for `funcfinder`/`stat` dir-mode), or
-- (b) `-l` should restrict the scan to that language — then it's a bug.
-Either way, pin it with a test once decided.
+- [x] **FIXED (2026-07-17).** Decided (b): `-l` now restricts the scan.
+  `runDirMode` in [cmd/callgraph/main.go](cmd/callgraph/main.go) (~line 125)
+  used to always pass the full multi-language `config` map to
+  `internal.NewDirProcessor`, so the function-extraction pass auto-detected
+  and processed every supported language in `dir` regardless of `-l` — only
+  the (unused-for-extraction) import-alias collection was actually scoped to
+  `-l`. Now passes a single-entry `internal.Config{lang: langConfig}` when
+  `-l` is set, so extraction is scoped too. `--help` for `-l` updated to
+  document the `--dir` behavior explicitly.
+
+  Verified before/after on a synthetic Go+Python mixed directory: pre-fix,
+  `callgraph --dir <mix> -l go` still "Analyzed 2 files" (both `main.go` and
+  `app.py`); post-fix, "Analyzed 1 files" (`main.go` only). Consistent with
+  `deps -l`'s existing shard-mode behavior, which already fully filters.
+
+  **Found but out of scope, spun off separately:** Rust-only file sets
+  return 0 functions/0 calls from `callgraph` (both `--dir` and `--inp`,
+  independent of this fix) — Rust extraction only seems to work when mixed
+  with another language's files in the same run. Pre-existing, unrelated to
+  the `-l` filter change (reproduced identically on the pre-fix binary).
 
 ---
 
