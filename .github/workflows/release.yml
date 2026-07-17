@@ -30,6 +30,9 @@ jobs:
       run: |
         mkdir -p dist
         TOOLS="funcfinder stat deps complexity callgraph docsearch docsearch-server"
+        # Embed the tag version so released binaries report it via --version
+        # (without this ldflag the built-in default "dev" ships instead).
+        LDFLAGS="-s -w -X github.com/ruslano69/funcfinder/internal.Version=${{ steps.get_version.outputs.VERSION }}"
 
         for OS_ARCH in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
           GOOS=${OS_ARCH%/*}
@@ -38,13 +41,13 @@ jobs:
           for tool in $TOOLS; do
             EXT=""
             [ "$GOOS" = "windows" ] && EXT=".exe"
-            GOOS=$GOOS GOARCH=$GOARCH go build -o dist/${tool}-${GOOS}-${GOARCH}${EXT} ./cmd/${tool}
+            GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "${LDFLAGS}" -o dist/${tool}-${GOOS}-${GOARCH}${EXT} ./cmd/${tool}
           done
         done
 
         echo "Building for windows/amd64..."
         for tool in $TOOLS; do
-          GOOS=windows GOARCH=amd64 go build -o dist/${tool}-windows-amd64.exe ./cmd/${tool}
+          GOOS=windows GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o dist/${tool}-windows-amd64.exe ./cmd/${tool}
         done
 
     - name: Create archives

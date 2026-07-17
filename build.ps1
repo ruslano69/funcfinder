@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$VersionBase = "1.9"
+$VersionBase = "1.10"
 $Patch = (git rev-list --count HEAD 2>$null)
 if (-not $Patch) { $Patch = "0" }
 $Version = "$VersionBase.$Patch"

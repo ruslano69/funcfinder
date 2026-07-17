@@ -26,7 +26,7 @@ git clone https://github.com/ruslano69/funcfinder.git
 cd funcfinder && ./build.sh
 ```
 
-Produces 6 binaries: `funcfinder`, `stat`, `deps`, `callgraph`, `complexity`, `findstruct`.
+Produces 7 binaries: `funcfinder`, `stat`, `deps`, `callgraph`, `complexity`, `docsearch`, `docsearch-server`.
 
 ## Tools
 
@@ -37,6 +37,8 @@ Produces 6 binaries: `funcfinder`, `stat`, `deps`, `callgraph`, `complexity`, `f
 | `deps` | Import dependencies + inter-shard graph |
 | `stat` | Call frequency & hotspots |
 | `complexity` | Cognitive complexity per function |
+| `docsearch` | Knowledge base: SQLite FTS5 + vector hybrid search |
+| `docsearch-server` | Versioned truth server: releases/channels, hybrid search, MCP, TCP/HTTP read-servers |
 
 ## Languages
 
