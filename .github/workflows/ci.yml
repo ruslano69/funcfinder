@@ -35,16 +35,17 @@ jobs:
       run: go mod download
 
     - name: Run tests
-      # -p 1: serialize package-level test execution. Since the
-      # docsearch-server merge, several packages (internal/knowledge,
-      # internal/truth, internal/codemap) spin up real modernc.org/sqlite
-      # databases; -race's instrumentation overhead multiplied across those
-      # packages running concurrently was tipping the runner over some
-      # resource limit — the job died with a bare exit 1 and no FAIL/panic
-      # in the log (not reproducible locally, where memory isn't as tight).
-      run: go test -v -race -p 1 -coverprofile=coverage.txt -covermode=atomic ./internal/...
+      # DIAGNOSTIC (temporary): every prior push since the docsearch-server
+      # merge has died right here with a bare exit 1 and no FAIL/panic in
+      # the log, immediately after the last package's "ok" line — not
+      # reproducible locally. Bisecting: -coverprofile/-covermode dropped to
+      # find out whether coverage-profile writing under -race on Go 1.24 is
+      # the trigger, or whether it's deeper (runner/toolchain). Restore
+      # coverage once the cause is confirmed.
+      run: go test -v -race -p 1 ./internal/...
 
     - name: Upload coverage to Codecov
+      if: false # DIAGNOSTIC: no coverage.txt produced while bisecting, see "Run tests" above
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.txt
@@ -52,6 +53,7 @@ jobs:
         name: codecov-umbrella
 
     - name: Generate coverage report
+      if: false # DIAGNOSTIC: no coverage.txt produced while bisecting, see "Run tests" above
       run: |
         go tool cover -func=coverage.txt > coverage.txt.summary
         echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
