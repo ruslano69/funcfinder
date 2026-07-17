@@ -15,7 +15,8 @@ func ReadRange(db *sql.DB, id int64, context int) ([]Doc, error) {
 		context = 0
 	}
 	rows, err := db.Query(
-		`SELECT id, title, content, type, created_at, metadata
+		`SELECT id, title, content, type, created_at, metadata,
+		        COALESCE(author,''), COALESCE(role_tags,''), COALESCE(source_version,'')
 		   FROM docs WHERE id BETWEEN ? AND ? ORDER BY id`,
 		id-int64(context), id+int64(context))
 	if err != nil {
@@ -26,11 +27,14 @@ func ReadRange(db *sql.DB, id int64, context int) ([]Doc, error) {
 
 // ReadBySource returns every chunk ingested from the source file tagged
 // sourceVersion (the --source-version value passed at ingest time), in
-// ingest/id order — reconstructing that source document in full.
+// ingest/id order — reconstructing that source document in full. Filters on
+// the generated, indexed source_version column (TZ FR-3) rather than
+// json_extract, so this is an index lookup, not a table scan.
 func ReadBySource(db *sql.DB, sourceVersion string) ([]Doc, error) {
 	rows, err := db.Query(
-		`SELECT id, title, content, type, created_at, metadata FROM docs
-		   WHERE json_extract(metadata, '$.source_version') = ? ORDER BY id`,
+		`SELECT id, title, content, type, created_at, metadata,
+		        COALESCE(author,''), COALESCE(role_tags,''), COALESCE(source_version,'')
+		   FROM docs WHERE source_version = ? ORDER BY id`,
 		sourceVersion)
 	if err != nil {
 		return nil, err
@@ -43,7 +47,8 @@ func scanDocs(rows *sql.Rows) ([]Doc, error) {
 	var out []Doc
 	for rows.Next() {
 		var d Doc
-		if err := rows.Scan(&d.ID, &d.Title, &d.Content, &d.Type, &d.CreatedAt, &d.Metadata); err != nil {
+		if err := rows.Scan(&d.ID, &d.Title, &d.Content, &d.Type, &d.CreatedAt, &d.Metadata,
+			&d.Author, &d.RoleTags, &d.SourceVersion); err != nil {
 			return nil, err
 		}
 		out = append(out, d)

@@ -100,6 +100,7 @@ func SearchFTS(db *sql.DB, query string, limit int, prefix bool) ([]Result, erro
 	ftsQuery := BuildFTSQuery(query, prefix)
 	rows, err := db.Query(`
 		SELECT d.id, d.title, d.content, d.type, d.created_at, d.metadata,
+		       COALESCE(d.author,''), COALESCE(d.role_tags,''), COALESCE(d.source_version,''),
 		       bm25(docs_fts) AS rank,
 		       snippet(docs_fts, -1, '**', '**', '...', ?) AS snip
 		FROM docs_fts
@@ -118,6 +119,7 @@ func SearchFTS(db *sql.DB, query string, limit int, prefix bool) ([]Result, erro
 		var r Result
 		if err = rows.Scan(
 			&r.ID, &r.Title, &r.Content, &r.Type, &r.CreatedAt, &r.Metadata,
+			&r.Author, &r.RoleTags, &r.SourceVersion,
 			&r.FTSRank, &r.Snippet,
 		); err != nil {
 			return nil, err
@@ -137,6 +139,7 @@ func SearchVec(db *sql.DB, embedding []float32, limit int, metric Metric, docTyp
 	var sb strings.Builder
 	sb.WriteString(`
 		SELECT d.id, d.title, d.content, d.type, d.created_at, d.metadata,
+		       COALESCE(d.author,''), COALESCE(d.role_tags,''), COALESCE(d.source_version,''),
 		       ` + fn + `(v.embedding, ?) AS dist
 		FROM docs d
 		JOIN docs_vec v ON v.doc_id = d.id
@@ -161,6 +164,7 @@ func SearchVec(db *sql.DB, embedding []float32, limit int, metric Metric, docTyp
 		var r Result
 		if err = rows.Scan(
 			&r.ID, &r.Title, &r.Content, &r.Type, &r.CreatedAt, &r.Metadata,
+			&r.Author, &r.RoleTags, &r.SourceVersion,
 			&r.VecDist,
 		); err != nil {
 			return nil, err
@@ -180,7 +184,8 @@ func SearchRegex(db *sql.DB, pattern string, limit int, docType string) ([]Resul
 	}
 
 	var sb strings.Builder
-	sb.WriteString(`SELECT id, title, content, type, created_at, metadata FROM docs`)
+	sb.WriteString(`SELECT id, title, content, type, created_at, metadata,
+		COALESCE(author,''), COALESCE(role_tags,''), COALESCE(source_version,'') FROM docs`)
 	args := []any{}
 	if docType != "" {
 		sb.WriteString(" WHERE type = ?")
@@ -197,7 +202,8 @@ func SearchRegex(db *sql.DB, pattern string, limit int, docType string) ([]Resul
 	var results []Result
 	for rows.Next() {
 		var r Result
-		if err = rows.Scan(&r.ID, &r.Title, &r.Content, &r.Type, &r.CreatedAt, &r.Metadata); err != nil {
+		if err = rows.Scan(&r.ID, &r.Title, &r.Content, &r.Type, &r.CreatedAt, &r.Metadata,
+			&r.Author, &r.RoleTags, &r.SourceVersion); err != nil {
 			return nil, err
 		}
 		if re.MatchString(r.Title) || re.MatchString(r.Content) {
