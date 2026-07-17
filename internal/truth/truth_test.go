@@ -163,3 +163,68 @@ func TestListReleases(t *testing.T) {
 	}
 	_ = filepath.Base(dir)
 }
+
+func TestFreeze(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	defer s.Close()
+	seedWriteLog(t, s, [2]string{"D", "c"})
+	if _, err := s.Publish("2026.07", ""); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	if _, err := s.Freeze("2099.01"); err == nil {
+		t.Fatal("expected freeze of unknown release to fail")
+	}
+
+	ts, err := s.Freeze("2026.07")
+	if err != nil {
+		t.Fatalf("freeze: %v", err)
+	}
+	if ts == 0 {
+		t.Fatal("want non-zero frozen_at")
+	}
+	if _, err := s.Freeze("2026.07"); err == nil {
+		t.Fatal("expected re-freezing an already-frozen release to fail")
+	}
+
+	rels, err := s.ListReleases()
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if rels[0].FrozenAt != ts {
+		t.Fatalf("want FrozenAt %d reflected in ListReleases, got %d", ts, rels[0].FrozenAt)
+	}
+}
+
+func TestProvenance(t *testing.T) {
+	dir := t.TempDir()
+	s, _ := Open(dir)
+	defer s.Close()
+
+	if err := s.RecordProvenance(1, "ruslan", "task-42"); err != nil {
+		t.Fatalf("record provenance: %v", err)
+	}
+	if err := s.RecordProvenance(1, "ruslan", "task-42-followup"); err != nil {
+		t.Fatalf("record provenance: %v", err)
+	}
+
+	entries, err := s.Provenance(1)
+	if err != nil {
+		t.Fatalf("provenance: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("want 2 provenance entries, got %d", len(entries))
+	}
+	if entries[0].Author != "ruslan" || entries[0].SourceRef != "task-42" {
+		t.Fatalf("unexpected first entry: %+v", entries[0])
+	}
+
+	none, err := s.Provenance(999)
+	if err != nil {
+		t.Fatalf("provenance of unknown record: %v", err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("want no entries for unknown record, got %d", len(none))
+	}
+}

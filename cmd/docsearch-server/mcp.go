@@ -166,8 +166,12 @@ func (m *mcpServer) callTool(name string, args map[string]any) (string, error) {
 		return m.toolRecord(args)
 	case "publish":
 		return m.toolPublish(args)
+	case "freeze":
+		return m.toolFreeze(args)
 	case "set_channel":
 		return m.toolSetChannel(args)
+	case "provenance":
+		return m.toolProvenance(args)
 	default:
 		return "", fmt.Errorf("unknown tool %q", name)
 	}
@@ -185,6 +189,13 @@ func argStr(args map[string]any, key, def string) string {
 func argInt(args map[string]any, key string, def int) int {
 	if v, ok := args[key].(float64); ok { // JSON numbers decode as float64
 		return int(v)
+	}
+	return def
+}
+
+func argInt64(args map[string]any, key string, def int64) int64 {
+	if v, ok := args[key].(float64); ok { // JSON numbers decode as float64
+		return int64(v)
 	}
 	return def
 }
@@ -301,6 +312,18 @@ func (m *mcpServer) toolChannels() (string, error) {
 	return jsonString(chans), nil
 }
 
+func (m *mcpServer) toolProvenance(args map[string]any) (string, error) {
+	recordID := argInt64(args, "record_id", 0)
+	if recordID == 0 {
+		return "", fmt.Errorf("record_id is required")
+	}
+	entries, err := m.store.Provenance(recordID)
+	if err != nil {
+		return "", err
+	}
+	return jsonString(entries), nil
+}
+
 // ---- rewrite tools ---------------------------------------------------------
 
 func (m *mcpServer) toolIngest(args map[string]any) (string, error) {
@@ -364,6 +387,18 @@ func (m *mcpServer) toolPublish(args map[string]any) (string, error) {
 	return jsonString(map[string]any{"version": rel.Version, "path": m.store.ReleasePath(rel.Version)}), nil
 }
 
+func (m *mcpServer) toolFreeze(args map[string]any) (string, error) {
+	release := argStr(args, "release", "")
+	if release == "" {
+		return "", fmt.Errorf("release is required")
+	}
+	ts, err := m.store.Freeze(release)
+	if err != nil {
+		return "", err
+	}
+	return jsonString(map[string]any{"version": release, "frozen_at": ts}), nil
+}
+
 func (m *mcpServer) toolSetChannel(args map[string]any) (string, error) {
 	name := argStr(args, "name", "")
 	release := argStr(args, "release", "")
@@ -424,6 +459,10 @@ func toolSchemas() []map[string]any {
 			}, "prefix"),
 		tool("list_releases", "List published, immutable releases of truth (newest first).", map[string]any{}),
 		tool("channels", "Show channels (stable/testing/unstable) and which release each points at.", map[string]any{}),
+		tool("provenance", "Look up who produced a recorded document, when, and against which source task/spec.",
+			map[string]any{
+				"record_id": intProp("the recorded document's id (returned by record/ingest)"),
+			}, "record_id"),
 
 		// rewrite
 		tool("ingest", "Add a document to the write-log (spec/ТЗ/lib_doc/decision/…). Rides the next publish.",
@@ -449,6 +488,10 @@ func toolSchemas() []map[string]any {
 				"notes":   strProp("release notes"),
 				"channel": strProp("optionally point this channel at the new release"),
 			}, "name"),
+		tool("freeze", "Open the stabilization window on a published release: a signal that further fixes should land in unstable rather than repointing this release.",
+			map[string]any{
+				"release": strProp("released version to freeze, e.g. 2026.07"),
+			}, "release"),
 		tool("set_channel", "Repoint a channel (stable|testing) at a published release — the release-day pointer flip.",
 			map[string]any{
 				"name":    strProp("channel: stable|testing"),

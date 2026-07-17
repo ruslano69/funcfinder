@@ -47,9 +47,9 @@ func main() {
 	globalFS.Usage = printUsage
 
 	actions := map[string]bool{
-		"ingest": true, "record": true, "publish": true,
+		"ingest": true, "record": true, "publish": true, "freeze": true,
 		"set-channel": true, "channels": true, "releases": true, "search": true,
-		"suggest": true, "read": true, "enumerate": true, "serve": true, "mcp": true,
+		"suggest": true, "read": true, "enumerate": true, "provenance": true, "serve": true, "mcp": true,
 	}
 	var preAction, postAction []string
 	action := ""
@@ -84,6 +84,8 @@ func main() {
 		runRecord(store, emb, postAction)
 	case "publish":
 		runPublish(store, postAction)
+	case "freeze":
+		runFreeze(store, postAction)
 	case "set-channel":
 		runSetChannel(store, postAction)
 	case "channels":
@@ -98,6 +100,8 @@ func main() {
 		runRead(store, postAction)
 	case "enumerate":
 		runEnumerate(store, postAction)
+	case "provenance":
+		runProvenance(store, postAction)
 	case "serve":
 		runServe(store, emb, postAction)
 	case "mcp":
@@ -288,6 +292,29 @@ func runPublish(s *truth.Store, args []string) {
 		if *channel != "" {
 			fmt.Fprintf(os.Stderr, "channel %s → %s\n", *channel, rel.Version)
 		}
+	}
+}
+
+func runFreeze(s *truth.Store, args []string) {
+	fs := flag.NewFlagSet("freeze", flag.ExitOnError)
+	// Named --release, not --version: the top-level arg scan in main() treats
+	// any bare "--version"/"-version" anywhere in os.Args as the CLI's own
+	// --version, so a subcommand flag of that name would never reach here.
+	release := fs.String("release", "", "released version to freeze, e.g. 2026.07 (required)")
+	jsonOut := fs.Bool("json", false, "output JSON")
+	fs.Parse(args)
+
+	if *release == "" {
+		fatalf("--release required")
+	}
+	ts, err := s.Freeze(*release)
+	if err != nil {
+		fatalf("freeze: %v", err)
+	}
+	if *jsonOut {
+		json.NewEncoder(os.Stdout).Encode(map[string]any{"version": *release, "frozen_at": ts})
+	} else {
+		fmt.Fprintf(os.Stderr, "frozen truth-%s — further fixes go to unstable\n", *release)
 	}
 }
 
@@ -563,6 +590,36 @@ func runEnumerate(s *truth.Store, args []string) {
 	}
 }
 
+func runProvenance(s *truth.Store, args []string) {
+	fs := flag.NewFlagSet("provenance", flag.ExitOnError)
+	recordID := fs.Int64("record-id", 0, "recorded document id, e.g. the id printed by `record` (required)")
+	jsonOut := fs.Bool("json", false, "output JSON")
+	fs.Parse(args)
+
+	if *recordID == 0 {
+		fatalf("--record-id required")
+	}
+	entries, err := s.Provenance(*recordID)
+	if err != nil {
+		fatalf("provenance: %v", err)
+	}
+	if *jsonOut {
+		json.NewEncoder(os.Stdout).Encode(entries)
+		return
+	}
+	if len(entries) == 0 {
+		fmt.Fprintf(os.Stderr, "(no provenance for record %d)\n", *recordID)
+		return
+	}
+	for _, p := range entries {
+		target := p.TargetRelease
+		if target == "" {
+			target = "(pending next publish)"
+		}
+		fmt.Printf("record=%d author=%-12s target=%s source=%s\n", p.RecordID, p.Author, target, p.SourceRef)
+	}
+}
+
 func parseEmbedding(raw string) []float32 {
 	raw = strings.Trim(strings.TrimSpace(raw), "[]")
 	if raw == "" {
@@ -591,6 +648,7 @@ Rewrite (truth flows in):
   ingest      --title/--content or --file [--type --role-tags --author --source-version --strip-runes]
   record      --title --result [--type changelog|task|decision --source-ref --author]
   publish     --name <ver> [--notes --channel]
+  freeze      --release <ver>   (open the stabilization window; further fixes go to unstable)
   set-channel --name stable|testing --release <ver>
 
 Readonly (grounding):
@@ -598,6 +656,7 @@ Readonly (grounding):
   suggest     --prefix <p> [--channel <c> --relative-to <type> --numbers --limit N]   (FTS vocabulary + IDF; pure-digit tokens filtered unless --numbers)
   read        --id <n> [--context K] | --source <tag> [--channel <c>]   (read the full contiguous chunk range or whole source file — see docs/docsearch-server/HOW_TO_USE.md)
   enumerate   --pattern <regex> [--channel <c> --limit N]   (distinct matches across the corpus, tallied — the completeness-audit step)
+  provenance  --record-id <id>   (who produced a record, when, against what)
   serve       --addr <a> --channel stable|testing [--pool N --lite]   (async read-server, hot-swaps on channel repoint)
   mcp         (MCP server over stdio — first-class interface for LLM agents)
   releases    [--json]
