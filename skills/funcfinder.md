@@ -123,6 +123,13 @@ For TypeScript/Next.js projects (auto-detects @/ alias from tsconfig.json):
 deps frontend -l ts --shards --update-manifest .codemap/manifest.json
 ```
 
+**Trust check** — if `deps --shards` prints `WARNING: only N/M (X%) intra-project
+imports resolved` (or flags a `tsconfig.json` found *above* the analyzed root),
+the graph is likely wrong, not just sparse: the directory was rooted below
+`go.mod`/`tsconfig.json`, so relative/alias imports can't resolve. Re-run from
+the actual project root. A shard graph that comes back all-leaves (no
+`depends_on`) with no warning means the project genuinely has no internal deps.
+
 ---
 
 ## Supporting tools
@@ -186,6 +193,7 @@ callgraph --dir . -l go --reverse --func AuthenticateUser
 | `deps`/`callgraph` misses `cmd/` | Add `--no-gitignore` |
 | `--split` without `--json` | Always pair: `--json --split` |
 | Calling `--extract` without knowing the line | Use `--map` first, then `--func Name --extract` |
+| `deps --shards` returns an empty/all-leaf graph | You rooted below `go.mod`/`tsconfig.json` — heed the resolution-% WARNING and re-run from the real root |
 
 ---
 
@@ -207,3 +215,15 @@ callgraph --dir . -l <lang> --reverse --func <Name>
 # Architecture
 deps . -l <lang> --shards --no-gitignore --update-manifest .codemap/manifest.json
 ```
+
+---
+
+## See also
+
+The `.codemap/` this skill builds is ephemeral, per-session scratch. For a
+**persistent, versioned** structural map — one compiled into an immutable
+release and shared across a team/agents — `docsearch-server publish --code-dir`
+bakes the same funcfinder function/type map into a truth release, tagged with
+its git commit (see the `docsearch` skill and `docs/docsearch-server/`). Use
+this skill to investigate now; use that to freeze what you learned as durable,
+queryable truth.

@@ -114,3 +114,51 @@ Treat the knowledge base as cheaper than re-reading files or re-running
 analysis: search it first, only fall back to fresh investigation (e.g. via
 the `funcfinder` skill) when the knowledge base comes up empty — then add
 what you find back in.
+
+---
+
+## Scaling up: docsearch-server + MCP
+
+`docsearch` is one local SQLite file — perfect for a single agent's per-project
+memory. When a **team of agents (and humans)** must ground against *the same*
+knowledge, and that knowledge must be **versioned and reproducible**, graduate
+to `docsearch-server`: the same hybrid-search engine, wrapped in a versioned
+"truth server". Full spec: [docs/docsearch-server/](../docs/docsearch-server/).
+
+**Mental model** — CQRS. Truth flows into a live write-log; `publish` snapshots
+it into an immutable `truth-YYYY.MM` release; channels `stable`/`testing`/
+`unstable` are atomic pointers at releases. An agent pins to a channel/release
+and grounds against it — the same query returns the same answer forever, while
+that release is retained (unlike a single mutable `docsearch` file).
+
+**MCP is the primary agent interface.** The server speaks JSON-RPC 2.0 over
+stdio (MCP protocol `2024-11-05`); register it once and its tools become
+available to the agent — no hand-driving JSON-RPC:
+
+```jsonc
+// .mcp.json (or your Claude Code MCP config)
+{
+  "mcpServers": {
+    "truth": { "command": "docsearch-server", "args": ["--root", ".docsearch", "mcp"] }
+  }
+}
+```
+
+**14 tools, split by side** (never ground and mutate through the same call):
+
+- **Readonly (grounding)** — `search`, `recall`, `suggest_terms`, `context`
+  (truth-under-role), `provenance` (who/when/against-which-release),
+  `diff_releases`, `list_releases`, `channels`. Each takes an optional
+  `release` so you ground against a pinned snapshot.
+- **Rewrite (truth in)** — `ingest`, `record` (changelog/task/decision),
+  `publish` (also `code_dir`: bake a funcfinder code map into the release —
+  see the `funcfinder` skill), `freeze`, `prune` (retention), `set_channel`.
+
+**Same operations from the CLI** for episodic/admin use and CI:
+`docsearch-server --root .docsearch <ingest|publish|search|serve-http|…>`.
+For a network read layer, `serve-http` / `serve` expose the readonly side over
+HTTP/TCP with zero-downtime channel hot-swap.
+
+**When to use which**: reach for single-file `docsearch` for your own scratch
+memory; reach for `docsearch-server` when the answer must be shared, versioned,
+and identical for every consumer.
