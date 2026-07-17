@@ -119,3 +119,38 @@ func TestDetectTSConfigAbove(t *testing.T) {
 		}
 	})
 }
+
+// TestBuildShardGraph_ParentAndSubpackageBothResolve regression-tests a bug
+// found while mapping this project with its own tools: a file importing both
+// a parent Go package and one of its subpackages (e.g.
+// "github.com/x/internal" and "github.com/x/internal/knowledge", exactly
+// cmd/funcfinder/main.go's own imports) would non-deterministically drop the
+// edge to the parent package. shardForDir matched by string prefix
+// (dirRel + "/"), which a subpackage's files also satisfy, so which shard it
+// returned for the parent import depended on Go's unspecified map iteration
+// order over relToShard.
+func TestBuildShardGraph_ParentAndSubpackageBothResolve(t *testing.T) {
+	modulePrefix := "github.com/x/"
+	fileImports := map[string][]string{
+		"/proj/cmd/app/main.go": {
+			"github.com/x/internal",
+			"github.com/x/internal/knowledge",
+		},
+		"/proj/internal/config.go":           {},
+		"/proj/internal/knowledge/db.go":     {},
+		"/proj/internal/knowledge/search.go": {},
+	}
+
+	// Run repeatedly: the bug was map-iteration-order dependent, so a single
+	// pass could pass by chance.
+	for i := 0; i < 20; i++ {
+		graph, _ := BuildShardGraph("/proj", "dir", modulePrefix, fileImports)
+		edges := graph["cmd_app.json"]
+		if _, ok := edges["internal.json"]; !ok {
+			t.Fatalf("run %d: missing edge to internal.json; got edges %v", i, edges)
+		}
+		if _, ok := edges["internal_knowledge.json"]; !ok {
+			t.Fatalf("run %d: missing edge to internal_knowledge.json; got edges %v", i, edges)
+		}
+	}
+}

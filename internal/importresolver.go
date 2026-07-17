@@ -107,7 +107,7 @@ func BuildShardGraph(
 		}
 
 		for _, imp := range imports {
-			dstShard, resolvable := resolveImportToShard(imp, absPath, rootDir, splitBy, modulePrefix, aliasMap, relToShard)
+			dstShard, resolvable := resolveImportToShard(imp, absPath, rootDir, modulePrefix, aliasMap, relToShard)
 			if resolvable {
 				stats.Resolvable++
 				if dstShard != "" {
@@ -130,7 +130,7 @@ func BuildShardGraph(
 // of whether resolution actually succeeded, false for anything that was
 // never a candidate (an external package import, for instance).
 func resolveImportToShard(
-	imp, srcFile, rootDir, splitBy, modulePrefix string,
+	imp, srcFile, rootDir, modulePrefix string,
 	aliasMap map[string]string,
 	relToShard map[string]string,
 ) (string, bool) {
@@ -138,7 +138,7 @@ func resolveImportToShard(
 	if modulePrefix != "" && strings.HasPrefix(imp, modulePrefix) {
 		rel := strings.TrimPrefix(imp, modulePrefix)
 		rel = strings.TrimPrefix(rel, "/")
-		return shardForDir(rel, splitBy, relToShard), true
+		return shardForDir(rel, relToShard), true
 	}
 
 	// --- Path alias (e.g. @/ → src/) ---
@@ -155,7 +155,7 @@ func resolveImportToShard(
 						}
 					}
 				}
-				return shardForDir(rel, splitBy, relToShard), true
+				return shardForDir(rel, relToShard), true
 			}
 		}
 	}
@@ -181,7 +181,7 @@ func resolveImportToShard(
 		// Fallback: treat cleaned path as a directory
 		rel, err := filepath.Rel(rootDir, abs)
 		if err == nil {
-			return shardForDir(filepath.ToSlash(rel), splitBy, relToShard), true
+			return shardForDir(filepath.ToSlash(rel), relToShard), true
 		}
 		return "", true
 	}
@@ -189,17 +189,22 @@ func resolveImportToShard(
 	return "", false
 }
 
-// shardForDir returns the shard name for any file whose relative path starts
-// with dirRel (slash-separated).
-func shardForDir(dirRel, splitBy string, relToShard map[string]string) string {
+// shardForDir returns the shard name for a file whose *immediate* containing
+// directory is exactly dirRel (slash-separated) — matching Go's own import
+// semantics, where a package is exactly the files in one directory, never
+// its subdirectories (a subdirectory is a separate package requiring its
+// own import). A plain string-prefix match (dirRel + "/") would also match
+// a subpackage's files, e.g. resolving an import of "internal" into a file
+// that actually lives in "internal/knowledge/" — a distinct package with its
+// own shard — because relToShard's iteration order is unspecified, this
+// silently and non-deterministically dropped the edge to the correct
+// shallower shard whenever a file also imported both a package and one of
+// its subpackages.
+func shardForDir(dirRel string, relToShard map[string]string) string {
 	dirRel = filepath.ToSlash(dirRel)
-	prefix := dirRel + "/"
 	for rel, shard := range relToShard {
-		if rel == dirRel || strings.HasPrefix(rel, prefix) {
-			if splitBy == "file" {
-				return shard
-			}
-			// For dir-mode all files in the dir share the same shard.
+		relDir := filepath.ToSlash(filepath.Dir(rel))
+		if relDir == dirRel || (dirRel == "" && relDir == ".") {
 			return shard
 		}
 	}

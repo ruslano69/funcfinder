@@ -4,6 +4,35 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
+## deps --shards: shardForDir prefix match non-deterministically drops parent-package edges (2026-07-17)
+
+- [x] **FIXED.** Found while mapping this project with its own tools:
+  `deps . -l go --shards` showed `cmd_funcfinder.json` depending on
+  `internal_knowledge.json` — but `cmd/funcfinder/main.go` only imports
+  `github.com/ruslano69/funcfinder/internal`, not `internal/knowledge` at
+  all. `internal/importresolver.go`'s `shardForDir` matched by string prefix
+  (`rel == dirRel || strings.HasPrefix(rel, dirRel+"/")`), which any
+  subpackage's files also satisfy (`internal/knowledge/db.go` starts with
+  `internal/`) — so which shard it returned for the plain `internal` import
+  depended on Go's unspecified map iteration order over `relToShard`.
+  Verified non-deterministic against the real repo: 8 repeated runs of the
+  pre-fix binary alternated between `internal.json` (correct) and
+  `internal_knowledge.json` (wrong) 5:3.
+
+  Fix: `shardForDir` now matches a file's *immediate* containing directory
+  (`filepath.Dir(rel)`) exactly against `dirRel`, instead of a string
+  prefix — matching Go's own import semantics (a package is the files in one
+  directory, never its subdirectories). The now-unused `splitBy` parameter
+  threaded through `shardForDir`/`resolveImportToShard` (it never actually
+  affected the returned shard, since `relToShard`'s values already encode
+  `splitBy`) was removed. Post-fix, 5 repeated real-repo runs all
+  consistently show `internal.json`.
+
+  Test: `TestBuildShardGraph_ParentAndSubpackageBothResolve`
+  (`internal/importresolver_test.go`), 20 iterations per run to catch the
+  map-iteration-order flakiness; fails deterministically against the pre-fix
+  code on iteration 0.
+
 ## findFunctionsSimple: single-line function body treated as "no brace yet" (2026-07-17)
 
 - [x] **FIXED.** Found while verifying the `callgraph -l` filter fix (below):
