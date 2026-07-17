@@ -154,7 +154,7 @@ func runIngest(s *truth.Store, emb *embed.Client, args []string) {
 	fs := flag.NewFlagSet("ingest", flag.ExitOnError)
 	title := fs.String("title", "", "document title (required without --file)")
 	content := fs.String("content", "", "document content (required without --file)")
-	file := fs.String("file", "", "ingest a .txt/.md/.pdf file (chunked)")
+	file := fs.String("file", "", "ingest a .txt/.md/.pdf file (chunked), or a .json file of structured changelog/task/decision records")
 	docType := fs.String("type", "general", "spec|ТЗ|lib_doc|sprint|changelog|task|decision|general")
 	roleTags := fs.String("role-tags", "", "comma-separated role tags for context() view filter")
 	author := fs.String("author", "", "author (provenance)")
@@ -171,6 +171,27 @@ func runIngest(s *truth.Store, emb *embed.Client, args []string) {
 	}
 	defer db.Close()
 	meta := metaJSON(*author, *roleTags, *sourceVersion, "")
+
+	if *file != "" && strings.EqualFold(filepath.Ext(*file), ".json") {
+		records, err := knowledge.ParseRecordsFile(*file)
+		if err != nil {
+			fatalf("parse records: %v", err)
+		}
+		var embedFn func(string) []float32
+		if emb.Enabled() {
+			embedFn = func(text string) []float32 { return embedOrNil(emb, text) }
+		}
+		ids, err := knowledge.AddRecords(db, records, embedFn)
+		if err != nil {
+			fatalf("add records: %v", err)
+		}
+		if *jsonOut {
+			json.NewEncoder(os.Stdout).Encode(map[string]any{"records": len(ids), "ids": ids})
+		} else {
+			fmt.Fprintf(os.Stderr, "ingested %d structured records from %s\n", len(ids), *file)
+		}
+		return
+	}
 
 	if *file != "" {
 		chunks, err := knowledge.IngestFile(*file, knowledge.ChunkOpts{
@@ -773,7 +794,7 @@ func printUsage() {
 	fmt.Fprint(os.Stderr, `docsearch-server — versioned truth server for teams (see docs/docsearch-server/TZ.md)
 
 Rewrite (truth flows in):
-  ingest      --title/--content or --file [--type --role-tags --author --source-version --strip-runes]
+  ingest      --title/--content or --file (.txt/.md/.pdf chunked, or .json structured changelog/task/decision records — FR-2) [--type --role-tags --author --source-version --strip-runes]
   record      --title --result [--type changelog|task|decision --source-ref --author]
   publish     --name <ver> [--notes --channel --code-dir <path>]   (--code-dir bakes in a funcfinder structural code map — FR-22)
   freeze      --release <ver>   (open the stabilization window; further fixes go to unstable)
