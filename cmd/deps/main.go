@@ -261,10 +261,22 @@ func main() {
 			modulePrefix = internal.DetectModulePrefix(absDir)
 		case "ts", "js":
 			aliases = internal.DetectTSAliases(absDir)
+			if len(aliases) == 0 {
+				if tscPath := internal.DetectTSConfigAbove(absDir); tscPath != "" {
+					fmt.Fprintf(os.Stderr,
+						"WARNING: found %s above %s, but --shards only looks in the analyzed "+
+							"root and one level below — path aliases from it won't resolve. "+
+							"Re-run --shards from its directory.\n", tscPath, absDir)
+				}
+			}
 		}
 
-		graph := internal.BuildShardGraph(absDir, splitBy, modulePrefix, fileImports, aliases)
+		graph, stats := internal.BuildShardGraph(absDir, splitBy, modulePrefix, fileImports, aliases)
 		list := internal.ShardGraphToList(graph)
+
+		if warning := stats.Warning(); warning != "" {
+			fmt.Fprintf(os.Stderr, "WARNING: %s\n", warning)
+		}
 
 		if updateManifest != "" {
 			if err := applyGraphToManifest(updateManifest, graph); err != nil {

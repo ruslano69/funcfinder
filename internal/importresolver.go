@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,8 +18,52 @@ type ShardDep struct {
 	DependedBy []string `json:"depended_by"`
 }
 
+// ShardGraphStats reports how many imports *looked* like they should resolve
+// to an in-project shard (relative imports, or imports under modulePrefix or
+// a path alias) versus how many actually did. A low resolution rate is the
+// signal that a --shards run was rooted wrong: alias/relative resolution
+// depends on rootDir lining up with where tsconfig.json (or go.mod) actually
+// lives, and a misrooted run fails *silently* otherwise — every shard comes
+// back as a leaf with no edges, indistinguishable from "this project truly
+// has no internal deps" without this count.
+type ShardGraphStats struct {
+	Resolvable int // imports that matched modulePrefix, an alias, or were relative
+	Resolved   int // of those, how many were mapped to a known shard
+}
+
+// lowResolutionThreshold: below this resolved/resolvable ratio, BuildShardGraph
+// flags the run as likely misrooted rather than "this project has few internal
+// deps". minResolvableSample avoids warning on a handful of imports where the
+// ratio is noisy either way.
+const (
+	lowResolutionThreshold = 0.20
+	minResolvableSample    = 3
+)
+
+// Warning returns a diagnostic when the resolution rate looks like a misrooted
+// run rather than a genuinely low-dependency project, or "" when the graph
+// looks trustworthy (including the case of zero resolvable imports, e.g. a
+// single-file or pure-stdlib project — that's not itself suspicious).
+func (s ShardGraphStats) Warning() string {
+	if s.Resolvable < minResolvableSample {
+		return ""
+	}
+	rate := float64(s.Resolved) / float64(s.Resolvable)
+	if rate >= lowResolutionThreshold {
+		return ""
+	}
+	return fmt.Sprintf(
+		"only %d/%d (%.0f%%) intra-project imports resolved to a shard — "+
+			"the graph below may be wrong, not just sparse. This usually means "+
+			"the directory is rooted below (or beside) tsconfig.json/go.mod, so "+
+			"path aliases or module-relative imports can't be matched. Re-run "+
+			"--shards from the actual project root.",
+		s.Resolved, s.Resolvable, rate*100)
+}
+
 // BuildShardGraph resolves per-file imports to shard names and returns the
-// dependency graph. Only intra-project imports are tracked.
+// dependency graph plus resolution stats (see ShardGraphStats). Only
+// intra-project imports are tracked in the graph itself.
 //
 // modulePrefix is stripped from Go-style absolute import paths to yield a
 // relative path inside the project (e.g. "github.com/foo/bar" → "").
@@ -32,13 +77,14 @@ func BuildShardGraph(
 	modulePrefix string,
 	fileImports map[string][]string, // absFilePath → []importedModule
 	aliases ...map[string]string,
-) ShardGraph {
+) (ShardGraph, ShardGraphStats) {
 	var aliasMap map[string]string
 	if len(aliases) > 0 {
 		aliasMap = aliases[0]
 	}
 
 	graph := make(ShardGraph)
+	var stats ShardGraphStats
 
 	// Build a lookup: relative file path (slash) → shard name
 	// so we can resolve relative imports to shards.
@@ -61,31 +107,38 @@ func BuildShardGraph(
 		}
 
 		for _, imp := range imports {
-			dstShard := resolveImportToShard(imp, absPath, rootDir, splitBy, modulePrefix, aliasMap, relToShard)
+			dstShard, resolvable := resolveImportToShard(imp, absPath, rootDir, splitBy, modulePrefix, aliasMap, relToShard)
+			if resolvable {
+				stats.Resolvable++
+				if dstShard != "" {
+					stats.Resolved++
+				}
+			}
 			if dstShard == "" || dstShard == srcShard {
 				continue
 			}
 			graph[srcShard][dstShard] = struct{}{}
 		}
 	}
-	return graph
+	return graph, stats
 }
 
-// resolveImportToShard maps one import string to a shard name, or "" if
-// the import is external / cannot be resolved.
+// resolveImportToShard maps one import string to a shard name ("" if the
+// import is external / cannot be resolved). The second return value reports
+// whether imp *looked* like an intra-project import worth counting toward
+// ShardGraphStats — true for a modulePrefix/alias/relative match regardless
+// of whether resolution actually succeeded, false for anything that was
+// never a candidate (an external package import, for instance).
 func resolveImportToShard(
 	imp, srcFile, rootDir, splitBy, modulePrefix string,
 	aliasMap map[string]string,
 	relToShard map[string]string,
-) string {
+) (string, bool) {
 	// --- Go-style: strip module prefix ---
 	if modulePrefix != "" && strings.HasPrefix(imp, modulePrefix) {
 		rel := strings.TrimPrefix(imp, modulePrefix)
 		rel = strings.TrimPrefix(rel, "/")
-		shard := shardForDir(rel, splitBy, relToShard)
-		if shard != "" {
-			return shard
-		}
+		return shardForDir(rel, splitBy, relToShard), true
 	}
 
 	// --- Path alias (e.g. @/ → src/) ---
@@ -98,14 +151,11 @@ func resolveImportToShard(
 					r, err := filepath.Rel(rootDir, candidate)
 					if err == nil {
 						if shard, ok := relToShard[filepath.ToSlash(r)]; ok {
-							return shard
+							return shard, true
 						}
 					}
 				}
-				shard := shardForDir(rel, splitBy, relToShard)
-				if shard != "" {
-					return shard
-				}
+				return shardForDir(rel, splitBy, relToShard), true
 			}
 		}
 	}
@@ -125,17 +175,18 @@ func resolveImportToShard(
 			}
 			relSlash := filepath.ToSlash(rel)
 			if shard, ok := relToShard[relSlash]; ok {
-				return shard
+				return shard, true
 			}
 		}
 		// Fallback: treat cleaned path as a directory
 		rel, err := filepath.Rel(rootDir, abs)
 		if err == nil {
-			return shardForDir(filepath.ToSlash(rel), splitBy, relToShard)
+			return shardForDir(filepath.ToSlash(rel), splitBy, relToShard), true
 		}
+		return "", true
 	}
 
-	return ""
+	return "", false
 }
 
 // shardForDir returns the shard name for any file whose relative path starts
@@ -205,6 +256,32 @@ func ShardGraphToList(graph ShardGraph) []ShardDep {
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].Shard < list[j].Shard })
 	return list
+}
+
+// DetectTSConfigAbove reports whether a tsconfig.json (or tsconfig.base.json)
+// exists in an ancestor of rootDir that DetectTSAliases would never find (it
+// only looks in rootDir itself and one level below). This is the precise
+// signal for the "rooted one level too deep, below the tsconfig" trust bug
+// (TODO.md): DetectTSAliases then silently returns no aliases at all, so
+// every alias-prefixed import quietly fails to resolve with no indication
+// why. Returns the found path, or "" if none exists within a bounded walk-up
+// (a real project root is never more than a handful of levels deep).
+func DetectTSConfigAbove(rootDir string) string {
+	dir := filepath.Clean(rootDir)
+	for i := 0; i < 8; i++ {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "" // reached filesystem root
+		}
+		for _, name := range []string{"tsconfig.json", "tsconfig.base.json"} {
+			candidate := filepath.Join(parent, name)
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate
+			}
+		}
+		dir = parent
+	}
+	return ""
 }
 
 // DetectTSAliases reads tsconfig.json paths and returns alias→dir mapping.

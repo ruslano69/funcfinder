@@ -105,21 +105,26 @@ enterprise/Pro correctness story.
 
 ### `deps` silently returns an empty graph when rooted wrong (trust bug)
 
-**Priority:** high — silent wrong answer, the worst failure mode for a
-correctness tool.
+- [x] **FIXED (2026-07-17).** Two stderr diagnostics, both in `internal/importresolver.go`:
+  - `DetectTSConfigAbove` — the precise signal for "rooted one level too deep,
+    below the tsconfig": walks up from the analyzed root (bounded, 8 levels)
+    looking for a `tsconfig.json`/`tsconfig.base.json` that `DetectTSAliases`
+    (which only looks at the root itself and one level below) would never find.
+    If one exists above, warns and names the directory to re-run from.
+  - `ShardGraphStats.Warning()` — a general ratio-based fallback: `BuildShardGraph`
+    now returns `(ShardGraph, ShardGraphStats)`, tracking how many imports
+    *looked* intra-project (relative, or under a known modulePrefix/alias
+    prefix) versus how many actually resolved to a shard. Below 20% resolved
+    (min sample 3, to avoid noise on tiny dirs) triggers a warning — covers
+    Go's `modulePrefix` misrooting too, not just TS/JS aliases.
 
-`deps frontend -l ts --shards` resolves `@/` aliases via `frontend/tsconfig.json`
-and produces a real graph (47 edges on meetily). `deps frontend/src -l ts
---shards` — rooted one level too deep, below the tsconfig — resolves **zero**
-aliases and reports **every shard as a leaf with no edges**, with no warning.
-A user who roots one directory off gets "this project has no dependencies"
-instead of an error.
-
-**Fix:** when alias-based import resolution is in play, surface a diagnostic:
-no tsconfig/module root found, 0 aliases resolved, or "N% of imports were
-unresolved". Failing loudly (or at least warning) beats returning a confident
-empty graph. Candidate signal: ratio of resolved-to-total imports below a
-threshold → stderr warning.
+  Wired into `cmd/deps/main.go`'s `--shards` path. Reproduced the exact
+  meetily scenario with a synthetic tsconfig+alias fixture: correctly-rooted
+  run is silent, `deps frontend/src --shards` (misrooted) now prints
+  `WARNING: found .../frontend/tsconfig.json above .../frontend/src, ...`
+  before the (still leaf-only, but now explained) graph. Tests:
+  `TestDetectTSConfigAbove`, `TestBuildShardGraph_MisrootedShardsWarns`
+  (`internal/importresolver_test.go`).
 
 ### `callgraph --dir` `-l` flag is a hint, not a filter — decide & document
 
