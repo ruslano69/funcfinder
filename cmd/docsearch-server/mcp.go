@@ -174,6 +174,8 @@ func (m *mcpServer) callTool(name string, args map[string]any) (string, error) {
 		return m.toolProvenance(args)
 	case "context":
 		return m.toolContext(args)
+	case "diff_releases":
+		return m.toolDiffReleases(args)
 	default:
 		return "", fmt.Errorf("unknown tool %q", name)
 	}
@@ -321,6 +323,38 @@ func (m *mcpServer) toolContext(args map[string]any) (string, error) {
 		return "", err
 	}
 	return jsonString(map[string]any{"role": role, "channel": ref, "documents": docs}), nil
+}
+
+func (m *mcpServer) toolDiffReleases(args map[string]any) (string, error) {
+	from := argStr(args, "from", "")
+	to := argStr(args, "to", "")
+	if from == "" || to == "" {
+		return "", fmt.Errorf("from and to are required")
+	}
+	fromPath, err := m.store.Resolve(from)
+	if err != nil {
+		return "", err
+	}
+	toPath, err := m.store.Resolve(to)
+	if err != nil {
+		return "", err
+	}
+	fromDB, err := truth.OpenRelease(fromPath)
+	if err != nil {
+		return "", err
+	}
+	defer fromDB.Close()
+	toDB, err := truth.OpenRelease(toPath)
+	if err != nil {
+		return "", err
+	}
+	defer toDB.Close()
+
+	diff, err := knowledge.DiffDocs(fromDB, toDB)
+	if err != nil {
+		return "", err
+	}
+	return jsonString(map[string]any{"from": from, "to": to, "diff": diff}), nil
 }
 
 func (m *mcpServer) toolListReleases() (string, error) {
@@ -490,6 +524,11 @@ func toolSchemas() []map[string]any {
 				"channel": strProp("stable|testing|unstable or a release version"),
 				"limit":   intProp("max documents (default 20)"),
 			}, "role"),
+		tool("diff_releases", "Compare two releases (or channels) and report added/removed/changed documents by id (TZ FR-18) — 'what changed going from A to B'.",
+			map[string]any{
+				"from": strProp("release version or channel to diff from"),
+				"to":   strProp("release version or channel to diff to"),
+			}, "from", "to"),
 		tool("list_releases", "List published, immutable releases of truth (newest first).", map[string]any{}),
 		tool("channels", "Show channels (stable/testing/unstable) and which release each points at.", map[string]any{}),
 		tool("provenance", "Look up who produced a recorded document, when, and against which source task/spec.",

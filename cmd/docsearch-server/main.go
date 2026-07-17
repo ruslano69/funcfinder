@@ -50,7 +50,7 @@ func main() {
 		"ingest": true, "record": true, "publish": true, "freeze": true,
 		"set-channel": true, "channels": true, "releases": true, "search": true,
 		"suggest": true, "read": true, "enumerate": true, "provenance": true, "context": true,
-		"serve": true, "mcp": true,
+		"diff": true, "serve": true, "mcp": true,
 	}
 	var preAction, postAction []string
 	action := ""
@@ -105,6 +105,8 @@ func main() {
 		runProvenance(store, postAction)
 	case "context":
 		runContext(store, postAction)
+	case "diff":
+		runDiff(store, postAction)
 	case "serve":
 		runServe(store, emb, postAction)
 	case "mcp":
@@ -638,6 +640,61 @@ func runContext(s *truth.Store, args []string) {
 	}
 }
 
+// runDiff is the FR-18 "dифф правды" primitive: what changed going from one
+// release (or channel) to another — added/removed/changed documents, by id.
+func runDiff(s *truth.Store, args []string) {
+	fs := flag.NewFlagSet("diff", flag.ExitOnError)
+	from := fs.String("from", "", "release version or channel to diff from (required)")
+	to := fs.String("to", "", "release version or channel to diff to (required)")
+	jsonOut := fs.Bool("json", false, "output JSON")
+	fs.Parse(args)
+
+	if *from == "" || *to == "" {
+		fatalf("--from and --to required")
+	}
+	fromPath, err := s.Resolve(*from)
+	if err != nil {
+		fatalf("resolve --from %q: %v", *from, err)
+	}
+	toPath, err := s.Resolve(*to)
+	if err != nil {
+		fatalf("resolve --to %q: %v", *to, err)
+	}
+	fromDB, err := truth.OpenRelease(fromPath)
+	if err != nil {
+		fatalf("open %s: %v", fromPath, err)
+	}
+	defer fromDB.Close()
+	toDB, err := truth.OpenRelease(toPath)
+	if err != nil {
+		fatalf("open %s: %v", toPath, err)
+	}
+	defer toDB.Close()
+
+	diff, err := knowledge.DiffDocs(fromDB, toDB)
+	if err != nil {
+		fatalf("diff: %v", err)
+	}
+
+	if *jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(diff)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "# %s → %s: %d added, %d removed, %d changed\n",
+		*from, *to, len(diff.Added), len(diff.Removed), len(diff.Changed))
+	for _, e := range diff.Added {
+		fmt.Printf("+ [%d] %s  (%s)\n", e.ID, e.Title, e.Type)
+	}
+	for _, e := range diff.Removed {
+		fmt.Printf("- [%d] %s  (%s)\n", e.ID, e.Title, e.Type)
+	}
+	for _, e := range diff.Changed {
+		fmt.Printf("~ [%d] %s  (%s)\n", e.ID, e.Title, e.Type)
+	}
+}
+
 func runProvenance(s *truth.Store, args []string) {
 	fs := flag.NewFlagSet("provenance", flag.ExitOnError)
 	recordID := fs.Int64("record-id", 0, "recorded document id, e.g. the id printed by `record` (required)")
@@ -706,6 +763,7 @@ Readonly (grounding):
   enumerate   --pattern <regex> [--channel <c> --limit N]   (distinct matches across the corpus, tallied — the completeness-audit step)
   provenance  --record-id <id>   (who produced a record, when, against what)
   context     --role <tag> [--channel <c> --limit N]   (role-scoped view of the same corpus — FR-9)
+  diff        --from <ref> --to <ref>   (added/removed/changed documents between two releases or channels — FR-18)
   serve       --addr <a> --channel stable|testing [--pool N --lite]   (async read-server, hot-swaps on channel repoint)
   mcp         (MCP server over stdio — first-class interface for LLM agents)
   releases    [--json]
