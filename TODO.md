@@ -4,6 +4,28 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
+## CI: `Test` job failing on every push since 2026-07-01 (2026-07-17)
+
+- [x] **FIXED.** Root cause had nothing to do with `-race` despite every
+  failure looking like a bare `exit code 1` right after the last package's
+  `ok` line, with no `FAIL`/`panic` anywhere — the actual error, buried in
+  the full (not `--log-failed`) log: `go: no such tool "covdata"` for
+  `internal/embed`, the sole package with zero test files. Computing its
+  coverage entry needs `covdata`, which the CI runner's Go install lacks.
+  `-race` was a red herring — the original single `go test -race
+  -coverprofile=... ./internal/...` bundled both concerns into one exit
+  code, so a coverage-tooling failure looked like a test/race failure.
+  Confirmed by bisection: dropping `-coverprofile`/`-covermode` alone made
+  every job pass.
+
+  Fix in `.github/workflows/ci.yml`: split into `Run tests (race)` (no
+  coverage) and `Run tests (coverage)` (no `-race`, excludes
+  `internal/embed` via `go list ./internal/... | grep -v
+  '/internal/embed$'`). A real data race still fails CI on its own; a
+  missing toolchain component for an untested package no longer masquerades
+  as one. Verified: `Test (1.23)`, `Test (1.24)`, and all three `Build`
+  jobs green on the next push.
+
 ## deps --shards: shardForDir prefix match non-deterministically drops parent-package edges (2026-07-17)
 
 - [x] **FIXED.** Found while mapping this project with its own tools:
