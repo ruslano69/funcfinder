@@ -4,6 +4,41 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
+## findFunctionsSimple: single-line function body treated as "no brace yet" (2026-07-17)
+
+- [x] **FIXED.** Found while verifying the `callgraph -l` filter fix (below):
+  `internal/finder.go`'s `findFunctionsSimple` — the non-nested path used by
+  Rust, C, C++, C#, Java, D, Kotlin, PHP — closes a function on `depth == 0 &&
+  prevDepth > 0`. That condition is never satisfied when a function's opening
+  AND closing brace land on the *same* line, since the net brace delta for
+  that line is 0 and `prevDepth` was also still 0 (nothing open yet) — so it
+  read identically to "no brace at all, still waiting for a multiline
+  signature's brace". The function stayed open indefinitely, silently
+  absorbing every following line (including an entire next function) until an
+  unrelated brace-balance event happened to close it. Two real-world shapes:
+  - Rust idiomatic single-line bodies: `fn helper() -> i32 { 42 }`.
+  - K&R-style C with a one-line body on the brace line: a signature line
+    ending bare (C's `func_pattern` requires end-of-line after `)`), then
+    `{ return 42; }` on the next line.
+
+  This is exactly why `callgraph --dir` on a Rust-only file set was reporting
+  0 functions/0 calls (found while verifying the `-l` filter fix — see
+  below), and would affect `funcfinder --map`/`--struct` output quality on
+  any of the 8 affected languages whenever a function's body fits on one
+  line.
+
+  Fix: both places `findFunctionsSimple` decides "is this function closed"
+  now also check whether the line actually contained a `{` (`hasBrace :=
+  strings.Contains(cleaned, "{")`), not just the net brace delta — mirroring
+  the already-correct pattern in `findFunctionsWithNesting`
+  (`braceDelta == 0 && strings.Contains(cleaned, "{")`). Verified the
+  Rust `where`-clause multiline-signature case (the reason `prevDepth > 0`
+  was required in the first place) still works.
+
+  Tests: `TestFindFunctionsSimple_SingleLineBodyOnSignatureLine`,
+  `TestFindFunctionsSimple_SingleLineBodyOnBraceLine`
+  (`internal/finder_multiline_test.go`).
+
 ## Rust/Scala char literals vs single-quote ambiguity (deferred)
 
 Loop #2 of the tdtp spec-sheet fixed char/rune-literal brace leakage by setting

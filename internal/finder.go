@@ -130,18 +130,29 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			}
 
 			prevDepth := depth
+			hasBrace := strings.Contains(cleaned, "{")
 			depth += CountBraces(cleaned)
 
-			// Функция заканчивается только если мы ВЫХОДИМ из тела функции
-			// (prevDepth > 0 && depth == 0), а не просто depth == 0
-			// Это важно для multiline signatures с where clause в Rust:
+			// Функция заканчивается если мы ВЫХОДИМ из тела функции
+			// (prevDepth > 0 && depth == 0) — а не просто depth == 0, что
+			// важно для multiline signatures с where clause в Rust:
 			// fn foo<T>(...) -> Result<T>
 			// where
 			//     T: Deserialize,  // здесь depth == 0, но это не конец функции!
 			// {
 			//     ...
 			// }
-			if depth == 0 && prevDepth > 0 {
+			//
+			// ИЛИ если открывающая и закрывающая скобка оказались на этой же
+			// строке при ещё не открытой функции (prevDepth == 0, hasBrace):
+			// K&R-стиль с однострочным телом сразу на строке скобки,
+			//   int helper(void)
+			//   { return 42; }
+			// здесь depth остаётся 0 (1 открывающая + 1 закрывающая), но тело
+			// уже закрылось — без hasBrace это неотличимо от "скобки ещё не
+			// было вовсе", и функция осталась бы открытой до конца файла,
+			// поглощая всё следующее.
+			if depth == 0 && (prevDepth > 0 || hasBrace) {
 				// Конец функции
 				currentFunc.End = lineNum + 1 + lineOffset // 1-based + offset
 				result.Functions = append(result.Functions, *currentFunc)
@@ -181,44 +192,38 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 						className = f.findClassForLine(classes, lineNum+lineOffset)
 					}
 
-					// Ищем открывающую скобку
-					braceCount := CountBraces(cleaned)
-					if braceCount > 0 {
-						// Скобка на той же строке
-						currentFunc = &FunctionBounds{
-							Name:      funcName,
-							Start:     lineNum + 1 + lineOffset, // 1-based + offset
-							Lines:     []string{},
-							ClassName: className,
-							Scope:     className,
-						}
-						if f.extractMode {
-							currentFunc.Lines = append(currentFunc.Lines, line)
-						}
-						depth = braceCount
+					currentFunc = &FunctionBounds{
+						Name:      funcName,
+						Start:     lineNum + 1 + lineOffset, // 1-based + offset
+						Lines:     []string{},
+						ClassName: className,
+						Scope:     className,
+					}
+					if f.extractMode {
+						currentFunc.Lines = append(currentFunc.Lines, line)
+					}
 
-						if depth == 0 {
-							// Функция на одной строке (маловероятно, но возможно)
-							currentFunc.End = lineNum + 1 + lineOffset
-							result.Functions = append(result.Functions, *currentFunc)
-							currentFunc = nil
-						}
+					// depth starts at 0 (nothing was open before this line);
+					// apply this line's own brace delta the same way the
+					// `currentFunc != nil` branch does for every later line,
+					// so a single-line body on the signature line itself
+					// (e.g. Rust `fn helper() -> i32 { 42 }`) closes right
+					// here instead of being mistaken for "no brace yet, wait
+					// for a multiline signature's opening brace".
+					hasBrace := strings.Contains(cleaned, "{")
+					depth = CountBraces(cleaned)
+
+					if depth == 0 && hasBrace {
+						// Однострочная функция: скобка открылась и закрылась
+						// на этой же строке.
+						currentFunc.End = lineNum + 1 + lineOffset
+						result.Functions = append(result.Functions, *currentFunc)
+						currentFunc = nil
 					}
-					// Если скобки нет, ждем её на следующих строках
-					// (многострочная сигнатура)
-					if braceCount == 0 {
-						currentFunc = &FunctionBounds{
-							Name:      funcName,
-							Start:     lineNum + 1 + lineOffset,
-							Lines:     []string{},
-							ClassName: className,
-							Scope:     className,
-						}
-						if f.extractMode {
-							currentFunc.Lines = append(currentFunc.Lines, line)
-						}
-						depth = 0
-					}
+					// Иначе: скобка открыта и ещё не закрыта (depth > 0), или
+					// скобки нет вовсе (многострочная сигнатура) — в обоих
+					// случаях функция остаётся открытой и продолжается веткой
+					// `currentFunc != nil` на следующих строках.
 				}
 				// NB: there is no `else` here. A multiline signature opened
 				// above (currentFunc set, depth == 0) is continued by the
