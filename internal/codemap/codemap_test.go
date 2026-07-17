@@ -251,6 +251,67 @@ func TestIngest_EmptyRerunWarnsInsteadOfSilentlyClearingMap(t *testing.T) {
 	}
 }
 
+// TestIngest_MidLoopFailureRollsBackToPreviousMap forces an insert to fail
+// partway through a re-ingest and verifies the whole replace rolled back:
+// the previous code map must survive intact — not be left deleted, and not
+// be left half-replaced by whatever inserts happened before the failure.
+// The fault is injected with a BEFORE INSERT trigger that aborts on one
+// specific document title, since the docs schema has no natural constraint
+// an ingest could trip over.
+func TestIngest_MidLoopFailureRollsBackToPreviousMap(t *testing.T) {
+	dir := t.TempDir()
+	writeGoFile(t, dir, "old.go", "package main\n\nfunc oldfunc() {}\n")
+	db := openDB(t)
+
+	if _, err := Ingest(db, dir); err != nil {
+		t.Fatalf("first Ingest: %v", err)
+	}
+
+	// New state of the tree: two files, one of which is rigged to fail.
+	if err := os.Remove(filepath.Join(dir, "old.go")); err != nil {
+		t.Fatalf("remove old.go: %v", err)
+	}
+	writeGoFile(t, dir, "a.go", "package main\n\nfunc newA() {}\n")
+	writeGoFile(t, dir, "poison.go", "package main\n\nfunc newB() {}\n")
+	if _, err := db.Exec(`
+		CREATE TRIGGER poison_insert BEFORE INSERT ON docs
+		WHEN new.title = 'poison.go'
+		BEGIN SELECT RAISE(ABORT, 'injected mid-ingest failure'); END`); err != nil {
+		t.Fatalf("create poison trigger: %v", err)
+	}
+
+	if _, err := Ingest(db, dir); err == nil {
+		t.Fatal("want the rigged Ingest to fail, got nil")
+	}
+
+	// The failed replace must have rolled back wholesale: exactly the one
+	// pre-existing document, no partial leftovers from the aborted run.
+	n, err := knowledge.Count(db)
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("want the previous 1-doc code map intact after rollback, got %d docs", n)
+	}
+	var title string
+	if err := db.QueryRow(`SELECT title FROM docs WHERE type = ?`, DocType).Scan(&title); err != nil {
+		t.Fatalf("query surviving doc: %v", err)
+	}
+	if title != "old.go" {
+		t.Fatalf("surviving doc = %q, want the pre-failure old.go", title)
+	}
+
+	// The FTS index (maintained by triggers inside the same transaction)
+	// must have rolled back with it — the old map still searchable, the
+	// aborted run's content not.
+	if res, err := knowledge.SearchFTS(db, "oldfunc", 5, true); err != nil || len(res) != 1 {
+		t.Errorf("want oldfunc still searchable after rollback: err=%v res=%+v", err, res)
+	}
+	if res, err := knowledge.SearchFTS(db, "newA", 5, true); err != nil || len(res) != 0 {
+		t.Errorf("want no trace of the aborted run in FTS: err=%v res=%+v", err, res)
+	}
+}
+
 func TestIngest_NonexistentDirectoryErrors(t *testing.T) {
 	db := openDB(t)
 	if _, err := Ingest(db, filepath.Join(t.TempDir(), "does-not-exist")); err == nil {
