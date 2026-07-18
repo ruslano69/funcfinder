@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.11.0 - 2026-07-18
+
+**docsearch and docsearch-server moved to their own product,
+[distill-docs](https://github.com/ruslano69/distill-docs)** (full history
+preserved). funcfinder returns to its focused code-analysis identity — 5 tools:
+`funcfinder`, `stat`, `deps`, `complexity`, `callgraph`.
+
+- **New public API**: package `analyze` exposes the code-mapping engine
+  (`LoadConfig`, `NewDirProcessor`, `DirResult`) so other modules can use
+  funcfinder as a library — this is how distill-docs consumes it for code-ingest.
+- Removed `cmd/docsearch`, `cmd/docsearch-server`, and their `internal/*`
+  packages; build/CI/release and docs slimmed to the 5 tools.
+- No changes to the analysis tools themselves; the knowledge/truth-server
+  features live on (and continue) in distill-docs.
+
 ## v1.10.0 - 2026-07-18
 
 Завершение ТЗ docsearch-server: реализованы три последних функциональных

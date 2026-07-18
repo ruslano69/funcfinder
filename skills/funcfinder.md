@@ -222,8 +222,9 @@ deps . -l <lang> --shards --no-gitignore --update-manifest .codemap/manifest.jso
 
 The `.codemap/` this skill builds is ephemeral, per-session scratch. For a
 **persistent, versioned** structural map — one compiled into an immutable
-release and shared across a team/agents — `docsearch-server publish --code-dir`
-bakes the same funcfinder function/type map into a truth release, tagged with
-its git commit (see the `docsearch` skill and `docs/docsearch-server/`). Use
-this skill to investigate now; use that to freeze what you learned as durable,
-queryable truth.
+release and shared across a team/agents — the
+[distill-docs](https://github.com/ruslano69/distill-docs) project's
+`distill-server publish --code-dir` bakes the same funcfinder function/type map
+(via funcfinder's public `analyze` API) into a truth release, tagged with its
+git commit. Use this skill to investigate now; use that to freeze what you
+learned as durable, queryable truth.

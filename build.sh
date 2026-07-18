@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build script for funcfinder toolkit
-# Builds: funcfinder, stat, deps, complexity, callgraph, docsearch, docsearch-server
+# Builds: funcfinder, stat, deps, complexity, callgraph
 
 set -e
 
@@ -37,16 +37,6 @@ echo "→ Building callgraph..."
 go build -ldflags "${LDFLAGS}" -o callgraph ./cmd/callgraph
 echo "  ✓ callgraph"
 
-# Build docsearch
-echo "→ Building docsearch..."
-go build -ldflags "${LDFLAGS}" -o docsearch ./cmd/docsearch
-echo "  ✓ docsearch"
-
-# Build docsearch-server
-echo "→ Building docsearch-server..."
-go build -ldflags "${LDFLAGS}" -o docsearch-server ./cmd/docsearch-server
-echo "  ✓ docsearch-server"
-
 echo ""
 echo "✅ All binaries built successfully!"
 echo ""
@@ -56,5 +46,3 @@ echo "  ./stat file.go -l go -n 10"
 echo "  ./deps . -l go -j"
 echo "  ./complexity file.go -l go"
 echo "  ./callgraph --dir . -l go"
-echo "  ./docsearch --db .knowledge/docs.sqlite search --query 'your query'"
-echo "  ./docsearch-server --root .docsearch publish --name 2026.07 --channel stable"

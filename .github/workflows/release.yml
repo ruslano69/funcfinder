@@ -29,7 +29,7 @@ jobs:
     - name: Build cross-platform binaries
       run: |
         mkdir -p dist
-        TOOLS="funcfinder stat deps complexity callgraph docsearch docsearch-server"
+        TOOLS="funcfinder stat deps complexity callgraph"
         # Embed the tag version so released binaries report it via --version
         # (without this ldflag the built-in default "dev" ships instead).
         LDFLAGS="-s -w -X github.com/ruslano69/funcfinder/internal.Version=${{ steps.get_version.outputs.VERSION }}"
@@ -54,7 +54,7 @@ jobs:
       run: |
         cd dist
         VER=${{ steps.get_version.outputs.VERSION }}
-        TOOLS="funcfinder stat deps complexity callgraph docsearch docsearch-server"
+        TOOLS="funcfinder stat deps complexity callgraph"
 
         for PLATFORM in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
           FILES=""
@@ -89,7 +89,7 @@ jobs:
           #### Linux / macOS
           ```bash
           tar xzf funcfinder-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
-          sudo mv funcfinder-* stat-* deps-* complexity-* callgraph-* docsearch-* /usr/local/bin/
+          sudo mv funcfinder-* stat-* deps-* complexity-* callgraph-* /usr/local/bin/
           ```
 
           #### Windows
@@ -106,8 +106,6 @@ jobs:
           - **deps**: Dependency analysis with JSON output
           - **complexity**: Cognitive complexity per function
           - **callgraph**: Who calls whom
-          - **docsearch**: SQLite FTS5 + vector hybrid knowledge base for agents
-          - **docsearch-server**: versioned truth server — releases/channels, hybrid search, MCP, funcfinder code-ingest
         draft: false
         prerelease: false
       env:

@@ -10,7 +10,7 @@
 ./build.sh   # Required before first use (~5 sec)
 ```
 
-Builds 7 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`, `docsearch`, `docsearch-server`.
+Builds 5 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`.
 
 ---
 
@@ -23,8 +23,6 @@ Builds 7 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`, `doc
 | `callgraph` | Who calls whom | file or dir |
 | `stat` | Call frequency & hotspots | file |
 | `complexity` | Cognitive complexity per function | file |
-| `docsearch` | Knowledge base: FTS5 + vector hybrid search | SQLite file |
-| `docsearch-server` | Versioned truth server: releases/channels, hybrid search, MCP, TCP/HTTP | data-root dir |
 
 ---
 
@@ -89,76 +87,6 @@ deps . -l go --shards --no-gitignore --update-manifest .codemap/manifest.json
 # manifest.json now contains:
 # {"path": "cmd_funcfinder.json", "depends_on": ["internal.json"], ...}
 ```
-
----
-
-## docsearch — Knowledge Base
-
-```bash
-# Initialize (creates .knowledge/docs.sqlite by default)
-docsearch init
-docsearch --db /path/to/custom.sqlite init
-
-# Add a document (plain text, no embedding)
-docsearch add --title "Title" --content "..." --type general
-
-# Add with embedding (float32 comma-separated, e.g. from Ollama)
-docsearch add --title "Error: connection refused" --content "..." --type error \
-  --embedding "0.12,0.34,..." --meta '{"scenario":"db-setup"}'
-
-# Ingest a file (chunked): .txt / .md / .pdf
-docsearch add --file README.md --type general
-
-# Crawl a documentation site (same host+path prefix, deduped)
-docsearch add --url https://pkg.go.dev/net/http --max-pages 200
-
-# FTS keyword search
-docsearch search --query "candidate storage" --mode fts
-
-# Semantic vector search
-docsearch search --embedding "0.12,0.34,..." --mode vec
-
-# Hybrid (default) — FTS + vector, Reciprocal Rank Fusion
-docsearch search --query "connection error" --embedding "0.12,0.34,..." --limit 5 --json
-
-# Count total documents
-docsearch count
-```
-
-**Document types**: `general`, `tool_usage`, `error`, `scenario` (or any custom string).
-
-**Hybrid mode**: RRF combines BM25 ranks and cosine ranks. Pass both `--query` and `--embedding` for best results. Without an embedding, falls back to FTS only; without a query, falls back to vector only.
-
-**Embedding source**: pass `--embed-model <ollama-model>` (e.g. `qwen3-embedding:0.6b`) to auto-embed at add/search time via a local Ollama endpoint, or `--embedding <floats>` to supply a precomputed vector yourself. Use the same model for add and search.
-
----
-
-## docsearch-server — Versioned Truth Server
-
-A team-scale "truth server" on the same engine. `ingest`/`record` accumulate in a
-live write-log; `publish` snapshots an immutable `truth-YYYY.MM` release; channels
-`stable`/`testing`/`unstable` are atomic pointers at releases. An agent pins to a
-release and grounds against it — identical results forever, while the release is
-retained. Strictly split by CQRS: readonly grounding vs. the rewrite loop.
-
-```bash
-# Rewrite side (truth flows in)
-docsearch-server --root .docsearch ingest --title "..." --content "..." --type decision
-docsearch-server --root .docsearch publish --name 2026.07 --channel stable
-docsearch-server --root .docsearch publish --name 2026.07 --code-dir .   # bake in a funcfinder code map (FR-22)
-
-# Readonly side (grounding)
-docsearch-server --root .docsearch search --query "..." --channel stable
-docsearch-server --root .docsearch context --role backend --channel stable
-
-# Interfaces
-docsearch-server --root .docsearch mcp                                # MCP over stdio — primary agent interface
-docsearch-server --root .docsearch serve-http --addr 127.0.0.1:9100   # HTTP/JSON: GET /search /read /context /releases /channels /healthz
-docsearch-server --root .docsearch serve --addr 127.0.0.1:9099        # TCP line protocol
-```
-
-Both read-servers hot-swap with zero downtime when a channel is repointed. Full
-spec, interface list, and usage: [docs/docsearch-server/](docs/docsearch-server/).
 
 ---
 
@@ -481,7 +409,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
-- `cmd/` → CLI entrypoints for all 7 shipped tools (funcfinder, stat, deps, callgraph, complexity, docsearch, docsearch-server) — see [cmd/AGENTS.md](cmd/AGENTS.md)
+- `cmd/` → CLI entrypoints for all 5 tools (funcfinder, stat, deps, callgraph, complexity) — see [cmd/AGENTS.md](cmd/AGENTS.md)
 - `internal/` → Core parsing engine: language finders, formatters, call graph, shard logic — see [internal/AGENTS.md](internal/AGENTS.md)
 - `docs/` → User-facing documentation and usage examples — see [docs/AGENTS.md](docs/AGENTS.md)
 - `examples/` → Shell script usage examples and swe-agent integration workflows — see [examples/AGENTS.md](examples/AGENTS.md)

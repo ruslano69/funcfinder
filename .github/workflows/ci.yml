@@ -38,7 +38,7 @@ jobs:
       run: go test -v -race -p 1 ./internal/...
 
     - name: Run tests (coverage)
-      # Every push since the docsearch-server merge (2026-07-01) died with a
+      # A zero-test package can fail coverage with `go: no such tool "covdata"`;
       # bare exit 1 and no FAIL/panic anywhere in the log — root cause
       # traced to `go: no such tool "covdata"` for internal/embed (the only
       # package with zero test files): computing its coverage line needs
@@ -92,8 +92,6 @@ jobs:
         ./deps --version
         ./complexity --version
         ./callgraph --version
-        ./docsearch --version
-        ./docsearch-server --version
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -105,8 +103,6 @@ jobs:
           deps
           complexity
           callgraph
-          docsearch
-          docsearch-server
         retention-days: 7
 
   build-windows:
@@ -133,8 +129,6 @@ jobs:
         .\deps.exe --version
         .\complexity.exe --version
         .\callgraph.exe --version
-        .\docsearch.exe --version
-        .\docsearch-server.exe --version
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -146,8 +140,6 @@ jobs:
           deps.exe
           complexity.exe
           callgraph.exe
-          docsearch.exe
-          docsearch-server.exe
         retention-days: 7
 
   build-macos:
@@ -174,8 +166,6 @@ jobs:
         ./deps --version
         ./complexity --version
         ./callgraph --version
-        ./docsearch --version
-        ./docsearch-server --version
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -187,6 +177,4 @@ jobs:
           deps
           complexity
           callgraph
-          docsearch
-          docsearch-server
         retention-days: 7
