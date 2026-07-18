@@ -1,5 +1,5 @@
 # Build script for funcfinder toolkit (PowerShell)
-# Builds: funcfinder, stat, deps, complexity, callgraph, docsearch, docsearch-server
+# Builds: funcfinder, stat, deps, complexity, callgraph
 # Usage: .\build.ps1
 
 $ErrorActionPreference = "Stop"
@@ -18,9 +18,7 @@ $Binaries = @(
     @{ Name = "stat";       Cmd = ".\cmd\stat" },
     @{ Name = "deps";       Cmd = ".\cmd\deps" },
     @{ Name = "complexity"; Cmd = ".\cmd\complexity" },
-    @{ Name = "callgraph";  Cmd = ".\cmd\callgraph" },
-    @{ Name = "docsearch";  Cmd = ".\cmd\docsearch" },
-    @{ Name = "docsearch-server"; Cmd = ".\cmd\docsearch-server" }
+    @{ Name = "callgraph";  Cmd = ".\cmd\callgraph" }
 )
 
 foreach ($b in $Binaries) {
@@ -43,6 +41,4 @@ Write-Host "  .\stat.exe file.go -l go -n 10"
 Write-Host "  .\deps.exe . -l go -j"
 Write-Host "  .\complexity.exe file.go -l go"
 Write-Host "  .\callgraph.exe --dir . -l go"
-Write-Host "  .\docsearch.exe --db .knowledge\docs.sqlite search --query 'your query'"
-Write-Host "  .\docsearch-server.exe --root .docsearch publish --name 2026.07 --channel stable"
 Write-Host ""
