@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ruslano69/funcfinder/internal"
+	"github.com/ruslano69/funcfinder/analyze"
 )
 
 // DocType tags every document Ingest writes, so callers can find (or a
@@ -71,12 +71,12 @@ func Ingest(db *sql.DB, codeDir string) (Stats, error) {
 	}
 	stats.CommitSHA, stats.Dirty = gitState(codeDir)
 
-	config, err := internal.LoadConfig()
+	config, err := analyze.LoadConfig()
 	if err != nil {
 		return stats, fmt.Errorf("load language config: %w", err)
 	}
 
-	processor := internal.NewDirProcessor(config, 0, true, true, "all")
+	processor := analyze.NewDirProcessor(config, 0, true, true, "all")
 	results, err := processor.ProcessDirectory(codeDir)
 	if err != nil {
 		return stats, fmt.Errorf("scan %s: %w", codeDir, err)
@@ -147,7 +147,7 @@ func insertDoc(tx *sql.Tx, title, content, docType, metadata string) error {
 // prints, chosen for token efficiency (this is what rides FTS/search
 // results) and because it's already a format agents in this project are
 // primed to expect.
-func formatSkeleton(r internal.DirResult) string {
+func formatSkeleton(r analyze.DirResult) string {
 	var b strings.Builder
 	if len(r.Functions) > 0 {
 		b.WriteString("functions:\n")
