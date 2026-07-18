@@ -63,7 +63,7 @@ funcfinder uses GitHub Actions for continuous integration and deployment. The CI
 **Steps:**
 1. Checkout code
 2. Set up Go 1.24
-3. Build all 7 tools (`funcfinder`, `stat`, `deps`, `complexity`, `callgraph`, `docsearch`, `docsearch-server`) for 5 platform targets (7 × 5 = 35 binaries)
+3. Build all 5 tools (`funcfinder`, `stat`, `deps`, `complexity`, `callgraph`) for 5 platform targets (5 × 5 = 25 binaries)
 4. Create platform-specific archives:
    - `.tar.gz` for Linux/macOS
    - `.zip` for Windows
