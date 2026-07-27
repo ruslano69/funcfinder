@@ -4,11 +4,14 @@
 *.dll
 *.so
 *.dylib
-funcfinder
-stat
-deps
-complexity
-callgraph
+# Anchored to the repo root on purpose: a bare "complexity" matches at every
+# level, so it swallowed cmd/complexity/ whole and any new file inside it was
+# invisible to git. Same for the five names beside it.
+/funcfinder
+/stat
+/deps
+/complexity
+/callgraph
 /docsearch
 /docsearch-server
 dist/
@@ -45,7 +48,7 @@ bin/
 # Temporary files
 *.tmp
 *.log
-benchmark
+/benchmark
 cmd/*/funcfinder
 cmd/*/stat
 cmd/*/deps
