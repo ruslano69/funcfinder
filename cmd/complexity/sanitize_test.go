@@ -17,11 +17,16 @@ import (
 func TestLiteralsWithCommentMarkersDoNotInflateDepth(t *testing.T) {
 	const rows = 6
 
+	// Measured against a literal with no marker in it rather than a fixed
+	// number: the claim under test is that content inside a string cannot
+	// change the depth, which stays true whatever the surrounding table
+	// happens to measure.
+	want := depthOfTable(t, `"col1"`, rows)
+
 	cases := []struct {
 		name string
 		cell string
 	}{
-		{"plain", `"col1"`},
 		{"hash", `"col#1"`},
 		{"url", `"http://example.com"`},
 		{"xml char ref", `"&#xD;"`},
@@ -29,13 +34,15 @@ func TestLiteralsWithCommentMarkersDoNotInflateDepth(t *testing.T) {
 		{"block comment start", `"/* not a comment"`},
 		{"hash alone", `"#"`},
 		{"slashes alone", `"//"`},
+		{"brace inside literal", `"{{{"`},
+		{"end keyword inside literal", `"end end end"`},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			depth := depthOfTable(t, tc.cell, rows)
-			if depth != 1 {
-				t.Errorf("depth = %d, want 1 — %s in a string literal must not nest", depth, tc.cell)
+			if depth := depthOfTable(t, tc.cell, rows); depth != want {
+				t.Errorf("depth = %d, want %d (the marker-free baseline) — %s must not affect nesting",
+					depth, want, tc.cell)
 			}
 		})
 	}

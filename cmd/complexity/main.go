@@ -464,7 +464,7 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 		linesOfCode := countLinesOfCode(cleaned)
 
 		// Calculate nesting depth
-		nestingResult := calculateNestingDepth(cleaned, nestingRe, flatRe)
+		nestingResult := calculateNestingDepth(cleaned, langConfig, nestingRe, flatRe)
 		maxDepth := nestingResult.maxDepth
 		complexity := calculateNestingComplexity(maxDepth)
 
@@ -511,78 +511,26 @@ type nestingResult struct {
 	history  []int
 }
 
-// calculateNestingDepth computes maximum nesting depth and history
-// Uses BRACE-BASED depth tracking for accurate measurement
-func calculateNestingDepth(lines []string, nestingRe, flatRe *regexp.Regexp) nestingResult {
-	result := nestingResult{
-		maxDepth: 0,
-		history:  []int{},
-	}
+// calculateNestingDepth computes maximum nesting depth and history.
+//
+// How a block is delimited is a property of the language, and languages.json
+// already states it: indent_based for Python, block_end_keyword for Ruby,
+// neither for the thirteen brace languages. Dispatch follows that, the same way
+// finder_factory and struct_finder_factory already do — no list of language
+// keys to keep in sync here.
+//
+// Lines arrive sanitized (see cleanBody), so braces, "end" and indentation seen
+// below are real syntax and never string or comment contents.
+func calculateNestingDepth(lines []string, langConfig *internal.LanguageConfig, nestingRe, flatRe *regexp.Regexp) nestingResult {
+	var result nestingResult
 
-	currentDepth := 0
-	inBlock := false // Track if we're inside a block that started with "{"
-
-	for _, line := range lines {
-		// Lines arrive already sanitized (see cleanBody): comments and literal
-		// contents are blanked out, so a line that held only those is now empty.
-		codeLine := strings.TrimSpace(line)
-
-		if codeLine == "" {
-			result.history = append(result.history, currentDepth)
-			continue
-		}
-
-		// Count braces on this line
-		openBraces := strings.Count(codeLine, "{")
-		closeBraces := strings.Count(codeLine, "}")
-
-		// Check if this line contains a nesting keyword
-		hasNestingKeyword := false
-		hasFlatKeyword := false
-
-		if nestingRe != nil && nestingRe.MatchString(codeLine) {
-			hasNestingKeyword = true
-		}
-		if flatRe != nil && flatRe.MatchString(codeLine) {
-			hasFlatKeyword = true
-		}
-
-		// Handle nesting constructs
-		if hasNestingKeyword && !hasFlatKeyword {
-			// This line starts a new block
-			// If it has opening brace, depth increases
-			if openBraces > 0 {
-				currentDepth += openBraces
-			} else {
-				// Multi-line definition (e.g., if (cond) { on next line)
-				currentDepth++
-				inBlock = true
-			}
-		} else if hasFlatKeyword {
-			// Flat construct (else, elif, case) - doesn't increase depth
-			// But we're still at current depth level
-		}
-
-		// Handle closing braces
-		if closeBraces > 0 {
-			currentDepth -= closeBraces
-			if currentDepth < 0 {
-				currentDepth = 0
-			}
-			inBlock = false
-		}
-
-		// Handle standalone opening braces (not after keywords)
-		if openBraces > closeBraces && !hasNestingKeyword && !inBlock {
-			// Standalone block - rare but possible
-			currentDepth += openBraces - closeBraces
-		}
-
-		result.history = append(result.history, currentDepth)
-
-		if currentDepth > result.maxDepth {
-			result.maxDepth = currentDepth
-		}
+	switch {
+	case langConfig.IndentBased:
+		result = nestingByIndent(lines)
+	case langConfig.BlockEndKeyword != "":
+		result = nestingByBlockKeyword(lines, langConfig.BlockEndKeyword, nestingRe, flatRe)
+	default:
+		result = nestingByBraces(lines)
 	}
 
 	// Sanity check: max depth shouldn't exceed reasonable limits
@@ -591,6 +539,209 @@ func calculateNestingDepth(lines []string, nestingRe, flatRe *regexp.Regexp) nes
 	}
 
 	return result
+}
+
+// nestingByBraces tracks depth for the thirteen brace languages by walking the
+// braces themselves.
+//
+// No keyword heuristics: in a brace language the braces *are* the block
+// structure, so reading them is both simpler and exact. The previous code
+// mixed a keyword regex with brace counting and, more damagingly, subtracted
+// every closing brace before considering the opening ones — so a balanced line
+// such as `x := T{A{{...}}}` or `} else {` drove the depth *down*. That was
+// invisible while comments were stripped by cutting at "//", because the
+// closers on those lines were being thrown away too.
+//
+// A line is credited with the greater of the depth entering it and the depth
+// leaving it — not with the peak reached inside it. A brace that opens and
+// closes within one line encloses nothing the reader has to hold: `m :=
+// map[string]int{"a": 1}` reads at its own level, and crediting the momentary
+// peak there inflated 316 of 2090 functions in a real repository by exactly
+// one. Blocks that do enclose something still register, because the lines they
+// enclose are themselves measured one level deeper.
+func nestingByBraces(lines []string) nestingResult {
+	result := nestingResult{history: make([]int, 0, len(lines))}
+	depth := 0
+
+	for _, line := range lines {
+		before := depth
+
+		for _, ch := range line {
+			switch ch {
+			case '{':
+				depth++
+			case '}':
+				depth--
+				if depth < 0 {
+					// Unbalanced input (a partial body, or a brace the
+					// sanitizer could not classify). Clamp rather than go
+					// negative and skew everything after it.
+					depth = 0
+				}
+			}
+		}
+
+		credited := before
+		if depth > credited {
+			credited = depth
+		}
+
+		result.history = append(result.history, credited)
+		if credited > result.maxDepth {
+			result.maxDepth = credited
+		}
+	}
+
+	return result
+}
+
+// nestingByIndent tracks depth for indentation-delimited languages (Python).
+//
+// This path did not exist before: Python went through the brace code, where its
+// blocks have no braces to count, so `if`/`for` incremented via the keyword
+// branch and *nothing ever decremented*. Sequential statements accumulated —
+// four consecutive ifs at one level reported depth 4, the same as four nested
+// ones, making the two indistinguishable.
+//
+// Depth is the INDENT/DEDENT stack, which needs no assumption about the indent
+// unit: any consistent width works, and mixed widths still order correctly. The
+// `def` line sits at the base and is level 0, so a body statement is 1 — the
+// same level a body statement gets in a brace language, where the function's
+// own brace opened level 1.
+//
+// Continuation lines inside (), [] or {} are skipped: their indentation is
+// alignment, not nesting, and would otherwise push a spurious level.
+func nestingByIndent(lines []string) nestingResult {
+	result := nestingResult{history: make([]int, 0, len(lines))}
+
+	var stack []int // indent widths, strictly increasing
+	depth := 0
+	brackets := 0
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			result.history = append(result.history, depth)
+			continue
+		}
+
+		// A line opened inside brackets continues the previous logical line.
+		if brackets > 0 {
+			brackets += bracketBalance(line)
+			result.history = append(result.history, depth)
+			continue
+		}
+
+		width := indentWidth(line)
+
+		for len(stack) > 0 && width < stack[len(stack)-1] {
+			stack = stack[:len(stack)-1]
+		}
+		if len(stack) == 0 || width > stack[len(stack)-1] {
+			stack = append(stack, width)
+		}
+
+		// stack[0] is the def line's own indentation, hence the -1.
+		depth = len(stack) - 1
+		brackets += bracketBalance(line)
+
+		result.history = append(result.history, depth)
+		if depth > result.maxDepth {
+			result.maxDepth = depth
+		}
+	}
+
+	return result
+}
+
+// nestingByBlockKeyword tracks depth for languages that close blocks with a
+// keyword rather than a brace (Ruby's `end`).
+//
+// Like Python, this had no path of its own and inherited the brace code, where
+// nothing decremented — so depth only ever grew. Braces still count, since Ruby
+// writes single-line blocks as `{ ... }`.
+//
+// An opener is recognised by the language's own nesting pattern; `end` closes.
+// Approximate by nature — a modifier form (`x = 1 if y`) has no `end` to match
+// and is deliberately not treated as an opener, which is why the pattern is
+// anchored at line start for the languages that define one.
+//
+// Not reachable today: CreateFinder splits on IndentBased versus braces, so for
+// Ruby it looks for a brace-delimited body, finds none, and reports no
+// functions at all — nothing ever gets here to measure. Kept and tested
+// directly all the same, because the alternative is Ruby silently falling into
+// the brace path and resuming the grows-forever behaviour the moment the finder
+// learns to locate `def ... end`.
+func nestingByBlockKeyword(lines []string, endKeyword string, nestingRe, flatRe *regexp.Regexp) nestingResult {
+	result := nestingResult{history: make([]int, 0, len(lines))}
+	endRe := regexp.MustCompile(`(^|\s)` + regexp.QuoteMeta(endKeyword) + `(\s|$)`)
+	depth := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			result.history = append(result.history, depth)
+			continue
+		}
+
+		opens := strings.Count(trimmed, "{")
+		closes := strings.Count(trimmed, "}") + len(endRe.FindAllString(trimmed, -1))
+
+		isFlat := flatRe != nil && flatRe.MatchString(trimmed)
+		if !isFlat && nestingRe != nil && nestingRe.MatchString(trimmed) {
+			opens++
+		}
+
+		peak := depth + opens
+		depth = peak - closes
+		if depth < 0 {
+			depth = 0
+		}
+
+		result.history = append(result.history, peak)
+		if peak > result.maxDepth {
+			result.maxDepth = peak
+		}
+	}
+
+	return result
+}
+
+// indentWidth measures leading whitespace in columns, expanding tabs to the
+// next multiple of 8 as Python itself does. Only the ordering of widths
+// matters to the stack, but tab expansion keeps a file that mixes tabs and
+// spaces from ordering wrongly.
+func indentWidth(line string) int {
+	width := 0
+
+	for _, ch := range line {
+		switch ch {
+		case ' ':
+			width++
+		case '\t':
+			width += 8 - width%8
+		default:
+			return width
+		}
+	}
+
+	return width
+}
+
+// bracketBalance returns opened-minus-closed brackets on a line. Used to detect
+// continuation lines; safe because literals are already blanked.
+func bracketBalance(line string) int {
+	balance := 0
+
+	for _, ch := range line {
+		switch ch {
+		case '(', '[', '{':
+			balance++
+		case ')', ']', '}':
+			balance--
+		}
+	}
+
+	return balance
 }
 
 // getNestingPattern returns the nesting pattern for a language
