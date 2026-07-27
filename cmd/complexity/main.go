@@ -1,7 +1,3 @@
-
-
-
-
 // complexity.go - Nesting Depth Complexity Analyzer
 // Analyzes code complexity based on NESTING DEPTH, not decision point count
 // Philosophy: Deep nesting is harder to understand than flat code with many branches
@@ -34,15 +30,15 @@ const (
 
 // ComplexityMetrics contains complexity analysis results for a function
 type ComplexityMetrics struct {
-	Name             string   `json:"name"`
-	File             string   `json:"file"`
-	StartLine        int      `json:"start_line"`
-	EndLine          int      `json:"end_line"`
-	LinesOfCode      int      `json:"lines_of_code"`
-	Complexity       int      `json:"complexity"`
-	Level            string   `json:"level"`
-	MaxNestingDepth  int      `json:"max_nesting_depth"`
-	NestingHistory   []int    `json:"nesting_history"`
+	Name            string `json:"name"`
+	File            string `json:"file"`
+	StartLine       int    `json:"start_line"`
+	EndLine         int    `json:"end_line"`
+	LinesOfCode     int    `json:"lines_of_code"`
+	Complexity      int    `json:"complexity"`
+	Level           string `json:"level"`
+	MaxNestingDepth int    `json:"max_nesting_depth"`
+	NestingHistory  []int  `json:"nesting_history"`
 }
 
 // FileComplexity contains complexity metrics for a single file
@@ -57,20 +53,20 @@ type FileComplexity struct {
 
 // ComplexityResult contains the complete analysis result
 type ComplexityResult struct {
-	Language          string          `json:"language"`
-	TotalFiles        int             `json:"total_files"`
-	TotalFunctions    int             `json:"total_functions"`
-	AverageComplexity float64         `json:"average_complexity"`
+	Language          string           `json:"language"`
+	TotalFiles        int              `json:"total_files"`
+	TotalFunctions    int              `json:"total_functions"`
+	AverageComplexity float64          `json:"average_complexity"`
 	Files             []FileComplexity `json:"files"`
 }
 
 // Nesting thresholds based on cognitive load
 const (
-	DepthSimple    = 2  // flat code
-	DepthModerate  = 3  // one level of nesting
-	DepthHigh      = 4  // two levels of nesting
-	DepthVeryHigh  = 5  // three levels of nesting
-	DepthCritical  = 6  // four or more levels
+	DepthSimple   = 2 // flat code
+	DepthModerate = 3 // one level of nesting
+	DepthHigh     = 4 // two levels of nesting
+	DepthVeryHigh = 5 // three levels of nesting
+	DepthCritical = 6 // four or more levels
 )
 
 // getComplexityLevel returns the complexity level based on nesting depth
@@ -138,30 +134,30 @@ func getLevelName(level ComplexityLevel) string {
 // Nesting patterns that increase depth (keywords followed by conditions)
 // Flat constructs (else, elif, case) are handled separately
 var nestingPatterns = map[string]*regexp.Regexp{
-	"py": regexp.MustCompile(`^\s*(if|elif|for|while|except|with)\s*[(a-zA-Z]`),
-	"go": regexp.MustCompile(`^\s*(if|for|switch)\s*[(a-zA-Z]`),
-	"rs": regexp.MustCompile(`^\s*(if|else|for|while|match|loop)\s*[(a-zA-Z_]`),
-	"js": regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"ts": regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"sw": regexp.MustCompile(`^\s*(if|else|guard|for|while|repeat)\s*[(a-zA-Z_]`),
-	"c":  regexp.MustCompile(`^\s*(if|else|for|while|do|switch|case|default)\s*[(a-zA-Z_]`),
+	"py":   regexp.MustCompile(`^\s*(if|elif|for|while|except|with)\s*[(a-zA-Z]`),
+	"go":   regexp.MustCompile(`^\s*(if|for|switch)\s*[(a-zA-Z]`),
+	"rs":   regexp.MustCompile(`^\s*(if|else|for|while|match|loop)\s*[(a-zA-Z_]`),
+	"js":   regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
+	"ts":   regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
+	"sw":   regexp.MustCompile(`^\s*(if|else|guard|for|while|repeat)\s*[(a-zA-Z_]`),
+	"c":    regexp.MustCompile(`^\s*(if|else|for|while|do|switch|case|default)\s*[(a-zA-Z_]`),
 	"java": regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"d":  regexp.MustCompile(`^\s*(if|else|for|foreach|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"cs": regexp.MustCompile(`^\s*(if|else|for|foreach|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
+	"d":    regexp.MustCompile(`^\s*(if|else|for|foreach|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
+	"cs":   regexp.MustCompile(`^\s*(if|else|for|foreach|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
 }
 
 // Flat patterns that continue current depth (else, elif, case without brace)
 var flatPatterns = map[string]*regexp.Regexp{
-	"py": regexp.MustCompile(`^\s*elif\s+|^\s*else\s*:|^\s*except\s+`),
-	"go": regexp.MustCompile(`^\s*else\s*\{?\s*$|^\s*case\s+`),
-	"rs": regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+`),
-	"js": regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"ts": regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"sw": regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+`),
-	"c":  regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
+	"py":   regexp.MustCompile(`^\s*elif\s+|^\s*else\s*:|^\s*except\s+`),
+	"go":   regexp.MustCompile(`^\s*else\s*\{?\s*$|^\s*case\s+`),
+	"rs":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+`),
+	"js":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
+	"ts":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
+	"sw":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+`),
+	"c":    regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
 	"java": regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"d":  regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"cs": regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
+	"d":    regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
+	"cs":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
 }
 
 // reorderArgs moves flags before positional arguments so flag.Parse() works
