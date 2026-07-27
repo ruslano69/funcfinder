@@ -439,6 +439,11 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 	nestingRe := getNestingPattern(langConfig.LangKey)
 	flatRe := getFlatPattern(langConfig.LangKey)
 
+	// One sanitizer per file, driven by the language config — the same one the
+	// finder, stat and callgraph already use. Built here rather than per
+	// function so the language lookup happens once.
+	sanitizer := internal.NewSanitizer(langConfig, false)
+
 	var functions []ComplexityMetrics
 	maxFileComplexity := 0
 
@@ -451,10 +456,15 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 		}
 
 		funcBody := lines[startIdx:endIdx]
-		linesOfCode := countLinesOfCode(funcBody)
+
+		// Strip comments and literals once, and measure both metrics on the
+		// result. A function body always starts in normal state, so each one
+		// gets a fresh parser state.
+		cleaned := cleanBody(funcBody, sanitizer)
+		linesOfCode := countLinesOfCode(cleaned)
 
 		// Calculate nesting depth
-		nestingResult := calculateNestingDepth(funcBody, nestingRe, flatRe)
+		nestingResult := calculateNestingDepth(cleaned, nestingRe, flatRe)
 		maxDepth := nestingResult.maxDepth
 		complexity := calculateNestingComplexity(maxDepth)
 
@@ -513,16 +523,14 @@ func calculateNestingDepth(lines []string, nestingRe, flatRe *regexp.Regexp) nes
 	inBlock := false // Track if we're inside a block that started with "{"
 
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
+		// Lines arrive already sanitized (see cleanBody): comments and literal
+		// contents are blanked out, so a line that held only those is now empty.
+		codeLine := strings.TrimSpace(line)
 
-		// Skip empty lines and comments
-		if trimmed == "" || isCommentOnly(trimmed) {
+		if codeLine == "" {
 			result.history = append(result.history, currentDepth)
 			continue
 		}
-
-		// Remove inline comments for accurate detection
-		codeLine := removeComments(trimmed)
 
 		// Count braces on this line
 		openBraces := strings.Count(codeLine, "{")
@@ -603,39 +611,56 @@ func getFlatPattern(langKey string) *regexp.Regexp {
 	return regexp.MustCompile(`\b(else|elif|case|default)\b`)
 }
 
-// countLinesOfCode counts non-empty, non-comment-only lines
+// cleanBody strips comments and literal contents from a function body, using
+// the language's own definition of what those are.
+//
+// This replaces a pair of hand-rolled helpers that cut every line at the first
+// "//" or "#" regardless of language and regardless of context. Both markers
+// occur inside ordinary string literals — a URL ("http://example.com"), an XML
+// character reference ("&#xD;"), a spreadsheet error string ("#N/A") — and
+// cutting there discarded the rest of the line, closing brace included. Each
+// such line then raised the nesting depth by one and never gave it back, so a
+// table-driven test of eight URLs reported depth 9 instead of 2 and landed at
+// the top of the CRITICAL list.
+//
+// Sanitizer answers this from languages.json (line_comment, block_comment_*,
+// string_chars, raw_string_chars, escape_char) and is what finder, stat and
+// callgraph already use; complexity was the one tool doing it by hand. It
+// blanks literal contents to spaces rather than deleting them, so brace
+// counting and the nesting/flat keyword patterns still see correct columns —
+// and no longer match an "if" that lives inside a string.
+//
+// State is threaded across lines so multi-line block comments and raw strings
+// survive, which the old prefix test could not represent at all.
+func cleanBody(lines []string, sanitizer *internal.Sanitizer) []string {
+	cleaned := make([]string, 0, len(lines))
+	state := internal.StateNormal
+
+	for _, line := range lines {
+		// A shebang is not code, and its "#" is not a comment marker either.
+		if strings.HasPrefix(line, "#!") {
+			cleaned = append(cleaned, "")
+			continue
+		}
+
+		out, newState := sanitizer.CleanLine(line, state)
+		state = newState
+		cleaned = append(cleaned, out)
+	}
+
+	return cleaned
+}
+
+// countLinesOfCode counts non-empty lines. Expects sanitized input (see
+// cleanBody), where comment-only lines have already become empty.
 func countLinesOfCode(lines []string) int {
 	count := 0
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" && !isCommentOnly(trimmed) {
+		if strings.TrimSpace(line) != "" {
 			count++
 		}
 	}
 	return count
-}
-
-// isCommentOnly checks if a line is only a comment
-func isCommentOnly(line string) bool {
-	trimmed := strings.TrimSpace(line)
-	return strings.HasPrefix(trimmed, "//") ||
-		strings.HasPrefix(trimmed, "#") ||
-		strings.HasPrefix(trimmed, "/*") ||
-		strings.HasPrefix(trimmed, "'") ||
-		strings.HasPrefix(trimmed, "\"\"\"") ||
-		strings.HasPrefix(trimmed, "'''")
-}
-
-// removeComments removes comments from a line for accurate counting
-func removeComments(line string) string {
-	// Remove single-line comments
-	if idx := strings.Index(line, "//"); idx != -1 {
-		line = line[:idx]
-	}
-	if idx := strings.Index(line, "#"); idx != -1 {
-		line = line[:idx]
-	}
-	return line
 }
 
 // checkColorSupport checks if terminal supports colors
