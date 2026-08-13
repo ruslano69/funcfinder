@@ -53,7 +53,7 @@ func NewFinder(config *LanguageConfig, funcNames []string, mapMode, extractMode,
 	for _, name := range funcNames {
 		nameMap[name] = true
 	}
-	
+
 	return &Finder{
 		config:      config,
 		sanitizer:   NewSanitizer(config, useRaw),
@@ -70,7 +70,7 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
-	
+
 	// Читаем файл построчно
 	var lines []string
 	scanner := bufio.NewScanner(file)
@@ -80,7 +80,7 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
-	
+
 	return f.FindFunctionsInLines(lines, 1, filename)
 }
 
@@ -356,6 +356,7 @@ func ParseFuncNames(funcStr string) []string {
 	}
 	return result
 }
+
 // findClasses находит все классы в файле
 func (f *Finder) findClasses(lines []string) []ClassBounds {
 	return f.findClassesWithOffset(lines, 0)

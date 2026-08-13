@@ -11,14 +11,14 @@ import (
 
 // TypeBounds contains information about a type definition
 type TypeBounds struct {
-	Name           string        // Type name
-	Kind           string        // class, struct, interface, enum, union
-	Start          int           // Start line (1-based)
-	End            int           // End line (1-based)
-	Fields         []FieldBounds // Fields/members
-	ParentType     string        // Parent type if nested
-	ParentLine     int           // Line of parent type definition
-	StartLineIndent int          // Indentation level of type start (for indent-based)
+	Name            string        // Type name
+	Kind            string        // class, struct, interface, enum, union
+	Start           int           // Start line (1-based)
+	End             int           // End line (1-based)
+	Fields          []FieldBounds // Fields/members
+	ParentType      string        // Parent type if nested
+	ParentLine      int           // Line of parent type definition
+	StartLineIndent int           // Indentation level of type start (for indent-based)
 }
 
 // FieldBounds contains information about a field/member in a type
@@ -30,7 +30,7 @@ type FieldBounds struct {
 
 // StructFindResult contains the result of type search
 type StructFindResult struct {
-	Types   []TypeBounds
+	Types    []TypeBounds
 	Filename string
 }
 
@@ -148,7 +148,7 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 		} else {
 			// Look for new type definition using struct patterns
 			found := false
-			
+
 			if hasStructPatterns {
 				// Use new struct patterns for type detection
 				for typeKind, pattern := range structPatterns {
@@ -170,11 +170,11 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 							startIndent := GetIndentLevel(line)
 
 							currentType = &TypeBounds{
-								Name:           typeName,
-								Kind:           typeKind,
-								Start:          lineNum + 1 + lineOffset,
+								Name:            typeName,
+								Kind:            typeKind,
+								Start:           lineNum + 1 + lineOffset,
 								StartLineIndent: startIndent,
-								Fields:         []FieldBounds{},
+								Fields:          []FieldBounds{},
 							}
 
 							if braceCount > 0 {
@@ -245,11 +245,11 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 						startIndent := GetIndentLevel(line)
 
 						currentType = &TypeBounds{
-							Name:           typeName,
-							Kind:           typeKind,
-							Start:          lineNum + 1 + lineOffset,
+							Name:            typeName,
+							Kind:            typeKind,
+							Start:           lineNum + 1 + lineOffset,
 							StartLineIndent: startIndent,
-							Fields:         []FieldBounds{},
+							Fields:          []FieldBounds{},
 						}
 
 						if braceCount > 0 {

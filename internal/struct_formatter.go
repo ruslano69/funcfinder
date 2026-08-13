@@ -77,11 +77,11 @@ func FormatStructJSON(result *StructFindResult) (string, error) {
 	}
 
 	type JSONType struct {
-		Name    string     `json:"name"`
-		Kind    string     `json:"kind"`
-		Start   int        `json:"start"`
-		End     int        `json:"end"`
-		Fields  []JSONField `json:"fields,omitempty"`
+		Name   string      `json:"name"`
+		Kind   string      `json:"kind"`
+		Start  int         `json:"start"`
+		End    int         `json:"end"`
+		Fields []JSONField `json:"fields,omitempty"`
 	}
 
 	types := make([]JSONType, len(result.Types))
@@ -104,7 +104,7 @@ func FormatStructJSON(result *StructFindResult) (string, error) {
 	}
 
 	output := struct {
-		Filename string    `json:"filename"`
+		Filename string     `json:"filename"`
 		Types    []JSONType `json:"types"`
 	}{
 		Filename: result.Filename,

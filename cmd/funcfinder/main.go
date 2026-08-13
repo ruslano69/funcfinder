@@ -582,9 +582,12 @@ func outputCombinedJSON(funcResult *internal.FindResult, structResult *internal.
 }
 
 // preprocessStructArg rewrites os.Args before flag.Parse so that
-//   --struct "TypeA,TypeB" --extract
+//
+//	--struct "TypeA,TypeB" --extract
+//
 // is treated the same as:
-//   --struct --type "TypeA,TypeB" --extract
+//
+//	--struct --type "TypeA,TypeB" --extract
 //
 // Background: Go's flag package stops parsing at the first non-flag
 // positional argument, so with bool --struct the type names string would

@@ -194,7 +194,10 @@ func output(cg *internal.CallGraphResult, jsonOut, reverseMode bool, funcFilter 
 			out, _ := json.MarshalIndent(map[string]any{"reverse": entries}, "", "  ")
 			fmt.Println(string(out))
 		} else {
-			type revEntry struct{ callee string; callers []string }
+			type revEntry struct {
+				callee  string
+				callers []string
+			}
 			var entries []revEntry
 			for callee, callers := range rev {
 				sort.Strings(callers)

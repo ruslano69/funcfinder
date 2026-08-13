@@ -260,7 +260,7 @@ func (s *Sanitizer) handleCharLiteral(runes []rune, result []rune, idx int) (int
 }
 
 func (s *Sanitizer) handleMultiLineString(line string, runes []rune, result []rune, idx int) (int, ParserState) {
-	_ = line // retained for signature symmetry; scanning is rune-based
+	_ = line       // retained for signature symmetry; scanning is rune-based
 	foundEnd := -1 // absolute rune index of the closing delimiter
 	foundDelim := ""
 	newState := StateMultiLineString

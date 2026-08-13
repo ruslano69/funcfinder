@@ -6,10 +6,10 @@ import (
 
 func TestNewDecoratorWindow(t *testing.T) {
 	tests := []struct {
-		name         string
-		windowSize   int
-		pattern      string
-		expectNil    bool
+		name       string
+		windowSize int
+		pattern    string
+		expectNil  bool
 	}{
 		{
 			name:       "valid python decorator pattern",
@@ -110,11 +110,11 @@ func TestDecoratorWindow_AddWithOverflow(t *testing.T) {
 
 func TestDecoratorWindow_ExtractDecorators(t *testing.T) {
 	tests := []struct {
-		name                  string
-		lines                 []string
-		lineNumbers           []int
-		expectedDecorators    []string
-		expectedFirstLine     int
+		name               string
+		lines              []string
+		lineNumbers        []int
+		expectedDecorators []string
+		expectedFirstLine  int
 	}{
 		{
 			name: "single decorator",
@@ -122,7 +122,7 @@ func TestDecoratorWindow_ExtractDecorators(t *testing.T) {
 				"@decorator",
 				"def func():",
 			},
-			lineNumbers: []int{1, 2},
+			lineNumbers:        []int{1, 2},
 			expectedDecorators: []string{"@decorator"},
 			expectedFirstLine:  1,
 		},
@@ -133,7 +133,7 @@ func TestDecoratorWindow_ExtractDecorators(t *testing.T) {
 				"@decorator2",
 				"def func():",
 			},
-			lineNumbers: []int{1, 2, 3},
+			lineNumbers:        []int{1, 2, 3},
 			expectedDecorators: []string{"@decorator1", "@decorator2"},
 			expectedFirstLine:  1,
 		},
@@ -143,7 +143,7 @@ func TestDecoratorWindow_ExtractDecorators(t *testing.T) {
 				"@decorator(param=True)",
 				"def func():",
 			},
-			lineNumbers: []int{1, 2},
+			lineNumbers:        []int{1, 2},
 			expectedDecorators: []string{"@decorator(param=True)"},
 			expectedFirstLine:  1,
 		},
@@ -152,7 +152,7 @@ func TestDecoratorWindow_ExtractDecorators(t *testing.T) {
 			lines: []string{
 				"def func():",
 			},
-			lineNumbers: []int{1},
+			lineNumbers:        []int{1},
 			expectedDecorators: []string{},
 			expectedFirstLine:  -1,
 		},
@@ -163,7 +163,7 @@ func TestDecoratorWindow_ExtractDecorators(t *testing.T) {
 				"@decorator",
 				"def func():",
 			},
-			lineNumbers: []int{1, 2, 3},
+			lineNumbers:        []int{1, 2, 3},
 			expectedDecorators: []string{"@decorator"},
 			expectedFirstLine:  2,
 		},
@@ -173,7 +173,7 @@ func TestDecoratorWindow_ExtractDecorators(t *testing.T) {
 				"    @decorator",
 				"    def method():",
 			},
-			lineNumbers: []int{1, 2},
+			lineNumbers:        []int{1, 2},
 			expectedDecorators: []string{"@decorator"}, // TrimSpace removes indentation
 			expectedFirstLine:  1,
 		},
@@ -346,7 +346,7 @@ func TestIsEmptyOrComment(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IsEmptyOrComment(tt.line, tt.commentChar)
 			if result != tt.expectedResult {
-				t.Errorf("IsEmptyOrComment(%q, %q) = %v, want %v", 
+				t.Errorf("IsEmptyOrComment(%q, %q) = %v, want %v",
 					tt.line, tt.commentChar, result, tt.expectedResult)
 			}
 		})
@@ -367,7 +367,7 @@ func TestDecoratorWindow_Integration(t *testing.T) {
 
 	// Simulate real processing: add lines until we hit function definition
 	// In real usage, ExtractDecorators is called when we encounter "def"
-	for i := 0; i <= 3; i++ {  // Stop at function definition, don't add body
+	for i := 0; i <= 3; i++ { // Stop at function definition, don't add body
 		window.Add(pythonCode[i], i+1)
 	}
 

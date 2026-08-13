@@ -71,10 +71,10 @@ type Container struct {
 
 // Struct with tags
 type Config struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Debug    bool   `json:"debug"`
-	Timeout  int    `json:"timeout"`
+	Host    string `json:"host"`
+	Port    int    `json:"port"`
+	Debug   bool   `json:"debug"`
+	Timeout int    `json:"timeout"`
 }
 
 // Nested in function (not supported in basic findstruct but good for testing)
@@ -110,10 +110,10 @@ type Composite struct {
 
 // Struct with complex field types
 type ComplexStruct struct {
-	Numbers    []int
-	Mapping    map[string]int
-	Callback   func(int) bool
-	Channel    chan int
-	Pointer    *Point
-	Interface  interface{}
+	Numbers   []int
+	Mapping   map[string]int
+	Callback  func(int) bool
+	Channel   chan int
+	Pointer   *Point
+	Interface interface{}
 }

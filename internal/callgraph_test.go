@@ -23,7 +23,7 @@ func hasEdge(fcg *FileCallGraph, caller, callee string) bool {
 // sanitizer stayed "inside a comment" forever and every call after the first
 // docstring was blanked out — silently dropping ~80% of Python call edges.
 //
-// The fix routes """/''' through doc_string_markers instead. This test ensures
+// The fix routes """/”' through doc_string_markers instead. This test ensures
 // calls placed after a docstring are still detected.
 func TestBuildFileCallGraph_CallAfterDocstring(t *testing.T) {
 	config := getPyConfig(t)

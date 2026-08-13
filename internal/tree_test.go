@@ -37,9 +37,9 @@ func TestExtractSignatureFromLines(t *testing.T) {
 				"    arg2 int",
 				") error {",
 			},
-			expected: "(s *Server) Handle(req Request) Response",  // Will be extracted
+			expected: "(s *Server) Handle(req Request) Response", // Will be extracted
 		},
-		
+
 		// Python functions
 		{
 			name:     "Python simple function",
@@ -82,7 +82,7 @@ func TestExtractSignatureFromLines(t *testing.T) {
 			},
 			expected: "def func()",
 		},
-		
+
 		// JavaScript/TypeScript functions
 		{
 			name:     "JavaScript function",
@@ -99,7 +99,7 @@ func TestExtractSignatureFromLines(t *testing.T) {
 			lines:    []string{"async function fetchData() {"},
 			expected: "async function fetchData()",
 		},
-		
+
 		// Java/C#/C++ methods
 		{
 			name:     "Java public method",
@@ -125,7 +125,7 @@ func TestExtractSignatureFromLines(t *testing.T) {
 			},
 			expected: "public ComplexType method( String arg1, int arg2)",
 		},
-		
+
 		// Edge cases
 		{
 			name:     "Empty lines",
@@ -420,7 +420,7 @@ func TestFormatTree(t *testing.T) {
 
 	t.Run("compact format", func(t *testing.T) {
 		output := FormatTreeCompact(result)
-		
+
 		if !strings.Contains(output, "func1") {
 			t.Error("FormatTreeCompact() missing func1")
 		}
@@ -434,7 +434,7 @@ func TestFormatTree(t *testing.T) {
 
 	t.Run("full format", func(t *testing.T) {
 		output := FormatTreeFull(result)
-		
+
 		if !strings.Contains(output, "func1") {
 			t.Error("FormatTreeFull() missing func1")
 		}

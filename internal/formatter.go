@@ -48,9 +48,10 @@ func FormatJSON(result *FindResult) (string, error) {
 // FormatExtract форматирует результат с телами функций
 // Пример:
 // // Handler: 45-78
-// func Handler(...) {
-//   ...
-// }
+//
+//	func Handler(...) {
+//	  ...
+//	}
 func FormatExtract(result *FindResult) string {
 	var parts []string
 	for _, fn := range result.Functions {

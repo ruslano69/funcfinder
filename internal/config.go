@@ -16,7 +16,7 @@ var languagesFS embed.FS
 
 // StructTypePattern represents a pattern for a specific type kind
 type StructTypePattern struct {
-	Type    string `json:"type"`   // Type kind: class, struct, interface, enum, etc.
+	Type    string `json:"type"`    // Type kind: class, struct, interface, enum, etc.
 	Pattern string `json:"pattern"` // Regex pattern for this type
 }
 
@@ -40,9 +40,9 @@ type LanguageConfig struct {
 	DecoratorPattern string   `json:"decorator_pattern"`
 
 	// Import patterns (for deps.go)
-	ImportPattern    string   `json:"import_pattern"`
-	MultiLineBlock   string   `json:"multi_line_block"`
-	ExcludePatterns  []string `json:"exclude_patterns"`
+	ImportPattern   string   `json:"import_pattern"`
+	MultiLineBlock  string   `json:"multi_line_block"`
+	ExcludePatterns []string `json:"exclude_patterns"`
 
 	// Comment/String handling
 	LineComment       string   `json:"line_comment"`
@@ -66,14 +66,14 @@ type LanguageConfig struct {
 	ExtraPatterns map[string]string `json:"extra_patterns,omitempty"`
 
 	// Compiled regex cache
-	funcRegex       *regexp.Regexp
-	classRegex      *regexp.Regexp
-	structPatterns  map[string]*regexp.Regexp
-	fieldRegex      *regexp.Regexp
-	callRegex       *regexp.Regexp
-	importRegex     *regexp.Regexp
-	decoratorRe     *regexp.Regexp
-	blockCommentRe  *regexp.Regexp
+	funcRegex      *regexp.Regexp
+	classRegex     *regexp.Regexp
+	structPatterns map[string]*regexp.Regexp
+	fieldRegex     *regexp.Regexp
+	callRegex      *regexp.Regexp
+	importRegex    *regexp.Regexp
+	decoratorRe    *regexp.Regexp
+	blockCommentRe *regexp.Regexp
 }
 
 // Config is a map of language keys to their configurations
