@@ -78,11 +78,14 @@ func (f *PythonStructFinder) FindStructuresInLines(lines []string, startLine int
 
 // Python-specific class patterns
 var (
-	// Standard class: class Name:
-	classPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*(\(\s*([\w,\s\.\[\]]*)\s*\))?\s*:`)
+	// Standard class: class Name: — base-class list may include keyword
+	// args such as "metaclass=Foo" or string/number literals, so the
+	// character class allows =, quotes and digits in addition to
+	// identifiers, dots and brackets.
+	classPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*(\(\s*([\w,\s\.\[\]='"]*)\s*\))?\s*:`)
 
 	// Dataclass: @dataclass\nclass Name:
-	dataclassPattern = regexp.MustCompile(`^\s*@dataclass\s*\nclass\s+(\w+)\s*(\(\s*([\w,\s\.\[\]]*)\s*\))?\s*:`)
+	dataclassPattern = regexp.MustCompile(`^\s*@dataclass\s*\nclass\s+(\w+)\s*(\(\s*([\w,\s\.\[\]='"]*)\s*\))?\s*:`)
 
 	// NamedTuple: class Name(NamedTuple):
 	namedTuplePattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*\(\s*NamedTuple\s*\)\s*:`)
@@ -94,7 +97,7 @@ var (
 	enumPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*\(\s*Enum\s*\)\s*:`)
 
 	// attrs: @attr.s\nclass Name:
-	attrsPattern = regexp.MustCompile(`^\s*@attr\.s\s*\nclass\s+(\w+)\s*(\(\s*([\w,\s\.\[\]]*)\s*\))?\s*:`)
+	attrsPattern = regexp.MustCompile(`^\s*@attr\.s\s*\nclass\s+(\w+)\s*(\(\s*([\w,\s\.\[\]='"]*)\s*\))?\s*:`)
 
 	// ABC: class Name(ABC):
 	abcPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*\(\s*ABC\s*\)\s*:`)
