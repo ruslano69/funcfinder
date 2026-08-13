@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.11.1 - 2026-08-13
+
+Bugfix release, found while stress-testing funcfinder against the real
+Django source tree (908 files).
+
+- **`--struct`**: classes declared with keyword base-class args (e.g.
+  `class Foo(metaclass=Bar):`) were silently skipped — the class-header
+  regex didn't allow `=` in the base-class list. Fixed in Python's struct
+  finder.
+- **`--tree`**: for Python, methods were never grouped under their class —
+  `FindFunctions()` never populated `result.Classes`/`ClassName`, so the
+  tree always fell back to a flat function list. Now correctly nests
+  methods (including under nested classes like `Meta`) under their class.
+- **`deps`**: every single Python import — stdlib, first-party, and
+  third-party alike — was misclassified as `stdlib`. A stray `""` entry in
+  the stdlib prefix list matched everything via `strings.HasPrefix`.
+  Replaced with a real Python 3 stdlib module set, plus local-package
+  detection so a project's own dotted imports (e.g. `django.db.models`
+  when scanning `django/`) are classified as internal rather than
+  external, and bare third-party imports (`import requests`) are
+  classified as external instead of the old internal-by-default fallback.
+- `gofmt -w` cleanup across 18 files that had drifted from `gofmt`
+  formatting (whitespace/alignment only, no behavior change).
+
 ## v1.11.0 - 2026-07-18
 
 **docsearch and docsearch-server moved to their own product,
