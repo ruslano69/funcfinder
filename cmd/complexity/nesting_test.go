@@ -11,6 +11,12 @@ import (
 
 // ─── скобочные языки ────────────────────────────────────────────────────────
 
+// С этого файла глубина считает только точки решения (if/for/switch/...),
+// а не любую скобку/отступ — своя же скобка функции (или def/class) ничего
+// не решает и в счёт не идёт. Раньше это давало +1 к базовой глубине даже
+// в пустой функции без единого if; в ожидаемых числах ниже этой единицы
+// больше нет.
+
 // Сбалансированная строка не должна уводить глубину вниз. Раньше все
 // закрывающие вычитались до того, как учитывались открывающие, поэтому
 // `X{Y{{...}}}` и `} else {` давали отрицательный вклад.
@@ -26,8 +32,8 @@ func f() {
 	}
 }
 `
-	if got := depthOfGo(t, src, "f"); got != 3 {
-		t.Errorf("depth = %d, want 3 (func/if/if) — a balanced literal line must not consume depth", got)
+	if got := depthOfGo(t, src, "f"); got != 2 {
+		t.Errorf("depth = %d, want 2 (if/if) — a balanced literal line must not consume depth", got)
 	}
 }
 
@@ -42,8 +48,8 @@ func f(x int) int {
 	}
 }
 `
-	if got := depthOfGo(t, src, "f"); got != 2 {
-		t.Errorf("depth = %d, want 2 — \"} else {\" is the same level, not one less", got)
+	if got := depthOfGo(t, src, "f"); got != 1 {
+		t.Errorf("depth = %d, want 1 — \"} else {\" is the same level as the if, not one less", got)
 	}
 }
 
@@ -70,8 +76,11 @@ func f() {
 	}
 }
 
-// А многострочный — добавляет, потому что охватывает строки.
-func TestMultiLineLiteralAddsDepth(t *testing.T) {
+// Ни многострочный литерал тоже не добавляет — map/struct-литерал не точка
+// решения независимо от того, на скольких строках он записан. (Раньше
+// строка литерала здесь давала +1 просто за то, что охватывает содержимое;
+// теперь охват сам по себе ничего не значит без if/for/switch внутри.)
+func TestMultiLineLiteralAddsNoDepth(t *testing.T) {
 	src := `package p
 
 func f() {
@@ -81,8 +90,8 @@ func f() {
 	_ = m
 }
 `
-	if got := depthOfGo(t, src, "f"); got != 2 {
-		t.Errorf("depth = %d, want 2", got)
+	if got := depthOfGo(t, src, "f"); got != 0 {
+		t.Errorf("depth = %d, want 0", got)
 	}
 }
 
@@ -102,8 +111,8 @@ func TestPythonSequentialBlocksDoNotAccumulate(t *testing.T) {
         a += 1
     return a
 `
-	if got := depthOfPy(t, src, "flat"); got != 2 {
-		t.Errorf("depth = %d, want 2 — sequential ifs share a level", got)
+	if got := depthOfPy(t, src, "flat"); got != 1 {
+		t.Errorf("depth = %d, want 1 — sequential ifs share a level, not 3", got)
 	}
 }
 
@@ -117,8 +126,8 @@ func TestPythonNestedBlocks(t *testing.T) {
                     n += 1
     return n
 `
-	if got := depthOfPy(t, src, "nested"); got != 5 {
-		t.Errorf("depth = %d, want 5 (for/for/if/if + body)", got)
+	if got := depthOfPy(t, src, "nested"); got != 4 {
+		t.Errorf("depth = %d, want 4 (for/for/if/if)", got)
 	}
 }
 
@@ -130,8 +139,8 @@ func TestPythonContinuationLinesIgnored(t *testing.T) {
                 )
     return total
 `
-	if got := depthOfPy(t, src, "f"); got != 1 {
-		t.Errorf("depth = %d, want 1 — a wrapped call argument list is not nesting", got)
+	if got := depthOfPy(t, src, "f"); got != 0 {
+		t.Errorf("depth = %d, want 0 — a wrapped call argument list is not nesting", got)
 	}
 }
 
@@ -153,8 +162,8 @@ func TestPythonIndentWidthAgnostic(t *testing.T) {
 	if a != b {
 		t.Errorf("indent width changed the result: 4-space %d, 2-space %d", a, b)
 	}
-	if a != 3 {
-		t.Errorf("depth = %d, want 3 (for/if + body)", a)
+	if a != 2 {
+		t.Errorf("depth = %d, want 2 (for/if)", a)
 	}
 }
 
@@ -241,6 +250,69 @@ func TestBlockKeywordIgnoresEndInLiteral(t *testing.T) {
 	}
 }
 
+// ─── loop-nesting signal ────────────────────────────────────────────────────
+
+// Loop nested in loop is a distinct risk (O(n^2)+, iteration-interaction
+// bugs) that if-in-loop simply doesn't share — MaxLoopNestingDepth tracks it
+// separately from the general branching depth above.
+func TestLoopInLoopFlagged(t *testing.T) {
+	src := `package p
+
+func matrixSum(m [][]int) int {
+	total := 0
+	for i := range m {
+		for j := range m[i] {
+			total += m[i][j]
+		}
+	}
+	return total
+}
+`
+	if got := loopDepthOfGo(t, src, "matrixSum"); got != 2 {
+		t.Errorf("MaxLoopNestingDepth = %d, want 2 (for/for)", got)
+	}
+}
+
+// An `if` nested inside a loop is the ordinary, safe filter-in-a-loop
+// pattern — it must NOT trip the loop-nesting signal just for containing a
+// loop at all.
+func TestIfInLoopNotFlaggedAsLoopNesting(t *testing.T) {
+	src := `package p
+
+func filterPositive(xs []int) []int {
+	var out []int
+	for _, x := range xs {
+		if x > 0 {
+			out = append(out, x)
+		}
+	}
+	return out
+}
+`
+	if got := loopDepthOfGo(t, src, "filterPositive"); got != 1 {
+		t.Errorf("MaxLoopNestingDepth = %d, want 1 (one loop, the if inside it doesn't count)", got)
+	}
+}
+
+// A bare call to a function whose name starts with a reserved word
+// ("forEach", not "for each") must not be mistaken for opening a loop, even
+// when — as here — it has its own trailing "{" from a callback literal on
+// the same line, which is exactly the shape that turned the false match
+// into a real, visible +1 in the reported bug.
+func TestKeywordPrefixedCallNotCountedAsNesting(t *testing.T) {
+	src := `package p
+
+func caller(items []int) {
+	forEach(items, func(x int) {
+		println(x)
+	})
+}
+`
+	if got := depthOfGo(t, src, "caller"); got != 0 {
+		t.Errorf("depth = %d, want 0 — forEach(...) is a call, not a for loop", got)
+	}
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 func depthOfGo(t *testing.T, src, name string) int {
@@ -274,6 +346,37 @@ func depthOf(t *testing.T, src, name, lang, filename string) int {
 	for _, fn := range fc.Functions {
 		if fn.Name == name {
 			return fn.MaxNestingDepth
+		}
+	}
+
+	t.Fatalf("function %q not found among %d analyzed", name, len(fc.Functions))
+	return 0
+}
+
+// loopDepthOfGo mirrors depthOfGo but returns MaxLoopNestingDepth — the
+// signal that flags loop-in-loop specifically, independent of general
+// branching depth.
+func loopDepthOfGo(t *testing.T, src, name string) int {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "probe.go")
+	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := internal.LoadConfig()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	langConfig, err := cfg.GetLanguageConfig("go")
+	if err != nil {
+		t.Fatalf("go language config: %v", err)
+	}
+
+	fc := analyzeFileComplexity(path, langConfig)
+	for _, fn := range fc.Functions {
+		if fn.Name == name {
+			return fn.MaxLoopNestingDepth
 		}
 	}
 

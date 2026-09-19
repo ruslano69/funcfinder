@@ -64,8 +64,8 @@ func f(xs [][]int) int {
 	return n
 }
 `
-	if got := depthOfSource(t, src, "f"); got != 4 {
-		t.Errorf("depth = %d, want 4 (for/for/if + body)", got)
+	if got := depthOfSource(t, src, "f"); got != 3 {
+		t.Errorf("depth = %d, want 3 (for/for/if)", got)
 	}
 }
 
@@ -80,8 +80,8 @@ func f() int {
 	return n
 }
 `
-	if got := depthOfSource(t, src, "f"); got != 1 {
-		t.Errorf("depth = %d, want 1", got)
+	if got := depthOfSource(t, src, "f"); got != 0 {
+		t.Errorf("depth = %d, want 0", got)
 	}
 }
 
@@ -89,8 +89,8 @@ func f() int {
 // обрываться на "//" внутри себя.
 func TestRawStringSpanningLines(t *testing.T) {
 	src := "package p\n\nfunc f() string {\n\ts := `\nline { with brace\nhttp://example.com\n{{{\n`\n\treturn s\n}\n"
-	if got := depthOfSource(t, src, "f"); got != 1 {
-		t.Errorf("depth = %d, want 1", got)
+	if got := depthOfSource(t, src, "f"); got != 0 {
+		t.Errorf("depth = %d, want 0", got)
 	}
 }
 

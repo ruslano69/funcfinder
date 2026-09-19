@@ -41,8 +41,9 @@
       "package"
     ],
     "supports_nested": true,
-    "nesting_pattern": "^\\s*(if|for|switch)\\s*[(a-zA-Z]",
-    "flat_pattern": "^\\s*else\\s*\\{?\\s*$|^\\s*case\\s+"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|for|switch)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case)\\b",
+    "loop_pattern": "^\\s*(for)\\b"
   },
   "c": {
     "name": "C",
@@ -87,8 +88,9 @@
       "endif"
     ],
     "supports_nested": false,
-    "nesting_pattern": "^\\s*(if|else|for|while|do|switch|case|default)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|case|default)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+    "loop_pattern": "^\\s*(for|while|do)\\b"
   },
   "cpp": {
     "name": "C++",
@@ -139,8 +141,9 @@
       "using"
     ],
     "supports_nested": false,
-    "nesting_pattern": "^\\s*(if|else|for|while|do|switch|case|default|catch)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|case|default|catch)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+    "loop_pattern": "^\\s*(for|while|do)\\b"
   },
   "cs": {
     "name": "C#",
@@ -194,8 +197,9 @@
       "enum"
     ],
     "supports_nested": false,
-    "nesting_pattern": "^\\s*(if|else|for|foreach|while|do|switch|catch|finally)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|foreach|while|do|switch|catch|finally)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+    "loop_pattern": "^\\s*(for|foreach|while|do)\\b"
   },
   "java": {
     "name": "Java",
@@ -244,8 +248,9 @@
       "enum"
     ],
     "supports_nested": false,
-    "nesting_pattern": "^\\s*(if|else|for|while|do|switch|catch|finally)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|catch|finally)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+    "loop_pattern": "^\\s*(for|while|do)\\b"
   },
   "d": {
     "name": "D",
@@ -299,8 +304,9 @@
       "union"
     ],
     "supports_nested": false,
-    "nesting_pattern": "^\\s*(if|else|for|foreach|while|do|switch|catch|finally)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|foreach|while|do|switch|catch|finally)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+    "loop_pattern": "^\\s*(for|foreach|while|do)\\b"
   },
   "js": {
     "name": "JavaScript",
@@ -358,8 +364,9 @@
       "default"
     ],
     "supports_nested": true,
-    "nesting_pattern": "^\\s*(if|else|for|while|do|switch|catch|finally)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|catch|finally)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+    "loop_pattern": "^\\s*(for|while|do)\\b"
   },
   "ts": {
     "name": "TypeScript",
@@ -416,8 +423,9 @@
       "default"
     ],
     "supports_nested": true,
-    "nesting_pattern": "^\\s*(if|else|for|while|do|switch|catch|finally)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|catch|finally)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+    "loop_pattern": "^\\s*(for|while|do)\\b"
   },
   "py": {
     "name": "Python",
@@ -488,8 +496,9 @@
       "continue"
     ],
     "supports_nested": true,
-    "nesting_pattern": "^\\s*(if|elif|for|while|except|with)\\s*[(a-zA-Z]",
-    "flat_pattern": "^\\s*elif\\s+|^\\s*else\\s*:|^\\s*except\\s+"
+    "nesting_pattern": "^\\s*(if|elif|for|while|except|with)\\b",
+    "flat_pattern": "^\\s*(elif|else|except)\\b",
+    "loop_pattern": "^\\s*(for|while)\\b"
   },
   "rust": {
     "name": "Rust",
@@ -546,8 +555,9 @@
       "use"
     ],
     "supports_nested": false,
-    "nesting_pattern": "^\\s*(if|else|for|while|match|loop)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|match|loop)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case)\\b",
+    "loop_pattern": "^\\s*(for|while|loop)\\b"
   },
   "swift": {
     "name": "Swift",
@@ -602,8 +612,9 @@
       "let"
     ],
     "supports_nested": true,
-    "nesting_pattern": "^\\s*(if|else|guard|for|while|repeat)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|guard|for|while|repeat)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case)\\b",
+    "loop_pattern": "^\\s*(for|while|repeat)\\b"
   },
   "kotlin": {
     "name": "Kotlin",
@@ -662,8 +673,9 @@
       "package"
     ],
     "supports_nested": false,
-    "nesting_pattern": "^\\s*(if|else|for|while|do|when|catch|finally)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*else\\s*(\\{|->)|^\\s*->"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|when|catch|finally)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*else\\b|^\\s*->",
+    "loop_pattern": "^\\s*(for|while|do)\\b"
   },
   "php": {
     "name": "PHP",
@@ -715,8 +727,9 @@
       "static"
     ],
     "supports_nested": false,
-    "nesting_pattern": "^\\s*(if|else|elseif|for|foreach|while|do|switch|case|default|catch|finally)\\s*[(a-zA-Z_]",
-    "flat_pattern": "^\\s*elseif\\s*[(a-zA-Z_]|^\\s*else\\s*[:{]|^\\s*case\\s+|^\\s*default\\s*:"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|elseif|for|foreach|while|do|switch|case|default|catch|finally)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(elseif|else|case|default)\\b",
+    "loop_pattern": "^\\s*(for|foreach|while|do)\\b"
   },
   "ruby": {
     "name": "Ruby",
@@ -770,7 +783,8 @@
     ],
     "supports_nested": true,
     "nesting_pattern": "^\\s*(if|unless|while|until|for|case)\\b",
-    "flat_pattern": "^\\s*(elsif|else|when|rescue|ensure)\\b"
+    "flat_pattern": "^\\s*(elsif|else|when|rescue|ensure)\\b",
+    "loop_pattern": "^\\s*(while|until|for)\\b"
   },
   "scala": {
     "name": "Scala",
@@ -821,7 +835,8 @@
       "package"
     ],
     "supports_nested": true,
-    "nesting_pattern": "^\\s*(if|else|for|while|do|match|case|catch|finally)\\s*[(a-zA-Z_{]",
-    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+"
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|match|case|catch|finally)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else|case)\\b",
+    "loop_pattern": "^\\s*(for|while|do)\\b"
   }
 }

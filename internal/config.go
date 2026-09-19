@@ -43,8 +43,15 @@ type LanguageConfig struct {
 	// open a new level of control-flow branching (if/for/while/switch/...);
 	// FlatPattern matches a sibling continuation of the same construct
 	// (else/elif/case/default/...) that should NOT add another nesting level.
+	// LoopPattern is the loop-only subset of NestingPattern (for/while/
+	// foreach/do/loop/repeat/until — never if/switch/case/catch), used to
+	// track loop-in-loop nesting as a signal distinct from general
+	// branching depth: iterating code compounds cost per iteration in a way
+	// a conditional doesn't, so it's tracked and reported separately rather
+	// than folded into the same score.
 	NestingPattern string `json:"nesting_pattern,omitempty"`
 	FlatPattern    string `json:"flat_pattern,omitempty"`
+	LoopPattern    string `json:"loop_pattern,omitempty"`
 
 	// Import patterns (for deps.go)
 	ImportPattern   string   `json:"import_pattern"`
@@ -83,6 +90,7 @@ type LanguageConfig struct {
 	blockCommentRe *regexp.Regexp
 	nestingRe      *regexp.Regexp
 	flatRe         *regexp.Regexp
+	loopRe         *regexp.Regexp
 }
 
 // Config is a map of language keys to their configurations
@@ -179,6 +187,13 @@ func LoadConfig() (Config, error) {
 				return nil, fmt.Errorf("invalid flat regex for %s: %w", lang, err)
 			}
 			conf.flatRe = flatRe
+		}
+		if conf.LoopPattern != "" {
+			loopRe, err := regexp.Compile(conf.LoopPattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid loop regex for %s: %w", lang, err)
+			}
+			conf.loopRe = loopRe
 		}
 
 		// Compile import regex if specified
@@ -322,4 +337,8 @@ func (lc *LanguageConfig) NestingRegex() *regexp.Regexp {
 
 func (lc *LanguageConfig) FlatRegex() *regexp.Regexp {
 	return lc.flatRe
+}
+
+func (lc *LanguageConfig) LoopRegex() *regexp.Regexp {
+	return lc.loopRe
 }

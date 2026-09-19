@@ -55,6 +55,29 @@ func TestLoadConfig_AllLanguagesHaveNestingPatterns(t *testing.T) {
 		if langConfig.FlatRegex() == nil {
 			t.Errorf("Language %s has nil FlatRegex", lang)
 		}
+		if langConfig.LoopRegex() == nil {
+			t.Errorf("Language %s has nil LoopRegex", lang)
+		}
+	}
+}
+
+// TestLoadConfig_LoopPatternIsSubsetOfNesting checks that LoopPattern never
+// matches an obviously non-loop line (if/switch/case) — it must be a strict
+// subset of NestingPattern, since loop-nesting depth is meant to flag
+// specifically iterating-inside-iterating, not any decision inside a loop.
+func TestLoadConfig_LoopPatternIsSubsetOfNesting(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	nonLoopLines := []string{"if x:", "if x {", "switch x {", "case 1:"}
+	for lang, langConfig := range config {
+		for _, line := range nonLoopLines {
+			if langConfig.LoopRegex().MatchString(line) {
+				t.Errorf("%s: LoopRegex should not match non-loop line %q", lang, line)
+			}
+		}
 	}
 }
 
@@ -94,6 +117,87 @@ func TestLoadConfig_NestingPatternContent(t *testing.T) {
 		}
 		if langConfig.FlatRegex().MatchString(tt.nonFlatMatch) {
 			t.Errorf("%s: FlatRegex should NOT match %q (that's a nesting line, not a flat sibling)", tt.lang, tt.nonFlatMatch)
+		}
+	}
+}
+
+// TestLoadConfig_FlatPatternMatchesKAndRStyle guards a bug that was dormant
+// until complexity's brace-language depth counter started consuming these
+// patterns: nesting_pattern/flat_pattern were anchored with a bare "^\s*",
+// which only matches "else"/"catch"/"finally" sitting alone at the start of
+// a line (Allman style). Real-world gofmt/prettier-formatted code almost
+// always cuddles them onto the closing brace of the previous block —
+// "} else {", "} catch (e) {" — so the un-anchored version never matched
+// real code at all, and an else/catch branch would be measured one level
+// shallower than its sibling if-branch.
+func TestLoadConfig_FlatPatternMatchesKAndRStyle(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	tests := []struct {
+		lang string
+		line string
+	}{
+		{"go", "} else {"},
+		{"java", "} else {"},
+		{"java", "} catch (e) {"},
+		{"js", "} else {"},
+		{"cpp", "} catch (e) {"},
+		{"php", "} elseif ($x) {"},
+		{"php", "} else {"},
+	}
+
+	for _, tt := range tests {
+		langConfig, err := config.GetLanguageConfig(tt.lang)
+		if err != nil {
+			t.Fatalf("%s: %v", tt.lang, err)
+		}
+		if !langConfig.FlatRegex().MatchString(tt.line) && !langConfig.NestingRegex().MatchString(tt.line) {
+			t.Errorf("%s: neither FlatRegex nor NestingRegex matches K&R-style %q", tt.lang, tt.line)
+		}
+	}
+}
+
+// TestLoadConfig_KeywordPrefixNotMatchedAsKeyword guards a false-positive
+// class found while testing complexity on real code: the keyword groups
+// only checked what followed ("for" + a letter or "("), never that the
+// keyword itself ENDED there — so a bare call to a function whose name
+// happens to start with a reserved word ("forwardRequest()", "doWork()",
+// "ifPresent(x)", all common in Go/Java/JS) matched as if it opened a
+// for/do/if. Since these are reserved words in every language here, they
+// can never legally be an identifier prefix, so a word boundary after the
+// keyword is sufficient and correct — no need to enumerate what may follow.
+func TestLoadConfig_KeywordPrefixNotMatchedAsKeyword(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	tests := []struct {
+		lang string
+		line string
+	}{
+		{"go", "forwardRequest(req)"},
+		{"go", "forEach(items, func(x int) {"},
+		{"java", "doWork();"},
+		{"java", "ifPresent(x -> {"},
+		{"js", "forEach(function(x) {"},
+		{"py", "formatValue(x)"},
+		{"php", "doSomething();"},
+	}
+
+	for _, tt := range tests {
+		langConfig, err := config.GetLanguageConfig(tt.lang)
+		if err != nil {
+			t.Fatalf("%s: %v", tt.lang, err)
+		}
+		if langConfig.NestingRegex().MatchString(tt.line) {
+			t.Errorf("%s: NestingRegex falsely matches keyword-prefixed call %q", tt.lang, tt.line)
+		}
+		if re := langConfig.LoopRegex(); re != nil && re.MatchString(tt.line) {
+			t.Errorf("%s: LoopRegex falsely matches keyword-prefixed call %q", tt.lang, tt.line)
 		}
 	}
 }
