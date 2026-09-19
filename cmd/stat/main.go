@@ -79,6 +79,29 @@ func cleanLine(line string, sanitizer *internal.Sanitizer, state *internal.Parse
 	return cleaned, false
 }
 
+// extractFuncName pulls the function/method name out of a FuncRegex match,
+// mirroring the "last non-empty group" convention used by the shared finder
+// (internal/finder.go) — with the same JS/TS arrow-function special case
+// (group 3 for declarations, group 5 for arrow assignments) — so a
+// signature line is recognized under exactly the rule that decided it was
+// a function in the first place.
+func extractFuncName(matches []string) string {
+	if len(matches) > 5 {
+		if matches[3] != "" {
+			return matches[3]
+		}
+		if matches[5] != "" {
+			return matches[5]
+		}
+	}
+	for i := len(matches) - 1; i >= 1; i-- {
+		if matches[i] != "" {
+			return matches[i]
+		}
+	}
+	return ""
+}
+
 // analyzeFile analyzes a source file and returns function calls and metrics
 func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]int, *FileMetrics) {
 	file, err := os.Open(filename)
@@ -99,6 +122,19 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 	if callRegex == nil {
 		internal.FatalError("no call pattern defined for language")
 	}
+
+	// Function names known to the shared finder (the same one funcfinder,
+	// complexity and callgraph already use) — a call-site scan must not
+	// count a function's own signature line as a call to itself. Best
+	// effort: an error here just means no self-definition line is skipped,
+	// same as stat's behavior before this existed.
+	definedNames := make(map[string]bool)
+	if fr, ferr := internal.CreateFinder(config, "", "map", false, false).FindFunctions(filename); ferr == nil {
+		for _, fn := range fr.Functions {
+			definedNames[fn.Name] = true
+		}
+	}
+	funcRegex := config.FuncRegex()
 
 	callCounts := make(map[string]int)
 
@@ -174,10 +210,31 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 			continue
 		}
 
+		// If this line is itself a function/method signature (per the same
+		// FuncRegex that decided it's a function), note its name so the
+		// matching call-site match below — its own "name(" token — is
+		// skipped instead of counted as a call to itself. A genuine call to
+		// that name elsewhere, including a recursive call later in the same
+		// function's body, is on a different line and unaffected.
+		selfDefName := ""
+		if funcRegex != nil {
+			if m := funcRegex.FindStringSubmatch(cleanedLine); m != nil {
+				if name := extractFuncName(m); name != "" && definedNames[name] {
+					selfDefName = name
+				}
+			}
+		}
+
 		matches := callRegex.FindAllStringSubmatch(cleanedLine, -1)
+		skippedSelfDef := false
 		for _, match := range matches {
 			if len(match) >= 2 {
 				funcName := match[1]
+
+				if funcName == selfDefName && !skippedSelfDef {
+					skippedSelfDef = true
+					continue
+				}
 
 				excluded := false
 				for _, exclude := range config.ExcludeWords {
