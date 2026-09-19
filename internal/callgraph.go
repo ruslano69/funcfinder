@@ -43,6 +43,27 @@ var ident = identStart + identClass + `*`
 var callIdentRe = regexp.MustCompile(`(` + ident + `)\.(` + ident + `)\s*\(|` +
 	`(` + ident + `)\s*\(`)
 
+// extractFuncName pulls the function/method name out of a FuncRegex match,
+// mirroring the "last non-empty group" convention the finder itself uses
+// (see FindFunctions in finder.go) — with the same JS/TS arrow-function
+// special case (group 3 for declarations, group 5 for arrow assignments).
+func extractFuncName(matches []string) string {
+	if len(matches) > 5 {
+		if matches[3] != "" {
+			return matches[3]
+		}
+		if matches[5] != "" {
+			return matches[5]
+		}
+	}
+	for i := len(matches) - 1; i >= 1; i-- {
+		if matches[i] != "" {
+			return matches[i]
+		}
+	}
+	return ""
+}
+
 // BuildFileCallGraph extracts the call graph from a single file.
 //
 // knownFuncs is the set of function names defined in this file (and optionally
@@ -100,6 +121,7 @@ func BuildFileCallGraph(
 	// 3. Sanitize and scan for calls
 	sanitizer := NewSanitizer(langConfig, false)
 	state := StateNormal
+	funcRegex := langConfig.FuncRegex()
 
 	cgFile := &FileCallGraph{Path: path}
 	seen := make(map[string]bool)
@@ -112,6 +134,20 @@ func BuildFileCallGraph(
 		caller := callerAt(lineNo)
 		if caller == "" {
 			continue // outside any known function
+		}
+
+		// Is this the caller's own signature line? Re-check with FuncRegex
+		// — the same regex that decided this is a function in the first
+		// place — rather than trusting FunctionBounds.Start: a decorated
+		// Python function's Start points at its first decorator, not at
+		// "def name(", so comparing line numbers would miss it.
+		isOwnSignatureLine := false
+		if funcRegex != nil {
+			if m := funcRegex.FindStringSubmatch(clean); m != nil {
+				if extractFuncName(m) == caller {
+					isOwnSignatureLine = true
+				}
+			}
 		}
 
 		matches := callIdentRe.FindAllStringSubmatch(clean, -1)
@@ -134,7 +170,13 @@ func BuildFileCallGraph(
 				}
 				callee = fname
 			}
-			if callee == "" || callee == caller {
+			if callee == "" {
+				continue
+			}
+			if callee == caller && isOwnSignatureLine {
+				// The signature's own "name(" token, not a call — but a
+				// genuine recursive call elsewhere in the same function's
+				// body (isOwnSignatureLine false on that line) still counts.
 				continue
 			}
 			key := caller + "→" + callee

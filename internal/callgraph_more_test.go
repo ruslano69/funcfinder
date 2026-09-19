@@ -57,11 +57,14 @@ func TestBuildFileCallGraph_BareCallToUnknownFunctionSkipped(t *testing.T) {
 	}
 }
 
-func TestBuildFileCallGraph_SelfRecursionNotRecorded(t *testing.T) {
-	// Documents current behavior: callee == caller is explicitly filtered out,
-	// so direct recursive calls do not appear as edges.
+func TestBuildFileCallGraph_DirectRecursionRecorded(t *testing.T) {
+	// A genuine recursive call inside the function's own body must be
+	// recorded as an edge. Earlier, callee == caller was filtered out
+	// unconditionally across the whole body, which — as a side effect of
+	// suppressing the signature-line self-match below — also hid real
+	// recursion entirely.
 	goConfig := getGoConfig(t)
-	content := "package main\n\nfunc Recurse() {\n\tRecurse()\n}\n"
+	content := "package main\n\nfunc Recurse(n int) int {\n\tif n <= 1 {\n\t\treturn 1\n\t}\n\treturn n * Recurse(n-1)\n}\n"
 	tmpfile := createTempFile(t, content, "test_callgraph_recurse_*.go")
 	defer os.Remove(tmpfile)
 
@@ -69,8 +72,46 @@ func TestBuildFileCallGraph_SelfRecursionNotRecorded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildFileCallGraph() error = %v", err)
 	}
+	if !hasEdge(fcg, "Recurse", "Recurse") {
+		t.Errorf("expected recursive edge Recurse -> Recurse, got %+v", fcg.Calls)
+	}
+}
+
+func TestBuildFileCallGraph_SignatureLineSelfMatchNotRecorded(t *testing.T) {
+	// The signature line's own "name(" token (e.g. "func Recurse(n int) int {")
+	// also matches the bare-call regex against the function's own name, but
+	// it is not a call and must not produce a self-edge.
+	goConfig := getGoConfig(t)
+	content := "package main\n\nfunc Recurse(n int) int {\n\treturn 1\n}\n"
+	tmpfile := createTempFile(t, content, "test_callgraph_recurse_sig_*.go")
+	defer os.Remove(tmpfile)
+
+	fcg, err := BuildFileCallGraph(tmpfile, goConfig, map[string]bool{"Recurse": true}, nil)
+	if err != nil {
+		t.Fatalf("BuildFileCallGraph() error = %v", err)
+	}
 	if hasEdge(fcg, "Recurse", "Recurse") {
-		t.Error("self-recursive call should not be recorded as an edge")
+		t.Errorf("signature line should not produce a self-edge, got %+v", fcg.Calls)
+	}
+}
+
+func TestBuildFileCallGraph_DecoratedRecursiveFunctionRecorded(t *testing.T) {
+	// A decorator pushes FunctionBounds.Start to the decorator line, not to
+	// "def name(" — a fix that compared line numbers against Start instead
+	// of re-matching FuncRegex would miss the true signature line entirely
+	// and either wrongly record a self-edge or wrongly suppress the real
+	// recursive call, depending on which way the comparison broke.
+	pyConfig := getPyConfig(t)
+	content := "@staticmethod\ndef factorial(n):\n    if n <= 1:\n        return 1\n    return n * factorial(n - 1)\n"
+	tmpfile := createTempFile(t, content, "test_callgraph_decorated_recurse_*.py")
+	defer os.Remove(tmpfile)
+
+	fcg, err := BuildFileCallGraph(tmpfile, pyConfig, map[string]bool{"factorial": true}, nil)
+	if err != nil {
+		t.Fatalf("BuildFileCallGraph() error = %v", err)
+	}
+	if !hasEdge(fcg, "factorial", "factorial") {
+		t.Errorf("expected recursive edge factorial -> factorial, got %+v", fcg.Calls)
 	}
 }
 
