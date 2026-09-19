@@ -1,6 +1,13 @@
-// complexity.go - Nesting Depth Complexity Analyzer
-// Analyzes code complexity based on NESTING DEPTH, not decision point count
-// Philosophy: Deep nesting is harder to understand than flat code with many branches
+// complexity.go - Cognitive Complexity Analyzer
+// Analyzes code complexity as an additive score over control-flow decision
+// points (if/for/while/switch/...), weighted by how deep each one sits —
+// not the exponential 2^(maxDepth-1) this replaced, and not raw nesting
+// depth alone either.
+// Philosophy: a decision costs more the deeper it's nested (SonarSource-
+// style cognitive complexity), but several sibling branches at the same
+// level (if/elif/elif/else) cost only what they visibly add — they don't
+// compound like real nesting does. MaxNestingDepth is still reported
+// separately as a plain "how deep does this go" signal.
 package main
 
 import (
@@ -38,7 +45,14 @@ type ComplexityMetrics struct {
 	Complexity      int    `json:"complexity"`
 	Level           string `json:"level"`
 	MaxNestingDepth int    `json:"max_nesting_depth"`
-	NestingHistory  []int  `json:"nesting_history"`
+	// MaxLoopNestingDepth counts only loop-in-loop nesting (for/while/...
+	// inside another loop), independent of Complexity/Level/MaxNestingDepth:
+	// a loop nested in another loop carries a distinct risk (algorithmic
+	// blowup, iteration-interaction bugs) that nesting a conditional simply
+	// doesn't, so it's surfaced as its own signal rather than weighted into
+	// the general branching score.
+	MaxLoopNestingDepth int   `json:"max_loop_nesting_depth"`
+	NestingHistory      []int `json:"nesting_history"`
 }
 
 // FileComplexity contains complexity metrics for a single file
@@ -60,39 +74,37 @@ type ComplexityResult struct {
 	Files             []FileComplexity `json:"files"`
 }
 
-// Nesting thresholds based on cognitive load
+// Score thresholds for the additive cognitive-complexity total (see
+// nestingResult.score). Derived by running the old depth-based cutoffs
+// (simple<=2, moderate<=3, high<=4, veryhigh<=5) through score's own
+// formula for the case they were actually measuring — a straight chain of
+// nested decisions with no flat siblings, score = D*(D+1)/2 at depth D —
+// so a function that used to sit exactly on an old boundary for pure
+// nesting lands in the equivalent new bucket. A function with the same
+// score built instead from flat branching (several sibling ifs rather
+// than nested ones) now correctly lands in a lower bucket than depth
+// alone would have suggested, which is the point of the whole rework.
 const (
-	DepthSimple   = 2 // flat code
-	DepthModerate = 3 // one level of nesting
-	DepthHigh     = 4 // two levels of nesting
-	DepthVeryHigh = 5 // three levels of nesting
-	DepthCritical = 6 // four or more levels
+	ScoreSimple   = 3  // D=2: flat code, at most one level of real nesting
+	ScoreModerate = 6  // D=3
+	ScoreHigh     = 10 // D=4
+	ScoreVeryHigh = 15 // D=5
 )
 
-// getComplexityLevel returns the complexity level based on nesting depth
-func getComplexityLevel(maxDepth int) ComplexityLevel {
+// getComplexityLevel returns the complexity level for the additive score.
+func getComplexityLevel(score int) ComplexityLevel {
 	switch {
-	case maxDepth <= DepthSimple:
+	case score <= ScoreSimple:
 		return LevelSimple
-	case maxDepth <= DepthModerate:
+	case score <= ScoreModerate:
 		return LevelModerate
-	case maxDepth <= DepthHigh:
+	case score <= ScoreHigh:
 		return LevelHigh
-	case maxDepth <= DepthVeryHigh:
+	case score <= ScoreVeryHigh:
 		return LevelVeryHigh
 	default:
 		return LevelCritical
 	}
-}
-
-// calculateNestingComplexity computes complexity from max nesting depth
-// Formula: NDC = 2^(maxDepth - 1)
-// This reflects exponential cognitive load with each nesting level
-func calculateNestingComplexity(maxDepth int) int {
-	if maxDepth <= 1 {
-		return 1
-	}
-	return 1 << (maxDepth - 1) // 2^(maxDepth-1)
 }
 
 // getComplexityColor returns ANSI color code for complexity level
@@ -131,34 +143,12 @@ func getLevelName(level ComplexityLevel) string {
 	}
 }
 
-// Nesting patterns that increase depth (keywords followed by conditions)
-// Flat constructs (else, elif, case) are handled separately
-var nestingPatterns = map[string]*regexp.Regexp{
-	"py":   regexp.MustCompile(`^\s*(if|elif|for|while|except|with)\s*[(a-zA-Z]`),
-	"go":   regexp.MustCompile(`^\s*(if|for|switch)\s*[(a-zA-Z]`),
-	"rs":   regexp.MustCompile(`^\s*(if|else|for|while|match|loop)\s*[(a-zA-Z_]`),
-	"js":   regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"ts":   regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"sw":   regexp.MustCompile(`^\s*(if|else|guard|for|while|repeat)\s*[(a-zA-Z_]`),
-	"c":    regexp.MustCompile(`^\s*(if|else|for|while|do|switch|case|default)\s*[(a-zA-Z_]`),
-	"java": regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"d":    regexp.MustCompile(`^\s*(if|else|for|foreach|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"cs":   regexp.MustCompile(`^\s*(if|else|for|foreach|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-}
-
-// Flat patterns that continue current depth (else, elif, case without brace)
-var flatPatterns = map[string]*regexp.Regexp{
-	"py":   regexp.MustCompile(`^\s*elif\s+|^\s*else\s*:|^\s*except\s+`),
-	"go":   regexp.MustCompile(`^\s*else\s*\{?\s*$|^\s*case\s+`),
-	"rs":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+`),
-	"js":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"ts":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"sw":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+`),
-	"c":    regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"java": regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"d":    regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"cs":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-}
+// genericNestingPattern/genericFlatPattern are the fallback used when a
+// language's config carries no nesting_pattern/flat_pattern of its own
+// (see getNestingPattern/getFlatPattern below).
+var genericNestingPattern = regexp.MustCompile(`\b(if|for|while|switch)\b`)
+var genericFlatPattern = regexp.MustCompile(`\b(else|elif|case|default)\b`)
+var genericLoopPattern = regexp.MustCompile(`\b(for|while)\b`)
 
 // reorderArgs moves flags before positional arguments so flag.Parse() works
 // regardless of argument order (e.g. "complexity file.go -l js" becomes
@@ -201,7 +191,7 @@ func main() {
 	thresholdFlag := flag.Int("t", 0, "Show only functions with nesting depth >= N (0 = show all)")
 	topN := flag.Int("n", 0, "Show top N most complex functions")
 	showDetails := flag.Bool("v", false, "Show detailed nesting analysis")
-	noSimple := flag.Bool("nosimple", false, "Hide SIMPLE level functions (depth <= 2)")
+	noSimple := flag.Bool("nosimple", false, "Hide SIMPLE level functions (score <= 3)")
 	flag.Parse()
 
 	// Handle version flag
@@ -291,7 +281,7 @@ func main() {
 	internal.InfoMessage(fmt.Sprintf("Total functions: %d", totalFunctions))
 	fmt.Printf("Average max complexity: %.2f\n", avgComplexity)
 	fmt.Println(strings.Repeat("=", 60))
-	fmt.Println("Philosophy: Deep nesting (not branch count) is the real complexity")
+	fmt.Println("Philosophy: cost = sum of (1 + depth) per decision — nesting compounds, sibling branches don't")
 	fmt.Println(strings.Repeat("=", 60))
 
 	// Collect all functions for sorting
@@ -309,7 +299,7 @@ func main() {
 	if *noSimple {
 		filtered := make([]ComplexityMetrics, 0, len(allFunctions))
 		for _, fn := range allFunctions {
-			level := getComplexityLevel(fn.MaxNestingDepth)
+			level := getComplexityLevel(fn.Complexity)
 			if level != LevelSimple {
 				filtered = append(filtered, fn)
 			}
@@ -338,7 +328,7 @@ func main() {
 	colorsEnabled := checkColorSupport()
 
 	printFunc := func(metrics ComplexityMetrics, rank int) {
-		level := getComplexityLevel(metrics.MaxNestingDepth)
+		level := getComplexityLevel(metrics.Complexity)
 		levelName := getLevelName(level)
 
 		if colorsEnabled {
@@ -355,6 +345,13 @@ func main() {
 		if *showDetails && len(metrics.NestingHistory) > 0 {
 			fmt.Printf("  Nesting history: %v\n", metrics.NestingHistory)
 		}
+		if metrics.MaxLoopNestingDepth >= 2 {
+			// A distinct signal, not folded into depth/complexity/level above:
+			// loop-in-loop carries algorithmic (O(n^2)+) and iteration-
+			// interaction risk that nesting a conditional doesn't.
+			fmt.Printf("  loop-nesting=%d (nested loops — check for O(n^%d)+ cost and iteration-interaction bugs)\n",
+				metrics.MaxLoopNestingDepth, metrics.MaxLoopNestingDepth)
+		}
 		fmt.Printf("  Lines: %d, File: %s\n", metrics.LinesOfCode, metrics.File)
 		fmt.Println()
 	}
@@ -365,12 +362,12 @@ func main() {
 
 	// Summary by level
 	fmt.Println(strings.Repeat("=", 60))
-	fmt.Println("Complexity distribution (by nesting depth):")
+	fmt.Println("Complexity distribution (by cognitive score):")
 
 	levelCounts := make(map[ComplexityLevel]int)
 	for _, f := range allFiles {
 		for _, fn := range f.Functions {
-			level := getComplexityLevel(fn.MaxNestingDepth)
+			level := getComplexityLevel(fn.Complexity)
 			levelCounts[level]++
 		}
 	}
@@ -383,29 +380,30 @@ func main() {
 			bar := strings.Repeat("█", count*20/totalFunctions)
 			if colorsEnabled {
 				color := getComplexityColor(level)
-				fmt.Printf("%s%s: %d %s (depth > %d)%s\033[0m\n", color, name, count, bar, getDepthThreshold(level), resetColor())
+				fmt.Printf("%s%s: %d %s (score > %d)%s\033[0m\n", color, name, count, bar, getScoreThreshold(level), resetColor())
 			} else {
-				fmt.Printf("%s: %d %s (depth > %d)\n", name, count, bar, getDepthThreshold(level))
+				fmt.Printf("%s: %d %s (score > %d)\n", name, count, bar, getScoreThreshold(level))
 			}
 		}
 	}
 }
 
-// getDepthThreshold returns the minimum depth for a level
-func getDepthThreshold(level ComplexityLevel) int {
+// getScoreThreshold returns the minimum score for a level, for the
+// distribution histogram's "(score > N)" label.
+func getScoreThreshold(level ComplexityLevel) int {
 	switch level {
 	case LevelSimple:
-		return 1
+		return 0
 	case LevelModerate:
-		return DepthSimple + 1
+		return ScoreSimple
 	case LevelHigh:
-		return DepthModerate + 1
+		return ScoreModerate
 	case LevelVeryHigh:
-		return DepthHigh + 1
+		return ScoreHigh
 	case LevelCritical:
-		return DepthVeryHigh + 1
+		return ScoreVeryHigh
 	default:
-		return 1
+		return 0
 	}
 }
 
@@ -432,8 +430,9 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 	}
 
 	// Get patterns for language
-	nestingRe := getNestingPattern(langConfig.LangKey)
-	flatRe := getFlatPattern(langConfig.LangKey)
+	nestingRe := getNestingPattern(langConfig)
+	flatRe := getFlatPattern(langConfig)
+	loopRe := getLoopPattern(langConfig)
 
 	// One sanitizer per file, driven by the language config — the same one the
 	// finder, stat and callgraph already use. Built here rather than per
@@ -459,21 +458,35 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 		cleaned := cleanBody(funcBody, sanitizer)
 		linesOfCode := countLinesOfCode(cleaned)
 
-		// Calculate nesting depth
+		// Calculate nesting depth and the additive cognitive-complexity score
+		// (nestingResult.score — see its doc comment for the formula; this
+		// replaced the old 2^(maxDepth-1) exponential).
 		nestingResult := calculateNestingDepth(cleaned, langConfig, nestingRe, flatRe)
 		maxDepth := nestingResult.maxDepth
-		complexity := calculateNestingComplexity(maxDepth)
+		complexity := nestingResult.score
+
+		// Loop-in-loop depth is tracked separately from general branching
+		// depth: reuses the exact same depth machinery (calculateNestingDepth
+		// dispatches on the same brace/indent/block-keyword strategy either
+		// way), just classifying "opens a level" against loopRe instead of
+		// nestingRe/flatRe. A loop nested in another loop compounds cost per
+		// iteration in a way a conditional doesn't (O(n^2) risk, iteration-
+		// interaction bugs), so it gets its own signal rather than folding
+		// into the same score as a plain `if` — see the loop_pattern doc in
+		// internal/config.go.
+		loopResult := calculateNestingDepth(cleaned, langConfig, loopRe, nil)
 
 		metrics := ComplexityMetrics{
-			Name:            fn.Name,
-			File:            filename,
-			StartLine:       fn.Start,
-			EndLine:         fn.End,
-			LinesOfCode:     linesOfCode,
-			Complexity:      complexity,
-			Level:           getLevelName(getComplexityLevel(maxDepth)),
-			MaxNestingDepth: maxDepth,
-			NestingHistory:  nestingResult.history,
+			Name:                fn.Name,
+			File:                filename,
+			StartLine:           fn.Start,
+			EndLine:             fn.End,
+			LinesOfCode:         linesOfCode,
+			Complexity:          complexity,
+			Level:               getLevelName(getComplexityLevel(complexity)),
+			MaxNestingDepth:     maxDepth,
+			MaxLoopNestingDepth: loopResult.maxDepth,
+			NestingHistory:      nestingResult.history,
 		}
 
 		functions = append(functions, metrics)
@@ -505,6 +518,12 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 type nestingResult struct {
 	maxDepth int
 	history  []int
+	// score is the additive cognitive-complexity total (replaces the old
+	// 2^(maxDepth-1) formula): every decision line (nestingRe, not flatRe)
+	// adds 1+depth-at-that-point; every flat sibling (elif/else/case/
+	// default/...) adds a flat 1 with no depth bonus, since it's an
+	// alternate branch of the same decision, not a fresh one.
+	score int
 }
 
 // calculateNestingDepth computes maximum nesting depth and history.
@@ -522,11 +541,11 @@ func calculateNestingDepth(lines []string, langConfig *internal.LanguageConfig, 
 
 	switch {
 	case langConfig.IndentBased:
-		result = nestingByIndent(lines)
+		result = nestingByIndent(lines, nestingRe, flatRe)
 	case langConfig.BlockEndKeyword != "":
 		result = nestingByBlockKeyword(lines, langConfig.BlockEndKeyword, nestingRe, flatRe)
 	default:
-		result = nestingByBraces(lines)
+		result = nestingByBraces(lines, nestingRe, flatRe)
 	}
 
 	// Sanity check: max depth shouldn't exceed reasonable limits
@@ -538,60 +557,112 @@ func calculateNestingDepth(lines []string, langConfig *internal.LanguageConfig, 
 }
 
 // nestingByBraces tracks depth for the thirteen brace languages by walking the
-// braces themselves.
+// braces themselves, crediting only the ones a control-flow decision opens.
 //
-// No keyword heuristics: in a brace language the braces *are* the block
-// structure, so reading them is both simpler and exact. The previous code
-// mixed a keyword regex with brace counting and, more damagingly, subtracted
-// every closing brace before considering the opening ones — so a balanced line
-// such as `x := T{A{{...}}}` or `} else {` drove the depth *down*. That was
-// invisible while comments were stripped by cutting at "//", because the
-// closers on those lines were being thrown away too.
+// Every brace still has to be counted to know when one closes (rawDepth), but
+// only a brace whose line matches the language's nestingRe — and isn't a flat
+// sibling continuation per flatRe — adds to the *credited* depth that gets
+// reported. A struct literal, a closure body, or any other purely structural
+// `{` no longer inflates "cognitive" nesting just for existing: a function
+// built entirely of nested literals and no branching used to score as deep as
+// several layers of real if/for, which is exactly backwards.
 //
-// A line is credited with the greater of the depth entering it and the depth
-// leaving it — not with the peak reached inside it. A brace that opens and
-// closes within one line encloses nothing the reader has to hold: `m :=
-// map[string]int{"a": 1}` reads at its own level, and crediting the momentary
-// peak there inflated 316 of 2090 functions in a real repository by exactly
-// one. Blocks that do enclose something still register, because the lines they
-// enclose are themselves measured one level deeper.
-func nestingByBraces(lines []string) nestingResult {
+// A decision is classified once per line (matching flatRe/nestingRe against
+// the line's own text) and applied to every brace that line opens — the same
+// per-line granularity nestingByBlockKeyword already uses for Ruby, not a
+// finer per-character one. That means a multi-line condition whose `{` lands
+// on a continuation line (`if x &&\n    y {`) isn't credited, since only the
+// first line starts with the keyword; accepted as a known gap rather than
+// tracking classification across line continuations, consistent with the
+// same simplification nestingByBlockKeyword already made.
+//
+// A line is still credited with the greater of the depth entering it and the
+// depth leaving it, per the original fix this replaces: a brace that opens
+// and closes within one line encloses nothing the reader has to hold, so the
+// momentary peak inside it isn't reported — but now measured on the credited
+// count, not the raw brace count.
+func nestingByBraces(lines []string, nestingRe, flatRe *regexp.Regexp) nestingResult {
 	result := nestingResult{history: make([]int, 0, len(lines))}
-	depth := 0
+	rawDepth := 0
+	credited := 0
+	var creditStack []bool // per currently-open brace: did a decision open it?
 
 	for _, line := range lines {
-		before := depth
+		trimmed := strings.TrimSpace(line)
+		isFlat := flatRe != nil && flatRe.MatchString(trimmed)
+		isDecision := !isFlat && nestingRe != nil && nestingRe.MatchString(trimmed)
+
+		before := credited
+
+		// Score: a decision costs 1 plus however deep it already sits
+		// (before its own brace opens, i.e. its ancestors only, not
+		// itself); a flat sibling costs a flat 1 regardless of depth.
+		if isDecision {
+			result.score += 1 + before
+		} else if isFlat {
+			result.score++
+		}
+
+		// A flat line ("} else {") closes the previous branch's frame and
+		// reopens one on the very same line — poppedCredit carries what was
+		// just closed across to that reopen, so the new frame keeps the
+		// same credited level instead of dropping to uncredited: the else
+		// branch reads at the same depth as the if it belongs to, not one
+		// shallower.
+		poppedAny := false
+		poppedCredit := false
 
 		for _, ch := range line {
 			switch ch {
 			case '{':
-				depth++
+				creditThisBrace := isDecision
+				if isFlat && poppedAny {
+					creditThisBrace = poppedCredit
+				}
+				rawDepth++
+				creditStack = append(creditStack, creditThisBrace)
+				if creditThisBrace {
+					credited++
+				}
 			case '}':
-				depth--
-				if depth < 0 {
+				rawDepth--
+				if rawDepth < 0 {
 					// Unbalanced input (a partial body, or a brace the
 					// sanitizer could not classify). Clamp rather than go
 					// negative and skew everything after it.
-					depth = 0
+					rawDepth = 0
+				}
+				if len(creditStack) > 0 {
+					wasCredited := creditStack[len(creditStack)-1]
+					creditStack = creditStack[:len(creditStack)-1]
+					poppedAny = true
+					poppedCredit = wasCredited
+					if wasCredited {
+						credited--
+						if credited < 0 {
+							credited = 0
+						}
+					}
 				}
 			}
 		}
 
-		credited := before
-		if depth > credited {
-			credited = depth
+		creditedLine := before
+		if credited > creditedLine {
+			creditedLine = credited
 		}
 
-		result.history = append(result.history, credited)
-		if credited > result.maxDepth {
-			result.maxDepth = credited
+		result.history = append(result.history, creditedLine)
+		if creditedLine > result.maxDepth {
+			result.maxDepth = creditedLine
 		}
 	}
 
 	return result
 }
 
-// nestingByIndent tracks depth for indentation-delimited languages (Python).
+// nestingByIndent tracks depth for indentation-delimited languages (Python),
+// crediting only the indent levels a control-flow decision actually opened.
 //
 // This path did not exist before: Python went through the brace code, where its
 // blocks have no braces to count, so `if`/`for` incremented via the keyword
@@ -605,25 +676,43 @@ func nestingByBraces(lines []string) nestingResult {
 // same level a body statement gets in a brace language, where the function's
 // own brace opened level 1.
 //
+// Only a level opened by a decision line — matching nestingRe or flatRe — is
+// credited; a nested `def`/`class`, or any other block that merely deepens
+// the indent without branching, no longer inflates cognitive depth. The
+// classification has to be read off the line *before* the indent increases,
+// not the indented line itself: "if x:" sits at the shallower width, and the
+// deeper width only appears on its body's first line, which usually isn't
+// itself a decision keyword at all.
+//
+// flatRe alone still credits: "elif"/"else" don't add a NEW level relative
+// to the "if" they continue (same width, no push happens for the elif/else
+// line itself, so that distinction needs no code here) — but the elif/else
+// line's OWN body is one real level deeper than the elif/else line, exactly
+// like the if's body is, and must be measured the same. Excluding flatRe
+// lines from crediting (as an early version of this code did) made an
+// elif/else body come out one level shallower than its sibling if-body.
+//
 // Continuation lines inside (), [] or {} are skipped: their indentation is
 // alignment, not nesting, and would otherwise push a spurious level.
-func nestingByIndent(lines []string) nestingResult {
+func nestingByIndent(lines []string, nestingRe, flatRe *regexp.Regexp) nestingResult {
 	result := nestingResult{history: make([]int, 0, len(lines))}
 
-	var stack []int // indent widths, strictly increasing
-	depth := 0
+	var stack []int        // indent widths, strictly increasing
+	var creditStack []bool // per stack level: did a decision line open it?
+	credited := 0
 	brackets := 0
+	prevWasDecision := false // classification of the last real statement line
 
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
-			result.history = append(result.history, depth)
+			result.history = append(result.history, credited)
 			continue
 		}
 
 		// A line opened inside brackets continues the previous logical line.
 		if brackets > 0 {
 			brackets += bracketBalance(line)
-			result.history = append(result.history, depth)
+			result.history = append(result.history, credited)
 			continue
 		}
 
@@ -631,18 +720,48 @@ func nestingByIndent(lines []string) nestingResult {
 
 		for len(stack) > 0 && width < stack[len(stack)-1] {
 			stack = stack[:len(stack)-1]
+			if len(creditStack) > 0 {
+				wasCredited := creditStack[len(creditStack)-1]
+				creditStack = creditStack[:len(creditStack)-1]
+				if wasCredited {
+					credited--
+					if credited < 0 {
+						credited = 0
+					}
+				}
+			}
 		}
 		if len(stack) == 0 || width > stack[len(stack)-1] {
 			stack = append(stack, width)
+			creditStack = append(creditStack, prevWasDecision)
+			if prevWasDecision {
+				credited++
+			}
 		}
 
-		// stack[0] is the def line's own indentation, hence the -1.
-		depth = len(stack) - 1
 		brackets += bracketBalance(line)
 
-		result.history = append(result.history, depth)
-		if depth > result.maxDepth {
-			result.maxDepth = depth
+		trimmed := strings.TrimSpace(line)
+		isNesting := nestingRe != nil && nestingRe.MatchString(trimmed)
+		isFlat := flatRe != nil && flatRe.MatchString(trimmed)
+		prevWasDecision = isNesting || isFlat
+
+		// Score, using the same `credited` this line resolved to above: for
+		// Python a decision line's own indent increase (its body) and the
+		// credit for entering whatever decision opened *this* line's level
+		// are two different things that land on the same physical line, so
+		// (unlike nestingByBraces, which uses the depth from BEFORE this
+		// line's own brace) `credited` here already reflects ancestors only
+		// — this line's own body hasn't pushed anything yet.
+		if isNesting && !isFlat {
+			result.score += 1 + credited
+		} else if isFlat {
+			result.score++
+		}
+
+		result.history = append(result.history, credited)
+		if credited > result.maxDepth {
+			result.maxDepth = credited
 		}
 	}
 
@@ -683,8 +802,18 @@ func nestingByBlockKeyword(lines []string, endKeyword string, nestingRe, flatRe 
 		closes := strings.Count(trimmed, "}") + len(endRe.FindAllString(trimmed, -1))
 
 		isFlat := flatRe != nil && flatRe.MatchString(trimmed)
-		if !isFlat && nestingRe != nil && nestingRe.MatchString(trimmed) {
+		isDecision := !isFlat && nestingRe != nil && nestingRe.MatchString(trimmed)
+		if isDecision {
 			opens++
+		}
+
+		// Score, using depth from before this line's own opens (its
+		// ancestors only) — same convention as nestingByBraces, since a
+		// keyword and its increment are resolved on the same line here too.
+		if isDecision {
+			result.score += 1 + depth
+		} else if isFlat {
+			result.score++
 		}
 
 		peak := depth + opens
@@ -740,22 +869,33 @@ func bracketBalance(line string) int {
 	return balance
 }
 
-// getNestingPattern returns the nesting pattern for a language
-func getNestingPattern(langKey string) *regexp.Regexp {
-	if pattern, ok := nestingPatterns[langKey]; ok {
-		return pattern
+// getNestingPattern returns the language's nesting_pattern from its shared
+// config (internal/languages.json, via LanguageConfig.NestingRegex()) —
+// the same regex source complexity, and eventually other tools, draw from —
+// falling back to a generic keyword pattern for a language whose config
+// doesn't define one.
+func getNestingPattern(langConfig *internal.LanguageConfig) *regexp.Regexp {
+	if re := langConfig.NestingRegex(); re != nil {
+		return re
 	}
-	// Default pattern
-	return regexp.MustCompile(`\b(if|for|while|switch)\b`)
+	return genericNestingPattern
 }
 
-// getFlatPattern returns the flat pattern for a language
-func getFlatPattern(langKey string) *regexp.Regexp {
-	if pattern, ok := flatPatterns[langKey]; ok {
-		return pattern
+// getFlatPattern mirrors getNestingPattern for the flat_pattern side.
+func getFlatPattern(langConfig *internal.LanguageConfig) *regexp.Regexp {
+	if re := langConfig.FlatRegex(); re != nil {
+		return re
 	}
-	// Default pattern
-	return regexp.MustCompile(`\b(else|elif|case|default)\b`)
+	return genericFlatPattern
+}
+
+// getLoopPattern mirrors getNestingPattern for the loop-only subset used to
+// compute MaxLoopNestingDepth (for/while/foreach/do/loop — never if/switch).
+func getLoopPattern(langConfig *internal.LanguageConfig) *regexp.Regexp {
+	if re := langConfig.LoopRegex(); re != nil {
+		return re
+	}
+	return genericLoopPattern
 }
 
 // cleanBody strips comments and literal contents from a function body, using

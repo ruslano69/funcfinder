@@ -100,6 +100,7 @@ func BuildFileCallGraph(
 	// 3. Sanitize and scan for calls
 	sanitizer := NewSanitizer(langConfig, false)
 	state := StateNormal
+	funcRegex := langConfig.FuncRegex()
 
 	cgFile := &FileCallGraph{Path: path}
 	seen := make(map[string]bool)
@@ -112,6 +113,20 @@ func BuildFileCallGraph(
 		caller := callerAt(lineNo)
 		if caller == "" {
 			continue // outside any known function
+		}
+
+		// Is this the caller's own signature line? Re-check with FuncRegex
+		// — the same regex that decided this is a function in the first
+		// place — rather than trusting FunctionBounds.Start: a decorated
+		// Python function's Start points at its first decorator, not at
+		// "def name(", so comparing line numbers would miss it.
+		isOwnSignatureLine := false
+		if funcRegex != nil {
+			if m := funcRegex.FindStringSubmatch(clean); m != nil {
+				if ExtractFuncName(m) == caller {
+					isOwnSignatureLine = true
+				}
+			}
 		}
 
 		matches := callIdentRe.FindAllStringSubmatch(clean, -1)
@@ -134,7 +149,13 @@ func BuildFileCallGraph(
 				}
 				callee = fname
 			}
-			if callee == "" || callee == caller {
+			if callee == "" {
+				continue
+			}
+			if callee == caller && isOwnSignatureLine {
+				// The signature's own "name(" token, not a call — but a
+				// genuine recursive call elsewhere in the same function's
+				// body (isOwnSignatureLine false on that line) still counts.
 				continue
 			}
 			key := caller + "→" + callee

@@ -100,6 +100,19 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 		internal.FatalError("no call pattern defined for language")
 	}
 
+	// Function names known to the shared finder (the same one funcfinder,
+	// complexity and callgraph already use) — a call-site scan must not
+	// count a function's own signature line as a call to itself. Best
+	// effort: an error here just means no self-definition line is skipped,
+	// same as stat's behavior before this existed.
+	definedNames := make(map[string]bool)
+	if fr, ferr := internal.CreateFinder(config, "", "map", false, false).FindFunctions(filename); ferr == nil {
+		for _, fn := range fr.Functions {
+			definedNames[fn.Name] = true
+		}
+	}
+	funcRegex := config.FuncRegex()
+
 	callCounts := make(map[string]int)
 
 	var decoratorRegex *regexp.Regexp
@@ -174,10 +187,31 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 			continue
 		}
 
+		// If this line is itself a function/method signature (per the same
+		// FuncRegex that decided it's a function), note its name so the
+		// matching call-site match below — its own "name(" token — is
+		// skipped instead of counted as a call to itself. A genuine call to
+		// that name elsewhere, including a recursive call later in the same
+		// function's body, is on a different line and unaffected.
+		selfDefName := ""
+		if funcRegex != nil {
+			if m := funcRegex.FindStringSubmatch(cleanedLine); m != nil {
+				if name := internal.ExtractFuncName(m); name != "" && definedNames[name] {
+					selfDefName = name
+				}
+			}
+		}
+
 		matches := callRegex.FindAllStringSubmatch(cleanedLine, -1)
+		skippedSelfDef := false
 		for _, match := range matches {
 			if len(match) >= 2 {
 				funcName := match[1]
+
+				if funcName == selfDefName && !skippedSelfDef {
+					skippedSelfDef = true
+					continue
+				}
 
 				excluded := false
 				for _, exclude := range config.ExcludeWords {
