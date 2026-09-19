@@ -185,8 +185,17 @@ func TestIndentWidthExpandsTabs(t *testing.T) {
 // nestingByBlockKeyword). Ветка от этого не перестаёт быть нужной — без неё
 // Ruby попадёт в скобочную и снова начнёт расти без остановки.
 func TestBlockKeywordDepth(t *testing.T) {
-	nestingRe := getNestingPattern("ruby")
-	flatRe := getFlatPattern("ruby")
+	cfg, err := internal.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	langConfig, err := cfg.GetLanguageConfig("ruby")
+	if err != nil {
+		t.Skipf("ruby config unavailable: %v", err)
+	}
+
+	nestingRe := getNestingPattern(langConfig)
+	flatRe := getFlatPattern(langConfig)
 
 	flat := []string{
 		"def flat(xs)", "  a = 0",

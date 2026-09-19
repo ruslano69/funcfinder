@@ -40,7 +40,9 @@
       "var",
       "package"
     ],
-    "supports_nested": true
+    "supports_nested": true,
+    "nesting_pattern": "^\\s*(if|for|switch)\\s*[(a-zA-Z]",
+    "flat_pattern": "^\\s*else\\s*\\{?\\s*$|^\\s*case\\s+"
   },
   "c": {
     "name": "C",
@@ -84,7 +86,9 @@
       "ifndef",
       "endif"
     ],
-    "supports_nested": false
+    "supports_nested": false,
+    "nesting_pattern": "^\\s*(if|else|for|while|do|switch|case|default)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
   },
   "cpp": {
     "name": "C++",
@@ -134,7 +138,9 @@
       "namespace",
       "using"
     ],
-    "supports_nested": false
+    "supports_nested": false,
+    "nesting_pattern": "^\\s*(if|else|for|while|do|switch|case|default|catch)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
   },
   "cs": {
     "name": "C#",
@@ -187,7 +193,9 @@
       "struct",
       "enum"
     ],
-    "supports_nested": false
+    "supports_nested": false,
+    "nesting_pattern": "^\\s*(if|else|for|foreach|while|do|switch|catch|finally)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
   },
   "java": {
     "name": "Java",
@@ -235,7 +243,9 @@
       "interface",
       "enum"
     ],
-    "supports_nested": false
+    "supports_nested": false,
+    "nesting_pattern": "^\\s*(if|else|for|while|do|switch|catch|finally)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
   },
   "d": {
     "name": "D",
@@ -288,7 +298,9 @@
       "enum",
       "union"
     ],
-    "supports_nested": false
+    "supports_nested": false,
+    "nesting_pattern": "^\\s*(if|else|for|foreach|while|do|switch|catch|finally)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
   },
   "js": {
     "name": "JavaScript",
@@ -345,7 +357,9 @@
       "import",
       "default"
     ],
-    "supports_nested": true
+    "supports_nested": true,
+    "nesting_pattern": "^\\s*(if|else|for|while|do|switch|catch|finally)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
   },
   "ts": {
     "name": "TypeScript",
@@ -401,7 +415,9 @@
       "import",
       "default"
     ],
-    "supports_nested": true
+    "supports_nested": true,
+    "nesting_pattern": "^\\s*(if|else|for|while|do|switch|catch|finally)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+:|^\\s*default\\s*:"
   },
   "py": {
     "name": "Python",
@@ -471,7 +487,9 @@
       "break",
       "continue"
     ],
-    "supports_nested": true
+    "supports_nested": true,
+    "nesting_pattern": "^\\s*(if|elif|for|while|except|with)\\s*[(a-zA-Z]",
+    "flat_pattern": "^\\s*elif\\s+|^\\s*else\\s*:|^\\s*except\\s+"
   },
   "rust": {
     "name": "Rust",
@@ -527,7 +545,9 @@
       "mod",
       "use"
     ],
-    "supports_nested": false
+    "supports_nested": false,
+    "nesting_pattern": "^\\s*(if|else|for|while|match|loop)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+"
   },
   "swift": {
     "name": "Swift",
@@ -581,7 +601,9 @@
       "var",
       "let"
     ],
-    "supports_nested": true
+    "supports_nested": true,
+    "nesting_pattern": "^\\s*(if|else|guard|for|while|repeat)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+"
   },
   "kotlin": {
     "name": "Kotlin",
@@ -639,7 +661,9 @@
       "import",
       "package"
     ],
-    "supports_nested": false
+    "supports_nested": false,
+    "nesting_pattern": "^\\s*(if|else|for|while|do|when|catch|finally)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*else\\s*(\\{|->)|^\\s*->"
   },
   "php": {
     "name": "PHP",
@@ -690,7 +714,9 @@
       "protected",
       "static"
     ],
-    "supports_nested": false
+    "supports_nested": false,
+    "nesting_pattern": "^\\s*(if|else|elseif|for|foreach|while|do|switch|case|default|catch|finally)\\s*[(a-zA-Z_]",
+    "flat_pattern": "^\\s*elseif\\s*[(a-zA-Z_]|^\\s*else\\s*[:{]|^\\s*case\\s+|^\\s*default\\s*:"
   },
   "ruby": {
     "name": "Ruby",
@@ -742,7 +768,9 @@
       "def",
       "end"
     ],
-    "supports_nested": true
+    "supports_nested": true,
+    "nesting_pattern": "^\\s*(if|unless|while|until|for|case)\\b",
+    "flat_pattern": "^\\s*(elsif|else|when|rescue|ensure)\\b"
   },
   "scala": {
     "name": "Scala",
@@ -792,6 +820,8 @@
       "import",
       "package"
     ],
-    "supports_nested": true
+    "supports_nested": true,
+    "nesting_pattern": "^\\s*(if|else|for|while|do|match|case|catch|finally)\\s*[(a-zA-Z_{]",
+    "flat_pattern": "^\\s*else\\s*\\{|^\\s*case\\s+"
   }
 }

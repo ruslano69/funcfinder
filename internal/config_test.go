@@ -36,6 +36,68 @@ func TestLoadConfig_AllLanguagesHaveRegex(t *testing.T) {
 	}
 }
 
+// TestLoadConfig_AllLanguagesHaveNestingPatterns guards the promotion of
+// complexity's nesting/flat patterns (formerly private maps in
+// cmd/complexity/main.go, keyed by a langKey that didn't always match the
+// real LangKey — "rs"/"sw" never matched "rust"/"swift", silently falling
+// back to the generic pattern) into shared, per-language config. Every
+// language in languages.json is now expected to carry its own patterns.
+func TestLoadConfig_AllLanguagesHaveNestingPatterns(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	for lang, langConfig := range config {
+		if langConfig.NestingRegex() == nil {
+			t.Errorf("Language %s has nil NestingRegex", lang)
+		}
+		if langConfig.FlatRegex() == nil {
+			t.Errorf("Language %s has nil FlatRegex", lang)
+		}
+	}
+}
+
+// TestLoadConfig_NestingPatternContent spot-checks a few languages so a
+// typo'd regex (or a key that silently stops matching, as rust/swift did
+// under their old "rs"/"sw" map keys) fails loudly instead of just falling
+// back to the generic pattern.
+func TestLoadConfig_NestingPatternContent(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	tests := []struct {
+		lang         string
+		nestingLine  string // should match NestingRegex
+		flatLine     string // should match FlatRegex
+		nonFlatMatch string // matches NestingRegex but must NOT match FlatRegex
+	}{
+		{"go", "if x > 0 {", "case 1:", "if x > 0 {"},
+		{"py", "if x:", "elif y:", "if x:"},
+		{"rust", "if x {", "case _ =>", "if x {"},
+		{"swift", "guard x else {", "else {", "guard x else {"},
+		{"ruby", "if x", "elsif y", "if x"},
+	}
+
+	for _, tt := range tests {
+		langConfig, err := config.GetLanguageConfig(tt.lang)
+		if err != nil {
+			t.Fatalf("%s: %v", tt.lang, err)
+		}
+		if !langConfig.NestingRegex().MatchString(tt.nestingLine) {
+			t.Errorf("%s: NestingRegex should match %q", tt.lang, tt.nestingLine)
+		}
+		if !langConfig.FlatRegex().MatchString(tt.flatLine) {
+			t.Errorf("%s: FlatRegex should match %q", tt.lang, tt.flatLine)
+		}
+		if langConfig.FlatRegex().MatchString(tt.nonFlatMatch) {
+			t.Errorf("%s: FlatRegex should NOT match %q (that's a nesting line, not a flat sibling)", tt.lang, tt.nonFlatMatch)
+		}
+	}
+}
+
 func TestLoadConfig_LanguageConfigurations(t *testing.T) {
 	config, err := LoadConfig()
 	if err != nil {

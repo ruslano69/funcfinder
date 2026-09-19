@@ -131,34 +131,11 @@ func getLevelName(level ComplexityLevel) string {
 	}
 }
 
-// Nesting patterns that increase depth (keywords followed by conditions)
-// Flat constructs (else, elif, case) are handled separately
-var nestingPatterns = map[string]*regexp.Regexp{
-	"py":   regexp.MustCompile(`^\s*(if|elif|for|while|except|with)\s*[(a-zA-Z]`),
-	"go":   regexp.MustCompile(`^\s*(if|for|switch)\s*[(a-zA-Z]`),
-	"rs":   regexp.MustCompile(`^\s*(if|else|for|while|match|loop)\s*[(a-zA-Z_]`),
-	"js":   regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"ts":   regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"sw":   regexp.MustCompile(`^\s*(if|else|guard|for|while|repeat)\s*[(a-zA-Z_]`),
-	"c":    regexp.MustCompile(`^\s*(if|else|for|while|do|switch|case|default)\s*[(a-zA-Z_]`),
-	"java": regexp.MustCompile(`^\s*(if|else|for|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"d":    regexp.MustCompile(`^\s*(if|else|for|foreach|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-	"cs":   regexp.MustCompile(`^\s*(if|else|for|foreach|while|do|switch|catch|finally)\s*[(a-zA-Z_]`),
-}
-
-// Flat patterns that continue current depth (else, elif, case without brace)
-var flatPatterns = map[string]*regexp.Regexp{
-	"py":   regexp.MustCompile(`^\s*elif\s+|^\s*else\s*:|^\s*except\s+`),
-	"go":   regexp.MustCompile(`^\s*else\s*\{?\s*$|^\s*case\s+`),
-	"rs":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+`),
-	"js":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"ts":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"sw":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+`),
-	"c":    regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"java": regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"d":    regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-	"cs":   regexp.MustCompile(`^\s*else\s*\{|^\s*case\s+:|^\s*default\s*:`),
-}
+// genericNestingPattern/genericFlatPattern are the fallback used when a
+// language's config carries no nesting_pattern/flat_pattern of its own
+// (see getNestingPattern/getFlatPattern below).
+var genericNestingPattern = regexp.MustCompile(`\b(if|for|while|switch)\b`)
+var genericFlatPattern = regexp.MustCompile(`\b(else|elif|case|default)\b`)
 
 // reorderArgs moves flags before positional arguments so flag.Parse() works
 // regardless of argument order (e.g. "complexity file.go -l js" becomes
@@ -432,8 +409,8 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 	}
 
 	// Get patterns for language
-	nestingRe := getNestingPattern(langConfig.LangKey)
-	flatRe := getFlatPattern(langConfig.LangKey)
+	nestingRe := getNestingPattern(langConfig)
+	flatRe := getFlatPattern(langConfig)
 
 	// One sanitizer per file, driven by the language config — the same one the
 	// finder, stat and callgraph already use. Built here rather than per
@@ -740,22 +717,24 @@ func bracketBalance(line string) int {
 	return balance
 }
 
-// getNestingPattern returns the nesting pattern for a language
-func getNestingPattern(langKey string) *regexp.Regexp {
-	if pattern, ok := nestingPatterns[langKey]; ok {
-		return pattern
+// getNestingPattern returns the language's nesting_pattern from its shared
+// config (internal/languages.json, via LanguageConfig.NestingRegex()) —
+// the same regex source complexity, and eventually other tools, draw from —
+// falling back to a generic keyword pattern for a language whose config
+// doesn't define one.
+func getNestingPattern(langConfig *internal.LanguageConfig) *regexp.Regexp {
+	if re := langConfig.NestingRegex(); re != nil {
+		return re
 	}
-	// Default pattern
-	return regexp.MustCompile(`\b(if|for|while|switch)\b`)
+	return genericNestingPattern
 }
 
-// getFlatPattern returns the flat pattern for a language
-func getFlatPattern(langKey string) *regexp.Regexp {
-	if pattern, ok := flatPatterns[langKey]; ok {
-		return pattern
+// getFlatPattern mirrors getNestingPattern for the flat_pattern side.
+func getFlatPattern(langConfig *internal.LanguageConfig) *regexp.Regexp {
+	if re := langConfig.FlatRegex(); re != nil {
+		return re
 	}
-	// Default pattern
-	return regexp.MustCompile(`\b(else|elif|case|default)\b`)
+	return genericFlatPattern
 }
 
 // cleanBody strips comments and literal contents from a function body, using

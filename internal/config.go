@@ -39,6 +39,13 @@ type LanguageConfig struct {
 	ExcludeWords     []string `json:"exclude_words"`
 	DecoratorPattern string   `json:"decorator_pattern"`
 
+	// Nesting patterns (for complexity.go) — NestingPattern matches lines that
+	// open a new level of control-flow branching (if/for/while/switch/...);
+	// FlatPattern matches a sibling continuation of the same construct
+	// (else/elif/case/default/...) that should NOT add another nesting level.
+	NestingPattern string `json:"nesting_pattern,omitempty"`
+	FlatPattern    string `json:"flat_pattern,omitempty"`
+
 	// Import patterns (for deps.go)
 	ImportPattern   string   `json:"import_pattern"`
 	MultiLineBlock  string   `json:"multi_line_block"`
@@ -74,6 +81,8 @@ type LanguageConfig struct {
 	importRegex    *regexp.Regexp
 	decoratorRe    *regexp.Regexp
 	blockCommentRe *regexp.Regexp
+	nestingRe      *regexp.Regexp
+	flatRe         *regexp.Regexp
 }
 
 // Config is a map of language keys to their configurations
@@ -154,6 +163,22 @@ func LoadConfig() (Config, error) {
 				return nil, fmt.Errorf("invalid call regex for %s: %w", lang, err)
 			}
 			conf.callRegex = callRe
+		}
+
+		// Compile nesting/flat regex if specified
+		if conf.NestingPattern != "" {
+			nestingRe, err := regexp.Compile(conf.NestingPattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid nesting regex for %s: %w", lang, err)
+			}
+			conf.nestingRe = nestingRe
+		}
+		if conf.FlatPattern != "" {
+			flatRe, err := regexp.Compile(conf.FlatPattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid flat regex for %s: %w", lang, err)
+			}
+			conf.flatRe = flatRe
 		}
 
 		// Compile import regex if specified
@@ -288,4 +313,13 @@ func (lc *LanguageConfig) ImportRegex() *regexp.Regexp {
 
 func (lc *LanguageConfig) BlockCommentRegex() *regexp.Regexp {
 	return lc.blockCommentRe
+}
+
+// Regex getters for complexity.go
+func (lc *LanguageConfig) NestingRegex() *regexp.Regexp {
+	return lc.nestingRe
+}
+
+func (lc *LanguageConfig) FlatRegex() *regexp.Regexp {
+	return lc.flatRe
 }
