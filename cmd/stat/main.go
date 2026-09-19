@@ -79,29 +79,6 @@ func cleanLine(line string, sanitizer *internal.Sanitizer, state *internal.Parse
 	return cleaned, false
 }
 
-// extractFuncName pulls the function/method name out of a FuncRegex match,
-// mirroring the "last non-empty group" convention used by the shared finder
-// (internal/finder.go) — with the same JS/TS arrow-function special case
-// (group 3 for declarations, group 5 for arrow assignments) — so a
-// signature line is recognized under exactly the rule that decided it was
-// a function in the first place.
-func extractFuncName(matches []string) string {
-	if len(matches) > 5 {
-		if matches[3] != "" {
-			return matches[3]
-		}
-		if matches[5] != "" {
-			return matches[5]
-		}
-	}
-	for i := len(matches) - 1; i >= 1; i-- {
-		if matches[i] != "" {
-			return matches[i]
-		}
-	}
-	return ""
-}
-
 // analyzeFile analyzes a source file and returns function calls and metrics
 func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]int, *FileMetrics) {
 	file, err := os.Open(filename)
@@ -219,7 +196,7 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 		selfDefName := ""
 		if funcRegex != nil {
 			if m := funcRegex.FindStringSubmatch(cleanedLine); m != nil {
-				if name := extractFuncName(m); name != "" && definedNames[name] {
+				if name := internal.ExtractFuncName(m); name != "" && definedNames[name] {
 					selfDefName = name
 				}
 			}

@@ -47,6 +47,34 @@ type Finder struct {
 	extractMode bool
 }
 
+// ExtractFuncName pulls the function/method name out of a FuncRegex match.
+// The convention is "last non-empty group", with one special case: JS/TS's
+// combined function-declaration/arrow-function pattern captures the name in
+// group 3 for `function name(...)` and group 5 for `const name = (...) =>`,
+// so those are checked first when both groups exist. Shared by the finder
+// itself, callgraph.go (to recognize a function's own signature line and
+// not record it as a call to itself) and stat.go (same reason).
+func ExtractFuncName(matches []string) string {
+	// Для JS/TS с поддержкой arrow functions: проверяем группы 3 и 5
+	// Группа 3: function declarations (function name, function* name)
+	// Группа 5: arrow functions (const name = ...)
+	if len(matches) > 5 {
+		if matches[3] != "" {
+			return matches[3]
+		}
+		if matches[5] != "" {
+			return matches[5]
+		}
+	}
+	// Если имя еще не найдено, используем старую логику (последняя группа)
+	for i := len(matches) - 1; i >= 1; i-- {
+		if matches[i] != "" {
+			return matches[i]
+		}
+	}
+	return ""
+}
+
 // NewFinder создает новый искатель функций
 func NewFinder(config *LanguageConfig, funcNames []string, mapMode, extractMode, useRaw bool) *Finder {
 	nameMap := make(map[string]bool)
@@ -162,27 +190,7 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			// Ищем начало новой функции
 			matches := funcRegex.FindStringSubmatch(cleaned)
 			if matches != nil {
-				// Извлекаем имя функции
-				funcName := ""
-				// Для JS/TS с поддержкой arrow functions: проверяем группы 3 и 5
-				if len(matches) > 5 {
-					// Группа 3: function declarations (function name, function* name)
-					// Группа 5: arrow functions (const name = ...)
-					if matches[3] != "" {
-						funcName = matches[3]
-					} else if len(matches) > 5 && matches[5] != "" {
-						funcName = matches[5]
-					}
-				}
-				// Если имя еще не найдено, используем старую логику (последняя группа)
-				if funcName == "" {
-					for i := len(matches) - 1; i >= 1; i-- {
-						if matches[i] != "" {
-							funcName = matches[i]
-							break
-						}
-					}
-				}
+				funcName := ExtractFuncName(matches)
 
 				// Проверяем, нужно ли нам эту функцию
 				if f.mapMode || f.funcNames[funcName] {
@@ -266,25 +274,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		// 3. Ищем новые функции на ЛЮБОМ уровне вложенности
 		matches := funcRegex.FindStringSubmatch(cleaned)
 		if matches != nil {
-			// Извлекаем имя функции
-			funcName := ""
-			// Для JS/TS с поддержкой arrow functions: проверяем группы 3 и 5
-			if len(matches) > 5 {
-				if matches[3] != "" {
-					funcName = matches[3]
-				} else if len(matches) > 5 && matches[5] != "" {
-					funcName = matches[5]
-				}
-			}
-			// Если имя еще не найдено, используем старую логику (последняя группа)
-			if funcName == "" {
-				for i := len(matches) - 1; i >= 1; i-- {
-					if matches[i] != "" {
-						funcName = matches[i]
-						break
-					}
-				}
-			}
+			funcName := ExtractFuncName(matches)
 
 			// Проверяем, нужно ли нам эту функцию
 			if f.mapMode || f.funcNames[funcName] {

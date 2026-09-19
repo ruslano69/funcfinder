@@ -43,27 +43,6 @@ var ident = identStart + identClass + `*`
 var callIdentRe = regexp.MustCompile(`(` + ident + `)\.(` + ident + `)\s*\(|` +
 	`(` + ident + `)\s*\(`)
 
-// extractFuncName pulls the function/method name out of a FuncRegex match,
-// mirroring the "last non-empty group" convention the finder itself uses
-// (see FindFunctions in finder.go) — with the same JS/TS arrow-function
-// special case (group 3 for declarations, group 5 for arrow assignments).
-func extractFuncName(matches []string) string {
-	if len(matches) > 5 {
-		if matches[3] != "" {
-			return matches[3]
-		}
-		if matches[5] != "" {
-			return matches[5]
-		}
-	}
-	for i := len(matches) - 1; i >= 1; i-- {
-		if matches[i] != "" {
-			return matches[i]
-		}
-	}
-	return ""
-}
-
 // BuildFileCallGraph extracts the call graph from a single file.
 //
 // knownFuncs is the set of function names defined in this file (and optionally
@@ -144,7 +123,7 @@ func BuildFileCallGraph(
 		isOwnSignatureLine := false
 		if funcRegex != nil {
 			if m := funcRegex.FindStringSubmatch(clean); m != nil {
-				if extractFuncName(m) == caller {
+				if ExtractFuncName(m) == caller {
 					isOwnSignatureLine = true
 				}
 			}

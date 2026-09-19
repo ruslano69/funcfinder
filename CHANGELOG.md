@@ -1,5 +1,111 @@
 # Changelog
 
+## v1.12.0 - 2026-09-19
+
+**Breaking: `complexity`'s `Complexity`/`Level` fields now mean something
+different.** The exponential `2^(maxDepth-1)` formula is gone — expect
+different numbers on the same code than v1.11.x produced. Full rationale
+and worked examples below.
+
+Two threads that turned up together: unifying how all five tools resolve
+function boundaries and control-flow keywords, and a full rework of how
+`complexity` scores a function, prompted by a design discussion about
+whether loops deserve more weight than conditionals (they don't, in the
+general score — but loop-in-loop now gets its own distinct signal; see
+below).
+
+### Parsing unification
+
+- **`stat`**: was the only tool not using the shared `internal.CreateFinder`
+  finder — a pure line-scan for calls had no concept of function
+  boundaries, so a function's own `name(...)` signature line matched its
+  own call-detection regex and counted as a call to itself. A function
+  called twice showed 3; a function never called anywhere still showed 1,
+  making it indistinguishable from dead code. Now resolves real function
+  names via the shared finder and excludes exactly the signature-line
+  occurrence — a genuine recursive call elsewhere in the same body still
+  counts.
+- **`callgraph`**: fixed the same underlying problem more surgically.
+  `BuildFileCallGraph` skipped every `callee == caller` match across a
+  function's *entire body* to avoid the signature-line problem above — as
+  a side effect, it also hid every genuine direct-recursive call. Now only
+  the actual signature line (re-verified via the language's own function
+  regex, not by comparing to `FunctionBounds.Start` — a decorator pushes
+  `Start` to the decorator line, not to `def name(`) is excluded; a
+  recursive call anywhere else in the body now produces an edge.
+- **`internal/languages.json` / `LanguageConfig`**: promoted `complexity`'s
+  per-language "what's a nesting decision vs. a flat sibling" regexes from
+  private Go maps (keyed by strings that didn't always match the real
+  `LangKey` — `"rs"`/`"sw"` never matched Rust's/Swift's actual
+  `"rust"`/`"swift"`, silently falling back to a generic pattern for both
+  the whole time) into `nesting_pattern`/`flat_pattern`/`loop_pattern`
+  JSON fields with `NestingRegex()`/`FlatRegex()`/`LoopRegex()` getters,
+  mirroring the existing `CallRegex()`/`ImportRegex()` shape. Added
+  patterns for the five languages that had none at all (cpp, kotlin, php,
+  ruby, scala).
+
+### `complexity`: control-flow-aware depth, not raw syntax
+
+Depth used to mean "how many `{`/indent levels deep," full stop — a
+function built entirely of nested struct literals with zero branching
+scored `depth=5, VERY_HIGH`, while a function with one real `if` didn't
+clear the `SIMPLE` threshold. Fixed by crediting a nesting level only when
+the line opening it is an actual decision (`if`/`for`/`while`/`switch`/...,
+not `else`/`case`/`default`/... and not a struct literal, closure, or
+plain scope block) — reusing the patterns above uniformly across all three
+depth strategies (brace, indent, block-keyword), where previously only the
+unused Ruby path had this logic at all.
+
+Fixing this surfaced several previously-dormant regex gaps, now fixed for
+all 13 brace languages:
+- `else`/`catch`/`finally`/`elseif` sitting on the *same* line as the
+  previous block's closing brace (`"} else {"`, `"} catch (e) {"` —
+  standard K&R/gofmt/prettier style) never matched a bare `^\s*` anchor.
+- Every keyword group's trailing character class only checked what
+  *followed* the keyword, never that the keyword itself *ended* there —
+  so a bare call to a function whose name starts with a reserved word
+  (`forwardRequest()`, `doWork()`, `ifPresent(x)`, all common in
+  Go/Java/JS) matched as if it opened a `for`/`do`/`if`. Replaced with a
+  plain word boundary (`\b`) everywhere: since these are reserved words in
+  every language here, a boundary check is both sufficient and simpler
+  than enumerating legal trailing shapes.
+- `for _, v := range xs` / `for _ in range(n)` — idiomatic Go/Python loop
+  variables — never matched Go's/Python's own nesting pattern at all,
+  because the trailing character class excluded `_`.
+
+### `complexity`: additive score replaces the exponential
+
+The `2^(maxDepth-1)` formula turned small depth differences into wildly
+different numbers (on this repo's own code: depth 5→6→7→8 was
+`16→32→64→128`), and measured only the single deepest path — missing
+functions that are complex from sheer *number* of shallow, independent
+decisions rather than depth (this repo's own `LoadConfig()`, depth 3,
+scores `60`/`CRITICAL` under the new formula for exactly this reason: a
+long run of independent `if conf.XPattern != "" {...}` checks).
+
+Replaced with an additive score (SonarSource Cognitive Complexity's
+formula): each decision costs `1 + depth-at-that-point`; each flat sibling
+(`elif`/`else`/`case`/`default`) costs a flat `1` with no depth bonus,
+since it's an alternate branch of the same decision, not a fresh one. A
+single `if` costs 1; seven nested `if`s cost 28 (not `2^6=64`); ten
+independent sibling `if`s cost 10, not an exponential. `MaxNestingDepth`
+is unchanged and still reported alongside the score as a separate,
+purely structural signal. Level thresholds (`SIMPLE`…`CRITICAL`) now
+bucket on the score; the cutoffs are a first calibration (the old
+depth-based cutoffs run through the new formula's own triangular-number
+case), not a final one.
+
+### `complexity`: loop-nesting as its own signal
+
+A loop nested inside another loop carries a distinct risk — O(n²)+ cost,
+iteration-interaction bugs — that nesting a conditional simply doesn't.
+Weighting loops higher in the general score was considered and rejected:
+it would equally penalize the common, benign case of an `if` inside a
+`for`. Instead, `MaxLoopNestingDepth` tracks loop-in-loop specifically
+(reusing the same depth machinery with a loop-only pattern), surfaced as
+an independent `loop-nesting=N` line in `complexity`'s output only when
+`N>=2`, without changing `Complexity`/`Level`/`MaxNestingDepth`.
+
 ## v1.11.1 - 2026-08-13
 
 Bugfix release, found while stress-testing funcfinder against the real
