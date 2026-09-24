@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.12.1 - 2026-09-24
+
+Found while mapping a React/TypeScript codebase: funcfinder, `complexity` and
+`callgraph` missed most of its components. On that project the fixes raised
+the mapped functions from 625 to 725 in `src/` (96 → 107 files).
+
+### Fixes (JS/TS)
+
+- **Typed arrow functions** (`ts`): a type annotation between the name and `=`
+  is now allowed — `const X: React.FC<P> = (...) =>`, `const run: Handler =
+  (a) =>`. Every typed React component used to be invisible (only its inner
+  functions showed up).
+- **`export default function`** (`js`, `ts`): `default` was not allowed after
+  `export`, so `export default function App()` was not found.
+- **Values are not functions**: a `const|let|var x = (...)` line that is a
+  complete statement without `=>`/`function` (`const total = (1 + 2) * 3;`)
+  no longer opens a function body that swallowed the next function.
+- **Quotes inside strings** (all languages): a string now closes only on the
+  delimiter that opened it. An apostrophe inside `"..."` (`"it's"`,
+  `"зв'язок"`) used to close the string and reopen one at the trailing
+  quote, so the rest of the file was read as a string — braces uncounted,
+  every following function lost.
+- **`single_line_strings`** (new language option, set for `js`, `ts`): a
+  regular quoted string ends with its line, so an apostrophe in JSX text
+  (`<p>Зв'язок</p>`) no longer swallows the code after it.
+
+### Build
+
+- **One version source**: the new `VERSION` file is read by `build.sh`,
+  `build.ps1` and the `Makefile`; the release workflow fails if the tag does
+  not match it. Before, local builds reported `1.10.<commits>` (scripts) or
+  `1.8.<commits>` (Makefile) whatever the release was.
+- **`make build`** no longer tries to build `cmd/docsearch` (moved to its own
+  project);
+  `make release` tags `v$(cat VERSION)` instead of rewriting the Makefile.
+
 ## v1.12.0 - 2026-09-19
 
 **Breaking: `complexity`'s `Complexity`/`Level` fields now mean something

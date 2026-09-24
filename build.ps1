@@ -4,10 +4,8 @@
 
 $ErrorActionPreference = "Stop"
 
-$VersionBase = "1.10"
-$Patch = (git rev-list --count HEAD 2>$null)
-if (-not $Patch) { $Patch = "0" }
-$Version = "$VersionBase.$Patch"
+# Version - the single source of truth is the VERSION file next to this script.
+$Version = (Get-Content -Path (Join-Path $PSScriptRoot "VERSION") -Raw).Trim()
 $LdFlags = "-s -w -X github.com/ruslano69/funcfinder/internal.Version=$Version"
 
 Write-Host "Building funcfinder toolkit v$Version..." -ForegroundColor Cyan
