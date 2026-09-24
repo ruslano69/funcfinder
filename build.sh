@@ -4,9 +4,8 @@
 
 set -e
 
-VERSION_BASE="1.10"
-PATCH=$(git rev-list --count HEAD 2>/dev/null || echo "0")
-VERSION="${VERSION_BASE}.${PATCH}"
+# Version — the single source of truth is the VERSION file next to this script.
+VERSION=$(tr -d ' \r\n' < "$(dirname "$0")/VERSION")
 LDFLAGS="-s -w -X github.com/ruslano69/funcfinder/internal.Version=${VERSION}"
 
 echo "Building funcfinder toolkit v${VERSION}..."

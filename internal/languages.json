@@ -315,7 +315,7 @@
       ".jsx",
       ".mjs"
     ],
-    "func_pattern": "^\\s*(?:(export\\s+)?(async\\s+)?function\\s*\\*?\\s+({IDENT}+)\\s*\\(|(?:export\\s+)?(const|let|var)\\s+({IDENT}+)\\s*=\\s*(async\\s+)?\\()",
+    "func_pattern": "^\\s*(?:(export\\s+)?(?:default\\s+)?(async\\s+)?function\\s*\\*?\\s+({IDENT}+)\\s*\\(|(?:export\\s+)?(const|let|var)\\s+({IDENT}+)\\s*=\\s*(async\\s+)?\\()",
     "class_pattern": "^\\s*(?:export\\s+)?class\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+({IDENT}+)",
@@ -344,6 +344,7 @@
       "`"
     ],
     "escape_char": "\\",
+    "single_line_strings": true,
     "exclude_words": [
       "if",
       "else",
@@ -374,7 +375,7 @@
       ".ts",
       ".tsx"
     ],
-    "func_pattern": "^\\s*(?:(export\\s+)?(async\\s+)?function\\s*\\*?\\s+({IDENT}+)\\s*[<(]|(?:export\\s+)?(const|let|var)\\s+({IDENT}+)\\s*=\\s*(async\\s+)?[<(])",
+    "func_pattern": "^\\s*(?:(export\\s+)?(?:default\\s+)?(async\\s+)?function\\s*\\*?\\s+({IDENT}+)\\s*[<(]|(?:export\\s+)?(const|let|var)\\s+({IDENT}+)\\s*(?::\\s*[^=]+?)?=\\s*(async\\s+)?[<(])",
     "class_pattern": "^\\s*(?:export\\s+)?class\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+({IDENT}+)",
@@ -403,6 +404,7 @@
       "`"
     ],
     "escape_char": "\\",
+    "single_line_strings": true,
     "exclude_words": [
       "if",
       "else",

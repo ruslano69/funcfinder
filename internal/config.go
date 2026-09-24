@@ -65,6 +65,11 @@ type LanguageConfig struct {
 	StringChars       []string `json:"string_chars"`
 	RawStringChars    []string `json:"raw_string_chars"`
 	EscapeChar        string   `json:"escape_char"`
+	// SingleLineStrings — a regular (non-raw) string cannot continue past the
+	// end of its line (JS/TS "..." and '...'). An unterminated quote then ends
+	// with the line instead of swallowing the following code — which is what a
+	// stray apostrophe in JSX text (<p>Зв'язок</p>) would otherwise do.
+	SingleLineStrings bool     `json:"single_line_strings,omitempty"`
 	CharDelimiters    []string `json:"char_delimiters,omitempty"`
 	DocStringMarkers  []string `json:"doc_string_markers,omitempty"`
 	IndentBased       bool     `json:"indent_based"`

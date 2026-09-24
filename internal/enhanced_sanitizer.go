@@ -77,6 +77,9 @@ func (s ParserState) String() string {
 type Sanitizer struct {
 	config *LanguageConfig
 	useRaw bool
+	// stringDelim is the delimiter that opened the current StateString: only
+	// the same delimiter closes it ("it's" is one string, not two).
+	stringDelim string
 }
 
 func NewSanitizer(config *LanguageConfig, useRaw bool) *Sanitizer {
@@ -229,11 +232,22 @@ func (s *Sanitizer) handleString(runes []rune, result []rune, idx int) (int, Par
 		replaceCharWithSpace(result, idx)
 		replaceCharWithSpace(result, idx+1)
 		return idx + 2, StateString
-	} else if s.matchesStringDelimiter(runes, idx) {
+	} else if s.closesString(runes, idx) {
 		replaceCharWithSpace(result, idx)
+		s.stringDelim = ""
 		return idx + 1, StateNormal
 	}
 	return idx + 1, StateString
+}
+
+// closesString reports whether the rune at pos ends the current string: the
+// delimiter that opened it, or — when that is unknown (state carried in from a
+// caller) — any string delimiter.
+func (s *Sanitizer) closesString(runes []rune, pos int) bool {
+	if s.stringDelim != "" {
+		return s.matchesAt(runes, pos, s.stringDelim)
+	}
+	return s.matchesStringDelimiter(runes, pos)
 }
 
 func (s *Sanitizer) handleRawString(runes []rune, result []rune, idx int) (int, ParserState) {
@@ -322,8 +336,12 @@ func (s *Sanitizer) tryHandleLineComment(runes []rune, idx int) (int, bool) {
 func (s *Sanitizer) tryHandleRegularStrings(runes []rune, idx int) (ParserState, bool) {
 	if !s.useRaw && s.matchesRawStringDelimiter(runes, idx) {
 		return StateRawString, true
-	} else if s.matchesStringDelimiter(runes, idx) {
-		return StateString, true
+	}
+	for _, char := range s.config.StringChars {
+		if s.matchesAt(runes, idx, char) {
+			s.stringDelim = char
+			return StateString, true
+		}
 	}
 	return StateNormal, false
 }
@@ -509,6 +527,10 @@ func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserSta
 		}
 	}
 
+	if state == StateString && s.config.SingleLineStrings {
+		state = StateNormal
+		s.stringDelim = ""
+	}
 	return string(result), state
 }
 
@@ -545,7 +567,7 @@ func (s *Sanitizer) GetConfig() *LanguageConfig {
 	return s.config
 }
 
-func (s *Sanitizer) Reset() {}
+func (s *Sanitizer) Reset() { s.stringDelim = "" }
 
 // Backward compatibility aliases for tests
 type EnhancedSanitizer = Sanitizer

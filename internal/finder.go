@@ -75,6 +75,21 @@ func ExtractFuncName(matches []string) string {
 	return ""
 }
 
+// isCompleteValueAssignment — збіг гілки JS/TS `const|let|var name = (`
+// (група 4), що насправді є звичайним значенням: рядок — завершена інструкція
+// (`const total = (1 + 2) * 3;`) без `=>` і `function`. Така «функція» не має
+// тіла й поглинула б наступну функцію до першої закритої дужки. Багаторядкова
+// стрілкова функція (`const X = ({` … `}) => {`) не закінчується на `;`.
+func isCompleteValueAssignment(matches []string, cleaned string) bool {
+	if len(matches) <= 5 || (matches[4] != "const" && matches[4] != "let" && matches[4] != "var") {
+		return false
+	}
+	if strings.Contains(cleaned, "=>") || strings.Contains(cleaned, "function") {
+		return false
+	}
+	return strings.HasSuffix(strings.TrimSpace(cleaned), ";")
+}
+
 // NewFinder создает новый искатель функций
 func NewFinder(config *LanguageConfig, funcNames []string, mapMode, extractMode, useRaw bool) *Finder {
 	nameMap := make(map[string]bool)
@@ -273,6 +288,9 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 
 		// 3. Ищем новые функции на ЛЮБОМ уровне вложенности
 		matches := funcRegex.FindStringSubmatch(cleaned)
+		if matches != nil && isCompleteValueAssignment(matches, cleaned) {
+			matches = nil
+		}
 		if matches != nil {
 			funcName := ExtractFuncName(matches)
 
