@@ -685,7 +685,7 @@
       "import",
       "package"
     ],
-    "supports_nested": false,
+    "supports_nested": true,
     "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|when|catch|finally)\\b",
     "flat_pattern": "^\\s*\\}?\\s*else\\b|^\\s*->",
     "loop_pattern": "^\\s*(for|while|do)\\b"
