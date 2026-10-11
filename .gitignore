@@ -8,7 +8,7 @@ funcfinder
 stat
 deps
 complexity
-callgraph
+/callgraph
 /docsearch
 /docsearch-server
 dist/
