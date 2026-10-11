@@ -276,3 +276,42 @@ fn after() {}
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A Kotlin member with a modifier before fun (override, abstract), an annotation,
+// or an extension receiver is a function like any other.
+func TestFuncPattern_KotlinModifiersAnnotationsAndReceiver(t *testing.T) {
+	src := `class App : Application() {
+    override fun onCreate() {
+        super.onCreate()
+    }
+    protected abstract fun AlertDialog.Builder.prepare(listener: Int)
+    @Composable private fun Greeting(name: String) {
+    }
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"Greeting:6-7", "onCreate:2-4", "prepare:5-5"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// Swift members carry attributes and modifiers before func (override, @objc,
+// @IBAction): they are functions too.
+func TestFuncPattern_SwiftAttributesAndModifiers(t *testing.T) {
+	src := `class DetailViewController: UIViewController {
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+    }
+    @IBAction func refresh() {
+    }
+    @objc private func toggle(_ sender: Any) {
+    }
+}
+`
+	got := spans(mapFunctions(t, "swift", src))
+	want := []string{"refresh:5-6", "toggle:7-8", "viewDidAppear:2-4"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
