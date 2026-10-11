@@ -4,6 +4,91 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
+## Language coverage on real projects: status and next steps (2026-10-11)
+
+Measured on `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
+language). The evaluator scripts live outside the repo for now (see the last item). Truth
+includes declarations without a body (interface, abstract, prototype members): the design lists
+them with their own span, so a missing C# or Java declaration counts as missing.
+
+| Language | Project (truth functions) | Correct | Wrong end | Missing | State |
+|---|---|---|---|---|---|
+| Go | gin (1342), funcfinder itself (603) | 100% | 0 | 0 | done |
+| Rust | kanzi-rs (490) | 100% | 0 | 0 | done |
+| Swift | Alamofire (1890), Kingfisher (109) | 99.6%, 100% | 2, 0 | 6, 0 | good |
+| Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |
+| Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
+| TypeScript | hr_gemini (3096), zod (2416) | 97.8%, 88.8% | 23, 4 | 46, 267 | zod open |
+| JavaScript | lodash (1918, minified) | 75.1% | 4 | 473 | open |
+| Java | gson (3480) | 89.5% | 0 | 364 | open |
+| C# | Polly (5070) | 74.9% | 3 | 1272 | open |
+| C++ | fmt | about 39% | not measured | about 61% (earlier run) | open |
+| C | Lua | 99.9% (earlier run) | not measured | not measured | re-measure |
+| Python, Scala, D, PHP | none | not measured | | | not started |
+
+- [ ] **Verify CI on `main` at `2022d5b`.** PR #77 was merged while four of its checks (Analyze
+  (go), Build, Build Windows, Build macOS) were still running. Read the result once; do not poll.
+
+### Open items, in order of measured gap
+
+- [ ] **TypeScript, zod: 267 missing (11%).** Not analysed yet. This is the largest gap of the
+  mainstream languages. Start by listing the missing spans and grouping them by shape.
+- [ ] **TypeScript, hr_gemini: 46 missing.** Mostly several declarations on one line
+  (`let checks=0;const check=(ok)=>{…}`). The arrow pattern matches only the first declaration of a
+  line. Needs a match per declaration in the nested path, with each one's braces counted from its
+  own position, not the whole line's.
+- [ ] **TypeScript, hr_gemini: 23 wrong ends.** Not analysed yet.
+- [ ] **C#, Polly: 1272 missing.** Two causes. Multi-line signatures, and about 172 declarations
+  without a body (`void Foo();` in interfaces), which funcfinder does not list at all. A `;` at the
+  end of the header pattern was tried and rejected: +76 correct, but +211 false functions and 35
+  wrong ends, because calls inside bodies (`throw new X(a);`) match. A rule has to tell a
+  declaration from a statement call; the statement context is not visible to the pattern.
+- [ ] **C++, fmt: about 61% missing.** Multi-line signatures, constructors, functions with macro
+  prefixes. Regex will not get far; this needs a parser-level approach.
+- [ ] **Java, gson: 364 missing (10.5%).** Not analysed yet. Suspects: methods of nested classes and
+  constructors. Measure before changing anything.
+- [ ] **Kotlin, NekoBox `ServiceButton.kt`: `counters` ends late.** A local expression body is
+  followed by an `if` block, and the `if` is read as the body. It was missing before PR #76, so this
+  is not a regression, but it is a wrong span now. A rule for a statement keyword that cannot
+  continue an expression (`if`, `for`, `while`, `return`) would cover it; check the previous line
+  does not end in an operator first.
+- [ ] **Kotlin, Seal: 6 missing, NekoBox: 3 missing.** Not analysed yet (`FormatPage.kt`,
+  `DownloaderV2.kt`, `Utils.kt`).
+- [ ] **Ruby, huginn: 19 missing.** Methods defined inside another method's body, such as `authors`
+  and `_links` in `lib/feedjira_extension.rb` (inside `self.included`). The block-end finder does not
+  nest. Also a few in `spec/`. Ruby `maybe`: 3 wrong ends, not analysed.
+- [ ] **Swift: Alamofire 2 wrong ends, 6 missing.** Not analysed. Project `Ice` is not measured.
+- [ ] **JavaScript, lodash: 473 missing (25%).** The file is minified bundles, so the function shape
+  is not readable by the pattern. Decide whether minified code is in scope. If yes, measure a
+  non-minified JavaScript project as well; if no, drop lodash from the table.
+- [ ] **Scala, D, PHP, Python: no measurement.** Scala uses the nested path, which Go, JavaScript,
+  TypeScript, Rust and Swift share, so any change there needs the regression sweep below. Python has
+  its own finder (`python_finder.go`) and is not covered by it. Add tree-sitter-python as ground
+  truth.
+- [ ] **C, re-measure Lua** with the current binary; the 99.9% is from an earlier run.
+
+### Regression sweep for any change to the nested path
+
+The nested path is shared. Before a PR that touches `findFunctionsWithNesting`, `sigScanner`,
+`continuesExpression` or the sanitizer, run the same projects and compare with the table above:
+TypeScript (`hr_gemini`, `zod`), JavaScript (`lodash`), Go (`gin`, funcfinder itself), Rust
+(`kanzi-rs`), Swift (`Alamofire`, `Kingfisher`). A PR that moves any of these numbers down has to
+say so and why.
+
+### Harness
+
+- [ ] **Move the evaluators into the repo** (`tools/eval/`): `lang_eval.py` (all languages but
+  Kotlin), `kt_eval.py` (Kotlin). They currently sit in a scratch directory. Run them with
+  `python3`, where the tree-sitter grammars are installed.
+- [ ] **Pin each project to a commit.** The projects were cloned with `--depth=1` and the commits were
+  not recorded, so the numbers cannot be reproduced exactly.
+- [ ] **Fix the evaluator's header comment.** It says declarations without a body are not truth, but
+  the code counts them, and the table above relies on that.
+- [ ] **Record the build command** next to each number. Use
+  `GOPROXY=https://goproxy.io GONOSUMDB='*' go build ./cmd/funcfinder/`.
+
+---
+
 ## CI: `Test` job failing on every push since 2026-07-01 (2026-07-17)
 
 - [x] **FIXED.** Root cause had nothing to do with `-race` despite every
