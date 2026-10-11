@@ -28,7 +28,7 @@ func TestParseLineRange(t *testing.T) {
 			wantStart: 1,
 			wantEnd:   1,
 		},
-		
+
 		// Range with both start and end
 		{
 			name:      "normal range",
@@ -42,7 +42,7 @@ func TestParseLineRange(t *testing.T) {
 			wantStart: 1,
 			wantEnd:   10,
 		},
-		
+
 		// Range from beginning
 		{
 			name:      "from beginning to 50",
@@ -50,7 +50,7 @@ func TestParseLineRange(t *testing.T) {
 			wantStart: 1,
 			wantEnd:   50,
 		},
-		
+
 		// Range to end
 		{
 			name:      "from 100 to end",
@@ -64,7 +64,7 @@ func TestParseLineRange(t *testing.T) {
 			wantStart: 1,
 			wantEnd:   -1,
 		},
-		
+
 		// Error cases
 		{
 			name:        "empty string",
@@ -355,7 +355,7 @@ func TestCheckPartialFunctions(t *testing.T) {
 // Test OutputPlainLines (just verify it doesn't panic)
 func TestOutputPlainLines(t *testing.T) {
 	lines := []string{"line 1", "line 2", "line 3"}
-	
+
 	// Redirect stdout to /dev/null for this test
 	oldStdout := os.Stdout
 	devNull, _ := os.Open(os.DevNull)
@@ -367,7 +367,7 @@ func TestOutputPlainLines(t *testing.T) {
 
 	// Should not panic
 	OutputPlainLines(lines, 10)
-	
+
 	// Test with empty lines
 	OutputPlainLines([]string{}, 1)
 }
@@ -375,7 +375,7 @@ func TestOutputPlainLines(t *testing.T) {
 // Test OutputJSONLines (just verify it doesn't panic and produces valid structure)
 func TestOutputJSONLines(t *testing.T) {
 	lines := []string{"line 1", "line 2 with \"quotes\"", "line 3 with \t tabs"}
-	
+
 	// Redirect stdout to /dev/null for this test
 	oldStdout := os.Stdout
 	devNull, _ := os.Open(os.DevNull)
@@ -386,13 +386,13 @@ func TestOutputJSONLines(t *testing.T) {
 	}()
 
 	lineRange := LineRange{Start: 5, End: 7}
-	
+
 	// Should not panic
 	OutputJSONLines(lines, 5, lineRange)
-	
+
 	// Test with empty lines
 	OutputJSONLines([]string{}, 1, LineRange{Start: 1, End: 1})
-	
+
 	// Test with special characters
 	specialLines := []string{
 		"line with \\backslash",

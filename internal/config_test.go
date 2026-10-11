@@ -36,6 +36,172 @@ func TestLoadConfig_AllLanguagesHaveRegex(t *testing.T) {
 	}
 }
 
+// TestLoadConfig_AllLanguagesHaveNestingPatterns guards the promotion of
+// complexity's nesting/flat patterns (formerly private maps in
+// cmd/complexity/main.go, keyed by a langKey that didn't always match the
+// real LangKey — "rs"/"sw" never matched "rust"/"swift", silently falling
+// back to the generic pattern) into shared, per-language config. Every
+// language in languages.json is now expected to carry its own patterns.
+func TestLoadConfig_AllLanguagesHaveNestingPatterns(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	for lang, langConfig := range config {
+		if langConfig.NestingRegex() == nil {
+			t.Errorf("Language %s has nil NestingRegex", lang)
+		}
+		if langConfig.FlatRegex() == nil {
+			t.Errorf("Language %s has nil FlatRegex", lang)
+		}
+		if langConfig.LoopRegex() == nil {
+			t.Errorf("Language %s has nil LoopRegex", lang)
+		}
+	}
+}
+
+// TestLoadConfig_LoopPatternIsSubsetOfNesting checks that LoopPattern never
+// matches an obviously non-loop line (if/switch/case) — it must be a strict
+// subset of NestingPattern, since loop-nesting depth is meant to flag
+// specifically iterating-inside-iterating, not any decision inside a loop.
+func TestLoadConfig_LoopPatternIsSubsetOfNesting(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	nonLoopLines := []string{"if x:", "if x {", "switch x {", "case 1:"}
+	for lang, langConfig := range config {
+		for _, line := range nonLoopLines {
+			if langConfig.LoopRegex().MatchString(line) {
+				t.Errorf("%s: LoopRegex should not match non-loop line %q", lang, line)
+			}
+		}
+	}
+}
+
+// TestLoadConfig_NestingPatternContent spot-checks a few languages so a
+// typo'd regex (or a key that silently stops matching, as rust/swift did
+// under their old "rs"/"sw" map keys) fails loudly instead of just falling
+// back to the generic pattern.
+func TestLoadConfig_NestingPatternContent(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	tests := []struct {
+		lang         string
+		nestingLine  string // should match NestingRegex
+		flatLine     string // should match FlatRegex
+		nonFlatMatch string // matches NestingRegex but must NOT match FlatRegex
+	}{
+		{"go", "if x > 0 {", "case 1:", "if x > 0 {"},
+		{"py", "if x:", "elif y:", "if x:"},
+		{"rust", "if x {", "case _ =>", "if x {"},
+		{"swift", "guard x else {", "else {", "guard x else {"},
+		{"ruby", "if x", "elsif y", "if x"},
+	}
+
+	for _, tt := range tests {
+		langConfig, err := config.GetLanguageConfig(tt.lang)
+		if err != nil {
+			t.Fatalf("%s: %v", tt.lang, err)
+		}
+		if !langConfig.NestingRegex().MatchString(tt.nestingLine) {
+			t.Errorf("%s: NestingRegex should match %q", tt.lang, tt.nestingLine)
+		}
+		if !langConfig.FlatRegex().MatchString(tt.flatLine) {
+			t.Errorf("%s: FlatRegex should match %q", tt.lang, tt.flatLine)
+		}
+		if langConfig.FlatRegex().MatchString(tt.nonFlatMatch) {
+			t.Errorf("%s: FlatRegex should NOT match %q (that's a nesting line, not a flat sibling)", tt.lang, tt.nonFlatMatch)
+		}
+	}
+}
+
+// TestLoadConfig_FlatPatternMatchesKAndRStyle guards a bug that was dormant
+// until complexity's brace-language depth counter started consuming these
+// patterns: nesting_pattern/flat_pattern were anchored with a bare "^\s*",
+// which only matches "else"/"catch"/"finally" sitting alone at the start of
+// a line (Allman style). Real-world gofmt/prettier-formatted code almost
+// always cuddles them onto the closing brace of the previous block —
+// "} else {", "} catch (e) {" — so the un-anchored version never matched
+// real code at all, and an else/catch branch would be measured one level
+// shallower than its sibling if-branch.
+func TestLoadConfig_FlatPatternMatchesKAndRStyle(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	tests := []struct {
+		lang string
+		line string
+	}{
+		{"go", "} else {"},
+		{"java", "} else {"},
+		{"java", "} catch (e) {"},
+		{"js", "} else {"},
+		{"cpp", "} catch (e) {"},
+		{"php", "} elseif ($x) {"},
+		{"php", "} else {"},
+	}
+
+	for _, tt := range tests {
+		langConfig, err := config.GetLanguageConfig(tt.lang)
+		if err != nil {
+			t.Fatalf("%s: %v", tt.lang, err)
+		}
+		if !langConfig.FlatRegex().MatchString(tt.line) && !langConfig.NestingRegex().MatchString(tt.line) {
+			t.Errorf("%s: neither FlatRegex nor NestingRegex matches K&R-style %q", tt.lang, tt.line)
+		}
+	}
+}
+
+// TestLoadConfig_KeywordPrefixNotMatchedAsKeyword guards a false-positive
+// class found while testing complexity on real code: the keyword groups
+// only checked what followed ("for" + a letter or "("), never that the
+// keyword itself ENDED there — so a bare call to a function whose name
+// happens to start with a reserved word ("forwardRequest()", "doWork()",
+// "ifPresent(x)", all common in Go/Java/JS) matched as if it opened a
+// for/do/if. Since these are reserved words in every language here, they
+// can never legally be an identifier prefix, so a word boundary after the
+// keyword is sufficient and correct — no need to enumerate what may follow.
+func TestLoadConfig_KeywordPrefixNotMatchedAsKeyword(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+
+	tests := []struct {
+		lang string
+		line string
+	}{
+		{"go", "forwardRequest(req)"},
+		{"go", "forEach(items, func(x int) {"},
+		{"java", "doWork();"},
+		{"java", "ifPresent(x -> {"},
+		{"js", "forEach(function(x) {"},
+		{"py", "formatValue(x)"},
+		{"php", "doSomething();"},
+	}
+
+	for _, tt := range tests {
+		langConfig, err := config.GetLanguageConfig(tt.lang)
+		if err != nil {
+			t.Fatalf("%s: %v", tt.lang, err)
+		}
+		if langConfig.NestingRegex().MatchString(tt.line) {
+			t.Errorf("%s: NestingRegex falsely matches keyword-prefixed call %q", tt.lang, tt.line)
+		}
+		if re := langConfig.LoopRegex(); re != nil && re.MatchString(tt.line) {
+			t.Errorf("%s: LoopRegex falsely matches keyword-prefixed call %q", tt.lang, tt.line)
+		}
+	}
+}
+
 func TestLoadConfig_LanguageConfigurations(t *testing.T) {
 	config, err := LoadConfig()
 	if err != nil {
@@ -147,49 +313,49 @@ func TestLoadConfig_StringChars(t *testing.T) {
 	}
 
 	tests := []struct {
-		lang                 string
-		expectedStringChars  []string
-		expectedRawStrings   []string
+		lang                string
+		expectedStringChars []string
+		expectedRawStrings  []string
 	}{
 		{
-			lang:                 "go",
-			expectedStringChars:  []string{"\""},
-			expectedRawStrings:   []string{"`"},
+			lang:                "go",
+			expectedStringChars: []string{"\""},
+			expectedRawStrings:  []string{"`"},
 		},
 		{
-			lang:                 "c",
-			expectedStringChars:  []string{"\"", "'"},
-			expectedRawStrings:   []string{},
+			lang:                "c",
+			expectedStringChars: []string{"\"", "'"},
+			expectedRawStrings:  []string{},
 		},
 		{
-			lang:                 "cpp",
-			expectedStringChars:  []string{"\"", "'"},
-			expectedRawStrings:   []string{},
+			lang:                "cpp",
+			expectedStringChars: []string{"\"", "'"},
+			expectedRawStrings:  []string{},
 		},
 		{
-			lang:                 "cs",
-			expectedStringChars:  []string{"\""},
-			expectedRawStrings:   []string{"@\""},
+			lang:                "cs",
+			expectedStringChars: []string{"\""},
+			expectedRawStrings:  []string{"@\""},
 		},
 		{
-			lang:                 "java",
-			expectedStringChars:  []string{"\""},
-			expectedRawStrings:   []string{},
+			lang:                "java",
+			expectedStringChars: []string{"\""},
+			expectedRawStrings:  []string{},
 		},
 		{
-			lang:                 "d",
-			expectedStringChars:  []string{"\""},
-			expectedRawStrings:   []string{"`", "r\""},
+			lang:                "d",
+			expectedStringChars: []string{"\""},
+			expectedRawStrings:  []string{"`", "r\""},
 		},
 		{
-			lang:                 "js",
-			expectedStringChars:  []string{"\"", "'"},
-			expectedRawStrings:   []string{"`"},
+			lang:                "js",
+			expectedStringChars: []string{"\"", "'"},
+			expectedRawStrings:  []string{"`"},
 		},
 		{
-			lang:                 "ts",
-			expectedStringChars:  []string{"\"", "'"},
-			expectedRawStrings:   []string{"`"},
+			lang:                "ts",
+			expectedStringChars: []string{"\"", "'"},
+			expectedRawStrings:  []string{"`"},
 		},
 	}
 
@@ -321,196 +487,196 @@ func TestFuncRegex(t *testing.T) {
 	}
 
 	tests := []struct {
-		lang          string
-		code          string
-		shouldMatch   bool
-		expectedName  string
+		lang         string
+		code         string
+		shouldMatch  bool
+		expectedName string
 	}{
 		{
-			lang:          "go",
-			code:          "func main() {",
-			shouldMatch:   true,
-			expectedName:  "main",
+			lang:         "go",
+			code:         "func main() {",
+			shouldMatch:  true,
+			expectedName: "main",
 		},
 		{
-			lang:          "go",
-			code:          "func (s *Server) Handler() {",
-			shouldMatch:   true,
-			expectedName:  "Handler",
+			lang:         "go",
+			code:         "func (s *Server) Handler() {",
+			shouldMatch:  true,
+			expectedName: "Handler",
 		},
 		{
-			lang:          "go",
-			code:          "  func helper() {",
-			shouldMatch:   true,
-			expectedName:  "helper",
+			lang:         "go",
+			code:         "  func helper() {",
+			shouldMatch:  true,
+			expectedName: "helper",
 		},
 		{
-			lang:          "go",
-			code:          "x := func() {",
-			shouldMatch:   false,
+			lang:        "go",
+			code:        "x := func() {",
+			shouldMatch: false,
 		},
 		{
-			lang:          "c",
-			code:          "int main()",
-			shouldMatch:   true,
-			expectedName:  "main",
+			lang:         "c",
+			code:         "int main()",
+			shouldMatch:  true,
+			expectedName: "main",
 		},
 		{
-			lang:          "c",
-			code:          "void helper(int x, char *y)",
-			shouldMatch:   true,
-			expectedName:  "helper",
+			lang:         "c",
+			code:         "void helper(int x, char *y)",
+			shouldMatch:  true,
+			expectedName: "helper",
 		},
 		{
-			lang:          "java",
-			code:          "public void testMethod()",
-			shouldMatch:   true,
-			expectedName:  "testMethod",
+			lang:         "java",
+			code:         "public void testMethod()",
+			shouldMatch:  true,
+			expectedName: "testMethod",
 		},
 		{
-			lang:          "cs",
-			code:          "public int GetValue()",
-			shouldMatch:   true,
-			expectedName:  "GetValue",
+			lang:         "cs",
+			code:         "public int GetValue()",
+			shouldMatch:  true,
+			expectedName: "GetValue",
 		},
 		{
-			lang:          "js",
-			code:          "function main() {",
-			shouldMatch:   true,
-			expectedName:  "main",
+			lang:         "js",
+			code:         "function main() {",
+			shouldMatch:  true,
+			expectedName: "main",
 		},
 		{
-			lang:          "js",
-			code:          "async function getData() {",
-			shouldMatch:   true,
-			expectedName:  "getData",
+			lang:         "js",
+			code:         "async function getData() {",
+			shouldMatch:  true,
+			expectedName: "getData",
 		},
 		{
-			lang:          "js",
-			code:          "regularMethod() {",
-			shouldMatch:   false, // Class methods without "function" keyword not supported
+			lang:        "js",
+			code:        "regularMethod() {",
+			shouldMatch: false, // Class methods without "function" keyword not supported
 		},
 		{
-			lang:          "js",
-			code:          "async asyncMethod() {",
-			shouldMatch:   false, // Class methods without "function" keyword not supported
+			lang:        "js",
+			code:        "async asyncMethod() {",
+			shouldMatch: false, // Class methods without "function" keyword not supported
 		},
 		{
-			lang:          "js",
-			code:          "export function exported() {",
-			shouldMatch:   true,
-			expectedName:  "exported",
+			lang:         "js",
+			code:         "export function exported() {",
+			shouldMatch:  true,
+			expectedName: "exported",
 		},
 		{
-			lang:          "ts",
-			code:          "function greet(name: string): string {",
-			shouldMatch:   true,
-			expectedName:  "greet",
+			lang:         "ts",
+			code:         "function greet(name: string): string {",
+			shouldMatch:  true,
+			expectedName: "greet",
 		},
 		{
-			lang:          "ts",
-			code:          "async function fetchUser(id: number): Promise<User> {",
-			shouldMatch:   true,
-			expectedName:  "fetchUser",
+			lang:         "ts",
+			code:         "async function fetchUser(id: number): Promise<User> {",
+			shouldMatch:  true,
+			expectedName: "fetchUser",
 		},
 		{
-			lang:          "ts",
-			code:          "identity<T>(arg: T): T {",
-			shouldMatch:   false, // Class methods without "function" keyword not supported
+			lang:        "ts",
+			code:        "identity<T>(arg: T): T {",
+			shouldMatch: false, // Class methods without "function" keyword not supported
 		},
 		// Generator functions
 		{
-			lang:          "js",
-			code:          "function* simpleGenerator() {",
-			shouldMatch:   true,
-			expectedName:  "simpleGenerator",
+			lang:         "js",
+			code:         "function* simpleGenerator() {",
+			shouldMatch:  true,
+			expectedName: "simpleGenerator",
 		},
 		{
-			lang:          "js",
-			code:          "async function* asyncGenerator() {",
-			shouldMatch:   true,
-			expectedName:  "asyncGenerator",
+			lang:         "js",
+			code:         "async function* asyncGenerator() {",
+			shouldMatch:  true,
+			expectedName: "asyncGenerator",
 		},
 		{
-			lang:          "js",
-			code:          "export function* exportedGenerator() {",
-			shouldMatch:   true,
-			expectedName:  "exportedGenerator",
+			lang:         "js",
+			code:         "export function* exportedGenerator() {",
+			shouldMatch:  true,
+			expectedName: "exportedGenerator",
 		},
 		// Arrow functions
 		{
-			lang:          "js",
-			code:          "const arrowFunc = () => {",
-			shouldMatch:   true,
-			expectedName:  "arrowFunc",
+			lang:         "js",
+			code:         "const arrowFunc = () => {",
+			shouldMatch:  true,
+			expectedName: "arrowFunc",
 		},
 		{
-			lang:          "js",
-			code:          "const asyncArrow = async () => {",
-			shouldMatch:   true,
-			expectedName:  "asyncArrow",
+			lang:         "js",
+			code:         "const asyncArrow = async () => {",
+			shouldMatch:  true,
+			expectedName: "asyncArrow",
 		},
 		{
-			lang:          "js",
-			code:          "let letArrow = () => {",
-			shouldMatch:   true,
-			expectedName:  "letArrow",
+			lang:         "js",
+			code:         "let letArrow = () => {",
+			shouldMatch:  true,
+			expectedName: "letArrow",
 		},
 		{
-			lang:          "js",
-			code:          "var varArrow = () => {",
-			shouldMatch:   true,
-			expectedName:  "varArrow",
+			lang:         "js",
+			code:         "var varArrow = () => {",
+			shouldMatch:  true,
+			expectedName: "varArrow",
 		},
 		// TypeScript arrow functions with types
 		{
-			lang:          "ts",
-			code:          "const typedArrow = (x: number): number => {",
-			shouldMatch:   true,
-			expectedName:  "typedArrow",
+			lang:         "ts",
+			code:         "const typedArrow = (x: number): number => {",
+			shouldMatch:  true,
+			expectedName: "typedArrow",
 		},
 		{
-			lang:          "ts",
-			code:          "const genericArrow = <T>(arg: T): T => {",
-			shouldMatch:   true,
-			expectedName:  "genericArrow",
+			lang:         "ts",
+			code:         "const genericArrow = <T>(arg: T): T => {",
+			shouldMatch:  true,
+			expectedName: "genericArrow",
 		},
 		// export const arrow functions (Bug #1 fix)
 		{
-			lang:          "js",
-			code:          "export const add = (a, b) => {",
-			shouldMatch:   true,
-			expectedName:  "add",
+			lang:         "js",
+			code:         "export const add = (a, b) => {",
+			shouldMatch:  true,
+			expectedName: "add",
 		},
 		{
-			lang:          "js",
-			code:          "export const asyncFetch = async (url) => {",
-			shouldMatch:   true,
-			expectedName:  "asyncFetch",
+			lang:         "js",
+			code:         "export const asyncFetch = async (url) => {",
+			shouldMatch:  true,
+			expectedName: "asyncFetch",
 		},
 		{
-			lang:          "ts",
-			code:          "export const processData = (data: string[]): void => {",
-			shouldMatch:   true,
-			expectedName:  "processData",
+			lang:         "ts",
+			code:         "export const processData = (data: string[]): void => {",
+			shouldMatch:  true,
+			expectedName: "processData",
 		},
 		{
-			lang:          "ts",
-			code:          "export const fetchUser = async (id: string): Promise<void> => {",
-			shouldMatch:   true,
-			expectedName:  "fetchUser",
+			lang:         "ts",
+			code:         "export const fetchUser = async (id: string): Promise<void> => {",
+			shouldMatch:  true,
+			expectedName: "fetchUser",
 		},
 		{
-			lang:          "ts",
-			code:          "export let handler = (req: Request) => {",
-			shouldMatch:   true,
-			expectedName:  "handler",
+			lang:         "ts",
+			code:         "export let handler = (req: Request) => {",
+			shouldMatch:  true,
+			expectedName: "handler",
 		},
 		{
-			lang:          "ts",
-			code:          "export const genericFn = <T>(x: T): T => {",
-			shouldMatch:   true,
-			expectedName:  "genericFn",
+			lang:         "ts",
+			code:         "export const genericFn = <T>(x: T): T => {",
+			shouldMatch:  true,
+			expectedName: "genericFn",
 		},
 	}
 

@@ -642,3 +642,28 @@ func another() {
 		}
 	})
 }
+
+// TestExtractFuncName covers the shared name-extraction helper directly —
+// promoted from three separate inline/duplicated copies (here, callgraph.go,
+// cmd/stat/main.go) into one, so it's tested once instead of three times.
+func TestExtractFuncName(t *testing.T) {
+	tests := []struct {
+		name    string
+		matches []string
+		want    string
+	}{
+		{"last non-empty group", []string{"func Foo(", "", "Foo"}, "Foo"},
+		{"receiver group present but empty stays skipped", []string{"func (r *T) Bar(", "(r *T) ", "", "Bar"}, "Bar"},
+		{"JS/TS function declaration uses group 3", []string{"function foo(", "", "", "foo", "", ""}, "foo"},
+		{"JS/TS arrow assignment uses group 5", []string{"const bar = () =>", "", "", "", "", "bar"}, "bar"},
+		{"no groups matched", []string{"x"}, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ExtractFuncName(tt.matches); got != tt.want {
+				t.Errorf("ExtractFuncName(%v) = %q, want %q", tt.matches, got, tt.want)
+			}
+		})
+	}
+}

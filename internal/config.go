@@ -16,7 +16,7 @@ var languagesFS embed.FS
 
 // StructTypePattern represents a pattern for a specific type kind
 type StructTypePattern struct {
-	Type    string `json:"type"`   // Type kind: class, struct, interface, enum, etc.
+	Type    string `json:"type"`    // Type kind: class, struct, interface, enum, etc.
 	Pattern string `json:"pattern"` // Regex pattern for this type
 }
 
@@ -39,10 +39,24 @@ type LanguageConfig struct {
 	ExcludeWords     []string `json:"exclude_words"`
 	DecoratorPattern string   `json:"decorator_pattern"`
 
+	// Nesting patterns (for complexity.go) — NestingPattern matches lines that
+	// open a new level of control-flow branching (if/for/while/switch/...);
+	// FlatPattern matches a sibling continuation of the same construct
+	// (else/elif/case/default/...) that should NOT add another nesting level.
+	// LoopPattern is the loop-only subset of NestingPattern (for/while/
+	// foreach/do/loop/repeat/until — never if/switch/case/catch), used to
+	// track loop-in-loop nesting as a signal distinct from general
+	// branching depth: iterating code compounds cost per iteration in a way
+	// a conditional doesn't, so it's tracked and reported separately rather
+	// than folded into the same score.
+	NestingPattern string `json:"nesting_pattern,omitempty"`
+	FlatPattern    string `json:"flat_pattern,omitempty"`
+	LoopPattern    string `json:"loop_pattern,omitempty"`
+
 	// Import patterns (for deps.go)
-	ImportPattern    string   `json:"import_pattern"`
-	MultiLineBlock   string   `json:"multi_line_block"`
-	ExcludePatterns  []string `json:"exclude_patterns"`
+	ImportPattern   string   `json:"import_pattern"`
+	MultiLineBlock  string   `json:"multi_line_block"`
+	ExcludePatterns []string `json:"exclude_patterns"`
 
 	// Comment/String handling
 	LineComment       string   `json:"line_comment"`
@@ -51,6 +65,11 @@ type LanguageConfig struct {
 	StringChars       []string `json:"string_chars"`
 	RawStringChars    []string `json:"raw_string_chars"`
 	EscapeChar        string   `json:"escape_char"`
+	// SingleLineStrings — a regular (non-raw) string cannot continue past the
+	// end of its line (JS/TS "..." and '...'). An unterminated quote then ends
+	// with the line instead of swallowing the following code — which is what a
+	// stray apostrophe in JSX text (<p>Зв'язок</p>) would otherwise do.
+	SingleLineStrings bool     `json:"single_line_strings,omitempty"`
 	CharDelimiters    []string `json:"char_delimiters,omitempty"`
 	DocStringMarkers  []string `json:"doc_string_markers,omitempty"`
 	IndentBased       bool     `json:"indent_based"`
@@ -66,14 +85,17 @@ type LanguageConfig struct {
 	ExtraPatterns map[string]string `json:"extra_patterns,omitempty"`
 
 	// Compiled regex cache
-	funcRegex       *regexp.Regexp
-	classRegex      *regexp.Regexp
-	structPatterns  map[string]*regexp.Regexp
-	fieldRegex      *regexp.Regexp
-	callRegex       *regexp.Regexp
-	importRegex     *regexp.Regexp
-	decoratorRe     *regexp.Regexp
-	blockCommentRe  *regexp.Regexp
+	funcRegex      *regexp.Regexp
+	classRegex     *regexp.Regexp
+	structPatterns map[string]*regexp.Regexp
+	fieldRegex     *regexp.Regexp
+	callRegex      *regexp.Regexp
+	importRegex    *regexp.Regexp
+	decoratorRe    *regexp.Regexp
+	blockCommentRe *regexp.Regexp
+	nestingRe      *regexp.Regexp
+	flatRe         *regexp.Regexp
+	loopRe         *regexp.Regexp
 }
 
 // Config is a map of language keys to their configurations
@@ -154,6 +176,29 @@ func LoadConfig() (Config, error) {
 				return nil, fmt.Errorf("invalid call regex for %s: %w", lang, err)
 			}
 			conf.callRegex = callRe
+		}
+
+		// Compile nesting/flat regex if specified
+		if conf.NestingPattern != "" {
+			nestingRe, err := regexp.Compile(conf.NestingPattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid nesting regex for %s: %w", lang, err)
+			}
+			conf.nestingRe = nestingRe
+		}
+		if conf.FlatPattern != "" {
+			flatRe, err := regexp.Compile(conf.FlatPattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid flat regex for %s: %w", lang, err)
+			}
+			conf.flatRe = flatRe
+		}
+		if conf.LoopPattern != "" {
+			loopRe, err := regexp.Compile(conf.LoopPattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid loop regex for %s: %w", lang, err)
+			}
+			conf.loopRe = loopRe
 		}
 
 		// Compile import regex if specified
@@ -288,4 +333,17 @@ func (lc *LanguageConfig) ImportRegex() *regexp.Regexp {
 
 func (lc *LanguageConfig) BlockCommentRegex() *regexp.Regexp {
 	return lc.blockCommentRe
+}
+
+// Regex getters for complexity.go
+func (lc *LanguageConfig) NestingRegex() *regexp.Regexp {
+	return lc.nestingRe
+}
+
+func (lc *LanguageConfig) FlatRegex() *regexp.Regexp {
+	return lc.flatRe
+}
+
+func (lc *LanguageConfig) LoopRegex() *regexp.Regexp {
+	return lc.loopRe
 }

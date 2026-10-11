@@ -2,11 +2,10 @@
 .PHONY: all build test clean install uninstall coverage fmt vet lint help release
 
 # Variables
-# Patch version is derived from total git commit count — increments automatically with every commit.
-# Bump VERSION_BASE manually only for major/minor releases.
-VERSION_BASE := 1.8
-VERSION := $(VERSION_BASE).$(shell git rev-list --count HEAD)
-BINARIES := funcfinder stat deps complexity callgraph docsearch
+# Version — the single source of truth is the VERSION file (also read by
+# build.sh, build.ps1 and checked against the tag by the release workflow).
+VERSION := $(strip $(shell cat VERSION))
+BINARIES := funcfinder stat deps complexity callgraph
 BUILD_DIR := build
 DIST_DIR := dist
 GO := go
@@ -45,8 +44,6 @@ build:
 	@echo "  ✓ complexity"
 	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o callgraph ./cmd/callgraph
 	@echo "  ✓ callgraph"
-	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o docsearch ./cmd/docsearch
-	@echo "  ✓ docsearch"
 	@echo "$(COLOR_GREEN)✅ All binaries built successfully!$(COLOR_RESET)"
 
 ## build-all: Build binaries for all platforms
@@ -204,18 +201,12 @@ update:
 
 ##@ Release
 
-## release: Create a new major/minor release (use: make release BASE=1.7)
+## release: Tag the version from the VERSION file (bump VERSION and CHANGELOG.md first)
 release:
-	@if [ -z "$(BASE)" ]; then \
-		echo "$(COLOR_YELLOW)⚠️  BASE not specified. Usage: make release BASE=1.7$(COLOR_RESET)"; \
-		exit 1; \
-	fi
-	@echo "$(COLOR_GREEN)Updating VERSION_BASE to $(BASE)...$(COLOR_RESET)"
-	@sed -i 's/^VERSION_BASE := .*/VERSION_BASE := $(BASE)/' Makefile
-	@echo "Creating git tag..."
-	@git tag -a v$(BASE).0 -m "Release v$(BASE).0"
-	@echo "$(COLOR_GREEN)✅ Release v$(BASE).0 ready!$(COLOR_RESET)"
-	@echo "$(COLOR_YELLOW)Push with: git push origin v$(BASE).0$(COLOR_RESET)"
+	@echo "Creating git tag v$(VERSION)..."
+	@git tag -a v$(VERSION) -m "Release v$(VERSION)"
+	@echo "$(COLOR_GREEN)✅ Release v$(VERSION) ready!$(COLOR_RESET)"
+	@echo "$(COLOR_YELLOW)Push with: git push origin v$(VERSION)$(COLOR_RESET)"
 
 ## version: Show current version
 version:

@@ -146,8 +146,47 @@ func (pf *PythonFinder) FindFunctions(filename string) (*FindResult, error) {
 		}
 	}
 
+	classes := pf.findClasses(lines, functions)
+
 	return &FindResult{
 		Functions: functions,
+		Classes:   classes,
 		Filename:  filename,
 	}, nil
+}
+
+// findClasses находит границы классов (переиспользуя PythonStructFinder)
+// и проставляет ClassName у методов, лежащих внутри соответствующего класса.
+// Для вложенных классов (например, `class Meta:` внутри модели Django)
+// выбирается самый "узкий" охватывающий класс.
+func (pf *PythonFinder) findClasses(lines []string, functions []FunctionBounds) []ClassBounds {
+	structFinder := NewPythonStructFinder(pf.config, "", true, false)
+	structResult, err := structFinder.FindStructuresInLines(lines, 1, "")
+	if err != nil || structResult == nil {
+		return nil
+	}
+
+	classes := make([]ClassBounds, 0, len(structResult.Types))
+	for _, t := range structResult.Types {
+		classes = append(classes, ClassBounds{Name: t.Name, Start: t.Start, End: t.End})
+	}
+
+	for i := range functions {
+		fn := &functions[i]
+		bestName := ""
+		bestSpan := -1
+		for _, c := range classes {
+			if fn.Start < c.Start || fn.End > c.End {
+				continue
+			}
+			span := c.End - c.Start
+			if bestSpan == -1 || span < bestSpan {
+				bestSpan = span
+				bestName = c.Name
+			}
+		}
+		fn.ClassName = bestName
+	}
+
+	return classes
 }

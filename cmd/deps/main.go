@@ -33,7 +33,6 @@ type fileSet map[string]bool
 
 // Stdlib detection for common languages
 var stdlibPrefixes = map[string][]string{
-	"py":    {"", "builtins.", "sys.", "os.", "json.", "re.", "collections.", "typing.", "__future__."},
 	"go":    {"fmt", "os", "io", "strings", "math", "regexp", "encoding/json", "testing", "bytes", "errors"},
 	"rs":    {"std::", "core::"},
 	"js":    {"assert", "buffer", "crypto", "fs", "http", "path", "url"},
@@ -46,7 +45,71 @@ var stdlibPrefixes = map[string][]string{
 	"swift": {"Swift", "Foundation"},
 }
 
+// pythonStdlibModules is the set of top-level Python 3 standard library
+// module/package names. Matched against the leading dotted component of an
+// import (e.g. "os.path" -> "os"), never as a raw substring/prefix — a naive
+// prefix check would previously misclassify every import as stdlib because
+// of a stray "" entry, and would still falsely match names like "osprey"
+// against "os" if done as a plain HasPrefix.
+var pythonStdlibModules = map[string]bool{
+	"__future__": true, "__main__": true, "_thread": true,
+	"abc": true, "aifc": true, "argparse": true, "array": true, "ast": true,
+	"asyncio": true, "atexit": true, "base64": true, "bdb": true,
+	"binascii": true, "bisect": true, "builtins": true, "bz2": true,
+	"calendar": true, "cgi": true, "cgitb": true, "chunk": true, "cmath": true,
+	"cmd": true, "code": true, "codecs": true, "codeop": true,
+	"collections": true, "colorsys": true, "compileall": true,
+	"concurrent": true, "configparser": true, "contextlib": true,
+	"contextvars": true, "copy": true, "copyreg": true, "cProfile": true,
+	"csv": true, "ctypes": true, "curses": true, "dataclasses": true,
+	"datetime": true, "dbm": true, "decimal": true, "difflib": true,
+	"dis": true, "distutils": true, "doctest": true, "email": true,
+	"encodings": true, "ensurepip": true, "enum": true, "errno": true,
+	"faulthandler": true, "fcntl": true, "filecmp": true, "fileinput": true,
+	"fnmatch": true, "fractions": true, "ftplib": true, "functools": true,
+	"gc": true, "getopt": true, "getpass": true, "gettext": true, "glob": true,
+	"graphlib": true, "grp": true, "gzip": true, "hashlib": true, "heapq": true,
+	"hmac": true, "html": true, "http": true, "imaplib": true, "imghdr": true,
+	"imp": true, "importlib": true, "inspect": true, "io": true,
+	"ipaddress": true, "itertools": true, "json": true, "keyword": true,
+	"linecache": true, "locale": true, "logging": true, "lzma": true,
+	"mailbox": true, "mailcap": true, "marshal": true, "math": true,
+	"mimetypes": true, "mmap": true, "modulefinder": true, "multiprocessing": true,
+	"netrc": true, "nntplib": true, "numbers": true, "operator": true,
+	"optparse": true, "os": true, "pathlib": true, "pdb": true, "pickle": true,
+	"pickletools": true, "pipes": true, "pkgutil": true, "platform": true,
+	"plistlib": true, "poplib": true, "posix": true, "posixpath": true,
+	"pprint": true, "profile": true, "pstats": true, "pty": true, "pwd": true,
+	"py_compile": true, "pyclbr": true, "pydoc": true, "queue": true,
+	"quopri": true, "random": true, "re": true, "readline": true,
+	"reprlib": true, "resource": true, "rlcompleter": true, "runpy": true,
+	"sched": true, "secrets": true, "select": true, "selectors": true,
+	"shelve": true, "shlex": true, "shutil": true, "signal": true, "site": true,
+	"smtplib": true, "sndhdr": true, "socket": true, "socketserver": true,
+	"spwd": true, "sqlite3": true, "ssl": true, "stat": true,
+	"statistics": true, "string": true, "stringprep": true, "struct": true,
+	"subprocess": true, "sunau": true, "symtable": true, "sys": true,
+	"sysconfig": true, "syslog": true, "tabnanny": true, "tarfile": true,
+	"telnetlib": true, "tempfile": true, "termios": true, "textwrap": true,
+	"threading": true, "time": true, "timeit": true, "tkinter": true,
+	"token": true, "tokenize": true, "tomllib": true, "trace": true,
+	"traceback": true, "tracemalloc": true, "tty": true, "turtle": true,
+	"types": true, "typing": true, "unicodedata": true, "unittest": true,
+	"urllib": true, "uu": true, "uuid": true, "venv": true, "warnings": true,
+	"wave": true, "weakref": true, "webbrowser": true, "winreg": true,
+	"winsound": true, "wsgiref": true, "xdrlib": true, "xml": true,
+	"xmlrpc": true, "zipapp": true, "zipfile": true, "zipimport": true,
+	"zlib": true, "zoneinfo": true,
+}
+
 func isStdlib(module, langKey string) bool {
+	if langKey == "py" {
+		top := module
+		if idx := strings.IndexByte(module, '.'); idx >= 0 {
+			top = module[:idx]
+		}
+		return pythonStdlibModules[top]
+	}
 	prefixes := stdlibPrefixes[langKey]
 	for _, p := range prefixes {
 		if strings.HasPrefix(module, p) {
@@ -54,6 +117,62 @@ func isStdlib(module, langKey string) bool {
 		}
 	}
 	return false
+}
+
+// detectPythonLocalPackages scans the top level of the analyzed directory
+// for first-party Python packages (a subdirectory containing __init__.py)
+// or modules (a top-level *.py file), so that imports like
+// "django.db.models" are recognized as internal to the project being
+// scanned rather than lumped in with external third-party dependencies.
+func detectPythonLocalPackages(dir string) map[string]bool {
+	names := make(map[string]bool)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return names
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() {
+			if _, err := os.Stat(filepath.Join(dir, name, "__init__.py")); err == nil {
+				names[name] = true
+			}
+		} else if strings.HasSuffix(name, ".py") {
+			names[strings.TrimSuffix(name, ".py")] = true
+		}
+	}
+	return names
+}
+
+// classifyDep buckets a single import into "std", "int" (internal/local),
+// or "ext" (external/third-party), for both the summary counts and the
+// per-line annotation printed for each dependency.
+func classifyDep(dep, langKey string, localPkgs map[string]bool) string {
+	if isStdlib(dep, langKey) {
+		return "std"
+	}
+	if langKey == "py" {
+		// Python has no "internal/" or "vendor/" path convention to key
+		// off of, and bare (dot-less) imports are just as often a
+		// third-party package (import requests, import numpy) as they
+		// are Go-style local packages — so the only reliable "internal"
+		// signal is a match against what's actually on disk under the
+		// scanned directory. Everything else, dotted or bare, is external.
+		top := dep
+		if idx := strings.IndexByte(dep, '.'); idx >= 0 {
+			top = dep[:idx]
+		}
+		if localPkgs[top] {
+			return "int"
+		}
+		return "ext"
+	}
+	if strings.Contains(dep, "internal/") || strings.Contains(dep, "vendor/") {
+		return "int"
+	}
+	if strings.Contains(dep, "/") || strings.Contains(dep, ".") {
+		return "ext"
+	}
+	return "int"
 }
 
 // collectFileImports returns all imports per file as map[absPath][]importedModule
@@ -318,6 +437,15 @@ func main() {
 		}
 	}
 
+	// For Python, "django.db.models"-style imports of the project's own
+	// first-party packages must not be counted as external dependencies —
+	// detect which top-level names under the scanned directory are actually
+	// local packages/modules so classifyDep can tell them apart.
+	var localPkgs map[string]bool
+	if langConfig.LangKey == "py" {
+		localPkgs = detectPythonLocalPackages(dir)
+	}
+
 	var deps []DepInfo
 	stdlib, external, internalCount := 0, 0, 0
 
@@ -329,14 +457,13 @@ func main() {
 		info := DepInfo{Module: dep, Count: len(fileList), Files: fileList}
 		deps = append(deps, info)
 
-		if isStdlib(dep, langConfig.LangKey) {
+		switch classifyDep(dep, langConfig.LangKey, localPkgs) {
+		case "std":
 			stdlib++
-		} else if strings.Contains(dep, "internal/") || strings.Contains(dep, "vendor/") {
+		case "int":
 			internalCount++
-		} else if strings.Contains(dep, "/") || strings.Contains(dep, ".") {
+		default:
 			external++
-		} else {
-			internalCount++
 		}
 	}
 
@@ -371,12 +498,7 @@ func main() {
 		printCount = topN
 	}
 	for i := 0; i < printCount; i++ {
-		kind := "ext"
-		if isStdlib(deps[i].Module, langConfig.LangKey) {
-			kind = "std"
-		} else if strings.Contains(deps[i].Module, "internal/") || strings.Contains(deps[i].Module, "vendor/") {
-			kind = "int"
-		}
+		kind := classifyDep(deps[i].Module, langConfig.LangKey, localPkgs)
 		fmt.Printf("%-30s %3d (%s)\n", deps[i].Module, deps[i].Count, kind)
 	}
 }

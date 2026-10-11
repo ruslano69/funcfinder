@@ -32,15 +32,15 @@ type StatResult struct {
 
 // DirStatResult is the JSON output structure for directory mode.
 type DirStatResult struct {
-	Language     string      `json:"language"`
-	Dir          string      `json:"dir"`
-	TotalFiles   int         `json:"total_files"`
-	TotalLines   int         `json:"total_lines"`
-	CodeLines    int         `json:"code_lines"`
-	CommentLines int         `json:"comment_lines"`
-	BlankLines   int         `json:"blank_lines"`
-	UniqueCalls  int         `json:"unique_calls"`
-	TopCalls     []CallEntry `json:"top_calls"`
+	Language     string       `json:"language"`
+	Dir          string       `json:"dir"`
+	TotalFiles   int          `json:"total_files"`
+	TotalLines   int          `json:"total_lines"`
+	CodeLines    int          `json:"code_lines"`
+	CommentLines int          `json:"comment_lines"`
+	BlankLines   int          `json:"blank_lines"`
+	UniqueCalls  int          `json:"unique_calls"`
+	TopCalls     []CallEntry  `json:"top_calls"`
 	Files        []StatResult `json:"files"`
 }
 
@@ -99,6 +99,19 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 	if callRegex == nil {
 		internal.FatalError("no call pattern defined for language")
 	}
+
+	// Function names known to the shared finder (the same one funcfinder,
+	// complexity and callgraph already use) — a call-site scan must not
+	// count a function's own signature line as a call to itself. Best
+	// effort: an error here just means no self-definition line is skipped,
+	// same as stat's behavior before this existed.
+	definedNames := make(map[string]bool)
+	if fr, ferr := internal.CreateFinder(config, "", "map", false, false).FindFunctions(filename); ferr == nil {
+		for _, fn := range fr.Functions {
+			definedNames[fn.Name] = true
+		}
+	}
+	funcRegex := config.FuncRegex()
 
 	callCounts := make(map[string]int)
 
@@ -174,10 +187,31 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 			continue
 		}
 
+		// If this line is itself a function/method signature (per the same
+		// FuncRegex that decided it's a function), note its name so the
+		// matching call-site match below — its own "name(" token — is
+		// skipped instead of counted as a call to itself. A genuine call to
+		// that name elsewhere, including a recursive call later in the same
+		// function's body, is on a different line and unaffected.
+		selfDefName := ""
+		if funcRegex != nil {
+			if m := funcRegex.FindStringSubmatch(cleanedLine); m != nil {
+				if name := internal.ExtractFuncName(m); name != "" && definedNames[name] {
+					selfDefName = name
+				}
+			}
+		}
+
 		matches := callRegex.FindAllStringSubmatch(cleanedLine, -1)
+		skippedSelfDef := false
 		for _, match := range matches {
 			if len(match) >= 2 {
 				funcName := match[1]
+
+				if funcName == selfDefName && !skippedSelfDef {
+					skippedSelfDef = true
+					continue
+				}
 
 				excluded := false
 				for _, exclude := range config.ExcludeWords {
@@ -197,7 +231,10 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 }
 
 // sortedCalls converts a callCounts map to a sorted slice of pairs.
-func sortedCalls(callCounts map[string]int) []struct{ name string; count int } {
+func sortedCalls(callCounts map[string]int) []struct {
+	name  string
+	count int
+} {
 	type pair struct {
 		name  string
 		count int
@@ -207,7 +244,10 @@ func sortedCalls(callCounts map[string]int) []struct{ name string; count int } {
 		calls = append(calls, pair{name, count})
 	}
 	sort.Slice(calls, func(i, j int) bool { return calls[i].count > calls[j].count })
-	result := make([]struct{ name string; count int }, len(calls))
+	result := make([]struct {
+		name  string
+		count int
+	}, len(calls))
 	for i, c := range calls {
 		result[i].name = c.name
 		result[i].count = c.count
@@ -216,7 +256,10 @@ func sortedCalls(callCounts map[string]int) []struct{ name string; count int } {
 }
 
 // toCallEntries converts a sorted calls slice to JSON-ready CallEntry slice, capped at topN.
-func toCallEntries(calls []struct{ name string; count int }, topN int) []CallEntry {
+func toCallEntries(calls []struct {
+	name  string
+	count int
+}, topN int) []CallEntry {
 	entries := calls
 	if topN > 0 && topN < len(entries) {
 		entries = entries[:topN]
@@ -229,7 +272,10 @@ func toCallEntries(calls []struct{ name string; count int }, topN int) []CallEnt
 }
 
 // printFileStats prints text output for a single analyzed file.
-func printFileStats(filename string, langName string, calls []struct{ name string; count int }, metrics *FileMetrics, topN int) {
+func printFileStats(filename string, langName string, calls []struct {
+	name  string
+	count int
+}, metrics *FileMetrics, topN int) {
 	fmt.Printf("Language: %s\n", langName)
 	fmt.Printf("File: %s (%.1f KB)\n", filepath.Base(filename), float64(metrics.FileSize)/1024)
 	fmt.Println(strings.Repeat("-", 35))
@@ -348,8 +394,11 @@ func main() {
 		// Single pass: collect per-file results and aggregate.
 		type perFile struct {
 			path  string
-			calls []struct{ name string; count int }
-			m     FileMetrics
+			calls []struct {
+				name  string
+				count int
+			}
+			m FileMetrics
 		}
 		aggregateCounts := make(map[string]int)
 		var aggMetrics FileMetrics

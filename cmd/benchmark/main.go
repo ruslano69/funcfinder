@@ -1,15 +1,11 @@
-
-
-
-
 package main
 
 import (
 	"flag"
 	"fmt"
+	"github.com/ruslano69/funcfinder/internal"
 	"os"
 	"time"
-	"github.com/ruslano69/funcfinder/internal"
 )
 
 func main() {

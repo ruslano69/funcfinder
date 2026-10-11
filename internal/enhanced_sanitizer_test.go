@@ -89,7 +89,6 @@ func TestEnhancedSanitizer_New(t *testing.T) {
 	}
 }
 
-
 func TestEnhancedSanitizer_ParserState(t *testing.T) {
 	tests := []struct {
 		state    ParserState
@@ -140,7 +139,6 @@ func TestEnhancedSanitizer_ValidState(t *testing.T) {
 		})
 	}
 }
-
 
 func TestEnhancedSanitizer_IsInLiteral(t *testing.T) {
 	config := newGoConfig()

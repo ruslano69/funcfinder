@@ -242,6 +242,110 @@ func TestPythonFinder_ClassMethods(t *testing.T) {
 	}
 }
 
+// TestPythonFinder_ClassNameAssignment covers the --tree grouping bug: for
+// Python, FindFunctions() used to never populate result.Classes or
+// FunctionBounds.ClassName, so every method showed up as a top-level node
+// instead of nested under its class.
+func TestPythonFinder_ClassNameAssignment(t *testing.T) {
+	config := getPyConfig(t)
+
+	content := `class Base:
+    def base_method(self):
+        return 1
+
+
+class Model(Base):
+    class Meta:
+        ordering = ["name"]
+
+        def meta_helper(self):
+            return "meta"
+
+    def save(self):
+        return True
+
+
+def top_level_func():
+    return 42
+`
+
+	tmpfile := createTempFile(t, content, "test_classname_*.py")
+	defer os.Remove(tmpfile)
+
+	finder := NewPythonFinder(*config, "", "map", false)
+	result, err := finder.FindFunctions(tmpfile)
+	if err != nil {
+		t.Fatalf("FindFunctions() error = %v", err)
+	}
+
+	wantClassName := map[string]string{
+		"base_method":    "Base",
+		"meta_helper":    "Meta",
+		"save":           "Model",
+		"top_level_func": "",
+	}
+	for _, fn := range result.Functions {
+		want, ok := wantClassName[fn.Name]
+		if !ok {
+			t.Fatalf("unexpected function %q in result", fn.Name)
+		}
+		if fn.ClassName != want {
+			t.Errorf("function %q: ClassName = %q, want %q", fn.Name, fn.ClassName, want)
+		}
+	}
+
+	wantClasses := map[string]bool{"Base": true, "Model": true, "Meta": true}
+	if len(result.Classes) != len(wantClasses) {
+		t.Fatalf("result.Classes has %d entries, want %d: %+v", len(result.Classes), len(wantClasses), result.Classes)
+	}
+	for _, c := range result.Classes {
+		if !wantClasses[c.Name] {
+			t.Errorf("unexpected class %q in result.Classes", c.Name)
+		}
+	}
+}
+
+// TestPythonFinder_ClassNameWithMetaclass covers the --struct parser bug
+// where `class Name(metaclass=Foo):` was silently skipped because the
+// class-header regex didn't allow "=" in the base-class list. It must
+// still be recognized here so its methods get the right ClassName too.
+func TestPythonFinder_ClassNameWithMetaclass(t *testing.T) {
+	config := getPyConfig(t)
+
+	content := `class InstanceCheckMeta(type):
+    def __instancecheck__(self, instance):
+        return True
+
+
+class EmptyQuerySet(metaclass=InstanceCheckMeta):
+    def __init__(self, *args, **kwargs):
+        raise TypeError("nope")
+`
+
+	tmpfile := createTempFile(t, content, "test_metaclass_*.py")
+	defer os.Remove(tmpfile)
+
+	finder := NewPythonFinder(*config, "", "map", false)
+	result, err := finder.FindFunctions(tmpfile)
+	if err != nil {
+		t.Fatalf("FindFunctions() error = %v", err)
+	}
+
+	classNames := make(map[string]bool)
+	for _, c := range result.Classes {
+		classNames[c.Name] = true
+	}
+	if !classNames["EmptyQuerySet"] {
+		t.Errorf("EmptyQuerySet (metaclass=...) not found in result.Classes: %+v", result.Classes)
+	}
+
+	for _, fn := range result.Functions {
+		if fn.Name == "__init__" && fn.ClassName != "EmptyQuerySet" {
+			t.Errorf("__init__.ClassName = %q, want EmptyQuerySet", fn.ClassName)
+		}
+	}
+}
+
 func TestPythonFinder_AsyncFunctions(t *testing.T) {
 	config := getPyConfig(t)
 
