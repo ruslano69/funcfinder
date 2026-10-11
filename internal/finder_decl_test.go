@@ -382,3 +382,24 @@ func TestDeclarations_PropertyAfterRequirementIsNotPartOfIt(t *testing.T) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// An expression body followed by a class ends on its own last line. An anonymous
+// object on the continuation line is part of the expression.
+func TestDeclarations_ExpressionBodyEndsBeforeClassDeclaration(t *testing.T) {
+	src := `class A {
+    fun exitTween() = tween(100)
+    class Inner {
+    }
+    fun listen() =
+        object : Listener {
+            override fun on() {
+            }
+        }
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"exitTween:2-2", "listen:5-9"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}

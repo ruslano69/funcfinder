@@ -58,6 +58,16 @@ const (
 // signature: it is what comes after it.
 var declStart = regexp.MustCompile(`^(?:@|(?:(?:public|private|protected|internal|override|open|abstract|final|inline|suspend|const|lateinit|external|operator|infix|data|sealed|enum|companion|inner|static|mutating|lazy)\s+)*(?:val|var|fun|func|class|object|interface|typealias|init|constructor|struct|protocol|extension)\b)`)
 
+// anonymousObject matches `object : T {`, an expression (object expression), not
+// a declaration: it continues an expression body rather than ending it.
+var anonymousObject = regexp.MustCompile(`^object\s*:`)
+
+// startsDeclaration reports whether a trimmed line begins a declaration that is
+// not part of the pending expression or signature above it.
+func startsDeclaration(t string) bool {
+	return declStart.MatchString(t) && !anonymousObject.MatchString(t)
+}
+
 // sigScanner follows one function signature across lines.
 //
 // A regular expression cannot decide this on its own: a signature may span
@@ -226,7 +236,7 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 		// A header that starts while the signature still waits for its body or a
 		// ';' means that signature had neither (Kotlin, Swift): it ends on its last
 		// line, and the header is read as a new function below.
-		if currentFunc != nil && sig != nil && sig.brackets == 0 && funcRegex.MatchString(cleaned) {
+		if currentFunc != nil && sig != nil && sig.brackets == 0 && (funcRegex.MatchString(cleaned) || startsDeclaration(strings.TrimSpace(cleaned))) {
 			currentFunc.End = sigLast
 			result.Functions = append(result.Functions, *currentFunc)
 			currentFunc = nil
