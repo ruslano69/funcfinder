@@ -38,15 +38,18 @@ type FunctionContext struct {
 	Depth int
 	// sig is set while the signature has not opened its body yet.
 	sig *sigScanner
+	// sigLast is the line where that signature ends if it never gets a body.
+	sigLast int
 }
 
 // sigEvent is what a line means to a signature that has not opened its body.
 type sigEvent int
 
 const (
-	sigOpen sigEvent = iota // still a signature: the body has not started
-	sigBody                 // a '{' outside brackets opened the body
-	sigEnd                  // a ';' outside brackets ended it: no body, so the function ends here
+	sigOpen         sigEvent = iota // still a signature: the body has not started
+	sigBody                         // a '{' outside brackets opened the body
+	sigEnd                          // a ';' outside brackets ended it: no body, so the function ends here
+	sigUnterminated                 // the next function began first: no body and no ';' (Kotlin, Swift)
 )
 
 // sigScanner follows one function signature across lines.
@@ -205,6 +208,7 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 	state := StateNormal
 	var currentFunc *FunctionBounds
 	var sig *sigScanner // the current function's signature, until its body opens
+	var sigLast int     // where that signature ends if it never gets a body
 	depth := 0
 	funcRegex := f.config.FuncRegex()
 
@@ -213,6 +217,16 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 		cleaned, newState := f.sanitizer.CleanLine(line, state)
 		state = newState
 
+		// A header that starts while the signature still waits for its body or a
+		// ';' means that signature had neither (Kotlin, Swift): it ends on its last
+		// line, and the header is read as a new function below.
+		if currentFunc != nil && sig != nil && sig.brackets == 0 && funcRegex.MatchString(cleaned) {
+			currentFunc.End = sigLast
+			result.Functions = append(result.Functions, *currentFunc)
+			currentFunc = nil
+			sig = nil
+		}
+
 		// Если мы внутри функции, отслеживаем баланс скобок
 		if currentFunc != nil {
 			if f.extractMode {
@@ -220,7 +234,11 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			}
 
 			if sig != nil {
-				switch sig.feed(cleaned) {
+				ev := sig.feed(cleaned)
+				if t := strings.TrimSpace(cleaned); ev == sigOpen && t != "" && !strings.HasPrefix(t, "}") {
+					sigLast = lineNum + 1 + lineOffset
+				}
+				switch ev {
 				case sigEnd:
 					currentFunc.End = lineNum + 1 + lineOffset
 					result.Functions = append(result.Functions, *currentFunc)
@@ -307,6 +325,7 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 						// Сигнатура без тела пока: ';' до первой '{' — конец объявления
 						// (трейт, прототип, '=> x;'): функция занимает только эти строки.
 						sig = &sigScanner{}
+						sigLast = lineNum + 1 + lineOffset
 						if sig.feed(cleaned) == sigEnd {
 							currentFunc.End = lineNum + 1 + lineOffset
 							result.Functions = append(result.Functions, *currentFunc)
@@ -344,15 +363,28 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		braceDelta := CountBraces(cleaned)
 
 		// 0. Сигнатура без тела, начатая раньше, ждёт этой строки: она может
-		// открыть тело, закончиться объявлением (';') или выражением ('=> x;').
-		// Решение принимается до обновления глубин (шаг 2).
+		// открыть тело или закончиться ';'. Если здесь начинается следующая функция,
+		// сигнатура без тела и без ';' (Kotlin, Swift) кончилась на своей последней
+		// строке. Решение принимается до обновления глубин (шаг 2).
+		matches := funcRegex.FindStringSubmatch(cleaned)
+		if matches != nil && isCompleteValueAssignment(matches, cleaned) {
+			matches = nil
+		}
 		events := make([]sigEvent, len(funcStack))
 		for i, ctx := range funcStack {
-			if ctx.sig != nil {
-				events[i] = ctx.sig.feed(cleaned)
-				if events[i] != sigOpen {
-					ctx.sig = nil
-				}
+			if ctx.sig == nil {
+				continue
+			}
+			if matches != nil && ctx.sig.brackets == 0 {
+				events[i] = sigUnterminated
+				ctx.sig = nil
+				continue
+			}
+			events[i] = ctx.sig.feed(cleaned)
+			if events[i] != sigOpen {
+				ctx.sig = nil
+			} else if t := strings.TrimSpace(cleaned); t != "" && !strings.HasPrefix(t, "}") {
+				ctx.sigLast = lineNum + 1 + lineOffset
 			}
 		}
 
@@ -370,11 +402,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			ctx.Depth += braceDelta
 		}
 
-		// 3. Ищем новые функции на ЛЮБОМ уровне вложенности
-		matches := funcRegex.FindStringSubmatch(cleaned)
-		if matches != nil && isCompleteValueAssignment(matches, cleaned) {
-			matches = nil
-		}
+		// 3. Ищем новые функции на ЛЮБОМ уровне вложенности (matches — из шага 0)
 		if matches != nil {
 			funcName := ExtractFuncName(matches)
 
@@ -409,7 +437,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 						newFunc.End = lineNum + 1 + lineOffset
 						result.Functions = append(result.Functions, *newFunc)
 					} else {
-						funcStack = append(funcStack, &FunctionContext{Func: newFunc, sig: sig})
+						funcStack = append(funcStack, &FunctionContext{Func: newFunc, sig: sig, sigLast: lineNum + 1 + lineOffset})
 					}
 				} else {
 					// Добавляем новую функцию в стек
@@ -428,6 +456,13 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			ev := sigOpen
 			if i < len(events) {
 				ev = events[i]
+			}
+			if ev == sigUnterminated {
+				// Следующая функция началась раньше тела или ';': сигнатура кончилась
+				// на своей последней строке.
+				ctx.Func.End = ctx.sigLast
+				result.Functions = append(result.Functions, *ctx.Func)
+				continue
 			}
 			if ev == sigEnd {
 				// Объявление или выражение без тела: функция кончается на этой строке.
