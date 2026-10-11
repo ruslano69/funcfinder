@@ -566,7 +566,7 @@
     "extensions": [
       ".swift"
     ],
-    "func_pattern": "^\\s*(?:public\\s+)?(?:static\\s+)?func\\s+({IDENT}+)\\s*\\(",
+    "func_pattern": "^\\s*(?:@\\w+(?:\\([^)]*\\))?\\s+)*(?:(?:public|private|internal|fileprivate|open|static|class|override|final|mutating|nonmutating|convenience|required|dynamic|lazy)\\s+)*func\\s+({IDENT}+)\\s*[<(]",
     "class_pattern": "^\\s*(?:public\\s+)?(?:class|struct|enum|protocol)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:public\\s+)?(?:open\\s+)?(?:public\\s+)?(?:final\\s+)?class\\s+({IDENT}+)",
@@ -624,7 +624,7 @@
       ".kt",
       ".kts"
     ],
-    "func_pattern": "^\\s*(?:(?:public|private|protected|internal)\\s+)?(?:suspend\\s+)?fun\\s+(?:<[^>]+>\\s+)?({IDENT}+)\\s*\\(",
+    "func_pattern": "^\\s*(?:@[\\w.]+(?:\\([^)]*\\))?\\s+)*(?:(?:public|private|protected|internal|override|open|abstract|final|suspend|inline|infix|operator|tailrec|external|actual|expect|const|lateinit)\\s+)*fun\\s+(?:<[^>]+>\\s+)?(?:[\\w.<>?]+\\.)?({IDENT}+)\\s*\\(",
     "class_pattern": "^\\s*(?:(?:public|private|protected|internal)\\s+)?(?:data\\s+|sealed\\s+|enum\\s+|abstract\\s+)?(?:class|interface|object)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:(?:public|private|protected|internal)\\s+)?(?:open\\s+)?(?:abstract\\s+)?(?:data\\s+)?(?:sealed\\s+)?class\\s+({IDENT}+)",
