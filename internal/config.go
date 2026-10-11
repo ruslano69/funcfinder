@@ -82,6 +82,9 @@ type LanguageConfig struct {
 	// TemplateExpressions: a ${...} inside a template literal is code, so a string or a nested
 	// template inside it does not end the template (JavaScript, TypeScript).
 	TemplateExpressions bool `json:"template_expressions,omitempty"`
+	// InlineHeaders: a function can start after a separator on a line that holds other code
+	// (a statement end, a comma, a brace), as in `let n=0;const f=…` (JavaScript, TypeScript).
+	InlineHeaders bool `json:"inline_headers,omitempty"`
 	// PercentLiterals: a Ruby percent literal (%q{...}, %r{...}, %w[...]) runs to its
 	// closing bracket, nested brackets included, so the quotes and slashes in it are text.
 	PercentLiterals bool   `json:"percent_literals,omitempty"`

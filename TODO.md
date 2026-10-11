@@ -18,8 +18,8 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Swift | Alamofire (1890), Kingfisher (109) | 99.6%, 100% | 2, 0 | 6, 0 | good |
 | Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |
 | Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
-| TypeScript | hr_gemini (3096), zod (2416) | 98.4%, 98.7% | 13, 1 | 38, 31 | hr_gemini open |
-| JavaScript | lodash (1918, minified) | 75.1% | 4 | 473 | open |
+| TypeScript | hr_gemini (3096), zod (2416) | 98.8%, 98.7% | 12, 1 | 26, 31 | hr_gemini open |
+| JavaScript | lodash (1918, minified) | 81.0% | 7 | 357 | open |
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
 | C++ | fmt | about 39% | not measured | about 61% (earlier run) | open |
@@ -40,10 +40,16 @@ them with their own span, so a missing C# or Java declaration counts as missing.
   words exclude; a `const x =` whose value starts on the next line; a function whose return type
   holds braces (`loadPriorTriage(...): Map<string, { verdict: string }> {` ends at the return type,
   and it is not found at all); a computed name (`get [SYM]() {`).
-- [ ] **TypeScript, hr_gemini: 38 missing (was 46).** Mostly several declarations on one line
-  (`let checks=0;const check=(ok)=>{…}`). The arrow pattern matches only the first declaration of a
-  line. Needs a match per declaration in the nested path, with each one's braces counted from its
-  own position, not the whole line's.
+- [x] **TypeScript, hr_gemini: 46 missing, now 26; lodash: 473 missing, now 357.** A function can
+  start after a separator on a line (`let n=0;const f=…`, `cookie='';constructor(){`, `}, m(){`).
+  Each such header is read from its own start, and its body closes where its braces do. Flag
+  `inline_headers`, TypeScript and JavaScript only. Two closing rules came with it: a body closed
+  mid-line is over when a header follows the close (minified `}function a(){…}`), and a depth that
+  drops below zero ends the function. The 26 left in hr_gemini: 8 `React.FC<{` headers whose type
+  argument runs over several lines, 11 headers whose parameters or destructuring run over several
+  lines (`export const X: React.FC<P> = ({` and `async issue(input: {`), and 7 others, including
+  `export default function App()`, which may be a cascade from an earlier frame that did not close
+  (not checked yet). Also `notification=` after a comma in a `const` list.
 - [x] **TypeScript, hr_gemini: 23 wrong ends, now 13.** Four causes fixed: a template literal's
   `${...}` holds strings and nested templates (the sanitizer closed the outer template at the
   first inner backtick, which hid whole files), an arrow header ending in `=>` is not complete,
@@ -70,9 +76,10 @@ them with their own span, so a missing C# or Java declaration counts as missing.
   and `_links` in `lib/feedjira_extension.rb` (inside `self.included`). The block-end finder does not
   nest. Also a few in `spec/`. Ruby `maybe`: 3 wrong ends, not analysed.
 - [ ] **Swift: Alamofire 2 wrong ends, 6 missing.** Not analysed. Project `Ice` is not measured.
-- [ ] **JavaScript, lodash: 473 missing (25%).** The file is minified bundles, so the function shape
-  is not readable by the pattern. Decide whether minified code is in scope. If yes, measure a
-  non-minified JavaScript project as well; if no, drop lodash from the table.
+- [ ] **JavaScript, lodash: 357 missing (19%), 7 wrong ends.** Minified bundles: several functions
+  per line, and the wrong ends are in the same bundles (`lodash.min.js`, `lodash.fp.min.js`). A
+  non-minified JavaScript project is needed to measure the rest of the language. Decide whether
+  minified code is in scope.
 - [ ] **Scala, D, PHP, Python: no measurement.** Scala uses the nested path, which Go, JavaScript,
   TypeScript, Rust and Swift share, so any change there needs the regression sweep below. Python has
   its own finder (`python_finder.go`) and is not covered by it. Add tree-sitter-python as ground

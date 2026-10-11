@@ -159,3 +159,78 @@ export function after() {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A declaration can follow another statement on the same line: after a semicolon, the next
+// const is a function of its own, and the line after it is not part of its body.
+func TestDeclarations_TSFunctionAfterSemicolonOnSameLine(t *testing.T) {
+	src := `let checks=0;const check=(ok:unknown,label:string)=>{assert.ok(ok,label);checks++;};
+export function after(): void {
+  check(true, 'x');
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"after:2-4", "check:1-1"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A class member can follow a field on the same line, after a semicolon: an empty field, then a constructor.
+func TestDeclarations_TSConstructorAfterFieldOnSameLine(t *testing.T) {
+	src := `class Session {
+  cookie='';constructor(public a: string){}
+  get size(): number {
+    return 1;
+  }
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"constructor:2-2", "size:3-5"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// An object literal method can follow a property after a comma on the same line.
+func TestDeclarations_TSMethodAfterPropertyOnSameLine(t *testing.T) {
+	src := `const handlers = {name: 'x', async run(ctx) {
+  return ctx;
+}};
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"run:1-3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A body that closes early on a line is closed there, even when two sibling functions open
+// after it on the same line: the line's net brace count is positive, its lowest depth is not.
+func TestDeclarations_TSBodyClosesBeforeSiblingsOnSameLine(t *testing.T) {
+	src := `export function outer(n: number) {
+  return n;
+}; export function first(n: number) { return n; }; export function second(n: number) {
+  return n + 1;
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"first:3-3", "outer:1-3", "second:3-5"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// Minified code puts several functions on one line: the close of one body is followed by the
+// headers of two more, and the first body still ends on this line.
+func TestDeclarations_TSMinifiedBodyClosesBeforeTwoHeaders(t *testing.T) {
+	src := `export function outer(n: number) {
+  return n;}function a(n: number) {return n;}function b(n: number) {
+  return n + 1;
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"a:2-2", "b:2-4", "outer:1-2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}

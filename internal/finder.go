@@ -495,6 +495,21 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			}
 		}
 
+		// A header still open from an earlier line takes this line: a separator here is part of
+		// its signature, not the start of another function.
+		headerOpen := false
+		for _, ctx := range funcStack {
+			if ctx.sig != nil {
+				headerOpen = true
+			}
+		}
+
+		// The functions that start after a separator on this line (TypeScript and JavaScript).
+		var inlineStarts []int
+		if f.config.InlineHeaders && !headerOpen {
+			inlineStarts = inlineHeaderStarts(cleaned, funcRegex)
+		}
+
 		// 1. Сохраняем предыдущие глубины ДО обновления
 		prevDepths := make(map[int]int)
 		for i, ctx := range funcStack {
@@ -567,6 +582,20 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			}
 		}
 
+		// 3b. TypeScript and JavaScript: a function can start after a separator on this line
+		// (`let n=0;const f=…`, `cookie='';constructor(){`, `}, m(){`). Each is read from its own
+		// start, and its body is counted from there.
+		if len(inlineStarts) > 0 {
+			for _, p := range inlineStarts {
+				done, open := f.inlineFunction(cleaned, line, p, lineNum+lineOffset, funcRegex, classes)
+				if done != nil {
+					result.Functions = append(result.Functions, *done)
+				} else if open != nil {
+					funcStack = append(funcStack, open)
+				}
+			}
+		}
+
 		// 4. Удаляем завершенные функции из стека (в обратном порядке)
 		var newStack []*FunctionContext
 		for i, ctx := range funcStack {
@@ -594,7 +623,18 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			// The function waits for the first non-blank line that does not continue an expression
 			// body (see continuesExpression), as the simple path does.
 			nonBlank := strings.TrimSpace(cleaned) != ""
-			if ctx.Depth == 0 && (prevDepth > 0 || ev == sigBody || (ctx.afterBlock && nonBlank)) {
+			// The body closed somewhere on this line, and the depth left is not zero: another function
+			// header opened after the close (`}; function g() {`), or an outer brace followed it (`}};`).
+			// Then the function is over here. A close followed by the function's own body (`}) => {`)
+			// is not, and neither is a close that returns to zero: the expression may still go on.
+			closeAt := -1
+			if prevDepth > 0 {
+				closeAt = closeIndex(cleaned, prevDepth)
+			}
+			if closeAt >= 0 && ctx.Depth != 0 && (ctx.Depth < 0 || headerAfter(inlineStarts, closeAt)) {
+				ctx.Func.End = lineNum + 1 + lineOffset
+				result.Functions = append(result.Functions, *ctx.Func)
+			} else if ctx.Depth == 0 && (prevDepth > 0 || ev == sigBody || (ctx.afterBlock && nonBlank)) {
 				if body, ok := arrowBodyTail(cleaned); ok {
 					ctx.sig = body
 					ctx.sigLast = lineNum + 1 + lineOffset
@@ -636,6 +676,34 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 	return result, nil
 }
 
+// closeIndex returns the byte offset of the brace that brings a cleaned line down to a depth
+// of zero, for a body that was depth levels deep before the line, or -1 when the line does not.
+func closeIndex(cleaned string, depth int) int {
+	run := 0
+	for i := 0; i < len(cleaned); i++ {
+		switch cleaned[i] {
+		case '{':
+			run++
+		case '}':
+			run--
+		}
+		if run <= -depth {
+			return i
+		}
+	}
+	return -1
+}
+
+// headerAfter reports whether a function header starts after byte pos of the line.
+func headerAfter(starts []int, pos int) bool {
+	for _, p := range starts {
+		if p > pos {
+			return true
+		}
+	}
+	return false
+}
+
 // openParens returns how many parentheses and brackets a cleaned line leaves open. Unlike a
 // sigScanner it does not stop at a brace: a brace inside a type argument (React.FC<{...}>)
 // is still text here, and the parentheses after it still count.
@@ -666,6 +734,100 @@ func arrowBodyTail(cleaned string) (*sigScanner, bool) {
 	sig := &sigScanner{}
 	sig.feed(t[strings.LastIndex(t, "=>")+2:])
 	return sig, true
+}
+
+// inlineHeaderSeparators are the characters after which a function header can start on a line
+// that already holds code: the end of a statement, a separator, or a brace.
+const inlineHeaderSeparators = ";,{}"
+
+// inlineHeaderStarts returns the byte offsets, in order, where a function header begins after a
+// separator on a cleaned line. The start of the line is not among them: the caller reads it.
+func inlineHeaderStarts(cleaned string, funcRegex *regexp.Regexp) []int {
+	var starts []int
+	for i := 0; i < len(cleaned); i++ {
+		if !strings.ContainsRune(inlineHeaderSeparators, rune(cleaned[i])) {
+			continue
+		}
+		p := i + 1
+		for p < len(cleaned) && (cleaned[p] == ' ' || cleaned[p] == '\t') {
+			p++
+		}
+		if p < len(cleaned) && funcRegex.MatchString(cleaned[p:]) {
+			starts = append(starts, p)
+		}
+	}
+	return starts
+}
+
+// headerEnd reads a header outside its brackets: sigEnd for a ';' that ends it, sigBody for a
+// '{' that opens its body, sigOpen when neither is on the text. It returns the offset of the
+// character that decided it.
+func headerEnd(text string) (sigEvent, int) {
+	brackets := 0
+	for i := 0; i < len(text); i++ {
+		switch text[i] {
+		case '(', '[':
+			brackets++
+		case ')', ']':
+			brackets--
+		case '{':
+			if brackets == 0 {
+				return sigBody, i
+			}
+		case ';':
+			if brackets == 0 {
+				return sigEnd, i
+			}
+		}
+	}
+	return sigOpen, -1
+}
+
+// inlineFunction reads the function whose header starts at byte p of a cleaned line, after a
+// separator. It returns the function when it ends on this line, or the open frame when its
+// body or its signature goes on to the next lines.
+func (f *Finder) inlineFunction(cleaned, line string, p, lineIdx int, funcRegex *regexp.Regexp, classes []ClassBounds) (*FunctionBounds, *FunctionContext) {
+	matches := funcRegex.FindStringSubmatch(cleaned[p:])
+	if matches == nil {
+		return nil, nil
+	}
+	name := ExtractFuncName(matches)
+	if !(f.mapMode || f.funcNames[name]) || f.isKeywordName(name) {
+		return nil, nil
+	}
+	className := ""
+	if f.config.HasClasses() {
+		className = f.findClassForLine(classes, lineIdx)
+	}
+	fn := &FunctionBounds{Name: name, Start: lineIdx + 1, Lines: []string{}, ClassName: className, Scope: className}
+	if f.extractMode {
+		fn.Lines = append(fn.Lines, line)
+	}
+	ev, at := headerEnd(cleaned[p:])
+	switch ev {
+	case sigEnd:
+		fn.End = lineIdx + 1
+		return fn, nil
+	case sigBody:
+		depth := 0
+		for i := p + at; i < len(cleaned); i++ {
+			switch cleaned[i] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			}
+			if depth == 0 {
+				fn.End = lineIdx + 1
+				return fn, nil
+			}
+		}
+		return nil, &FunctionContext{Func: fn, Depth: depth}
+	default:
+		sig := &sigScanner{}
+		sig.feed(cleaned[p:])
+		return nil, &FunctionContext{Func: fn, sig: sig, sigLast: lineIdx + 1}
+	}
 }
 
 // hasCodeText reports whether a raw line holds code the sanitizer blanked: a line that is
