@@ -120,7 +120,8 @@ int main(void)
 	}
 }
 
-// An abstract Java method is a declaration. The method after it is found.
+// An abstract Java method is a declaration: it is listed on its own line, and the method
+// after it is found with its own span.
 func TestDeclarations_JavaAbstractMethodDoesNotSwallowNext(t *testing.T) {
 	src := `abstract class A {
     abstract void f();
@@ -129,7 +130,7 @@ func TestDeclarations_JavaAbstractMethodDoesNotSwallowNext(t *testing.T) {
 }
 `
 	got := spans(mapFunctions(t, "java", src))
-	want := []string{"g:3-4"}
+	want := []string{"f:2-2", "g:3-4"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
@@ -588,6 +589,37 @@ func TestDeclarations_CPointerReturnTypeWrittenAgainstName(t *testing.T) {
 `
 	got := spans(mapFunctions(t, "c", src))
 	want := []string{"first:1-3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A throws clause does not become the method's name.
+func TestDeclarations_JavaThrowsClauseKeepsMethodName(t *testing.T) {
+	src := `class A {
+    public void write(int x) throws IOException {
+        y();
+    }
+}
+`
+	got := spans(mapFunctions(t, "java", src))
+	want := []string{"write:2-4"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A Java signature that spans lines is found from its first line.
+func TestDeclarations_JavaMultiLineSignature(t *testing.T) {
+	src := `class A {
+    public static <T> B<T> of(
+        int x) {
+        return null;
+    }
+}
+`
+	got := spans(mapFunctions(t, "java", src))
+	want := []string{"of:2-5"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
