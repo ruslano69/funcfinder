@@ -372,6 +372,7 @@
       "default"
     ],
     "regex_literals": true,
+    "template_expressions": true,
     "statement_words": ["if", "for", "while", "switch", "catch", "with", "function", "return", "else", "do", "try", "finally", "case"],
     "supports_nested": true,
     "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|catch|finally)\\b",
@@ -436,6 +437,7 @@
       "default"
     ],
     "regex_literals": true,
+    "template_expressions": true,
     "statement_words": ["if", "for", "while", "switch", "catch", "with", "function", "return", "else", "do", "try", "finally", "case"],
     "supports_nested": true,
     "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|catch|finally)\\b",

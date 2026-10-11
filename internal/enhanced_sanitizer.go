@@ -262,7 +262,87 @@ func (s *Sanitizer) rawDelimiterLen(runes []rune, pos int) int {
 	return n
 }
 
+// templateExprEnd returns the index just past the } that closes a template expression whose
+// text starts at i, just after its "${", or -1 when the expression does not close on this
+// line. The strings and nested template literals inside it are skipped whole.
+func templateExprEnd(runes []rune, i int) int {
+	depth := 0
+	for i < len(runes) {
+		switch runes[i] {
+		case '{':
+			depth++
+		case '}':
+			if depth == 0 {
+				return i + 1
+			}
+			depth--
+		case '\'', '"':
+			i = quotedEnd(runes, i)
+			continue
+		case '`':
+			if i = templateEnd(runes, i+1); i < 0 {
+				return -1
+			}
+			continue
+		}
+		i++
+	}
+	return -1
+}
+
+// templateEnd returns the index just past the backtick that closes a template literal whose
+// text starts at i, or -1 when it does not close on this line.
+func templateEnd(runes []rune, i int) int {
+	for i < len(runes) {
+		switch runes[i] {
+		case '\\':
+			i += 2
+			continue
+		case '`':
+			return i + 1
+		case '$':
+			if i+1 < len(runes) && runes[i+1] == '{' {
+				if i = templateExprEnd(runes, i+2); i < 0 {
+					return -1
+				}
+				continue
+			}
+		}
+		i++
+	}
+	return -1
+}
+
+// quotedEnd returns the index just past the quote that closes the string opened at i, or the
+// end of the line when it does not close here.
+func quotedEnd(runes []rune, i int) int {
+	q := runes[i]
+	for j := i + 1; j < len(runes); j++ {
+		switch runes[j] {
+		case '\\':
+			j++
+		case q:
+			return j + 1
+		}
+	}
+	return len(runes)
+}
+
 func (s *Sanitizer) handleRawString(runes []rune, result []rune, idx int) (int, ParserState) {
+	// A template expression is code: a string or a nested template inside it does not end the
+	// template, and its braces are not text.
+	if s.config.TemplateExpressions && runes[idx] == '$' && idx+1 < len(runes) && runes[idx+1] == '{' {
+		if end := templateExprEnd(runes, idx+2); end > 0 {
+			for k := idx; k < end; k++ {
+				if s.useRaw {
+					result[k] = runes[k]
+				} else {
+					result[k] = ' '
+				}
+			}
+			return end, StateRawString
+		}
+	}
 	if n := s.rawDelimiterLen(runes, idx); n > 0 {
 		// A multi-quote delimiter (Kotlin """) closes at the end of its run: a longer run
 		// keeps its extra quotes as content, so the closing quotes are consumed whole.

@@ -79,6 +79,9 @@ type LanguageConfig struct {
 	// RegexLiterals: a slash that starts a regular expression (after an operator or
 	// return) is not a division, and its quotes are not string delimiters (JavaScript).
 	RegexLiterals bool `json:"regex_literals,omitempty"`
+	// TemplateExpressions: a ${...} inside a template literal is code, so a string or a nested
+	// template inside it does not end the template (JavaScript, TypeScript).
+	TemplateExpressions bool `json:"template_expressions,omitempty"`
 	// PercentLiterals: a Ruby percent literal (%q{...}, %r{...}, %w[...]) runs to its
 	// closing bracket, nested brackets included, so the quotes and slashes in it are text.
 	PercentLiterals bool   `json:"percent_literals,omitempty"`

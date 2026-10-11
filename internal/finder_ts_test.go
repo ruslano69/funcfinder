@@ -69,3 +69,93 @@ func TestDeclarations_TSMethodNamedByStringLiteral(t *testing.T) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A template literal may hold an expression, and the expression may hold another template
+// literal. The inner backticks belong to the expression, not to the outer literal.
+func TestDeclarations_TSTemplateExpressionHoldsNestedTemplate(t *testing.T) {
+	src := `export function renderItems(items: string[]): string {
+  return ` + "`<ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul>`" + `;
+}
+
+export function printText(text: string): void {
+  console.log(text);
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"printText:5-7", "renderItems:1-3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// Strings inside a template expression do not end the template, and the braces around the
+// expression are not braces of the function.
+func TestDeclarations_TSTemplateExpressionWithStrings(t *testing.T) {
+	src := `export function label(n: number): string {
+  return ` + "`n=${n > 0 ? 'positive' : \"none\"}`" + `;
+}
+
+export function printText(text: string): void {
+  console.log(text);
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"label:1-3", "printText:5-7"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// An arrow function whose header ends in => has its expression body on the next line: the
+// header is not complete, even when its braces balance.
+func TestDeclarations_TSArrowHeaderEndingInArrow(t *testing.T) {
+	src := `const reservationEnded = (m?: { isReserved?: boolean } | null) =>
+  !!m?.isReserved;
+export function after(): number {
+  return 1;
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"after:3-5", "reservationEnded:1-2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A component whose parameters are destructured over several lines and whose body is a
+// parenthesized expression: the body runs to the closing ); after the parameters close.
+func TestDeclarations_TSArrowParenthesizedBodyAfterParameters(t *testing.T) {
+	src := `const Section = ({
+  title,
+}) => (
+  <section>{title}</section>
+);
+
+export function after() {
+  return 1;
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"Section:1-5", "after:7-9"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A brace inside a type argument is not the body: the component's arrow still opens a
+// parenthesized body, which runs to its closing ); and the function is one declaration.
+func TestDeclarations_TSBraceInTypeArgumentBeforeArrowBody(t *testing.T) {
+	src := `const Shell: React.FC<{ children: string }> = (x) => (
+  x
+);
+
+export function after() {
+  return 1;
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"Shell:1-3", "after:5-7"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}

@@ -18,7 +18,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Swift | Alamofire (1890), Kingfisher (109) | 99.6%, 100% | 2, 0 | 6, 0 | good |
 | Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |
 | Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
-| TypeScript | hr_gemini (3096), zod (2416) | 97.9%, 98.6% | 23, 4 | 42, 31 | hr_gemini open |
+| TypeScript | hr_gemini (3096), zod (2416) | 98.4%, 98.7% | 13, 1 | 38, 31 | hr_gemini open |
 | JavaScript | lodash (1918, minified) | 75.1% | 4 | 473 | open |
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
@@ -40,11 +40,16 @@ them with their own span, so a missing C# or Java declaration counts as missing.
   words exclude; a `const x =` whose value starts on the next line; a function whose return type
   holds braces (`loadPriorTriage(...): Map<string, { verdict: string }> {` ends at the return type,
   and it is not found at all); a computed name (`get [SYM]() {`).
-- [ ] **TypeScript, hr_gemini: 42 missing (was 46).** Mostly several declarations on one line
+- [ ] **TypeScript, hr_gemini: 38 missing (was 46).** Mostly several declarations on one line
   (`let checks=0;const check=(ok)=>{…}`). The arrow pattern matches only the first declaration of a
   line. Needs a match per declaration in the nested path, with each one's braces counted from its
   own position, not the whole line's.
-- [ ] **TypeScript, hr_gemini: 23 wrong ends.** Not analysed yet.
+- [x] **TypeScript, hr_gemini: 23 wrong ends, now 13.** Four causes fixed: a template literal's
+  `${...}` holds strings and nested templates (the sanitizer closed the outer template at the
+  first inner backtick, which hid whole files), an arrow header ending in `=>` is not complete,
+  a parenthesized arrow body runs to its closing `);`, and a brace inside a type argument
+  (`React.FC<{...}>`) does not stop the bracket count. The 13 left are mostly early ends in React
+  components; not analysed further yet.
 - [ ] **C#, Polly: 1272 missing.** Two causes. Multi-line signatures, and about 172 declarations
   without a body (`void Foo();` in interfaces), which funcfinder does not list at all. A `;` at the
   end of the header pattern was tried and rejected: +76 correct, but +211 false functions and 35
