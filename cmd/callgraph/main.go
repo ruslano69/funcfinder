@@ -159,8 +159,7 @@ func output(cg *internal.CallGraphResult, jsonOut, reverseMode bool, funcFilter 
 		rev := internal.ReverseCallGraph(cg)
 		if funcFilter != "" {
 			// Single function reverse lookup
-			callers := rev[funcFilter]
-			sort.Strings(callers)
+			callers := internal.ReverseCallers(rev, funcFilter)
 			if jsonOut {
 				out, _ := json.MarshalIndent(map[string]any{
 					"function": funcFilter,

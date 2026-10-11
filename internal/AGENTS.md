@@ -24,6 +24,7 @@ Core parsing engine. Implements function/struct discovery, body extraction, call
 - `enhanced_sanitizer.go` strips string literals and comments before parsing to prevent false positives; touch it carefully and run its bench test after changes.
 - `python_finder.go` and `python_lines_processor.go` handle Python's indent-based scope; keep them in sync.
 - Call graph logic (`callgraph.go`) operates on the output of the finder layer, not on raw source.
+- Reverse lookup uses `ReverseCallers`: bare names include qualified callees with the same final name; qualified queries match exactly. Results are sorted, deduplicated name-based candidates, not type-resolved method identities. The full reverse graph preserves qualified keys.
 - `shardutil.go` owns all `.codemap/` path conventions; do not hardcode shard paths elsewhere.
 
 ## Verification
