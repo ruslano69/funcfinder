@@ -534,6 +534,11 @@ func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserSta
 				continue
 			}
 
+			// 4b. Regular expression literals (JavaScript): their quotes are not strings
+			if idx, handled = s.tryHandleRegexLiteral(runes, result, idx); handled {
+				continue
+			}
+
 			// 5. Regular strings and raw strings
 			if state, handled = s.tryHandleRegularStrings(runes, idx); handled {
 				// State changed, continue to next iteration
@@ -611,4 +616,74 @@ func CountBraces(line string) int {
 		}
 	}
 	return count
+}
+
+// regexPrecededBy lists the characters after which a slash starts a regular expression
+// rather than being a division.
+const regexPrecededBy = "(,=:[!&|?{};+-*%<>~^"
+
+// regexKeywords are the words after which a slash starts a regular expression.
+var regexKeywords = map[string]bool{"return": true, "typeof": true, "case": true, "in": true, "of": true, "yield": true, "await": true}
+
+// regexPositionAllowed reports whether a slash at idx starts a regular expression: the
+// last non-blank character before it is an operator or an opening bracket, or the word
+// before it is one of regexKeywords.
+func regexPositionAllowed(result []rune, idx int) bool {
+	k := idx - 1
+	for k >= 0 && (result[k] == ' ' || result[k] == '\t') {
+		k--
+	}
+	if k < 0 {
+		return true
+	}
+	if strings.ContainsRune(regexPrecededBy, result[k]) {
+		return true
+	}
+	end := k + 1
+	start := k
+	for start >= 0 && (result[start] == '_' || result[start] == '$' || (result[start] >= 'a' && result[start] <= 'z') || (result[start] >= 'A' && result[start] <= 'Z')) {
+		start--
+	}
+	return regexKeywords[string(result[start+1:end])]
+}
+
+// isRegexFlag reports whether a rune is a regular expression flag.
+func isRegexFlag(c rune) bool {
+	return strings.ContainsRune("dgimsuvy", c)
+}
+
+// tryHandleRegexLiteral blanks a regular expression literal, /.../flags, that starts at
+// idx. A slash that is a division, or has no closing slash on the line, is not handled.
+func (s *Sanitizer) tryHandleRegexLiteral(runes []rune, result []rune, idx int) (int, bool) {
+	if !s.config.RegexLiterals || runes[idx] != '/' {
+		return idx, false
+	}
+	if idx+1 < len(runes) && (runes[idx+1] == '/' || runes[idx+1] == '*') {
+		return idx, false
+	}
+	if !regexPositionAllowed(result, idx) {
+		return idx, false
+	}
+	inClass := false
+	for j := idx + 1; j < len(runes); j++ {
+		c := runes[j]
+		switch {
+		case c == '\\':
+			j++
+		case inClass:
+			if c == ']' {
+				inClass = false
+			}
+		case c == '[':
+			inClass = true
+		case c == '/':
+			end := j + 1
+			for end < len(runes) && isRegexFlag(runes[end]) {
+				end++
+			}
+			fillWithSpaces(result, idx, end-idx)
+			return end, true
+		}
+	}
+	return idx, false
 }
