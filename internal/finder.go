@@ -372,7 +372,10 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 						sig = &sigScanner{}
 						sigLast = lineNum + 1 + lineOffset
 						ev := sig.feed(cleaned)
-						if ev == sigEnd || (hasBrace && sig.brackets == 0) {
+						// A header that ends in '=' starts an expression body on the next line: it is
+						// not complete here, even when its braces balance.
+						endsWithEq := strings.HasSuffix(strings.TrimSpace(cleaned), "=")
+						if ev == sigEnd || (hasBrace && sig.brackets == 0 && !endsWithEq) {
 							currentFunc.End = lineNum + 1 + lineOffset
 							result.Functions = append(result.Functions, *currentFunc)
 							currentFunc = nil
