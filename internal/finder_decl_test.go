@@ -792,3 +792,43 @@ function after() {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A TypeScript class method whose parameter list continues on the next lines is found from
+// its first line, and the member after it keeps its own span.
+func TestDeclarations_TSClassMethodSignatureOnSeveralLines(t *testing.T) {
+	src := `class A {
+  async run(
+    x: number,
+  ): Promise<void> {
+    return;
+  }
+  get size() {
+    return 1;
+  }
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"run:2-6", "size:7-9"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// Braces in a default value of a multi-line parameter list are not the body.
+func TestDeclarations_TSClassMethodDefaultObjectDoesNotEndIt(t *testing.T) {
+	src := `class A {
+  f(
+    o: { a: number } = {},
+  ): void {
+    return;
+  }
+  g() {
+  }
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"f:2-6", "g:7-8"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}

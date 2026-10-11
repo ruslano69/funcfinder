@@ -453,6 +453,13 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		if matches != nil && isCompleteValueAssignment(matches, cleaned) {
 			matches = nil
 		}
+		// A class method whose parameter list continues on the next lines: its first line is
+		// the method only at the top of a class body, not inside another function.
+		if matches == nil && len(funcStack) == 0 && f.config.ClassMethodOpenRegex() != nil && f.config.HasClasses() {
+			if f.findClassForLine(classes, lineNum+lineOffset) != "" {
+				matches = f.config.ClassMethodOpenRegex().FindStringSubmatch(cleaned)
+			}
+		}
 		events := make([]sigEvent, len(funcStack))
 		for i, ctx := range funcStack {
 			if ctx.sig == nil {
@@ -483,7 +490,11 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			if f.extractMode {
 				ctx.Func.Lines = append(ctx.Func.Lines, line)
 			}
-			ctx.Depth += braceDelta
+			// A pending signature's braces sit inside its parentheses (a default value such
+			// as context: {} ): they are not the body, so they do not change the depth.
+			if ctx.sig == nil {
+				ctx.Depth += braceDelta
+			}
 		}
 
 		// 3. Ищем новые функции на ЛЮБОМ уровне вложенности (matches — из шага 0)
