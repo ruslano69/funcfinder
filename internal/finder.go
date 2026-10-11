@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -51,6 +52,11 @@ const (
 	sigEnd                          // a ';' outside brackets ended it: no body, so the function ends here
 	sigUnterminated                 // the next function began first: no body and no ';' (Kotlin, Swift)
 )
+
+// declStart matches a line that begins a member declaration or an annotation.
+// At the top level of a pending signature such a line is not part of the
+// signature: it is what comes after it.
+var declStart = regexp.MustCompile(`^(?:@|(?:(?:public|private|protected|internal|override|open|abstract|final|inline|suspend|const|lateinit|external|operator|infix|data|sealed|enum|companion|inner|static|mutating|lazy)\s+)*(?:val|var|fun|func|class|object|interface|typealias|init|constructor|struct|protocol|extension)\b)`)
 
 // sigScanner follows one function signature across lines.
 //
@@ -234,8 +240,9 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			}
 
 			if sig != nil {
+				atTop := sig.brackets == 0
 				ev := sig.feed(cleaned)
-				if t := strings.TrimSpace(cleaned); ev == sigOpen && t != "" && !strings.HasPrefix(t, "}") {
+				if t := strings.TrimSpace(cleaned); ev == sigOpen && t != "" && !strings.HasPrefix(t, "}") && !(atTop && declStart.MatchString(t)) {
 					sigLast = lineNum + 1 + lineOffset
 				}
 				switch ev {
@@ -273,7 +280,9 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			// уже закрылось — без hasBrace это неотличимо от "скобки ещё не
 			// было вовсе", и функция осталась бы открытой до конца файла,
 			// поглощая всё следующее.
-			if depth == 0 && (prevDepth > 0 || hasBrace) {
+			// A balanced brace while the signature is still open (a default value such
+			// as remember { x } inside its parentheses) is part of the signature.
+			if depth == 0 && (prevDepth > 0 || (hasBrace && sig == nil)) {
 				// Конец функции
 				currentFunc.End = lineNum + 1 + lineOffset // 1-based + offset
 				result.Functions = append(result.Functions, *currentFunc)
@@ -314,19 +323,15 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 					hasBrace := strings.Contains(cleaned, "{")
 					depth = CountBraces(cleaned)
 
-					if depth == 0 && hasBrace {
-						// Однострочная функция: скобка открылась и закрылась
-						// на этой же строке.
-						currentFunc.End = lineNum + 1 + lineOffset
-						result.Functions = append(result.Functions, *currentFunc)
-						currentFunc = nil
-					}
-					if depth == 0 && !hasBrace {
-						// Сигнатура без тела пока: ';' до первой '{' — конец объявления
-						// (трейт, прототип, '=> x;'): функция занимает только эти строки.
+					if depth == 0 {
+						// Сигнатура закрылась на этой строке: ';' — конец объявления (трейт,
+						// прототип, '=> x;'), либо скобки закрыты и тело открыто и закрыто
+						// тут же (однострочная функция). Скобка '{' внутри открытых круглых
+						// скобок — значение по умолчанию (remember { x }), часть сигнатуры.
 						sig = &sigScanner{}
 						sigLast = lineNum + 1 + lineOffset
-						if sig.feed(cleaned) == sigEnd {
+						ev := sig.feed(cleaned)
+						if ev == sigEnd || (hasBrace && sig.brackets == 0) {
 							currentFunc.End = lineNum + 1 + lineOffset
 							result.Functions = append(result.Functions, *currentFunc)
 							currentFunc = nil
@@ -380,10 +385,11 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 				ctx.sig = nil
 				continue
 			}
+			atTop := ctx.sig.brackets == 0
 			events[i] = ctx.sig.feed(cleaned)
 			if events[i] != sigOpen {
 				ctx.sig = nil
-			} else if t := strings.TrimSpace(cleaned); t != "" && !strings.HasPrefix(t, "}") {
+			} else if t := strings.TrimSpace(cleaned); t != "" && !strings.HasPrefix(t, "}") && !(atTop && declStart.MatchString(t)) {
 				ctx.sigLast = lineNum + 1 + lineOffset
 			}
 		}

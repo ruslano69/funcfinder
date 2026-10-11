@@ -315,3 +315,70 @@ func TestFuncPattern_SwiftAttributesAndModifiers(t *testing.T) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A balanced brace inside an open parameter list (a default value with a block)
+// is part of the signature: the body starts at the brace after the parentheses.
+func TestDeclarations_BalancedBraceInParameterDoesNotEndSignature(t *testing.T) {
+	src := `fun Chip(
+    selected: Boolean,
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+) {
+    val x = 1
+}
+fun after() {
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"Chip:1-6", "after:7-8"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A header whose parameter list stays open after a balanced brace is not closed
+// on that line; its expression ends on the line before the next function.
+func TestDeclarations_HeaderWithBalancedBraceStaysOpen(t *testing.T) {
+	src := `fun Pref(name: String, defaultValue: () -> String = { "" },
+) = Make(name, defaultValue)
+fun after() {
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"Pref:1-2", "after:3-4"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// An annotation and a property after an expression body are not part of it.
+func TestDeclarations_AnnotationAfterExpressionIsNotPartOfIt(t *testing.T) {
+	src := `class A {
+    fun exitTween() = tween(100)
+    @Composable
+    val x = 1
+    fun other() {
+    }
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"exitTween:2-2", "other:5-6"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// The same on the nested path: a property after a Swift requirement is not part of it.
+func TestDeclarations_PropertyAfterRequirementIsNotPartOfIt(t *testing.T) {
+	src := `protocol Shape {
+    func area() -> Double
+    var name: String
+    func other() {
+    }
+}
+`
+	got := spans(mapFunctions(t, "swift", src))
+	want := []string{"area:2-2", "other:4-5"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
