@@ -328,7 +328,7 @@ func main() {
 			fmt.Println("       stat [OPTIONS] --dir <directory>")
 			fmt.Println("  --version      Show version and exit")
 			fmt.Println("  --dir <path>   Analyze all source files in directory recursively")
-			fmt.Println("  -l <lang>      Force language (py, go, rs, js, ts, sw, c, cpp, java, d, cs)")
+			fmt.Println("  -l <lang>      Force language (c, cpp, cs, d, go, java, js, kotlin, php, py, ruby, rust, scala, swift, ts)")
 			fmt.Println("  -n <num>       Show top N functions")
 			fmt.Println("  -j, --json     Output JSON")
 			return

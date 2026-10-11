@@ -279,7 +279,7 @@ func main() {
 		case arg == "-h" || arg == "--help":
 			fmt.Println("Usage: deps [OPTIONS] <dir>")
 			fmt.Println("  --version              Show version and exit")
-			fmt.Println("  -l <lang>              Force language (py, go, rs, js, ts, java, cs, swift, c, cpp, d)")
+			fmt.Println("  -l <lang>              Force language (c, cpp, cs, d, go, java, js, kotlin, php, py, ruby, rust, scala, swift, ts)")
 			fmt.Println("  -n <num>               Show top N dependencies")
 			fmt.Println("  -j, --json             Output JSON")
 			fmt.Println("  --shards               Output inter-shard dependency graph")
