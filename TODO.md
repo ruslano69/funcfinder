@@ -18,7 +18,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Swift | Alamofire (1890), Kingfisher (109) | 99.6%, 100% | 2, 0 | 6, 0 | good |
 | Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |
 | Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
-| TypeScript | hr_gemini (3096), zod (2416) | 97.8%, 88.8% | 23, 4 | 46, 267 | zod open |
+| TypeScript | hr_gemini (3096), zod (2416) | 97.9%, 98.6% | 23, 4 | 42, 31 | hr_gemini open |
 | JavaScript | lodash (1918, minified) | 75.1% | 4 | 473 | open |
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
@@ -31,9 +31,16 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 
 ### Open items, in order of measured gap
 
-- [ ] **TypeScript, zod: 267 missing (11%).** Not analysed yet. This is the largest gap of the
-  mainstream languages. Start by listing the missing spans and grouping them by shape.
-- [ ] **TypeScript, hr_gemini: 46 missing.** Mostly several declarations on one line
+- [x] **TypeScript, zod: 267 missing, now 31.** Three shapes were missed: a const annotated with
+  a function type (`const f: (x) => T = (x) => {`), a method whose name is a string literal
+  (`"=== INVALID"() {`, read from the raw line because the sanitizer blanks the literal), and a
+  method with a function-typed parameter (`add(fn: (v) => any) {`). Correct 88.8% -> 98.6%, wrong
+  ends unchanged. The 31 left: generic or multi-line method headers (`refine(` with its parameters
+  below, `extend<...>(` over several lines); methods named `catch` or `with`, which the statement
+  words exclude; a `const x =` whose value starts on the next line; a function whose return type
+  holds braces (`loadPriorTriage(...): Map<string, { verdict: string }> {` ends at the return type,
+  and it is not found at all); a computed name (`get [SYM]() {`).
+- [ ] **TypeScript, hr_gemini: 42 missing (was 46).** Mostly several declarations on one line
   (`let checks=0;const check=(ok)=>{…}`). The arrow pattern matches only the first declaration of a
   line. Needs a match per declaration in the nested path, with each one's braces counted from its
   own position, not the whole line's.

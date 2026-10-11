@@ -40,6 +40,9 @@ type LanguageConfig struct {
 	// ClassMethodOpen matches a class member's first line when its signature continues
 	// on the next lines; it is read only at the top of a class body.
 	ClassMethodOpen string `json:"class_method_open,omitempty"`
+	// QuotedMethodPattern matches a method whose name is a string literal ("=== X"() {). It is
+	// read from the raw line, because the sanitizer blanks string literals in the cleaned one.
+	QuotedMethodPattern string `json:"quoted_method_pattern,omitempty"`
 	// KeywordsNotNames: the exclude_words are reserved words of the language, so a
 	// match on one of them (if (x) at the end of a line) is a statement, not a function.
 	KeywordsNotNames bool `json:"keywords_not_names,omitempty"`
@@ -102,6 +105,7 @@ type LanguageConfig struct {
 	// Compiled regex cache
 	funcRegex         *regexp.Regexp
 	classMethodOpenRe *regexp.Regexp
+	quotedMethodRe    *regexp.Regexp
 	classRegex        *regexp.Regexp
 	structPatterns    map[string]*regexp.Regexp
 	fieldRegex        *regexp.Regexp
@@ -174,6 +178,15 @@ func LoadConfig() (Config, error) {
 				return nil, fmt.Errorf("invalid class method regex for %s: %w", lang, err)
 			}
 			conf.classMethodOpenRe = cmRe
+		}
+
+		// Compile the quoted method name if specified
+		if conf.QuotedMethodPattern != "" {
+			qmRe, err := regexp.Compile(conf.QuotedMethodPattern)
+			if err != nil {
+				return nil, fmt.Errorf("invalid quoted method regex for %s: %w", lang, err)
+			}
+			conf.quotedMethodRe = qmRe
 		}
 
 		// Compile class regex if specified
@@ -305,6 +318,12 @@ func (lc *LanguageConfig) FuncRegex() *regexp.Regexp {
 // spans lines (it ends at the opening parenthesis); nil if the language has none.
 func (lc *LanguageConfig) ClassMethodOpenRegex() *regexp.Regexp {
 	return lc.classMethodOpenRe
+}
+
+// QuotedMethodRegex matches a method named by a string literal, on the raw line; nil if the
+// language has none.
+func (lc *LanguageConfig) QuotedMethodRegex() *regexp.Regexp {
+	return lc.quotedMethodRe
 }
 
 func (lc *LanguageConfig) ClassRegex() *regexp.Regexp {

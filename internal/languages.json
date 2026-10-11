@@ -320,7 +320,8 @@
       ".jsx",
       ".mjs"
     ],
-    "func_pattern": "^\\s*(?:(export\\s+)?(?:default\\s+)?(async\\s+)?function\\s*\\*?\\s+({IDENT}+)\\s*\\(|(?:export\\s+)?(const|let|var)\\s+({IDENT}+)\\s*=\\s*(async\\s+)?\\(|(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\([^()]*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{)",
+    "func_pattern": "^\\s*(?:(export\\s+)?(?:default\\s+)?(async\\s+)?function\\s*\\*?\\s+({IDENT}+)\\s*\\(|(?:export\\s+)?(const|let|var)\\s+({IDENT}+)\\s*=\\s*(async\\s+)?\\(|(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{)",
+    "quoted_method_pattern": "^\\s*((?:\"[^\"]*\"|'[^']*'))\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{",
     "class_method_open": "^\\s*(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\(\\s*$",
     "class_pattern": "^\\s*(?:export\\s+)?class\\s+({IDENT}+)",
     "struct_type_patterns": {
@@ -383,7 +384,8 @@
       ".ts",
       ".tsx"
     ],
-    "func_pattern": "^\\s*(?:(export\\s+)?(?:default\\s+)?(async\\s+)?function\\s*\\*?\\s+({IDENT}+)\\s*[<(]|(?:export\\s+)?(const|let|var)\\s+({IDENT}+)\\s*(?::\\s*[^=]+?)?=\\s*(async\\s*)?[<(]|(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\([^()]*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{)",
+    "func_pattern": "^\\s*(?:(export\\s+)?(?:default\\s+)?(async\\s+)?function\\s*\\*?\\s+({IDENT}+)\\s*[<(]|(?:export\\s+)?(const|let|var)\\s+({IDENT}+)\\s*(?::\\s*(?:[^=]|=>)+?)?=\\s*(async\\s*)?[<(]|(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{)",
+    "quoted_method_pattern": "^\\s*((?:\"[^\"]*\"|'[^']*'))\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{",
     "class_method_open": "^\\s*(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\(\\s*$",
     "class_pattern": "^\\s*(?:export\\s+)?class\\s+({IDENT}+)",
     "struct_type_patterns": {
