@@ -104,9 +104,8 @@ fn after() {
 	}
 }
 
-// A C prototype is a declaration: it must not swallow main. The C header pattern
-// needs the line to end at ')', so a prototype ending in ';' is not a candidate
-// at all; main's brace is on its own line, as the C pattern expects.
+// A C prototype is a declaration: it is listed on its own line and does not swallow
+// main.
 func TestDeclarations_CPrototypeDoesNotSwallowMain(t *testing.T) {
 	src := `int add(int a, int b);
 int main(void)
@@ -115,7 +114,7 @@ int main(void)
 }
 `
 	got := spans(mapFunctions(t, "c", src))
-	want := []string{"main:2-5"}
+	want := []string{"add:1-1", "main:2-5"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
@@ -539,6 +538,56 @@ fun after() {
 `
 	got := spans(mapFunctions(t, "kotlin", src))
 	want := []string{"after:3-4", "getInt:1-2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A C function whose opening brace is on its header line is found, and the if
+// inside it is not a function.
+func TestDeclarations_CBraceOnHeaderLine(t *testing.T) {
+	src := `static int add(int a, int b) {
+  return a + b;
+}
+int main(void) {
+  if (add(1, 2))
+    return 0;
+  return 1;
+}
+`
+	got := spans(mapFunctions(t, "c", src))
+	want := []string{"add:1-3", "main:4-8"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A control statement whose condition ends a line, with its block on the next line,
+// is not a function.
+func TestDeclarations_CControlStatementIsNotAFunction(t *testing.T) {
+	src := `void f(void)
+{
+  if (x)
+  {
+    y();
+  }
+}
+`
+	got := spans(mapFunctions(t, "c", src))
+	want := []string{"f:1-7"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A pointer return type written against the name (static T *f (...) {) is a function.
+func TestDeclarations_CPointerReturnTypeWrittenAgainstName(t *testing.T) {
+	src := `static int *first (int *a) {
+  return a;
+}
+`
+	got := spans(mapFunctions(t, "c", src))
+	want := []string{"first:1-3"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
