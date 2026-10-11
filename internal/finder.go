@@ -36,6 +36,52 @@ type FindResult struct {
 type FunctionContext struct {
 	Func  *FunctionBounds
 	Depth int
+	// sig is set while the signature has not opened its body yet.
+	sig *sigScanner
+}
+
+// sigEvent is what a line means to a signature that has not opened its body.
+type sigEvent int
+
+const (
+	sigOpen sigEvent = iota // still a signature: the body has not started
+	sigBody                 // a '{' outside brackets opened the body
+	sigEnd                  // a ';' outside brackets ended it: no body, so the function ends here
+)
+
+// sigScanner follows one function signature across lines.
+//
+// A regular expression cannot decide this on its own: a signature may span
+// several lines, so the decision carries over from one line to the next. And
+// ';' does not only end a declaration: it also separates the parts of a type,
+// as in [u8; 4]. So brackets are counted, and '{' or ';' counts only outside
+// them. A ';' that ends an expression body (`=> x;`) needs no case of its own:
+// the function simply covers the lines up to it.
+type sigScanner struct {
+	brackets int
+}
+
+// feed reads one cleaned line of a pending signature.
+func (s *sigScanner) feed(cleaned string) sigEvent {
+	for i := 0; i < len(cleaned); i++ {
+		switch cleaned[i] {
+		case '(', '[':
+			s.brackets++
+		case ')', ']':
+			if s.brackets > 0 {
+				s.brackets--
+			}
+		case '{':
+			if s.brackets == 0 {
+				return sigBody
+			}
+		case ';':
+			if s.brackets == 0 {
+				return sigEnd
+			}
+		}
+	}
+	return sigOpen
 }
 
 // Finder ищет функции в файле
@@ -158,6 +204,7 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
 	state := StateNormal
 	var currentFunc *FunctionBounds
+	var sig *sigScanner // the current function's signature, until its body opens
 	depth := 0
 	funcRegex := f.config.FuncRegex()
 
@@ -170,6 +217,19 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 		if currentFunc != nil {
 			if f.extractMode {
 				currentFunc.Lines = append(currentFunc.Lines, line)
+			}
+
+			if sig != nil {
+				switch sig.feed(cleaned) {
+				case sigEnd:
+					currentFunc.End = lineNum + 1 + lineOffset
+					result.Functions = append(result.Functions, *currentFunc)
+					currentFunc = nil
+					sig = nil
+					continue
+				case sigBody:
+					sig = nil
+				}
 			}
 
 			prevDepth := depth
@@ -243,6 +303,17 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 						result.Functions = append(result.Functions, *currentFunc)
 						currentFunc = nil
 					}
+					if depth == 0 && !hasBrace {
+						// Сигнатура без тела пока: ';' до первой '{' — конец объявления
+						// (трейт, прототип, '=> x;'): функция занимает только эти строки.
+						sig = &sigScanner{}
+						if sig.feed(cleaned) == sigEnd {
+							currentFunc.End = lineNum + 1 + lineOffset
+							result.Functions = append(result.Functions, *currentFunc)
+							currentFunc = nil
+							sig = nil
+						}
+					}
 					// Иначе: скобка открыта и ещё не закрыта (depth > 0), или
 					// скобки нет вовсе (многострочная сигнатура) — в обоих
 					// случаях функция остаётся открытой и продолжается веткой
@@ -271,6 +342,19 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		state = newState
 
 		braceDelta := CountBraces(cleaned)
+
+		// 0. Сигнатура без тела, начатая раньше, ждёт этой строки: она может
+		// открыть тело, закончиться объявлением (';') или выражением ('=> x;').
+		// Решение принимается до обновления глубин (шаг 2).
+		events := make([]sigEvent, len(funcStack))
+		for i, ctx := range funcStack {
+			if ctx.sig != nil {
+				events[i] = ctx.sig.feed(cleaned)
+				if events[i] != sigOpen {
+					ctx.sig = nil
+				}
+			}
+		}
 
 		// 1. Сохраняем предыдущие глубины ДО обновления
 		prevDepths := make(map[int]int)
@@ -317,6 +401,16 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 				if braceDelta == 0 && strings.Contains(cleaned, "{") {
 					newFunc.End = lineNum + 1 + lineOffset
 					result.Functions = append(result.Functions, *newFunc)
+				} else if braceDelta == 0 {
+					// Сигнатура без тела пока: ';' — конец объявления, функция занимает
+					// эту строку; иначе ждём '{' в следующих строках.
+					sig := &sigScanner{}
+					if sig.feed(cleaned) == sigEnd {
+						newFunc.End = lineNum + 1 + lineOffset
+						result.Functions = append(result.Functions, *newFunc)
+					} else {
+						funcStack = append(funcStack, &FunctionContext{Func: newFunc, sig: sig})
+					}
 				} else {
 					// Добавляем новую функцию в стек
 					ctx := &FunctionContext{
@@ -331,9 +425,21 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		// 4. Удаляем завершенные функции из стека (в обратном порядке)
 		var newStack []*FunctionContext
 		for i, ctx := range funcStack {
+			ev := sigOpen
+			if i < len(events) {
+				ev = events[i]
+			}
+			if ev == sigEnd {
+				// Объявление или выражение без тела: функция кончается на этой строке.
+				ctx.Func.End = lineNum + 1 + lineOffset
+				result.Functions = append(result.Functions, *ctx.Func)
+				continue
+			}
 			prevDepth := prevDepths[i]
-			// Функция завершается когда depth становится 0 после того как была > 0
-			if ctx.Depth == 0 && prevDepth > 0 {
+			// Функция завершается когда depth становится 0 после того как была > 0,
+			// либо тело открылось и закрылось на этой же строке (`{ return 2; }`
+			// под сигнатурой): глубина до строки была 0.
+			if ctx.Depth == 0 && (prevDepth > 0 || ev == sigBody) {
 				// Конец функции
 				ctx.Func.End = lineNum + 1 + lineOffset
 				result.Functions = append(result.Functions, *ctx.Func)
