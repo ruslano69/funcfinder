@@ -718,3 +718,45 @@ end
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// TypeScript class members are functions: a constructor, a getter, a static and an async
+// method with a block inside. The if is a statement, not a method.
+func TestDeclarations_TSClassMethods(t *testing.T) {
+	src := `export class Box {
+  private value: number;
+  constructor(value: number) {
+    this.value = value;
+  }
+  get size(): number {
+    return this.value;
+  }
+  static of(v: number): Box {
+    return new Box(v);
+  }
+  async load<T>(x: T): Promise<T> {
+    if (x) {
+      return x;
+    }
+    return x;
+  }
+}
+`
+	got := spans(mapFunctions(t, "ts", src))
+	want := []string{"constructor:3-5", "load:12-17", "of:9-11", "size:6-8"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A const bound to a value that awaits (no arrow, no semicolon) is not a function.
+func TestDeclarations_AwaitingConstValueIsNotAFunction(t *testing.T) {
+	src := `const rows = (await db.query("x"))
+function f() {
+}
+`
+	got := spans(mapFunctions(t, "js", src))
+	want := []string{"f:2-3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}

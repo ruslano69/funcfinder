@@ -552,14 +552,16 @@ func TestFuncRegex(t *testing.T) {
 			expectedName: "getData",
 		},
 		{
-			lang:        "js",
-			code:        "regularMethod() {",
-			shouldMatch: false, // Class methods without "function" keyword not supported
+			lang:         "js",
+			code:         "regularMethod() {",
+			shouldMatch:  true, // a class method: its header ends in a brace
+			expectedName: "regularMethod",
 		},
 		{
-			lang:        "js",
-			code:        "async asyncMethod() {",
-			shouldMatch: false, // Class methods without "function" keyword not supported
+			lang:         "js",
+			code:         "async asyncMethod() {",
+			shouldMatch:  true,
+			expectedName: "asyncMethod",
 		},
 		{
 			lang:         "js",
@@ -580,9 +582,10 @@ func TestFuncRegex(t *testing.T) {
 			expectedName: "fetchUser",
 		},
 		{
-			lang:        "ts",
-			code:        "identity<T>(arg: T): T {",
-			shouldMatch: false, // Class methods without "function" keyword not supported
+			lang:         "ts",
+			code:         "identity<T>(arg: T): T {",
+			shouldMatch:  true, // a generic class method
+			expectedName: "identity",
 		},
 		// Generator functions
 		{
