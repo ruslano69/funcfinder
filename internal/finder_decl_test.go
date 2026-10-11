@@ -258,3 +258,21 @@ func other() {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A function declared inside another function's body is a function of its own:
+// Rust allows it, and the outer span still covers it.
+func TestDeclarations_RustNestedFunctionIsMapped(t *testing.T) {
+	src := `fn outer() -> i32 {
+    fn inner(x: i32) -> i32 {
+        x + 1
+    }
+    inner(1)
+}
+fn after() {}
+`
+	got := spans(mapFunctions(t, "rust", src))
+	want := []string{"after:7-7", "inner:2-4", "outer:1-6"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
