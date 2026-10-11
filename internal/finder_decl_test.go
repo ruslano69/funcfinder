@@ -511,3 +511,35 @@ func TestDeclarations_ExpressionAtEndOfFileEndsOnItsLine(t *testing.T) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A Kotlin raw string closed by a run of quotes ("""..."""") and a multi-line raw
+// string containing quotes do not change the quote state of the rest of the file.
+func TestDeclarations_KotlinRawStringRunOfQuotes(t *testing.T) {
+	src := `const val A = """--x "ext""""
+val s = """
+    say "hi"
+"""
+fun after() {
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"after:5-6"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A single-line header whose braces balance but which ends in '=' keeps its expression
+// on the next line.
+func TestDeclarations_HeaderEndingInEqualsContinuesOnNextLine(t *testing.T) {
+	src := `fun String.getInt(default: Int = Defaults.getOrElse(this) { 0 }): Int =
+    kv.decodeInt(this, default)
+fun after() {
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"after:3-4", "getInt:1-2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}

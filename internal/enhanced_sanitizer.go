@@ -250,9 +250,29 @@ func (s *Sanitizer) closesString(runes []rune, pos int) bool {
 	return s.matchesStringDelimiter(runes, pos)
 }
 
+// rawDelimiterLen returns the length of the raw-string delimiter that starts at pos,
+// or 0 if none does.
+func (s *Sanitizer) rawDelimiterLen(runes []rune, pos int) int {
+	n := 0
+	for _, char := range s.config.RawStringChars {
+		if s.matchesAt(runes, pos, char) && runeLen(char) > n {
+			n = runeLen(char)
+		}
+	}
+	return n
+}
+
 func (s *Sanitizer) handleRawString(runes []rune, result []rune, idx int) (int, ParserState) {
-	if s.matchesRawStringDelimiter(runes, idx) {
-		return idx + 1, StateNormal
+	if n := s.rawDelimiterLen(runes, idx); n > 0 {
+		// A multi-quote delimiter (Kotlin """) closes at the end of its run: a longer run
+		// keeps its extra quotes as content, so the closing quotes are consumed whole.
+		end := idx + n
+		if n > 1 {
+			for end < len(runes) && runes[end] == runes[idx] {
+				end++
+			}
+		}
+		return end, StateNormal
 	}
 	if s.useRaw {
 		result[idx] = runes[idx]
