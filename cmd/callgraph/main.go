@@ -265,7 +265,10 @@ func filterCallGraph(cg *internal.CallGraphResult, root string, maxDepth int) *i
 	return fake
 }
 
-// printCallTree prints a simple indented call tree from root.
+// printCallTree prints a simple indented call tree from root. A callee that is
+// on the path from root to here calls itself, directly or through others: that
+// is recursion. A callee already printed in another branch is not expanded
+// again; it is marked "(see above)".
 func printCallTree(cg *internal.CallGraphResult, root string) {
 	callees := make(map[string][]string)
 	for _, f := range cg.Files {
@@ -273,19 +276,27 @@ func printCallTree(cg *internal.CallGraphResult, root string) {
 			callees[e.Caller] = append(callees[e.Caller], e.Callee)
 		}
 	}
-	var print func(name string, prefix string, visited map[string]bool)
-	print = func(name string, prefix string, visited map[string]bool) {
-		if visited[name] {
+	onPath := make(map[string]bool)
+	shown := make(map[string]bool)
+	var print func(name string, prefix string)
+	print = func(name string, prefix string) {
+		if onPath[name] {
 			fmt.Printf("%s%s (↑ recursive)\n", prefix, name)
 			return
 		}
-		visited[name] = true
+		if shown[name] {
+			fmt.Printf("%s%s (see above)\n", prefix, name)
+			return
+		}
+		shown[name] = true
+		onPath[name] = true
 		fmt.Printf("%s%s\n", prefix, name)
 		for _, c := range callees[name] {
-			print(c, prefix+"  ", visited)
+			print(c, prefix+"  ")
 		}
+		onPath[name] = false
 	}
-	print(root, "", make(map[string]bool))
+	print(root, "")
 }
 
 // collectImports parses a file and returns alias → package base name.
