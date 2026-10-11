@@ -102,7 +102,7 @@
       ".hpp",
       ".h"
     ],
-    "func_pattern": "^\\s*[\\w\\s\\*:<>,]+\\s+({IDENT}+)\\s*\\([^)]*\\)\\s*(const)?\\s*$",
+    "func_pattern": "^\\s*(?:[@\\w<>\\[\\],.?*&:~]+\\s+)+(?:[\\w~]+::)*({IDENT}+)\\s*\\([^)]*\\)\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:->\\s*[^{;]+?)?\\s*\\{?\\s*$",
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|struct)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:\\w+\\s+)?class\\s+({IDENT}+)",
@@ -141,6 +141,7 @@
       "namespace",
       "using"
     ],
+    "keywords_not_names": true,
     "supports_nested": false,
     "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|case|default|catch)\\b",
     "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
