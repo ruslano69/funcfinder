@@ -556,7 +556,7 @@
       "mod",
       "use"
     ],
-    "supports_nested": false,
+    "supports_nested": true,
     "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|match|loop)\\b",
     "flat_pattern": "^\\s*\\}?\\s*(else|case)\\b",
     "loop_pattern": "^\\s*(for|while|loop)\\b"
