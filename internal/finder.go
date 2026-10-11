@@ -341,6 +341,11 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 		} else {
 			// Ищем начало новой функции
 			matches := funcRegex.FindStringSubmatch(cleaned)
+			// A class member whose signature continues on the next lines: its first line ends at
+			// the opening parenthesis, and it is a member only inside a class body.
+			if matches == nil && f.config.ClassMethodOpenRegex() != nil && f.config.HasClasses() && f.findClassForLine(classes, lineNum+lineOffset) != "" {
+				matches = f.config.ClassMethodOpenRegex().FindStringSubmatch(cleaned)
+			}
 			if matches != nil {
 				funcName := ExtractFuncName(matches)
 
