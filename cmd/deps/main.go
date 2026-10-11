@@ -197,8 +197,25 @@ func collectFileImports(filename string, config *internal.LanguageConfig, exclud
 	inBlock := false
 
 	scanner := bufio.NewScanner(file)
+	isRust := strings.EqualFold(config.Name, "rust")
+	pendingUse := "" // a Rust use item still waiting for its semicolon
 	for scanner.Scan() {
 		line := scanner.Text()
+		if isRust {
+			// A use item can span lines (use kanzi::{ ... };): join them up to the
+			// semicolon, so the item is read as a single line would be.
+			if pendingUse != "" {
+				pendingUse += " " + strings.TrimSpace(line)
+				if !strings.Contains(line, ";") {
+					continue
+				}
+				line = normalizeRustUse(pendingUse)
+				pendingUse = ""
+			} else if rustUseStart.MatchString(line) && !strings.Contains(line, ";") {
+				pendingUse = strings.TrimSpace(line)
+				continue
+			}
+		}
 		trimmed := strings.TrimSpace(line)
 
 		// Handle multi-line import blocks (Go-style)

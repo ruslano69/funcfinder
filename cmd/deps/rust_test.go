@@ -102,3 +102,38 @@ func TestDetectRustLocalPackages(t *testing.T) {
 		t.Fatalf("detectRustLocalPackages = %v, want %v", got, want)
 	}
 }
+
+// A use item spread over several lines is read to its semicolon, not cut at
+// the line that opens its brace.
+func TestCollectFileImports_RustMultiLineUse(t *testing.T) {
+	src := `use kanzi::{
+    alias, ans, rlt,
+    zrlt,
+};
+pub use store::{
+    Named,
+    Store,
+};
+fn main() {}
+`
+	path := filepath.Join(t.TempDir(), "lib.rs")
+	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	config, err := internal.LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lc := config["rust"]
+	if lc == nil {
+		t.Fatal("rust config not found")
+	}
+
+	got := collectFileImports(path, lc, nil)
+	want := []string{"kanzi::{alias, ans, rlt, zrlt}", "store::{Named, Store}"}
+	sort.Strings(got)
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("collectFileImports = %v, want %v", got, want)
+	}
+}
