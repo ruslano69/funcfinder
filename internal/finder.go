@@ -168,6 +168,10 @@ func isCompleteValueAssignment(matches []string, cleaned string) bool {
 	if strings.Contains(cleaned, "=>") || strings.Contains(cleaned, "function") {
 		return false
 	}
+	// A value that awaits (const rows=(await db.query(...)) is not an arrow function.
+	if strings.Contains(cleaned, "await") {
+		return true
+	}
 	return strings.HasSuffix(strings.TrimSpace(cleaned), ";")
 }
 
@@ -422,7 +426,10 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 // isKeywordName reports whether a match names a reserved word of the language, which
 // is a statement such as if (x), not a function.
 func (f *Finder) isKeywordName(name string) bool {
-	return f.config.KeywordsNotNames && isExcludedWord(name, f.config.ExcludeWords)
+	if f.config.KeywordsNotNames && isExcludedWord(name, f.config.ExcludeWords) {
+		return true
+	}
+	return isExcludedWord(name, f.config.StatementWords)
 }
 
 // findFunctionsWithNesting - новая логика для языков с вложенными функциями
