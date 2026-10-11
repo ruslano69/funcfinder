@@ -41,6 +41,8 @@ type FunctionContext struct {
 	sig *sigScanner
 	// sigLast is the line where that signature ends if it never gets a body.
 	sigLast int
+	// afterBlock: the body closed, but the expression goes on (see continuesExpression).
+	afterBlock bool
 }
 
 // sigEvent is what a line means to a signature that has not opened its body.
@@ -445,6 +447,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 
 	for lineNum, line := range lines {
 		// Очищаем строку от комментариев и литералов
+		inComment := state == StateBlockComment // the line starts inside a block comment
 		cleaned, newState := f.sanitizer.CleanLine(line, state)
 		state = newState
 
@@ -470,7 +473,9 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			if ctx.sig == nil {
 				continue
 			}
-			if matches != nil && ctx.sig.brackets == 0 {
+			// A declaration that starts while this signature waits for its body ends it on its
+			// last line, as a new function does (Kotlin, Swift: no body and no ';').
+			if (matches != nil || startsDeclaration(strings.TrimSpace(cleaned))) && ctx.sig.brackets == 0 {
 				events[i] = sigUnterminated
 				ctx.sig = nil
 				continue
@@ -479,7 +484,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			events[i] = ctx.sig.feed(cleaned)
 			if events[i] != sigOpen {
 				ctx.sig = nil
-			} else if t := strings.TrimSpace(cleaned); t != "" && !(atTop && strings.HasPrefix(t, "}")) && !(atTop && declStart.MatchString(t)) {
+			} else if t := strings.TrimSpace(cleaned); (t != "" || (!inComment && hasCodeText(line))) && !(atTop && strings.HasPrefix(t, "}")) && !(atTop && declStart.MatchString(t)) {
 				ctx.sigLast = lineNum + 1 + lineOffset
 			}
 		}
@@ -531,7 +536,10 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 				// goes on, so the function stays open.
 				probe := &sigScanner{}
 				probe.feed(cleaned)
-				if braceDelta == 0 && strings.Contains(cleaned, "{") && probe.brackets == 0 {
+				// A header that ends in '=' starts an expression body on the next line: it is not
+				// complete here, even when its braces balance (as on the simple path).
+				endsWithEq := strings.HasSuffix(strings.TrimSpace(cleaned), "=")
+				if braceDelta == 0 && strings.Contains(cleaned, "{") && probe.brackets == 0 && !endsWithEq {
 					newFunc.End = lineNum + 1 + lineOffset
 					result.Functions = append(result.Functions, *newFunc)
 				} else if braceDelta == 0 {
@@ -579,11 +587,19 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			// Функция завершается когда depth становится 0 после того как была > 0,
 			// либо тело открылось и закрылось на этой же строке (`{ return 2; }`
 			// под сигнатурой): глубина до строки была 0.
-			if ctx.Depth == 0 && (prevDepth > 0 || ev == sigBody) {
-				// Конец функции
-				ctx.Func.End = lineNum + 1 + lineOffset
-				result.Functions = append(result.Functions, *ctx.Func)
-				// Не добавляем в новый стек (удаляем)
+			// The function waits for the first non-blank line that does not continue an expression
+			// body (see continuesExpression), as the simple path does.
+			nonBlank := strings.TrimSpace(cleaned) != ""
+			if ctx.Depth == 0 && (prevDepth > 0 || ev == sigBody || (ctx.afterBlock && nonBlank)) {
+				if continuesExpression(lines, lineNum) {
+					ctx.afterBlock = true
+					newStack = append(newStack, ctx)
+				} else {
+					// Конец функции
+					ctx.Func.End = lineNum + 1 + lineOffset
+					result.Functions = append(result.Functions, *ctx.Func)
+					// Не добавляем в новый стек (удаляем)
+				}
 			} else {
 				// Оставляем в стеке
 				newStack = append(newStack, ctx)
@@ -592,7 +608,32 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		funcStack = newStack
 	}
 
+	// The file ends with functions still open. A pending signature ends on its last line;
+	// an expression waiting for a continuation ends on the last non-blank line.
+	for _, ctx := range funcStack {
+		if ctx.sig != nil {
+			ctx.Func.End = ctx.sigLast
+			result.Functions = append(result.Functions, *ctx.Func)
+		} else if ctx.afterBlock {
+			for j := len(lines) - 1; j >= 0; j-- {
+				if strings.TrimSpace(lines[j]) != "" {
+					ctx.Func.End = j + 1 + lineOffset
+					break
+				}
+			}
+			result.Functions = append(result.Functions, *ctx.Func)
+		}
+	}
+
 	return result, nil
+}
+
+// hasCodeText reports whether a raw line holds code the sanitizer blanked: a line that is
+// only a string literal (a template in an expression body) is blank once cleaned, but it
+// is not a comment and not empty.
+func hasCodeText(line string) bool {
+	t := strings.TrimSpace(line)
+	return t != "" && !strings.HasPrefix(t, "//") && !strings.HasPrefix(t, "/*")
 }
 
 // ParseFuncNames разбирает строку с именами функций через запятую

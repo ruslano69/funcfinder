@@ -398,7 +398,7 @@ func TestDeclarations_ExpressionBodyEndsBeforeClassDeclaration(t *testing.T) {
 }
 `
 	got := spans(mapFunctions(t, "kotlin", src))
-	want := []string{"exitTween:2-2", "listen:5-9"}
+	want := []string{"exitTween:2-2", "listen:5-9", "on:7-8"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
