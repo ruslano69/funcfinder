@@ -68,6 +68,22 @@ func startsDeclaration(t string) bool {
 	return declStart.MatchString(t) && !anonymousObject.MatchString(t)
 }
 
+// continuationStart matches a line that continues the expression before it: a
+// call chain (.x), a safe call (?.x), an elvis (?:), or the else of an if.
+var continuationStart = regexp.MustCompile(`^(?:\.|\?[.:]|else\b)`)
+
+// continuesExpression reports whether the next non-blank line after line i
+// continues the expression that line i closes. A block inside an expression body
+// closes on its own brace, but the expression goes on: .onFailure { ... } follows.
+func continuesExpression(lines []string, i int) bool {
+	for j := i + 1; j < len(lines); j++ {
+		if t := strings.TrimSpace(lines[j]); t != "" {
+			return continuationStart.MatchString(t)
+		}
+	}
+	return false
+}
+
 // sigScanner follows one function signature across lines.
 //
 // A regular expression cannot decide this on its own: a signature may span
@@ -225,6 +241,7 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 	var currentFunc *FunctionBounds
 	var sig *sigScanner // the current function's signature, until its body opens
 	var sigLast int     // where that signature ends if it never gets a body
+	var afterBlock bool // the body closed, but the expression goes on (see continuesExpression)
 	depth := 0
 	funcRegex := f.config.FuncRegex()
 
@@ -252,7 +269,7 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			if sig != nil {
 				atTop := sig.brackets == 0
 				ev := sig.feed(cleaned)
-				if t := strings.TrimSpace(cleaned); ev == sigOpen && t != "" && !strings.HasPrefix(t, "}") && !(atTop && declStart.MatchString(t)) {
+				if t := strings.TrimSpace(cleaned); ev == sigOpen && t != "" && !(atTop && strings.HasPrefix(t, "}")) && !(atTop && declStart.MatchString(t)) {
 					sigLast = lineNum + 1 + lineOffset
 				}
 				switch ev {
@@ -265,6 +282,12 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 				case sigBody:
 					sig = nil
 				}
+			}
+
+			if sig != nil {
+				// Still pending: a brace here sits inside the parentheses of the signature or
+				// the expression (a call argument, a default value), not in a body.
+				continue
 			}
 
 			prevDepth := depth
@@ -292,11 +315,19 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			// поглощая всё следующее.
 			// A balanced brace while the signature is still open (a default value such
 			// as remember { x } inside its parentheses) is part of the signature.
-			if depth == 0 && (prevDepth > 0 || (hasBrace && sig == nil)) {
-				// Конец функции
-				currentFunc.End = lineNum + 1 + lineOffset // 1-based + offset
-				result.Functions = append(result.Functions, *currentFunc)
-				currentFunc = nil
+			// The function ends when its body closes, unless the expression goes on past
+			// it (see continuesExpression). afterBlock waits for the first line that does
+			// not continue the expression; a blank line is not that line.
+			if depth == 0 && (prevDepth > 0 || hasBrace || (afterBlock && strings.TrimSpace(cleaned) != "")) {
+				if continuesExpression(lines, lineNum) {
+					afterBlock = true
+				} else {
+					// Конец функции
+					currentFunc.End = lineNum + 1 + lineOffset // 1-based + offset
+					result.Functions = append(result.Functions, *currentFunc)
+					currentFunc = nil
+					afterBlock = false
+				}
 			}
 		} else {
 			// Ищем начало новой функции
@@ -361,6 +392,22 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 		}
 	}
 
+	// The file ends with a function still open. A pending signature or expression
+	// ends on its last line; a body whose expression was waiting for a continuation ends
+	// on the last non-blank line.
+	if currentFunc != nil && sig != nil {
+		currentFunc.End = sigLast
+		result.Functions = append(result.Functions, *currentFunc)
+	} else if currentFunc != nil && afterBlock {
+		for j := len(lines) - 1; j >= 0; j-- {
+			if strings.TrimSpace(lines[j]) != "" {
+				currentFunc.End = j + 1 + lineOffset
+				break
+			}
+		}
+		result.Functions = append(result.Functions, *currentFunc)
+	}
+
 	return result, nil
 }
 
@@ -399,7 +446,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			events[i] = ctx.sig.feed(cleaned)
 			if events[i] != sigOpen {
 				ctx.sig = nil
-			} else if t := strings.TrimSpace(cleaned); t != "" && !strings.HasPrefix(t, "}") && !(atTop && declStart.MatchString(t)) {
+			} else if t := strings.TrimSpace(cleaned); t != "" && !(atTop && strings.HasPrefix(t, "}")) && !(atTop && declStart.MatchString(t)) {
 				ctx.sigLast = lineNum + 1 + lineOffset
 			}
 		}
