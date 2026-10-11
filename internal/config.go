@@ -37,6 +37,9 @@ type LanguageConfig struct {
 	// Call patterns (for stat.go)
 	CallPattern  string   `json:"call_pattern"`
 	ExcludeWords []string `json:"exclude_words"`
+	// ClassMethodOpen matches a class member's first line when its signature continues
+	// on the next lines; it is read only at the top of a class body.
+	ClassMethodOpen string `json:"class_method_open,omitempty"`
 	// KeywordsNotNames: the exclude_words are reserved words of the language, so a
 	// match on one of them (if (x) at the end of a line) is a statement, not a function.
 	KeywordsNotNames bool `json:"keywords_not_names,omitempty"`
@@ -94,17 +97,18 @@ type LanguageConfig struct {
 	ExtraPatterns map[string]string `json:"extra_patterns,omitempty"`
 
 	// Compiled regex cache
-	funcRegex      *regexp.Regexp
-	classRegex     *regexp.Regexp
-	structPatterns map[string]*regexp.Regexp
-	fieldRegex     *regexp.Regexp
-	callRegex      *regexp.Regexp
-	importRegex    *regexp.Regexp
-	decoratorRe    *regexp.Regexp
-	blockCommentRe *regexp.Regexp
-	nestingRe      *regexp.Regexp
-	flatRe         *regexp.Regexp
-	loopRe         *regexp.Regexp
+	funcRegex         *regexp.Regexp
+	classMethodOpenRe *regexp.Regexp
+	classRegex        *regexp.Regexp
+	structPatterns    map[string]*regexp.Regexp
+	fieldRegex        *regexp.Regexp
+	callRegex         *regexp.Regexp
+	importRegex       *regexp.Regexp
+	decoratorRe       *regexp.Regexp
+	blockCommentRe    *regexp.Regexp
+	nestingRe         *regexp.Regexp
+	flatRe            *regexp.Regexp
+	loopRe            *regexp.Regexp
 }
 
 // Config is a map of language keys to their configurations
@@ -158,6 +162,15 @@ func LoadConfig() (Config, error) {
 				return nil, fmt.Errorf("invalid func regex for %s: %w", lang, err)
 			}
 			conf.funcRegex = re
+		}
+
+		// Compile the class method opening if specified
+		if conf.ClassMethodOpen != "" {
+			cmRe, err := regexp.Compile(expandIdentPlaceholder(conf.ClassMethodOpen))
+			if err != nil {
+				return nil, fmt.Errorf("invalid class method regex for %s: %w", lang, err)
+			}
+			conf.classMethodOpenRe = cmRe
 		}
 
 		// Compile class regex if specified
@@ -283,6 +296,12 @@ func (c Config) GetSupportedLanguages() []string {
 // Regex getters for funcfinder
 func (lc *LanguageConfig) FuncRegex() *regexp.Regexp {
 	return lc.funcRegex
+}
+
+// ClassMethodOpenRegex matches the first line of a class method whose signature
+// spans lines (it ends at the opening parenthesis); nil if the language has none.
+func (lc *LanguageConfig) ClassMethodOpenRegex() *regexp.Regexp {
+	return lc.classMethodOpenRe
 }
 
 func (lc *LanguageConfig) ClassRegex() *regexp.Regexp {
