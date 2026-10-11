@@ -51,7 +51,7 @@
       ".c",
       ".h"
     ],
-    "func_pattern": "^\\s*[\\w\\s\\*]+\\s+({IDENT}+)\\s*\\([^)]*\\)\\s*$",
+    "func_pattern": "^\\w[\\w\\s\\*]*[\\s\\*]+({IDENT}+)\\s*\\(",
     "class_pattern": "^\\s*(?:typedef\\s+)?struct\\s+(?:\\w+\\s*)?\\{",
     "struct_type_patterns": {
       "struct": "^\\s*(?:typedef\\s+)?(?:struct|union)\\s+(?:({IDENT}+)\\s*)?\\{",
@@ -87,6 +87,7 @@
       "ifndef",
       "endif"
     ],
+    "keywords_not_names": true,
     "supports_nested": false,
     "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|case|default)\\b",
     "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",

@@ -35,9 +35,12 @@ type LanguageConfig struct {
 	FieldPattern       string              `json:"field_pattern,omitempty"`
 
 	// Call patterns (for stat.go)
-	CallPattern      string   `json:"call_pattern"`
-	ExcludeWords     []string `json:"exclude_words"`
-	DecoratorPattern string   `json:"decorator_pattern"`
+	CallPattern  string   `json:"call_pattern"`
+	ExcludeWords []string `json:"exclude_words"`
+	// KeywordsNotNames: the exclude_words are reserved words of the language, so a
+	// match on one of them (if (x) at the end of a line) is a statement, not a function.
+	KeywordsNotNames bool   `json:"keywords_not_names,omitempty"`
+	DecoratorPattern string `json:"decorator_pattern"`
 
 	// Nesting patterns (for complexity.go) — NestingPattern matches lines that
 	// open a new level of control-flow branching (if/for/while/switch/...);

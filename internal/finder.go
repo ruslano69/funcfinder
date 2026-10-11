@@ -336,7 +336,7 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 				funcName := ExtractFuncName(matches)
 
 				// Проверяем, нужно ли нам эту функцию
-				if f.mapMode || f.funcNames[funcName] {
+				if (f.mapMode || f.funcNames[funcName]) && !f.isKeywordName(funcName) {
 					// Определяем класс, к которому принадлежит функция
 					className := ""
 					if f.config.HasClasses() {
@@ -414,6 +414,12 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 	return result, nil
 }
 
+// isKeywordName reports whether a match names a reserved word of the language, which
+// is a statement such as if (x), not a function.
+func (f *Finder) isKeywordName(name string) bool {
+	return f.config.KeywordsNotNames && isExcludedWord(name, f.config.ExcludeWords)
+}
+
 // findFunctionsWithNesting - новая логика для языков с вложенными функциями
 func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
 	state := StateNormal
@@ -473,7 +479,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			funcName := ExtractFuncName(matches)
 
 			// Проверяем, нужно ли нам эту функцию
-			if f.mapMode || f.funcNames[funcName] {
+			if (f.mapMode || f.funcNames[funcName]) && !f.isKeywordName(funcName) {
 				// Определяем класс, к которому принадлежит функция
 				className := ""
 				if f.config.HasClasses() {
