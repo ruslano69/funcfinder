@@ -153,7 +153,7 @@
       ".cs",
       ".csx"
     ],
-    "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+({IDENT}+)\\s*\\([^)]*\\)\\s*$",
+    "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+({IDENT}+)\\s*\\([^)]*\\)\\s*(?:=>|\\{)?\\s*$",
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|interface|struct|enum)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial)\\s+)*(?:class|record)\\s+({IDENT}+)",
@@ -198,6 +198,7 @@
       "struct",
       "enum"
     ],
+    "keywords_not_names": true,
     "supports_nested": false,
     "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|foreach|while|do|switch|catch|finally)\\b",
     "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",

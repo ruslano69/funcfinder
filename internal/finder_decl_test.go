@@ -641,3 +641,20 @@ auto g() -> int {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A C# member whose expression body starts on the header line (=>) is a function.
+func TestDeclarations_CSharpExpressionArrowOnHeaderLine(t *testing.T) {
+	src := `class A {
+    public void Bulk() =>
+        Foo();
+    public int Baz() {
+        return 1;
+    }
+}
+`
+	got := spans(mapFunctions(t, "cs", src))
+	want := []string{"Baz:4-6", "Bulk:2-3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
