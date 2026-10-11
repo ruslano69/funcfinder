@@ -227,6 +227,11 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 	}
 
 	// Проверяем, поддерживает ли язык вложенные функции
+	// A language whose blocks end with a keyword (Ruby) has no braces to count.
+	if f.config.BlockEndKeyword != "" {
+		return f.findFunctionsByBlockEnd(lines, lineOffset, classes, result)
+	}
+
 	if f.config.SupportsNested {
 		return f.findFunctionsWithNesting(lines, lineOffset, classes, result)
 	}

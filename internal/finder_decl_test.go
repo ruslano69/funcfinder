@@ -658,3 +658,63 @@ func TestDeclarations_CSharpExpressionArrowOnHeaderLine(t *testing.T) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A Ruby method ends with the end at its header's indentation; a nested if has its own end,
+// and a singleton method is found.
+func TestDeclarations_RubyMethodEndsAtItsEnd(t *testing.T) {
+	src := `class Greeter
+  def hello
+    puts "hi"; puts "there"
+  end
+
+  def bye(name)
+    if name
+      puts name
+    end
+  end
+
+  def self.make
+    new
+  end
+end
+`
+	got := spans(mapFunctions(t, "ruby", src))
+	want := []string{"bye:6-10", "hello:2-4", "make:12-14"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// The body of a heredoc is text: a backtick or a quote in it does not change what
+// follows.
+func TestDeclarations_RubyHeredocBodyIsNotCode(t *testing.T) {
+	src := strings.Join([]string{
+		"class A",
+		"  def doc",
+		"    <<~MD",
+		"      Set `x` to \"y\"",
+		"    MD",
+		"  end",
+		"  def after",
+		"  end",
+		"end",
+	}, "\n") + "\n"
+	got := spans(mapFunctions(t, "ruby", src))
+	want := []string{"after:7-8", "doc:2-6"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// An endless method and a method closed on its own line are one-line functions.
+func TestDeclarations_RubyOneLineMethods(t *testing.T) {
+	src := `def a = 1
+def b
+end
+`
+	got := spans(mapFunctions(t, "ruby", src))
+	want := []string{"a:1-1", "b:2-3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}

@@ -743,7 +743,7 @@
       ".rb",
       ".rake"
     ],
-    "func_pattern": "^\\s*def\\s+({IDENT}+[?!]?)\\s*[\\(\\n]?",
+    "func_pattern": "^\\s*def\\s+(?:self\\.)?({IDENT}+[?!=]?)",
     "class_pattern": "^\\s*(?:class|module)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*class\\s+({IDENT}+)",
