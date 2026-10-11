@@ -70,7 +70,10 @@ type LanguageConfig struct {
 	BlockCommentEnd   string   `json:"block_comment_end"`
 	StringChars       []string `json:"string_chars"`
 	RawStringChars    []string `json:"raw_string_chars"`
-	EscapeChar        string   `json:"escape_char"`
+	// RegexLiterals: a slash that starts a regular expression (after an operator or
+	// return) is not a division, and its quotes are not string delimiters (JavaScript).
+	RegexLiterals bool   `json:"regex_literals,omitempty"`
+	EscapeChar    string `json:"escape_char"`
 	// SingleLineStrings — a regular (non-raw) string cannot continue past the
 	// end of its line (JS/TS "..." and '...'). An unterminated quote then ends
 	// with the line instead of swallowing the following code — which is what a

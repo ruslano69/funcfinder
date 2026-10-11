@@ -760,3 +760,35 @@ function f() {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A regular expression literal with a quote in it does not open a string: the functions
+// after it are found.
+func TestDeclarations_JSRegexLiteralWithQuote(t *testing.T) {
+	src := `const f = (v) => {
+  return /\"/.test(v) ? 'x' : 'y';
+};
+function after() {
+}
+`
+	got := spans(mapFunctions(t, "js", src))
+	want := []string{"after:4-5", "f:1-3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A header whose balanced braces sit inside an open parenthesis (a generic argument) is
+// not complete: the expression goes on to the line that closes it.
+func TestDeclarations_JSHeaderBracesInsideParenthesisStayOpen(t *testing.T) {
+	src := `const history = async () => (await query<{ f: string }>(
+  "x"
+));
+function after() {
+}
+`
+	got := spans(mapFunctions(t, "js", src))
+	want := []string{"after:4-5", "history:1-3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}

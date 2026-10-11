@@ -510,7 +510,12 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 				}
 
 				// Если скобки сбалансированы на одной строке ({ ... }) — функция завершена
-				if braceDelta == 0 && strings.Contains(cleaned, "{") {
+				// Braces that balance on this line but sit inside an open parenthesis (a
+				// generic argument, a call's block) do not close the header: the expression
+				// goes on, so the function stays open.
+				probe := &sigScanner{}
+				probe.feed(cleaned)
+				if braceDelta == 0 && strings.Contains(cleaned, "{") && probe.brackets == 0 {
 					newFunc.End = lineNum + 1 + lineOffset
 					result.Functions = append(result.Functions, *newFunc)
 				} else if braceDelta == 0 {
