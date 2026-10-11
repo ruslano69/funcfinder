@@ -624,3 +624,20 @@ func TestDeclarations_JavaMultiLineSignature(t *testing.T) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A C++ member definition with a qualified name and a body on its header line, and a
+// trailing return type, are functions.
+func TestDeclarations_CppQualifiedNameAndTrailingReturnType(t *testing.T) {
+	src := `void Foo::bar(int x) const {
+  y();
+}
+auto g() -> int {
+  return 1;
+}
+`
+	got := spans(mapFunctions(t, "cpp", src))
+	want := []string{"bar:1-3", "g:4-6"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
