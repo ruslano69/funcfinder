@@ -540,12 +540,10 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 				// Braces that balance on this line but sit inside an open parenthesis (a
 				// generic argument, a call's block) do not close the header: the expression
 				// goes on, so the function stays open.
-				probe := &sigScanner{}
-				probe.feed(cleaned)
 				// A header that ends in '=' starts an expression body on the next line: it is not
 				// complete here, even when its braces balance (as on the simple path).
-				endsWithEq := strings.HasSuffix(strings.TrimSpace(cleaned), "=")
-				if braceDelta == 0 && strings.Contains(cleaned, "{") && probe.brackets == 0 && !endsWithEq {
+				endsWithEq := strings.HasSuffix(strings.TrimSpace(cleaned), "=") || strings.HasSuffix(strings.TrimSpace(cleaned), "=>")
+				if braceDelta == 0 && strings.Contains(cleaned, "{") && openParens(cleaned) == 0 && !endsWithEq {
 					newFunc.End = lineNum + 1 + lineOffset
 					result.Functions = append(result.Functions, *newFunc)
 				} else if braceDelta == 0 {
@@ -597,7 +595,11 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			// body (see continuesExpression), as the simple path does.
 			nonBlank := strings.TrimSpace(cleaned) != ""
 			if ctx.Depth == 0 && (prevDepth > 0 || ev == sigBody || (ctx.afterBlock && nonBlank)) {
-				if continuesExpression(lines, lineNum) {
+				if body, ok := arrowBodyTail(cleaned); ok {
+					ctx.sig = body
+					ctx.sigLast = lineNum + 1 + lineOffset
+					newStack = append(newStack, ctx)
+				} else if continuesExpression(lines, lineNum) {
 					ctx.afterBlock = true
 					newStack = append(newStack, ctx)
 				} else {
@@ -632,6 +634,38 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 	}
 
 	return result, nil
+}
+
+// openParens returns how many parentheses and brackets a cleaned line leaves open. Unlike a
+// sigScanner it does not stop at a brace: a brace inside a type argument (React.FC<{...}>)
+// is still text here, and the parentheses after it still count.
+func openParens(cleaned string) int {
+	n := 0
+	for _, ch := range cleaned {
+		switch ch {
+		case '(', '[':
+			n++
+		case ')', ']':
+			n--
+		}
+	}
+	return n
+}
+
+// arrowBodyTailRe matches a line that ends in an arrow, optionally followed by an open
+// parenthesis: the body of the arrow function starts on this line or the next.
+var arrowBodyTailRe = regexp.MustCompile(`=>\s*\(?\s*$`)
+
+// arrowBodyTail reports whether a cleaned line ends in such an arrow, and returns the
+// signature scanner for the text after the last arrow, which counts its open parentheses.
+func arrowBodyTail(cleaned string) (*sigScanner, bool) {
+	t := strings.TrimSpace(cleaned)
+	if !arrowBodyTailRe.MatchString(t) {
+		return nil, false
+	}
+	sig := &sigScanner{}
+	sig.feed(t[strings.LastIndex(t, "=>")+2:])
+	return sig, true
 }
 
 // hasCodeText reports whether a raw line holds code the sanitizer blanked: a line that is
