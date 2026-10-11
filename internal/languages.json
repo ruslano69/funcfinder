@@ -207,7 +207,7 @@
     "extensions": [
       ".java"
     ],
-    "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+({IDENT}+)\\s*\\([^)]*\\)\\s*(throws\\s+[\\w,\\s]+)?\\s*\\{?\\s*$",
+    "func_pattern": "^\\s*(?:[@\\w<>\\[\\],.?*]+\\s+)+({IDENT}+)\\s*\\(",
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|interface|enum)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:(?:public|private|protected|static|abstract|final|sealed|non-sealed)\\s+)*(?:class|record)\\s+({IDENT}+)",
@@ -248,6 +248,7 @@
       "interface",
       "enum"
     ],
+    "keywords_not_names": true,
     "supports_nested": false,
     "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|catch|finally)\\b",
     "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
