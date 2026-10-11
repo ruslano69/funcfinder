@@ -750,7 +750,7 @@
       ".rb",
       ".rake"
     ],
-    "func_pattern": "^\\s*def\\s+(?:self\\.)?({IDENT}+[?!=]?)",
+    "func_pattern": "^\\s*(?:(?:private|protected|public)\\s+)?def\\s+(?:self\\.)?(\\[\\]=?|<=>|===?|=\\x7e|!=|!|<<|>>|[<>]=?|\\*\\*|[+\\-*/%&|^\\x7e]@?|{IDENT}+[?!=]?)",
     "class_pattern": "^\\s*(?:class|module)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*class\\s+({IDENT}+)",
@@ -771,12 +771,11 @@
       "\"",
       "'"
     ],
-    "raw_string_chars": [
-      "%q{",
-      "%Q{"
-    ],
+    "raw_string_chars": [],
     "escape_char": "\\",
     "block_end_keyword": "end",
+    "regex_literals": true,
+    "percent_literals": true,
     "exclude_words": [
       "if",
       "elsif",

@@ -75,8 +75,11 @@ type LanguageConfig struct {
 	RawStringChars    []string `json:"raw_string_chars"`
 	// RegexLiterals: a slash that starts a regular expression (after an operator or
 	// return) is not a division, and its quotes are not string delimiters (JavaScript).
-	RegexLiterals bool   `json:"regex_literals,omitempty"`
-	EscapeChar    string `json:"escape_char"`
+	RegexLiterals bool `json:"regex_literals,omitempty"`
+	// PercentLiterals: a Ruby percent literal (%q{...}, %r{...}, %w[...]) runs to its
+	// closing bracket, nested brackets included, so the quotes and slashes in it are text.
+	PercentLiterals bool   `json:"percent_literals,omitempty"`
+	EscapeChar      string `json:"escape_char"`
 	// SingleLineStrings — a regular (non-raw) string cannot continue past the
 	// end of its line (JS/TS "..." and '...'). An unterminated quote then ends
 	// with the line instead of swallowing the following code — which is what a
