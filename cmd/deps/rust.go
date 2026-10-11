@@ -100,3 +100,19 @@ func cargoPackageName(path string) string {
 	}
 	return ""
 }
+
+// rustUseStart matches the first line of a use item, with or without pub.
+var rustUseStart = regexp.MustCompile(`^\s*(?:pub(?:\([^)]*\))?\s+)?use\s`)
+
+// normalizeRustUse joins a use item read over several lines into the form a
+// single-line use has: single spaces, no padding inside the braces, no trailing
+// comma before the closing brace. "use kanzi::{ a, b, };" becomes
+// "use kanzi::{a, b};".
+func normalizeRustUse(stmt string) string {
+	s := strings.Join(strings.Fields(stmt), " ")
+	s = strings.ReplaceAll(s, "{ ", "{")
+	s = strings.ReplaceAll(s, " }", "}")
+	s = strings.ReplaceAll(s, " ,", ",")
+	s = strings.ReplaceAll(s, ",}", "}")
+	return s
+}
