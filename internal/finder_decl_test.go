@@ -832,3 +832,22 @@ func TestDeclarations_TSClassMethodDefaultObjectDoesNotEndIt(t *testing.T) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A Java method whose parameter list continues on the next lines is found from its first
+// line, and the member after it keeps its own span.
+func TestDeclarations_JavaMethodSignatureOnSeveralLinesInClass(t *testing.T) {
+	src := `class A {
+    public static <T> B<T> of(
+        int x) {
+        return null;
+    }
+    void g() {
+    }
+}
+`
+	got := spans(mapFunctions(t, "java", src))
+	want := []string{"g:6-7", "of:2-5"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
