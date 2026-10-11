@@ -448,6 +448,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 	for lineNum, line := range lines {
 		// Очищаем строку от комментариев и литералов
 		inComment := state == StateBlockComment // the line starts inside a block comment
+		startsNormal := state == StateNormal    // the line starts outside any string or comment
 		cleaned, newState := f.sanitizer.CleanLine(line, state)
 		state = newState
 
@@ -458,6 +459,11 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		// сигнатура без тела и без ';' (Kotlin, Swift) кончилась на своей последней
 		// строке. Решение принимается до обновления глубин (шаг 2).
 		matches := funcRegex.FindStringSubmatch(cleaned)
+		// A method named by a string literal is read from the raw line: the sanitizer blanks
+		// the literal, so the cleaned line has no name.
+		if matches == nil && startsNormal && f.config.QuotedMethodRegex() != nil {
+			matches = f.config.QuotedMethodRegex().FindStringSubmatch(line)
+		}
 		if matches != nil && isCompleteValueAssignment(matches, cleaned) {
 			matches = nil
 		}
