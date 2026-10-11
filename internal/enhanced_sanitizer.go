@@ -534,6 +534,11 @@ func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserSta
 				continue
 			}
 
+			// 4a. Ruby percent literals (%q{...}, %r{...}): their brackets nest, and what is in them is text
+			if idx, handled = s.tryHandlePercentLiteral(runes, result, idx); handled {
+				continue
+			}
+
 			// 4b. Regular expression literals (JavaScript): their quotes are not strings
 			if idx, handled = s.tryHandleRegexLiteral(runes, result, idx); handled {
 				continue
@@ -623,7 +628,7 @@ func CountBraces(line string) int {
 const regexPrecededBy = "(,=:[!&|?{};+-*%<>~^"
 
 // regexKeywords are the words after which a slash starts a regular expression.
-var regexKeywords = map[string]bool{"return": true, "typeof": true, "case": true, "in": true, "of": true, "yield": true, "await": true}
+var regexKeywords = map[string]bool{"return": true, "typeof": true, "case": true, "in": true, "of": true, "yield": true, "await": true, "if": true, "elsif": true, "unless": true, "when": true}
 
 // regexPositionAllowed reports whether a slash at idx starts a regular expression: the
 // last non-blank character before it is an operator or an opening bracket, or the word
@@ -650,6 +655,47 @@ func regexPositionAllowed(result []rune, idx int) bool {
 // isRegexFlag reports whether a rune is a regular expression flag.
 func isRegexFlag(c rune) bool {
 	return strings.ContainsRune("dgimsuvy", c)
+}
+
+// percentClose maps the opening bracket of a Ruby percent literal to its closing bracket.
+var percentClose = map[rune]rune{'(': ')', '[': ']', '{': '}', '<': '>'}
+
+// tryHandlePercentLiteral blanks a Ruby percent literal, %q{...}, %Q{...}, %r{...},
+// %w[...] and so on, that starts at idx. Its brackets nest. A literal that does not close
+// on the line takes the rest of the line: the quotes in it are text, not a string.
+func (s *Sanitizer) tryHandlePercentLiteral(runes []rune, result []rune, idx int) (int, bool) {
+	if !s.config.PercentLiterals || runes[idx] != '%' || !regexPositionAllowed(result, idx) {
+		return idx, false
+	}
+	j := idx + 1
+	if j < len(runes) && strings.ContainsRune("qQrwWiIs", runes[j]) {
+		j++
+	}
+	if j >= len(runes) {
+		return idx, false
+	}
+	open := runes[j]
+	closing, ok := percentClose[open]
+	if !ok {
+		return idx, false
+	}
+	depth := 0
+	for k := j; k < len(runes); k++ {
+		switch runes[k] {
+		case '\\':
+			k++
+		case open:
+			depth++
+		case closing:
+			depth--
+			if depth == 0 {
+				fillWithSpaces(result, idx, k+1-idx)
+				return k + 1, true
+			}
+		}
+	}
+	fillWithSpaces(result, idx, len(runes)-idx)
+	return len(runes), true
 }
 
 // tryHandleRegexLiteral blanks a regular expression literal, /.../flags, that starts at
