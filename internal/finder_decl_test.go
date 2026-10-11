@@ -403,3 +403,111 @@ func TestDeclarations_ExpressionBodyEndsBeforeClassDeclaration(t *testing.T) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A block inside an expression body closes on its own brace; the expression goes
+// on with a call chain, so the function ends after the chain.
+func TestDeclarations_ChainAfterBlockInExpressionBody(t *testing.T) {
+	src := `fun openFile(path: String) =
+    path
+        .runCatching {
+            open(this)
+                ?: throw Exception()
+        }
+        .onFailure { report(it) }
+fun after() {
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"after:8-9", "openFile:1-7"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// An if-expression whose else starts the line after the closing brace of the then-block
+// is one expression: the function ends after the else block.
+func TestDeclarations_ElseAfterBlockInExpressionBody(t *testing.T) {
+	src := `fun pick(x: Int) = if (x > 0) {
+    1
+}
+else {
+    2
+}
+fun after() {
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"after:7-8", "pick:1-6"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// Braces inside the parentheses of a call that forms an expression body (a transition
+// lambda with a block) do not end the function; the expression ends after the call.
+func TestDeclarations_BracesInsideCallArgumentsDoNotEndFunction(t *testing.T) {
+	src := `fun Nav.screen(route: String) =
+    composable(
+        enterTransition = { slide(1) },
+        exitTransition = {
+            fade()
+        },
+    )
+fun after() {
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"after:8-9", "screen:1-7"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A chain that keeps going after a block ends at its last line, even when that line
+// has no brace of its own.
+func TestDeclarations_ChainContinuesPastBlockUntilItEnds(t *testing.T) {
+	src := `fun load() =
+    fetch()
+        .map {
+            it
+        }
+        .flow()
+fun after() {
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"after:7-8", "load:1-6"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A line that starts with a closing brace but sits inside the parentheses of the
+// expression is part of it: the expression ends on that line.
+func TestDeclarations_ClosingBraceInsideCallEndsExpressionOnItsLine(t *testing.T) {
+	src := `fun pick(x: Int) = listOf(x, {
+    x
+}, x)
+fun after() {
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"after:4-5", "pick:1-3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// An expression body that is the last thing in the file ends on its last line.
+func TestDeclarations_ExpressionAtEndOfFileEndsOnItsLine(t *testing.T) {
+	src := `fun pick(x: Int) =
+    listOf(
+        x,
+    )
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"pick:1-4"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
