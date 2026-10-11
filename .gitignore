@@ -4,10 +4,10 @@
 *.dll
 *.so
 *.dylib
-funcfinder
-stat
-deps
-complexity
+/funcfinder
+/stat
+/deps
+/complexity
 /callgraph
 /docsearch
 /docsearch-server
