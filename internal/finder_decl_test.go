@@ -220,3 +220,41 @@ func TestSigScanner(t *testing.T) {
 		})
 	}
 }
+
+// A signature with neither a body nor a ';' (a Kotlin interface method) ends on
+// its own line when the next function's header begins, so that function is not
+// swallowed.
+func TestDeclarations_KotlinBodylessWithoutSemicolon(t *testing.T) {
+	src := `interface Shape {
+    fun area(): Double
+    fun name(): String {
+        return "x"
+    }
+}
+fun other() {
+}
+`
+	got := spans(mapFunctions(t, "kotlin", src))
+	want := []string{"area:2-2", "name:3-5", "other:7-8"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// The same on the nested path: a Swift protocol requirement has no ';' either.
+func TestDeclarations_SwiftRequirementWithoutSemicolonOnNestedPath(t *testing.T) {
+	src := `protocol Shape {
+    func area() -> Double
+    func name() -> String {
+        return "x"
+    }
+}
+func other() {
+}
+`
+	got := spans(mapFunctions(t, "swift", src))
+	want := []string{"area:2-2", "name:3-5", "other:7-8"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
