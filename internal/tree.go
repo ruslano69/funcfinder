@@ -49,8 +49,8 @@ func BuildTree(result *FindResult) []*TreeNode {
 func buildClassTree(result *FindResult) []*TreeNode {
 	var rootNodes []*TreeNode
 
-	// Сначала создаем узлы классов
-	for _, class := range result.Classes {
+	// Сначала создаем узлы классов: одно объявление типа - один узел
+	for _, class := range mergeClassesByName(result.Classes) {
 		classNode := &TreeNode{
 			Name:     class.Name,
 			Type:     NodeTypeClass,
@@ -394,13 +394,14 @@ type TreeSummary struct {
 // TreeToJSON преобразует результат в JSON-дерево
 func TreeToJSON(result *FindResult, showSignature bool) (string, error) {
 	treeNodes := BuildTree(result)
+	classes := mergeClassesByName(result.Classes)
 
 	output := TreeOutput{
 		Functions: []TreeFunctionNode{},
 		Classes:   []TreeClassNode{},
 		Summary: TreeSummary{
 			TotalFunctions: len(result.Functions),
-			TotalClasses:   len(result.Classes),
+			TotalClasses:   len(classes),
 			TotalLines:     calculateTotalLines(result.Functions),
 		},
 	}
@@ -408,7 +409,7 @@ func TreeToJSON(result *FindResult, showSignature bool) (string, error) {
 	maxDepth := 0
 
 	// Обрабатываем классы
-	for _, class := range result.Classes {
+	for _, class := range classes {
 		classNode := TreeClassNode{
 			Name:    class.Name,
 			Start:   class.Start,
@@ -462,6 +463,30 @@ func TreeToJSON(result *FindResult, showSignature bool) (string, error) {
 	}
 
 	return string(jsonBytes), nil
+}
+
+// mergeClassesByName folds declarations of one name into one class. A Rust
+// struct and its impl blocks, or a C# partial class, are several declarations
+// of the same type: the tree shows one node for it, spanning all of them, so
+// each method is listed once. The first declaration fixes the order.
+func mergeClassesByName(classes []ClassBounds) []ClassBounds {
+	index := make(map[string]int, len(classes))
+	var out []ClassBounds
+	for _, c := range classes {
+		i, seen := index[c.Name]
+		if !seen {
+			index[c.Name] = len(out)
+			out = append(out, c)
+			continue
+		}
+		if c.Start < out[i].Start {
+			out[i].Start = c.Start
+		}
+		if c.End > out[i].End {
+			out[i].End = c.End
+		}
+	}
+	return out
 }
 
 // calcDepth вычисляет глубину дерева

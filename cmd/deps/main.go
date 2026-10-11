@@ -34,7 +34,7 @@ type fileSet map[string]bool
 // Stdlib detection for common languages
 var stdlibPrefixes = map[string][]string{
 	"go":    {"fmt", "os", "io", "strings", "math", "regexp", "encoding/json", "testing", "bytes", "errors"},
-	"rs":    {"std::", "core::"},
+	"rust":  {"std::", "core::", "alloc::"},
 	"js":    {"assert", "buffer", "crypto", "fs", "http", "path", "url"},
 	"ts":    {"assert", "buffer", "crypto", "fs", "http", "path", "url"},
 	"java":  {"java.", "javax."},
@@ -165,6 +165,9 @@ func classifyDep(dep, langKey string, localPkgs map[string]bool) string {
 			return "int"
 		}
 		return "ext"
+	}
+	if langKey == "rust" {
+		return classifyRustDep(dep, localPkgs)
 	}
 	if strings.Contains(dep, "internal/") || strings.Contains(dep, "vendor/") {
 		return "int"
@@ -442,8 +445,11 @@ func main() {
 	// detect which top-level names under the scanned directory are actually
 	// local packages/modules so classifyDep can tell them apart.
 	var localPkgs map[string]bool
-	if langConfig.LangKey == "py" {
+	switch langConfig.LangKey {
+	case "py":
 		localPkgs = detectPythonLocalPackages(dir)
+	case "rust":
+		localPkgs = detectRustLocalPackages(dir)
 	}
 
 	var deps []DepInfo
