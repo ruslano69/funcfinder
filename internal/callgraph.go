@@ -214,6 +214,27 @@ func ReverseCallGraph(cg *CallGraphResult) map[string][]string {
 	return rev
 }
 
+// ReverseCallers returns sorted, unique callers of name. Qualified names match
+// exactly; bare names also match the final dot-separated callee component.
+// Bare lookup finds name-based candidates, not type-resolved method identities.
+func ReverseCallers(rev map[string][]string, name string) []string {
+	var callers []string
+	seen := make(map[string]bool)
+	for callee, candidates := range rev {
+		if callee != name && (strings.Contains(name, ".") || !strings.HasSuffix(callee, "."+name)) {
+			continue
+		}
+		for _, caller := range candidates {
+			if !seen[caller] {
+				seen[caller] = true
+				callers = append(callers, caller)
+			}
+		}
+	}
+	sort.Strings(callers)
+	return callers
+}
+
 // FormatCallGraphText returns a human-readable call graph.
 func FormatCallGraphText(cg *CallGraphResult) string {
 	var sb strings.Builder

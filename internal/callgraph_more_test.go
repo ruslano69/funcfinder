@@ -3,9 +3,58 @@ package internal
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
+
+func TestReverseCallers(t *testing.T) {
+	rev := map[string][]string{
+		"Save": {"helper"}, "d.Save": {"Flush"},
+		"db.Save": {"Run", "helper"}, "e.db.Save": {"Run"},
+		"db.AutoSave": {"Wrong"}, "db.save": {"WrongCase"},
+		"other.Save": {"Other"},
+	}
+	for _, tc := range []struct {
+		name string
+		want []string
+	}{
+		{"Save", []string{"Flush", "Other", "Run", "helper"}},
+		{"db.Save", []string{"Run", "helper"}},
+		{"e.db.Save", []string{"Run"}},
+		{"Missing", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ReverseCallers(rev, tc.name); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("ReverseCallers(%q) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestReverseCallers_MethodsIssue53(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "repro.go")
+	mustWrite(t, path, `package repro
+type DB struct{}
+func (d *DB) Save() error { return nil }
+type Dispatcher struct{ db *DB }
+func (d *Dispatcher) Run() error { return d.db.Save() }
+func (d *DB) Flush() error { return d.Save() }
+func helper(db *DB) error { return db.Save() }
+func entry() error { return helper(&DB{}) }
+`)
+	file, err := BuildFileCallGraph(path, getGoConfig(t), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rev := ReverseCallGraph(&CallGraphResult{Files: []FileCallGraph{*file}})
+	if got, want := ReverseCallers(rev, "Save"), []string{"Flush", "Run", "helper"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Save callers = %v, want %v", got, want)
+	}
+	if got := ReverseCallers(rev, "helper"); !reflect.DeepEqual(got, []string{"entry"}) {
+		t.Fatalf("helper callers = %v, want [entry]", got)
+	}
+}
 
 // --- BuildFileCallGraph: alias resolution & filtering not covered elsewhere ---
 
