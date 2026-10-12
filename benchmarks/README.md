@@ -58,6 +58,28 @@ python benchmarks/specsheet.py \
 
 ## Recorded rows
 
+### Python function spans
+
+`python_ast_eval.py` uses Python's native `ast` and scans every tracked `.py` file
+in a checkout. It retains duplicate method names by parsing plain `--map` output.
+Names match one-to-one between the first decorator and the `def` line; end lines
+are compared after removing trailing blank/comment lines from funcfinder spans.
+It reports missing functions, false positives and wrong ends separately, including
+files with no functions and syntax errors. It does not score classes or tokens.
+
+```bash
+python benchmarks/python_ast_eval.py --root <checkout> --label flask \
+  --binary ./funcfinder.exe --output build/flask.ast-eval.json
+```
+
+Use a Python runtime that supports the target syntax. The output records the
+runtime, checkout SHA, dirty states, binary SHA-256 and funcfinder repository SHA.
+The repository SHA identifies the evaluator checkout; the binary hash identifies
+the exact executable. Build with `build.ps1` on Windows or `build.sh` elsewhere.
+Python measurements and project pins from 2026-10-12 are recorded in `TODO.md`.
+
+### Go symbol maps
+
 | Project | Commit | Lang | Recall | Precision | Token savings | Notes |
 |---|---|---|---|---|---|---|
 | ruslano69/tdtp-framework | `4ff012e` | Go | 98.1% → 99.1% | 99.5% | 88.8%* | after the defined-type fix (loop #1) |

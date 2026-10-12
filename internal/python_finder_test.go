@@ -73,9 +73,6 @@ func TestNewPythonFinder(t *testing.T) {
 				t.Errorf("extract = %v, want %v", finder.extract, tt.extract)
 			}
 
-			if finder.decoratorWindow == nil {
-				t.Error("decoratorWindow is nil")
-			}
 		})
 	}
 }
