@@ -25,7 +25,8 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | C++ | fmt | about 39% | not measured | about 61% (earlier run) | open |
 | C | Lua | 99.9% (earlier run) | not measured | not measured | re-measure |
 | Python | Flask (1462), Requests (711), hr_portal (711) | 100%, 100%, 100% | 0, 0, 0 | 0, 0, 0 | local fix verified; no false functions |
-| Scala, D, PHP | none | not measured | | | not started |
+| PHP | Monolog (1602), Symfony Routing (1125) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
+| Scala, D | none | not measured | | | not started |
 
 Python was measured separately on 2026-10-12 on a working-tree fix based on `7b9131e`, built with `build.ps1`, against
 Python 3.14 `ast`. All tracked `.py` files were included (83/37/60 files, no parse errors).
@@ -37,6 +38,18 @@ Pins: Flask `d086db856be187255b8ec61ef409357393020f32`,
 Requests `611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60`, hr_portal `87a2909d85ee173209afcecdd12f530257e5d2ab`.
 The evaluator is `benchmarks/python_ast_eval.py`; raw outputs from this run are in ignored
 `build/language-eval-20261012/`.
+
+PHP was measured on 2026-10-12 on a working-tree fix based on `34d7dc8` using
+tree-sitter 0.26.0 / tree-sitter-php 0.25.1 under Python 3.14.6. All tracked PHP
+files were included (228 Monolog, 267 Symfony Routing; zero parse errors). Truth
+includes 16/18 bodyless declarations, excludes anonymous closures, and matches
+names one-to-one within the declaration header with exact end lines. Baseline:
+27/43 missing, zero wrong ends or false functions. Both projects now have 100%
+recall and precision. Pins: Monolog `3bed304b1905fed5c30d172872f4d890cbb03c6a`,
+Symfony Routing `57970507cf869e358330cb336772a7dcb31fa67c`. Evaluator:
+`benchmarks/php_tree_eval.py`; raw before/after JSON is in the same ignored build
+directory. Line numbers are derived from byte positions because the native Point
+wrapper crashed on this Windows Python runtime.
 
 - [ ] **Verify CI on `main` at `2022d5b`.** PR #77 was merged while four of its checks (Analyze
   (go), Build, Build Windows, Build macOS) were still running. Read the result once; do not poll.
@@ -99,7 +112,13 @@ The evaluator is `benchmarks/python_ast_eval.py`; raw outputs from this run are 
   strings match their own delimiter and scanning resumes after the close. Finder class ranges and
   `AnalyzePythonScopes` use the same boundaries. All 2884 real functions now have correct ends;
   the 29 Flask docstring false functions are gone. Regression tests are in `internal/python_bounds_test.go`.
-- [ ] **Scala, D, PHP: no measurement.** Scala uses the nested path, which Go, JavaScript,
+- [x] **PHP: modifiers, references, nested methods and heredoc fixed locally.** The function
+  pattern accepts abstract/final/static/visibility modifiers and return-by-reference names.
+  Nested scanning finds methods of classes declared inside other functions. PHP-only heredoc
+  preprocessing hides literal code/quotes/braces and retains code after the closing label;
+  extracted source and slice offsets are preserved. Both reference projects now have zero
+  missing functions, false functions and wrong ends. Tests: `internal/php_finder_test.go`.
+- [ ] **Scala, D: no measurement.** Scala uses the nested path, which Go, JavaScript,
   TypeScript, Rust and Swift share, so any change there needs the regression sweep below. Python has
   its own finder (`python_finder.go`) and is not covered by it; its separate AST baseline is above.
 - [ ] **C, re-measure Lua** with the current binary; the 99.9% is from an earlier run.

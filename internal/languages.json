@@ -701,7 +701,7 @@
     "extensions": [
       ".php"
     ],
-    "func_pattern": "^\\s*(?:(?:public|private|protected)\\s+)?(?:static\\s+)?function\\s+({IDENT}+)\\s*\\(",
+    "func_pattern": "^\\s*(?:(?:public|private|protected|static|abstract|final)\\s+)*function\\s+&?\\s*({IDENT}+)\\s*\\(",
     "class_pattern": "^\\s*(?:(?:abstract|final)\\s+)?(?:class|interface|trait)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:abstract\\s+|final\\s+)*(?:public\\s+|private\\s+|protected\\s+)*class\\s+({IDENT}+)",
@@ -745,7 +745,7 @@
       "protected",
       "static"
     ],
-    "supports_nested": false,
+    "supports_nested": true,
     "nesting_pattern": "^\\s*\\}?\\s*(if|else|elseif|for|foreach|while|do|switch|case|default|catch|finally)\\b",
     "flat_pattern": "^\\s*\\}?\\s*(elseif|else|case|default)\\b",
     "loop_pattern": "^\\s*(for|foreach|while|do)\\b"

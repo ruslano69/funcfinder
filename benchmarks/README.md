@@ -78,6 +78,26 @@ The repository SHA identifies the evaluator checkout; the binary hash identifies
 the exact executable. Build with `build.ps1` on Windows or `build.sh` elsewhere.
 Python measurements and project pins from 2026-10-12 are recorded in `TODO.md`.
 
+### PHP function spans
+
+`php_tree_eval.py` uses tree-sitter PHP and scans all tracked `.php` files. Truth
+includes named functions, methods and bodyless interface/abstract declarations;
+anonymous closures are excluded. Names match one-to-one between the declaration
+start and name token line, and ends must match the syntax tree exactly. Files
+with parse errors are reported and excluded rather than scored from partial trees.
+
+```bash
+python -m pip install --target build/eval-runtime tree-sitter==0.26.0 tree-sitter-php==0.25.1
+python benchmarks/php_tree_eval.py --root <checkout> --label monolog \
+  --binary ./funcfinder.exe --module-dir build/eval-runtime \
+  --output build/monolog.php-eval.json
+```
+
+Validated with Python 3.14.6 on Windows. The native Point wrapper crashed during
+large traversals in this runtime; byte offsets are converted to exact line numbers
+instead. The output records both grammar versions, project/source SHAs, dirty
+states and binary SHA-256. PHP results and project pins are in `TODO.md`.
+
 ### Go symbol maps
 
 | Project | Commit | Lang | Recall | Precision | Token savings | Notes |
