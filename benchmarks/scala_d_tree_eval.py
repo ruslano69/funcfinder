@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 
-def symbols(tree, source, language):
+def symbols(tree, source, language, rejected=None):
     starts = [0] + [m.end() for m in re.finditer(b'\n', source)]
     truth = []
     stack = [tree.root_node]
@@ -34,6 +34,25 @@ def symbols(tree, source, language):
             bodyless = body is None or source[body.start_byte:body.end_byte].strip() == b';'
         if name is not None:
             label = label or source[name.start_byte:name.end_byte].decode('utf-8').strip('`')
+            reason = None
+            if language == 'd':
+                if label == 'switch' and re.match(rb'final\s+switch\s*\(', source[node.start_byte:node.end_byte]):
+                    reason = 'final_switch_statement'
+                elif node.type == 'constructor' and bodyless:
+                    parent = node.parent
+                    while parent is not None:
+                        if parent.type == 'aggregate_body':
+                            break  # A local class may contain a bodyless constructor.
+                        if parent.type in {'function_body', 'function_declaration', 'constructor', 'destructor'}:
+                            reason = 'constructor_delegation_call'
+                            break
+                        parent = parent.parent
+            if reason:
+                if rejected is not None:
+                    rejected.append({'kind': 'oracle_rejected', 'reason': reason, 'name': label,
+                                     'start': bisect.bisect_right(starts, node.start_byte), 'node_type': node.type})
+                stack.extend(reversed(node.named_children))
+                continue
             truth.append({'name': label, 'start': bisect.bisect_right(starts, node.start_byte),
                           'name_line': bisect.bisect_right(starts, name.start_byte),
                           'end': bisect.bisect_right(starts, significant_end(node)),
@@ -77,7 +96,7 @@ def evaluate(args):
     git = ['git', '-c', f'safe.directory={root.as_posix()}', '-C', str(root)]
     suffix = '.scala' if args.language == 'scala' else '.d'
     paths = [root / p for p in subprocess.check_output(git + ['ls-files', '-z'], text=True).split('\0') if p.endswith(suffix)]
-    counts = collections.Counter({k: 0 for k in ['files', 'unparseable', 'truth', 'bodyless_truth', 'candidate', 'found', 'missing', 'false_positive', 'correct_end', 'wrong_end']})
+    counts = collections.Counter({k: 0 for k in ['files', 'unparseable', 'oracle_rejected', 'truth', 'bodyless_truth', 'candidate', 'found', 'missing', 'false_positive', 'correct_end', 'wrong_end']})
     findings, artifacts = [], []
     for index, path in enumerate(sorted(paths)):
         source = path.read_bytes()
@@ -87,7 +106,10 @@ def evaluate(args):
             counts['unparseable'] += 1
             findings.append({'file': rel, 'kind': 'unparseable'})
             continue
-        truth = symbols(tree, source, args.language)
+        rejected = []
+        truth = symbols(tree, source, args.language, rejected)
+        counts['oracle_rejected'] += len(rejected)
+        findings.extend({'file': rel, **item} for item in rejected)
         result = subprocess.run([str(binary), '--inp', str(path), '--source', args.language, '--map'], capture_output=True, text=True, encoding='utf-8')
         if result.returncode and 'No functions found in file' not in result.stderr:
             raise RuntimeError((rel, result.stderr))

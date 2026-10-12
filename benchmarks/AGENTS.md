@@ -19,7 +19,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 - Retain duplicate function names and report missing functions, false positives and wrong ends separately.
 - Python evaluation scans tracked `.py` files and reports parse failures explicitly.
 - PHP evaluation scans tracked `.php` files, reports parse failures explicitly and records parser/grammar versions. It computes line numbers from byte offsets to avoid the failing native Point wrapper on the current Windows Python 3.14 runtime.
-- Scala/D evaluation excludes tree extras and trailing trivia from reference ends, reports excluded parse-error files and records grammar versions. D additionally records the downloaded grammar DLL hash; parser downloads belong in an explicitly configured build cache.
+- Scala/D evaluation excludes tree extras and trailing trivia from reference ends, reports excluded parse-error files and records grammar versions. D additionally records the downloaded grammar DLL hash and every audited grammar rejection (`oracle_rejected`): `final switch` statements and constructor-delegation calls mislabeled as declarations. Local class constructors remain in truth. Parser downloads belong in an explicitly configured build cache.
 - Generated maps, clones and reports belong in ignored `build/`, not tracked source directories.
 
 ## Work Guidance

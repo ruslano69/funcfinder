@@ -4,10 +4,10 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
-## Language coverage on real projects: status and next steps (2026-10-11)
+## Language coverage on real projects: status and next steps (2026-10-12)
 
-Measured on `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
-language). The evaluator scripts live outside the repo for now (see the last item). Truth
+Earlier measurements used `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
+language); subsequent runs and their revisions are recorded below. Python, PHP and Scala/D evaluators now live in `benchmarks/`. Truth
 includes declarations without a body (interface, abstract, prototype members): the design lists
 them with their own span, so a missing C# or Java declaration counts as missing.
 
@@ -27,7 +27,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Python | Flask (1462), Requests (711), hr_portal (711) | 100%, 100%, 100% | 0, 0, 0 | 0, 0, 0 | local fix verified; no false functions |
 | PHP | Monolog (1602), Symfony Routing (1125) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
 | Scala | scopt (380), os-lib (643) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
-| D | D-YAML (539), arsd (11725) | 100%, 97.9% | 0, 0 | 0, 251 | arsd open: 75 false functions; oracle accepts 34/35 and 120/125 files |
+| D | D-YAML (539), arsd (11705) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions; oracle accepts 34/35 and 120/125 files |
 
 Python was measured separately on 2026-10-12 on a working-tree fix based on `7b9131e`, built with `build.ps1`, against
 Python 3.14 `ast`. All tracked `.py` files were included (83/37/60 files, no parse errors).
@@ -52,7 +52,8 @@ Symfony Routing `57970507cf869e358330cb336772a7dcb31fa67c`. Evaluator:
 directory. Line numbers are derived from byte positions because the native Point
 wrapper crashed on this Windows Python runtime.
 
-Scala/D were measured on 2026-10-12 on a working-tree fix based on `bd1575e`,
+Scala was measured on 2026-10-12 on a working-tree fix based on `bd1575e`;
+D's follow-up fix is based on `25a1e52`,
 using Python 3.14.6 / tree-sitter 0.26.0. Scala grammar: tree-sitter-scala 0.26.2;
 D grammar: tree-sitter-language-pack 1.22.0, DLL SHA-256
 `acf35033a28e91d15620505ee2b2e06efc5be01c8caa0c6fef5de6925f9588f8`.
@@ -61,9 +62,13 @@ constructors, destructors and postblits; anonymous lambdas and value/type templa
 are excluded. All 29 scopt and 59 os-lib files parsed. D excludes
 `D-YAML/examples/tojson/source/app.d` and arsd's `cli.d`, `core.d`, `ini.d`,
 `script.d`, `uda.d` because the oracle reports syntax errors; their symbols are
-not scored. Arsd recall is 97.9%, precision 99.4%; found functions have correct
-ends. Before fixes: Scala missed 120/203; D-YAML missed 486 with 300 false
-functions; arsd missed 11420 with 4018 false functions. Evaluator:
+not scored. The D grammar mislabels two `final switch` statements and 18
+constructor-delegation calls as declarations; the evaluator rejects these by
+syntax/context and records every rejection (`oracle_rejected`). Final truth is
+11705 functions, all found with correct ends and no false functions. With this
+audited reference, `25a1e52` missed 249 functions and produced 93 false functions;
+the follow-up fix has zero in both categories. Before the first fixes: Scala
+missed 120/203; D-YAML missed 486 with 300 false functions. Evaluator:
 `benchmarks/scala_d_tree_eval.py`, raw JSON in the ignored build directory above.
 Pins: scopt `fb371a7cf997fe053c9e1496cc6e13fbff3ff9de`,
 os-lib `86e5ddb65fe62305afb5885fcc0f8da50aba4b48`,
@@ -144,11 +149,13 @@ arsd `953107183178fccbe8af7340b230c37c2071aef8`.
 - [x] **D-YAML: nested discovery, lexical masking and contract ends fixed locally.** All 539
   oracle functions match. Attribute continuations, templates, return-by-reference/type modifiers,
   nested comments, raw/delimited/token strings and inline classes are covered by dedicated code.
-- [ ] **D, arsd: 251 missing, 75 false functions.** Remaining misses include inline conditional
-  declarations, extern linkage prefixes and complex return/template forms. False positives still
-  need context to distinguish declarations from constructor calls and special data/type forms.
-  Endpoints of all 11474 found functions match the reference. Do not present this project as
-  complete; audit excluded files with a stronger/native oracle before claiming full coverage.
+- [x] **D, arsd: declaration prefixes and constructor calls fixed locally.** Conditional and
+  parameterized attribute/linkage prefixes, pointer/type forms, inferred properties and multiline
+  return types are found. Constructor calls are excluded using function/class context, including
+  callback arguments; local constructors and postblits remain visible. All 11705 audited reference
+  functions match exactly on 120 accepted files. Tests also cover selected-function extraction and offsets.
+- [ ] **D: audit six excluded files with a stronger/native oracle.** One D-YAML and five arsd files
+  have grammar errors; the accepted-file results do not establish whole-repository coverage.
 - [ ] **C, re-measure Lua** with the current binary; the 99.9% is from an earlier run.
 
 ### Regression sweep for any change to the nested path

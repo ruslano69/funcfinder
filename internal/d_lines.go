@@ -6,15 +6,40 @@ import (
 	"unicode"
 )
 
-var dAttributeLine = regexp.MustCompile(`^\s*(?:(?:@[\p{L}\p{Nd}_]+|pure|nothrow|const|immutable|shared|inout|ref|scope)\s*)+$`)
+var dAttributeLine = regexp.MustCompile(`^\s*(?:(?:@[\p{L}\p{Nd}_]+|public|private|protected|export|pure|nothrow|const|immutable|shared|inout|ref|scope)\s*)+$`)
 var dTypeHeader = regexp.MustCompile(`^\s*(?:(?:@[\p{L}\p{Nd}_]+|public|private|protected|package|static|final|abstract)\s+)*(?:class|struct|interface|union|enum|template|alias)\b`)
-var dStatementHeader = regexp.MustCompile(`^\s*(?:(?:static|final)\s+)*(?:return|throw|new|delete|if|else|for|foreach|while|switch|catch|with|assert|version|debug|scope|mixin|pragma|cast)\b`)
+var dStatementHeader = regexp.MustCompile(`^\s*(?:(?:static|final)\s+)*(?:return|throw|new|delete|if|else|for|foreach|while|switch|try|catch|with|assert|version|debug|scope|mixin|pragma|cast)\b`)
 
 // D has nested /+ comments and token strings. Keep their text out of the
 // generic finder; retain positions and restore raw source during extraction.
-func prepareDLines(lines []string, config *LanguageConfig) []string {
+func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]int) {
 	lexer := dLineLexer{}
 	result := make([]string, len(lines))
+	headerEnds := make(map[int]int)
+	for i, line := range lines {
+		result[i] = normalizeDPrefix(lexer.cleanLine(line))
+	}
+	// Return types and names can be on separate lines. Move only a recognized
+	// header onto its first line, retaining blank lines for original coordinates.
+	for i := 0; i+1 < len(result); i++ {
+		if strings.TrimSpace(result[i]) == "" || dAttributeLine.MatchString(result[i]) || config.FuncRegex().MatchString(result[i]) || dStatementHeader.MatchString(result[i]) || dTypeHeader.MatchString(result[i]) || strings.ContainsAny(result[i], ";{}=") {
+			continue
+		}
+		for j := i + 1; j < len(result) && j <= i+4; j++ {
+			joined := strings.Join(result[i:j+1], " ")
+			if matches := config.FuncRegex().FindStringSubmatch(joined); matches != nil {
+				result[i] = joined
+				headerEnds[i] = j
+				for k := i + 1; k <= j; k++ {
+					result[k] = ""
+				}
+				break
+			}
+			if strings.ContainsAny(result[j], ";{}=") {
+				break
+			}
+		}
+	}
 	pending := false
 	parens := 0
 	contract := false
@@ -22,8 +47,8 @@ func prepareDLines(lines []string, config *LanguageConfig) []string {
 	contractParens := 0
 	outSelector := false
 	outExpression := false
-	for i, line := range lines {
-		code := []rune(lexer.cleanLine(line))
+	for i, line := range result {
+		code := []rune(line)
 		text := strings.TrimSpace(string(code))
 		if dTypeHeader.MatchString(text) {
 			for j, ch := range code {
@@ -123,7 +148,104 @@ func prepareDLines(lines []string, config *LanguageConfig) []string {
 		}
 		result[i] = string(code)
 	}
-	return result
+	return result, headerEnds
+}
+
+// Conditional declarations and parameterized attributes prefix a declaration,
+// but are not its return type. Preserve prefixes that introduce a brace block.
+func normalizeDPrefix(line string) string {
+	code := []rune(line)
+	for i := 0; i < len(code); {
+		if unicode.IsSpace(code[i]) {
+			i++
+			continue
+		}
+		start := i
+		if code[i] == '@' {
+			i++
+		}
+		for i < len(code) && (unicode.IsLetter(code[i]) || unicode.IsDigit(code[i]) || code[i] == '_' || code[i] == '.') {
+			i++
+		}
+		word := string(code[start:i])
+		if word == "static" {
+			i = skipDSpace(code, i)
+			if i+2 <= len(code) && string(code[i:i+2]) == "if" && (i+2 == len(code) || !unicode.IsLetter(code[i+2])) {
+				word = "static if"
+				i += 2
+			}
+		}
+		i = skipDSpace(code, i)
+		parameterized := word == "static if" || word == "version" || word == "debug" || word == "pragma" || word == "extern" || word == "deprecated" || word == "package" || strings.HasPrefix(word, "@")
+		if parameterized && i < len(code) && code[i] == '(' {
+			depth := 1
+			end := i + 1
+			for end < len(code) && depth > 0 {
+				if code[end] == '(' {
+					depth++
+				} else if code[end] == ')' {
+					depth--
+				}
+				end++
+			}
+			if depth != 0 {
+				break
+			}
+			trial := append([]rune(nil), code...)
+			for k := start; k < end; k++ {
+				trial[k] = ' '
+			}
+			// Continue through multiple attributes; a later iteration can expose
+			// the declaration. Blocks and ordinary statements remain unmodified.
+			if strings.TrimSpace(string(code[end:])) != "" && !strings.HasPrefix(strings.TrimSpace(string(code[end:])), "{") {
+				code = trial
+			}
+			i = end
+			continue
+		}
+		if word == "extern" || word == "deprecated" || word == "debug" {
+			for k := start; k < i; k++ {
+				code[k] = ' '
+			}
+			continue
+		}
+		if start == i || !dAttributeLine.MatchString(word) && word != "static" && word != "final" && word != "override" && word != "abstract" && word != "auto" {
+			break
+		}
+	}
+	return string(code)
+}
+
+func skipDSpace(code []rune, i int) int {
+	for i < len(code) && unicode.IsSpace(code[i]) {
+		i++
+	}
+	return i
+}
+
+// this(args); inside a method delegates to a constructor; it does not declare
+// one. A local class's constructor has its own class scope and must survive.
+func filterDFunctions(functions []FunctionBounds, lines []string, startLine int, finder *Finder) []FunctionBounds {
+	kept := make([]FunctionBounds, 0, len(functions))
+	for _, fn := range functions {
+		if !finder.mapMode && !finder.funcNames[fn.Name] {
+			continue
+		}
+		call := false
+		signature := sigScanner{}
+		if fn.Name == "this" && signature.feed(strings.Join(lines[fn.Start-startLine:fn.End-startLine+1], "\n")) != sigBody {
+			for _, parent := range functions {
+				if parent.Start < fn.Start && parent.End >= fn.End && parent.ClassName == fn.ClassName {
+					call = true
+					break
+				}
+			}
+		}
+		if !call {
+			kept = append(kept, fn)
+		}
+	}
+	return kept
 }
 
 type dLineLexer struct {

@@ -100,6 +100,88 @@ func TestDFinder_CommentsStringsContractsAndNestedDefinitions(t *testing.T) {
 	}
 }
 
+func TestDFinder_PrefixedMultilineHeadersAndConstructorCalls(t *testing.T) {
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := []string{
+		"module test;",
+		"extern(Windows) int external(int n);",
+		"@(tag(1)) @system shared static this() {}",
+		"static if (enabled) static int conditional() { return 1; }",
+		"version(feature) public int selected() { return 1; }",
+		"pragma(inline, true) ref inout(ubyte) component() inout { return data; }",
+		`deprecated("old") int legacy() { return 1; }`,
+		"typeof(this) identity() { return this; }",
+		"private void*[2] pair() { return null; }",
+		"char *pointer() { return null; }",
+		"Item*[] pointers() { return null; }",
+		"@property const (char*) qualified() { return null; }",
+		"@property empty() const { return true; }",
+		"public @property opDispatch(string name)() { return 1; }",
+		"static int",
+		"multiline(int n)",
+		"{",
+		"    return n;",
+		"}",
+		"Item *",
+		"bodyless();",
+		"nothrow @safe",
+		"int attributed() { return 1; }",
+		"class Owner {",
+		"    this(int n)",
+		"    {",
+		"        this((int n) { work(); }, n);",
+		"        try",
+		"            work();",
+		"        catch(Exception) {}",
+		"        struct Local {",
+		"            @disable this(this);",
+		"        }",
+		"    }",
+		"    this();",
+		"    @disable new();",
+		"}",
+	}
+	want := map[string][2]int{
+		"external": {2, 2}, "conditional": {4, 4}, "selected": {5, 5}, "component": {6, 6},
+		"legacy": {7, 7}, "identity": {8, 8}, "pair": {9, 9}, "pointer": {10, 10}, "pointers": {11, 11},
+		"qualified": {12, 12}, "empty": {13, 13}, "opDispatch": {14, 14}, "multiline": {15, 19},
+		"bodyless": {20, 21}, "attributed": {23, 23}, "new": {36, 36},
+	}
+	for _, offset := range []int{0, 40} {
+		finder := NewFinder(config["d"], nil, true, true, false)
+		result, err := finder.FindFunctionsInLines(lines, offset+1, "test.d")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ordinary []FunctionBounds
+		constructors := make(map[int]int)
+		for _, fn := range result.Functions {
+			if fn.Name == "this" {
+				constructors[fn.Start-offset] = fn.End - offset
+				if fn.Start-offset == 32 && fn.ClassName != "Local" {
+					t.Errorf("local constructor scope: %+v", fn)
+				}
+			} else {
+				fn.Start -= offset
+				fn.End -= offset
+				ordinary = append(ordinary, fn)
+			}
+		}
+		if len(constructors) != 4 || constructors[3] != 3 || constructors[25] != 34 || constructors[32] != 32 || constructors[35] != 35 {
+			t.Errorf("constructor declarations = %v", constructors)
+		}
+		result.Functions = ordinary
+		checkLanguageBounds(t, strings.Join(lines, "\n"), result, want)
+		selected, err := NewFinder(config["d"], []string{"this"}, false, true, false).FindFunctionsInLines(lines, offset+1, "test.d")
+		if err != nil || len(selected.Functions) != 4 {
+			t.Errorf("selected constructors = %v, error %v", selected, err)
+		}
+	}
+}
+
 func checkLanguageBounds(t *testing.T, content string, result *FindResult, want map[string][2]int) {
 	t.Helper()
 	if len(result.Functions) != len(want) {
