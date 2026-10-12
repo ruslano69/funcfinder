@@ -21,6 +21,7 @@ Core parsing engine. Implements function/struct discovery, body extraction, call
 ## Work Guidance
 
 - Adding a new language: implement the `Finder` interface, register in `finder_factory.go` and `struct_finder_factory.go`, add the extension in `languages.json`, add test fixtures in `test_examples/`.
+- C function recognition in `languages.json` accepts parenthesized names in definitions/prototypes. A pointer declarator `(*name)` must not turn its return type into a function name; preserve original extraction and offsets. `c_parenthesized_test.go` covers these boundaries and selected-function mode.
 - `enhanced_sanitizer.go` strips string literals and comments before parsing to prevent false positives; touch it carefully and run its bench test after changes.
 - `python_finder.go` and `python_lines_processor.go` handle Python's indent-based scope; keep them in sync.
 - Both Python paths share logical-statement boundaries: continuation lines and string contents do not dedent a scope, suite colons are read outside brackets, and inline suites end with their logical statement. Finder class ranges use the same rules; extraction retains original source and trailing trivia.

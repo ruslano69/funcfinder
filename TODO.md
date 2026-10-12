@@ -7,7 +7,7 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 ## Language coverage on real projects: status and next steps (2026-10-12)
 
 Earlier measurements used `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
-language); subsequent runs and their revisions are recorded below. Python, PHP and Scala/D evaluators now live in `benchmarks/`. Truth
+language); subsequent runs and their revisions are recorded below. Python, PHP, Scala/D and C evaluators now live in `benchmarks/`. Truth
 includes declarations without a body (interface, abstract, prototype members): the design lists
 them with their own span, so a missing C# or Java declaration counts as missing.
 
@@ -23,7 +23,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
 | C++ | fmt | about 39% | not measured | about 61% (earlier run) | open |
-| C | Lua | 99.9% (earlier run) | not measured | not measured | re-measure |
+| C | Lua (1568, including 391 prototypes) | 100% | 0 | 0 | local fix verified; no false functions; one GCC configuration |
 | Python | Flask (1462), Requests (711), hr_portal (711) | 100%, 100%, 100% | 0, 0, 0 | 0, 0, 0 | local fix verified; no false functions |
 | PHP | Monolog (1602), Symfony Routing (1125) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
 | Scala | scopt (380), os-lib (643) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
@@ -74,6 +74,21 @@ Pins: scopt `fb371a7cf997fe053c9e1496cc6e13fbff3ff9de`,
 os-lib `86e5ddb65fe62305afb5885fcc0f8da50aba4b48`,
 D-YAML `09aeac155c9d0f85a0e7442dffb442de53528a41`,
 arsd `953107183178fccbe8af7340b230c37c2071aef8`.
+
+C was re-measured on 2026-10-12 on a working-tree fix based on `c2cf2fe`,
+against Lua `0b29f408433e92953cc72b1d3e06c7ac8139e439`. All 68 tracked `.c`/`.h`
+files were included, with no preprocessing/parse failures. Runtime: Python 3.14.6,
+tree-sitter 0.26.0, tree-sitter-c 0.24.1, MSYS2 UCRT64 GCC 15.2.0 (Rev8).
+The oracle preprocesses C99, with the Lua root on the include path, forced
+`lua.h` for standalone headers and `LUA_USE_JUMPTABLE=0`. It maps GCC line markers
+back to original source and scores active definitions/prototypes. All 135 finder
+candidates in inactive branches are recorded separately, not scored. Thirty-eight
+GCC va_arg/offsetof expressions are masked for grammar compatibility, preserving
+bytes/newlines and function boundaries. This is one Windows/compiler configuration,
+not all conditional variants. Before the fix: 157 missing (156 prototypes, one
+definition), 136 false names, zero wrong ends; after: zero in all three categories.
+The earlier 99.9% did not measure prototypes. Evaluator: `benchmarks/c_tree_eval.py`;
+exact flags, compiler/binary hashes and findings are in the ignored build directory.
 
 - [ ] **Verify CI on `main` at `2022d5b`.** PR #77 was merged while four of its checks (Analyze
   (go), Build, Build Windows, Build macOS) were still running. Read the result once; do not poll.
@@ -156,7 +171,11 @@ arsd `953107183178fccbe8af7340b230c37c2071aef8`.
   functions match exactly on 120 accepted files. Tests also cover selected-function extraction and offsets.
 - [ ] **D: audit six excluded files with a stronger/native oracle.** One D-YAML and five arsd files
   have grammar errors; the accepted-file results do not establish whole-repository coverage.
-- [ ] **C, re-measure Lua** with the current binary; the 99.9% is from an earlier run.
+- [x] **C, Lua: parenthesized function names and function-pointer typedefs fixed locally.**
+  Definitions and prototypes such as `int (name)(...)` now retain their names;
+  `typedef void (*Callback)(...)` and function-pointer variables are not functions.
+  All 1568 active declarations match exactly on all 68 tracked C/header files in the
+  recorded GCC configuration. Tests verify original extraction, offsets and selection.
 
 ### Regression sweep for any change to the nested path
 
