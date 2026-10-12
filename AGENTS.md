@@ -409,6 +409,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
+- `benchmarks/` → Real-project evaluators, measurement contracts and load harness — see [benchmarks/AGENTS.md](benchmarks/AGENTS.md)
 - `cmd/` → CLI entrypoints for all 5 tools (funcfinder, stat, deps, callgraph, complexity) — see [cmd/AGENTS.md](cmd/AGENTS.md)
 - `internal/` → Core parsing engine: language finders, formatters, call graph, shard logic — see [internal/AGENTS.md](internal/AGENTS.md)
 - `docs/` → User-facing documentation and usage examples — see [docs/AGENTS.md](docs/AGENTS.md)

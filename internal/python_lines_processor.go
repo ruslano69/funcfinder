@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"bufio"
 	"os"
 	"strconv"
 	"strings"
@@ -31,132 +30,61 @@ type LineAdjustment struct {
 // AnalyzePythonScopes performs Pass 1: analyzes indentation and builds scope map
 // This scans the ENTIRE file first, ignoring any --lines boundaries
 func AnalyzePythonScopes(filePath string) ([]PythonScope, error) {
-	file, err := os.Open(filePath)
+	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
-
-	// Use pointers for heap-allocated scopes that can be updated
-	scopeStack := []*PythonScope{} // stack of parent scopes (pointers to heap)
-	allScopes := []*PythonScope{}  // track all scopes we created
-	currentIndent := 0
-	lineNum := 0
-	pendingDecorators := 0 // count of decorators before current def/class
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-
-		// Skip empty lines
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
+	config, err := LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+	pyConfig, err := config.GetLanguageConfig("py")
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(string(content), "\n")
+	logical := pythonLogicalLines(lines)
+	var stack []*PythonScope
+	var all []*PythonScope
+	for i, line := range logical {
+		if !line.statementStart {
 			continue
 		}
-
-		// Calculate indent level (tabs or spaces)
-		indent := countLeadingSpaces(line)
-		if indent == len(line) {
-			continue // empty or whitespace-only line
+		kind := "function"
+		matches := pyConfig.FuncRegex().FindStringSubmatch(line.code)
+		if matches == nil {
+			kind = "class"
+			matches = pyConfig.ClassRegex().FindStringSubmatch(line.code)
 		}
-
-		// Skip lines that are only comments
-		if len(trimmed) > 0 && trimmed[0] == '#' {
+		if matches == nil {
 			continue
 		}
-
-		// Handle decorators: count them, they don't end scopes
-		if strings.HasPrefix(trimmed, "@") {
-			pendingDecorators++
-			continue
+		indent := GetIndentLevel(lines[i])
+		for len(stack) > 0 && (i+1 > stack[len(stack)-1].EndLine || indent <= stack[len(stack)-1].StartIndent) {
+			stack = stack[:len(stack)-1]
 		}
-
-		// Detect function or class definition
-		// Note: "async def" functions also need to be detected
-		isDef := strings.HasPrefix(trimmed, "def ") || strings.HasPrefix(trimmed, "async def ")
-		isClass := strings.HasPrefix(trimmed, "class ")
-
-		if isDef || isClass {
-			// Pop scopes that ended before this line
-			for len(scopeStack) > 0 && indent <= scopeStack[len(scopeStack)-1].StartIndent {
-				closed := scopeStack[len(scopeStack)-1]
-				closed.EndLine = lineNum - 1
-				scopeStack = scopeStack[:len(scopeStack)-1]
-			}
-
-			// Create new scope on heap
-			scopePtr := new(PythonScope)
-			if isDef {
-				// Handle both "def" and "async def"
-				nameStart := 4 // length of "def "
-				if strings.HasPrefix(trimmed, "async ") {
-					nameStart = 10 // length of "async def "
-				}
-				parts := strings.SplitN(trimmed[nameStart:], "(", 2)
-				scopePtr.Name = parts[0]
-				scopePtr.Kind = "function"
-			} else {
-				parts := strings.SplitN(trimmed[6:], ":", 2)
-				scopePtr.Name = parts[0]
-				scopePtr.Kind = "class"
-			}
-			scopePtr.StartLine = lineNum - pendingDecorators
-			scopePtr.StartIndent = indent
-			pendingDecorators = 0 // reset after creating scope
-
-			// Set parent
-			if len(scopeStack) > 0 {
-				scopePtr.Parent = scopeStack[len(scopeStack)-1]
-			}
-
-			// Push to stack and track
-			scopeStack = append(scopeStack, scopePtr)
-			allScopes = append(allScopes, scopePtr)
-		} else if indent <= currentIndent && len(scopeStack) > 0 {
-			// Line is at or before parent's indent level - close completed scopes
-			// BUT: don't close if we're inside a docstring (""")
-			isDocstringLine := strings.HasPrefix(trimmed, "\"\"\"") || strings.HasPrefix(trimmed, "    \"\"\"")
-
-			for len(scopeStack) > 0 && indent <= scopeStack[len(scopeStack)-1].StartIndent {
-				if isDocstringLine {
-					// Don't close scopes when inside docstrings
-					break
-				}
-				closed := scopeStack[len(scopeStack)-1]
-				closed.EndLine = lineNum - 1
-				scopeStack = scopeStack[:len(scopeStack)-1]
-			}
+		start := i + 1
+		if _, decoratorStart := pythonDecorators(lines, logical, i); decoratorStart > 0 {
+			start = decoratorStart
 		}
-
-		currentIndent = indent
-	}
-
-	// Close remaining scopes at EOF
-	for len(scopeStack) > 0 {
-		closed := scopeStack[len(scopeStack)-1]
-		closed.EndLine = lineNum
-		scopeStack = scopeStack[:len(scopeStack)-1]
-	}
-
-	// Second pass: fix EndLine for scopes that were closed prematurely
-	// Use the StartLine of the next scope (or EOF) as EndLine
-	for i := 0; i < len(allScopes)-1; i++ {
-		current := allScopes[i]
-		next := allScopes[i+1]
-		// If current EndLine is before next StartLine, use next StartLine - 1
-		if current.EndLine < next.StartLine-1 {
-			current.EndLine = next.StartLine - 1
+		scope := &PythonScope{
+			Name:        ExtractFuncName(matches),
+			Kind:        kind,
+			StartLine:   start,
+			EndLine:     pythonDefinitionEnd(lines, logical, i),
+			StartIndent: indent,
 		}
+		if len(stack) > 0 {
+			scope.Parent = stack[len(stack)-1]
+		}
+		stack = append(stack, scope)
+		all = append(all, scope)
 	}
-
-	// Convert pointers to values for return
-	result := make([]PythonScope, len(allScopes))
-	for i, sp := range allScopes {
-		result[i] = *sp
+	result := make([]PythonScope, len(all))
+	for i, scope := range all {
+		result[i] = *scope
 	}
-
-	return result, scanner.Err()
+	return result, nil
 }
 
 // ValidateAndFixLineRange performs Pass 2: validates and adjusts line range

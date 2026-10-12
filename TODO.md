@@ -24,7 +24,19 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
 | C++ | fmt | about 39% | not measured | about 61% (earlier run) | open |
 | C | Lua | 99.9% (earlier run) | not measured | not measured | re-measure |
-| Python, Scala, D, PHP | none | not measured | | | not started |
+| Python | Flask (1462), Requests (711), hr_portal (711) | 100%, 100%, 100% | 0, 0, 0 | 0, 0, 0 | local fix verified; no false functions |
+| Scala, D, PHP | none | not measured | | | not started |
+
+Python was measured separately on 2026-10-12 on a working-tree fix based on `7b9131e`, built with `build.ps1`, against
+Python 3.14 `ast`. All tracked `.py` files were included (83/37/60 files, no parse errors).
+Names are matched one-to-one within the AST declaration/decorator span; correct ends exclude
+trailing blank/comment lines. Duplicate method names are retained using plain `--map` output,
+since file-mode JSON overwrites repeated names. Recall and precision are 100% for all three
+projects. Before the fix, wrong ends were 20/30/97 and Flask had 29 false functions.
+Pins: Flask `d086db856be187255b8ec61ef409357393020f32`,
+Requests `611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60`, hr_portal `87a2909d85ee173209afcecdd12f530257e5d2ab`.
+The evaluator is `benchmarks/python_ast_eval.py`; raw outputs from this run are in ignored
+`build/language-eval-20261012/`.
 
 - [ ] **Verify CI on `main` at `2022d5b`.** PR #77 was merged while four of its checks (Analyze
   (go), Build, Build Windows, Build macOS) were still running. Read the result once; do not poll.
@@ -80,10 +92,16 @@ them with their own span, so a missing C# or Java declaration counts as missing.
   per line, and the wrong ends are in the same bundles (`lodash.min.js`, `lodash.fp.min.js`). A
   non-minified JavaScript project is needed to measure the rest of the language. Decide whether
   minified code is in scope.
-- [ ] **Scala, D, PHP, Python: no measurement.** Scala uses the nested path, which Go, JavaScript,
+- [x] **Python: wrong spans and docstring false positives fixed locally.** Logical statements
+  now account for strings, bracket continuations, explicit backslashes and multiline decorators.
+  Function indentation comes from the `def` line; suite colons are read outside brackets, with
+  trailing comments ignored. Inline suites close at the end of their logical statement. Triple
+  strings match their own delimiter and scanning resumes after the close. Finder class ranges and
+  `AnalyzePythonScopes` use the same boundaries. All 2884 real functions now have correct ends;
+  the 29 Flask docstring false functions are gone. Regression tests are in `internal/python_bounds_test.go`.
+- [ ] **Scala, D, PHP: no measurement.** Scala uses the nested path, which Go, JavaScript,
   TypeScript, Rust and Swift share, so any change there needs the regression sweep below. Python has
-  its own finder (`python_finder.go`) and is not covered by it. Add tree-sitter-python as ground
-  truth.
+  its own finder (`python_finder.go`) and is not covered by it; its separate AST baseline is above.
 - [ ] **C, re-measure Lua** with the current binary; the 99.9% is from an earlier run.
 
 ### Regression sweep for any change to the nested path
