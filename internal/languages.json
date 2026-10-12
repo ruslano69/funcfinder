@@ -51,7 +51,7 @@
       ".c",
       ".h"
     ],
-    "func_pattern": "^\\w[\\w\\s\\*]*[\\s\\*]+({IDENT}+)\\s*\\(",
+    "func_pattern": "^\\w[\\w\\s\\*]*[\\s\\*]+(?:\\(\\s*({IDENT}+)\\s*\\)|({IDENT}+))\\s*\\(\\s*(?:[^*\\s]|$)",
     "class_pattern": "^\\s*(?:typedef\\s+)?struct\\s+(?:\\w+\\s*)?\\{",
     "struct_type_patterns": {
       "struct": "^\\s*(?:typedef\\s+)?(?:struct|union)\\s+(?:({IDENT}+)\\s*)?\\{",

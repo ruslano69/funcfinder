@@ -131,6 +131,35 @@ access; later runs reuse it. Output records the D grammar DLL hash as well as
 runtime/package versions, checkout SHAs, dirty states and executable hash. Current
 pins, measurements and excluded-file limitations are in root `TODO.md`.
 
+### C definitions and prototypes
+
+`c_tree_eval.py` scans tracked `.c` and `.h` files after GCC preprocessing.
+Compiler line markers map definitions and prototypes to original source lines;
+function-pointer variables and typedefs are excluded. Candidate declarations in
+inactive branches are recorded separately. Preprocessing or grammar failures are
+explicit exclusions, never successful coverage.
+
+```bash
+python -m pip install --target build/c-eval-runtime tree-sitter==0.26.0 tree-sitter-c==0.24.1
+python benchmarks/c_tree_eval.py --root <lua-checkout> --label lua \
+  --binary ./funcfinder.exe --module-dir build/c-eval-runtime --gcc <gcc-executable> \
+  --include-dir <lua-checkout> --include-header <lua-checkout>/lua.h \
+  --define LUA_USE_JUMPTABLE=0 --output build/lua.c-eval.json
+```
+
+The recorded Lua profile uses C99 and MSYS2 UCRT64 GCC 15.2.0 (Rev8) on Windows.
+The include header supplies context for standalone headers; disabling the jump
+table selects Lua's standard dispatch path. The evaluator masks GCC va_arg and
+offsetof expressions that the grammar cannot parse, preserving bytes/newlines
+and function boundaries. Counts include both definitions and prototypes, so
+they cannot be compared directly with earlier definition-only measurements.
+
+Output retains project and finder SHAs, dirty states, parser versions, compiler
+version/hash, preprocessing flags, executable hash and every mismatch/inactive
+candidate. Results describe the selected compiler/configuration; other conditional
+variants need separate runs. On Windows the evaluator adds the GCC binary directory
+to its child process PATH so the compiler subprocesses can load their dependencies.
+
 ### Go symbol maps
 
 | Project | Commit | Lang | Recall | Precision | Token savings | Notes |
