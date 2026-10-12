@@ -12,6 +12,16 @@
 
 Builds 5 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`.
 
+## Releases
+
+- `VERSION` is the version source for local build scripts and release tags;
+  record user-visible changes in root `CHANGELOG.md`.
+- Verify the integrated release revision with tests, builds and CI before
+  publishing `v<VERSION>`. Keep parser measurement limits in release notes.
+- `.github/workflows/release.yml` builds all five tools for Linux/macOS
+  amd64/arm64 and Windows amd64 on tag push, checks the version file, and
+  publishes archives plus `checksums.txt`. Verify the workflow and assets.
+
 ---
 
 ## The Toolkit at a Glance
