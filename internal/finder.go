@@ -217,10 +217,52 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 // FindFunctionsInLines ищет функции в предварительно прочитанных строках
 // startLine - номер первой строки в lines (1-based) относительно оригинального файла
 func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename string) (*FindResult, error) {
-	if f.config.LangKey != "php" {
+	var prepared []string
+	switch f.config.LangKey {
+	case "php":
+		prepared = maskPHPHeredocs(lines, f.config)
+	case "d":
+		prepared = prepareDLines(lines, f.config)
+	case "scala":
+		cleaned := cleanScalaLines(lines)
+		result, err := f.findFunctionsInPreparedLines(cleaned, startLine, filename)
+		if err != nil {
+			return nil, err
+		}
+		for i := range result.Functions {
+			fn := &result.Functions[i]
+			fn.End = scalaFunctionEnd(cleaned, fn.Start-startLine, f.config) + startLine - 1
+			if f.extractMode {
+				fn.Lines = append([]string(nil), lines[fn.Start-startLine:fn.End-startLine+1]...)
+			}
+		}
+		for line, code := range cleaned {
+			for pos := 0; pos < len(code); pos++ {
+				if !strings.ContainsRune("{;}", rune(code[pos])) {
+					continue
+				}
+				matches := f.config.FuncRegex().FindStringSubmatch(code[pos+1:])
+				if matches == nil {
+					continue
+				}
+				name := ExtractFuncName(matches)
+				if !f.mapMode && !f.funcNames[name] {
+					continue
+				}
+				end := scalaFunctionEndAt(cleaned, line, pos+1, f.config) + startLine - 1
+				className := f.findClassForLine(result.Classes, line+startLine)
+				fn := FunctionBounds{Name: name, Start: line + startLine, End: end, ClassName: className, Scope: className}
+				if f.extractMode {
+					fn.Lines = append([]string(nil), lines[line:end-startLine+1]...)
+				}
+				result.Functions = append(result.Functions, fn)
+			}
+		}
+		return result, nil
+	default:
 		return f.findFunctionsInPreparedLines(lines, startLine, filename)
 	}
-	result, err := f.findFunctionsInPreparedLines(maskPHPHeredocs(lines, f.config), startLine, filename)
+	result, err := f.findFunctionsInPreparedLines(prepared, startLine, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +287,11 @@ func (f *Finder) findFunctionsInPreparedLines(lines []string, startLine int, fil
 	// Если язык поддерживает классы, сначала находим все классы
 	var classes []ClassBounds
 	if f.config.HasClasses() {
-		classes = f.findClassesWithOffset(lines, lineOffset)
+		if f.config.LangKey == "d" {
+			classes = findDClasses(lines, lineOffset, f.config)
+		} else {
+			classes = f.findClassesWithOffset(lines, lineOffset)
+		}
 		result.Classes = classes
 	}
 
