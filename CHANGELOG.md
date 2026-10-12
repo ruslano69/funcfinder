@@ -1,5 +1,60 @@
 # Changelog
 
+## v1.12.2 - 2026-10-12
+
+Function discovery and boundaries are more accurate across the supported
+languages. The changes apply to all tools that use the shared finder.
+
+### Parsing fixes
+
+- **Shared boundaries**: bodyless declarations no longer take the next
+  function's body. Multiline signatures and expression bodies end at their
+  own last line, including expressions that continue after a brace block.
+- **JavaScript / TypeScript**: recognize constructors, getters, static/async
+  methods, multiline class methods, typed arrows and function-typed
+  parameters. Handle regex literals, template expressions, generic headers,
+  functions after line separators and bodies that close mid-line.
+- **Python**: logical statements, multiline decorators, continued signatures,
+  strings and inline suites determine function/class bounds and line-based
+  extraction without treating literal text as declarations.
+- **PHP**: recognize reference-returning and nested methods; mask heredoc and
+  nowdoc contents while preserving code after closing labels and original
+  extraction.
+- **Scala**: recognize modified, parameterless, operator-named and inline
+  methods; handle braceless expressions, multiline literals and declarations
+  without bodies.
+- **D**: recognize nested functions, conditional/linkage/attribute prefixes,
+  pointer/type returns, inferred properties and multiline headers. Handle
+  contracts, nested comments and token strings. Constructor-delegation calls
+  are excluded while local constructors and postblits remain visible.
+- **C**: recognize function headers and parenthesized names such as
+  `int (name)(...)`; control statements and function-pointer typedefs/variables
+  are not functions.
+- **C++ / Java / C#**: improve qualified names, trailing return types,
+  multiline Java signatures and throws clauses, and C# expression bodies.
+- **Rust / Kotlin / Swift / Ruby**: improve nested functions, modified
+  declarations, expression ends, Ruby operator methods and percent literals.
+
+### Analysis tools
+
+- Reverse call lookup finds callers of qualified methods. Rust trees group
+  impl blocks by type and mark recursion on the traversal path.
+- Dependency analysis handles multiline Rust imports and classifies them;
+  `deps` and `stat` list the accepted language codes.
+
+### Real-project verification
+
+Independent evaluators now live in `benchmarks/`, with project pins, runtime
+versions, executable hashes and explicit exclusions. Python (Flask, Requests,
+hr_portal), PHP (Monolog, Symfony Routing), Scala (scopt, os-lib), D (D-YAML,
+arsd) and C (Lua) match all measured function ends with zero missing or false
+functions after these fixes.
+
+These measurements retain their scope: six D files have reference-grammar
+errors and remain excluded; Lua is measured in one recorded GCC configuration
+with inactive branches reported separately. Outstanding gaps in other
+languages remain tracked in `TODO.md`.
+
 ## v1.12.1 - 2026-09-24
 
 Found while mapping a React/TypeScript codebase: funcfinder, `complexity` and
