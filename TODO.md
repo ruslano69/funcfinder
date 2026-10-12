@@ -4,10 +4,10 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
-## Language coverage on real projects: status and next steps (2026-10-11)
+## Language coverage on real projects: status and next steps (2026-10-12)
 
-Measured on `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
-language). The evaluator scripts live outside the repo for now (see the last item). Truth
+Earlier measurements used `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
+language); subsequent runs and their revisions are recorded below. Python, PHP and Scala/D evaluators now live in `benchmarks/`. Truth
 includes declarations without a body (interface, abstract, prototype members): the design lists
 them with their own span, so a missing C# or Java declaration counts as missing.
 
@@ -26,7 +26,8 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | C | Lua | 99.9% (earlier run) | not measured | not measured | re-measure |
 | Python | Flask (1462), Requests (711), hr_portal (711) | 100%, 100%, 100% | 0, 0, 0 | 0, 0, 0 | local fix verified; no false functions |
 | PHP | Monolog (1602), Symfony Routing (1125) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
-| Scala, D | none | not measured | | | not started |
+| Scala | scopt (380), os-lib (643) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
+| D | D-YAML (539), arsd (11705) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions; oracle accepts 34/35 and 120/125 files |
 
 Python was measured separately on 2026-10-12 on a working-tree fix based on `7b9131e`, built with `build.ps1`, against
 Python 3.14 `ast`. All tracked `.py` files were included (83/37/60 files, no parse errors).
@@ -50,6 +51,29 @@ Symfony Routing `57970507cf869e358330cb336772a7dcb31fa67c`. Evaluator:
 `benchmarks/php_tree_eval.py`; raw before/after JSON is in the same ignored build
 directory. Line numbers are derived from byte positions because the native Point
 wrapper crashed on this Windows Python runtime.
+
+Scala was measured on 2026-10-12 on a working-tree fix based on `bd1575e`;
+D's follow-up fix is based on `25a1e52`,
+using Python 3.14.6 / tree-sitter 0.26.0. Scala grammar: tree-sitter-scala 0.26.2;
+D grammar: tree-sitter-language-pack 1.22.0, DLL SHA-256
+`acf35033a28e91d15620505ee2b2e06efc5be01c8caa0c6fef5de6925f9588f8`.
+Reference ends exclude syntax-tree extras/trailing whitespace. D truth includes
+constructors, destructors and postblits; anonymous lambdas and value/type templates
+are excluded. All 29 scopt and 59 os-lib files parsed. D excludes
+`D-YAML/examples/tojson/source/app.d` and arsd's `cli.d`, `core.d`, `ini.d`,
+`script.d`, `uda.d` because the oracle reports syntax errors; their symbols are
+not scored. The D grammar mislabels two `final switch` statements and 18
+constructor-delegation calls as declarations; the evaluator rejects these by
+syntax/context and records every rejection (`oracle_rejected`). Final truth is
+11705 functions, all found with correct ends and no false functions. With this
+audited reference, `25a1e52` missed 249 functions and produced 93 false functions;
+the follow-up fix has zero in both categories. Before the first fixes: Scala
+missed 120/203; D-YAML missed 486 with 300 false functions. Evaluator:
+`benchmarks/scala_d_tree_eval.py`, raw JSON in the ignored build directory above.
+Pins: scopt `fb371a7cf997fe053c9e1496cc6e13fbff3ff9de`,
+os-lib `86e5ddb65fe62305afb5885fcc0f8da50aba4b48`,
+D-YAML `09aeac155c9d0f85a0e7442dffb442de53528a41`,
+arsd `953107183178fccbe8af7340b230c37c2071aef8`.
 
 - [ ] **Verify CI on `main` at `2022d5b`.** PR #77 was merged while four of its checks (Analyze
   (go), Build, Build Windows, Build macOS) were still running. Read the result once; do not poll.
@@ -118,9 +142,20 @@ wrapper crashed on this Windows Python runtime.
   preprocessing hides literal code/quotes/braces and retains code after the closing label;
   extracted source and slice offsets are preserved. Both reference projects now have zero
   missing functions, false functions and wrong ends. Tests: `internal/php_finder_test.go`.
-- [ ] **Scala, D: no measurement.** Scala uses the nested path, which Go, JavaScript,
-  TypeScript, Rust and Swift share, so any change there needs the regression sweep below. Python has
-  its own finder (`python_finder.go`) and is not covered by it; its separate AST baseline is above.
+- [x] **Scala: modifiers, parameterless/operator names and expression ends fixed locally.**
+  Inline annotations/members, function-typed returns, multiline signatures, string-only bodies,
+  chains after brace blocks and triple-string closing runs are covered. Both projects now match
+  all 1023 reference functions exactly. Shared nested-parser implementation was not changed.
+- [x] **D-YAML: nested discovery, lexical masking and contract ends fixed locally.** All 539
+  oracle functions match. Attribute continuations, templates, return-by-reference/type modifiers,
+  nested comments, raw/delimited/token strings and inline classes are covered by dedicated code.
+- [x] **D, arsd: declaration prefixes and constructor calls fixed locally.** Conditional and
+  parameterized attribute/linkage prefixes, pointer/type forms, inferred properties and multiline
+  return types are found. Constructor calls are excluded using function/class context, including
+  callback arguments; local constructors and postblits remain visible. All 11705 audited reference
+  functions match exactly on 120 accepted files. Tests also cover selected-function extraction and offsets.
+- [ ] **D: audit six excluded files with a stronger/native oracle.** One D-YAML and five arsd files
+  have grammar errors; the accepted-file results do not establish whole-repository coverage.
 - [ ] **C, re-measure Lua** with the current binary; the 99.9% is from an earlier run.
 
 ### Regression sweep for any change to the nested path

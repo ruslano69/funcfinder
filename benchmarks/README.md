@@ -98,6 +98,39 @@ large traversals in this runtime; byte offsets are converted to exact line numbe
 instead. The output records both grammar versions, project/source SHAs, dirty
 states and binary SHA-256. PHP results and project pins are in `TODO.md`.
 
+### Scala and D function spans
+
+`scala_d_tree_eval.py` scans tracked `.scala` or `.d` files. Scala truth includes
+definitions and bodyless declarations; D includes named functions, constructors,
+destructors and postblits. Anonymous lambdas and eponymous value/type templates are
+excluded. Reference endpoints use the last non-extra syntax-tree token, avoiding
+comments/whitespace attached to Scala indentation blocks. Parse-error files are
+reported and excluded from scoring.
+
+The D grammar can label `final switch` as a function and constructor-delegation
+calls as constructors. The evaluator rejects these using syntax and enclosing
+function context, stopping at local class boundaries so their constructors remain
+in truth. Each rejection is recorded as `oracle_rejected`, with its reason and
+location, and counted separately from parse-error files and finder mismatches.
+`final switch` is a statement in the [D specification](https://dlang.org/spec/statement.html#FinalSwitchStatement).
+
+```bash
+python -m pip install --target build/eval-runtime tree-sitter-scala==0.26.2
+python benchmarks/scala_d_tree_eval.py --language scala --root <scopt-checkout> \
+  --label scopt --binary ./funcfinder.exe --module-dir build/eval-runtime \
+  --output build/scopt.scala-eval.json
+
+python -m pip install --target build/d-eval-runtime tree-sitter-language-pack==1.22.0
+python benchmarks/scala_d_tree_eval.py --language d --root <d-yaml-checkout> \
+  --label d-yaml --binary ./funcfinder.exe --module-dir build/d-eval-runtime \
+  --grammar-cache build/d-grammar-cache --output build/d-yaml.d-eval.json
+```
+
+The first D run downloads its grammar into the explicit cache and needs network
+access; later runs reuse it. Output records the D grammar DLL hash as well as
+runtime/package versions, checkout SHAs, dirty states and executable hash. Current
+pins, measurements and excluded-file limitations are in root `TODO.md`.
+
 ### Go symbol maps
 
 | Project | Commit | Lang | Recall | Precision | Token savings | Notes |
