@@ -24,6 +24,7 @@ Core parsing engine. Implements function/struct discovery, body extraction, call
 - `enhanced_sanitizer.go` strips string literals and comments before parsing to prevent false positives; touch it carefully and run its bench test after changes.
 - `python_finder.go` and `python_lines_processor.go` handle Python's indent-based scope; keep them in sync.
 - Both Python paths share logical-statement boundaries: continuation lines and string contents do not dedent a scope, suite colons are read outside brackets, and inline suites end with their logical statement. Finder class ranges use the same rules; extraction retains original source and trailing trivia.
+- PHP uses the nested finder so methods of classes inside functions are visible. `php_heredoc.go` masks heredoc/nowdoc text before function/class discovery, preserves trailing code after closing labels and restores original source for function extraction, including offset scans.
 - Call graph logic (`callgraph.go`) operates on the output of the finder layer, not on raw source.
 - Reverse lookup uses `ReverseCallers`: bare names include qualified callees with the same final name; qualified queries match exactly. Results are sorted, deduplicated name-based candidates, not type-resolved method identities. The full reverse graph preserves qualified keys.
 - `shardutil.go` owns all `.codemap/` path conventions; do not hardcode shard paths elsewhere.

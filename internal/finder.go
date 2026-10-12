@@ -217,6 +217,23 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 // FindFunctionsInLines ищет функции в предварительно прочитанных строках
 // startLine - номер первой строки в lines (1-based) относительно оригинального файла
 func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename string) (*FindResult, error) {
+	if f.config.LangKey != "php" {
+		return f.findFunctionsInPreparedLines(lines, startLine, filename)
+	}
+	result, err := f.findFunctionsInPreparedLines(maskPHPHeredocs(lines, f.config), startLine, filename)
+	if err != nil {
+		return nil, err
+	}
+	if f.extractMode {
+		for i := range result.Functions {
+			fn := &result.Functions[i]
+			fn.Lines = append([]string(nil), lines[fn.Start-startLine:fn.End-startLine+1]...)
+		}
+	}
+	return result, nil
+}
+
+func (f *Finder) findFunctionsInPreparedLines(lines []string, startLine int, filename string) (*FindResult, error) {
 	lineOffset := startLine - 1 // Offset для корректировки номеров строк
 
 	result := &FindResult{

@@ -8,6 +8,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 
 - `specsheet.py` compares directory maps with the Go oracle and estimates token savings.
 - `python_ast_eval.py` compares Python function locations and ends with Python's native AST.
+- `php_tree_eval.py` compares named PHP functions/methods, including bodyless declarations, with tree-sitter PHP.
 - `README.md` owns evaluator usage and measurement limitations.
 - `searchserver/` contains the existing search-server load harness.
 
@@ -16,6 +17,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 - Keep reference-project commits and the tested funcfinder commit in measurement output.
 - Retain duplicate function names and report missing functions, false positives and wrong ends separately.
 - Python evaluation scans tracked `.py` files and reports parse failures explicitly.
+- PHP evaluation scans tracked `.php` files, reports parse failures explicitly and records parser/grammar versions. It computes line numbers from byte offsets to avoid the failing native Point wrapper on the current Windows Python 3.14 runtime.
 - Generated maps, clones and reports belong in ignored `build/`, not tracked source directories.
 
 ## Work Guidance
@@ -26,6 +28,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 ## Verification
 
 - Run `python benchmarks/python_ast_eval.py --help` after changing its interface.
+- Run `python benchmarks/php_tree_eval.py --help` after changing its interface.
 - Re-run the evaluator on the affected pinned reference projects after a measurement change.
 
 ## Child DOX Index
