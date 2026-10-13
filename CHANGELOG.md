@@ -90,6 +90,10 @@
   rune conversion. The output is unchanged; a test compares the fast and the slow path on every fixture line.
 - A line that matches two struct patterns (Go `type X struct{ Y int }` matches `struct` and `named`) takes its kind
   from the patterns in sorted order, not map order. The names and spans did not change.
+- Pre-filters skip lines that cannot hold a function header (`func_requires`: a `(` or `<`, for the languages
+  whose every header pattern needs one) or a class or struct header (`type_keywords`). Both are checked on
+  every fixture line by a test. Cleaning a line reuses the sanitizer's rune buffers.
+- Corpus full run after these changes: about 1.09 s, against 1.59 s before them (median of 7).
 - Corpus of 725 files, full run: about 1.75 s before, 1.53 s after (median of 5). The output is byte-identical.
 
 ### Go type aliases
