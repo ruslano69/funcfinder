@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Rust
+
+- A raw string with more hashes (`r##"…"##`) is a raw string now, and so is a plain `r"…"`. Before, `r##"` opened an
+  ordinary string, so a quote on a later line ended it and the rest of the file was misread: on photocraft, three
+  `#[test]` functions were lost (`icon_theme.rs`, `svg.rs`). The fixed corpus output is unchanged.
+
 ## v1.13.1 - 2026-10-13
 
 Fixes from the analysis of two real Rust projects (gridcraft, photocraft): Rust parsing no longer loses the rest of a
