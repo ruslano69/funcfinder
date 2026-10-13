@@ -10,6 +10,12 @@
 - Functions with `pub(super)`, `pub(self)` and `pub(in path)` are found, as `pub(crate)` already was. On the gridcraft
   workspace the listing went from 6320 to 6489 names.
 
+### Dependencies (`deps`)
+
+- In the plain listing, a Go import under the module of `go.mod` is internal. Before, every import with a `/` was
+  external unless it had `internal/` or `vendor/` in it, so the project's own packages were counted as third-party. The
+  module is read from the nearest `go.mod` at or above the analyzed directory, so a run on a subdirectory works too.
+
 ### Incremental split (`--split --inc`)
 
 - A shard whose files hold no declaration (data tables, re-export modules) has no shard file, so it was never in the
