@@ -77,6 +77,8 @@
 
 ### Determinism and speed
 
+- A class header followed by a comment and then its body (`class Widget` / `// the body follows` / `{`) keeps its body:
+  the header check reads the next code line, and a comment is not code. Before, the class ended on its header.
 - Ruby: `end` followed by a comment (`end # the class`) closes its class, and a method (`end # the first method`) closes too. The structural finders read the end from
   the cleaned line, where the comment is blank; before, the raw line never matched and the class swallowed the next one.
   The structural finders read the cleaned text and the indentation through `LineFacts`, computed in one pass.
