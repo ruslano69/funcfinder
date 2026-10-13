@@ -205,6 +205,7 @@ funcfinder --dir . --all --json --split && cat .codemap/manifest.json
 
 # Find
 grep -i "<name>" .codemap/<shard>.json
+funcfinder --dir . --names | grep -i "<name>"    # kind, name, file:line (add --all for types and aliases)
 
 # Extract
 funcfinder --inp <file> --source <lang> --func <Name> --extract

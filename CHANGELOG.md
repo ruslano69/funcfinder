@@ -23,6 +23,10 @@
 - A directory run gives the same `--tree`, `--json` and grep output on every
   run: files are reported in path order and tree children are sorted by name.
   The tree used to change between runs, because its children came from a map.
+- `--names` lists the names of a file or a directory, one per line: `kind<TAB>name<TAB>file:line`. The kinds are
+  `function`, `method`, `class`, the kind of a type (`struct`, `enum`, `dataclass`...) and `alias` for a Go alias.
+  `--struct` and `--all` add the types and the aliases. A file runs through the directory job, so the two give the same
+  names. Signatures stay in `--tree-full`. A Go receiver method is listed as a `function` for now.
 
 ### TypeScript / JavaScript
 

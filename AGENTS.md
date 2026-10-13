@@ -188,6 +188,7 @@ deps frontend -l ts --shards --update-manifest .codemap/manifest.json
 | Extract named structs | `funcfinder --inp file.go --source go --struct "TypeA,TypeB" --extract` |
 | Extract all structs | `funcfinder --inp file.go --source go --struct --extract` |
 | Tree view | `funcfinder --dir . --tree` |
+| Names only (kind, name, file:line) | `funcfinder --dir . --names` (`--all` adds types and aliases) |
 
 **Key Rules**:
 - `--dir` mode: `--map` is DEFAULT

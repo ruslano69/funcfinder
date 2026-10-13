@@ -43,6 +43,7 @@ Core parsing engine. Implements function/struct discovery, body extraction, call
 - Each file is read once per job (`lazyLines` in `dirprocessor.go`): finders that take lines get the shared lines; Python's finder still reads the file itself.
 - `GetLanguageByExtension` visits languages in sorted order and gives `.h` to `cpp` (both `c` and `cpp` claim it). Keep the choice stable: `--dir` output must not depend on map order.
 - Go type aliases (`type A = S`, and the `A = S` lines of a `type ( ... )` group) are read by `findGoAliases` (`go_aliases.go`) from sanitized lines and kept in `DirResult.Aliases`, apart from the types. Go has no `type_alias` struct pattern (`languages.json`): an alias must not come back as a type.
+- `--names` (`names.go`) prints the directory job's results: `ProcessSingleFile` runs one file through `processFile`, and `FormatNames` lists the results. Kinds come from `FunctionBounds.ClassName` (method), `ClassBounds.Kind` (empty means a class from the class finder) and `AliasBounds`. The class finder and the struct finder share one entry per declaration: the struct finder's kind is copied onto it.
 - `shardutil.go` owns all `.codemap/` path conventions; do not hardcode shard paths elsewhere.
 
 ## Verification
