@@ -403,13 +403,3 @@ func isExcludedWord(name string, excludeWords []string) bool {
 func rubyBlockEndAt(cleaned string, indent int, keyword string, expectedIndent int) bool {
 	return strings.TrimSpace(cleaned) == keyword && indent == expectedIndent
 }
-
-// isRubyBlockEnd checks if line is a block end keyword at the expected indent level
-// Used for Ruby-like languages where 'end' closes class/module at matching indent
-func isRubyBlockEnd(line string, keyword string, expectedIndent int) bool {
-	trimmed := strings.TrimSpace(line)
-	if trimmed != keyword {
-		return false
-	}
-	return GetIndentLevel(line) == expectedIndent
-}

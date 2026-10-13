@@ -721,14 +721,22 @@ func (s *Sanitizer) CleanLinesFacts(lines []string) []LineFacts {
 	facts := make([]LineFacts, len(lines))
 	state := StateNormal
 	for i, line := range lines {
-		facts[i] = LineFacts{
-			StartState: state,
-			Indent:     GetIndentLevel(line),
-			CodeText:   hasCodeText(line),
-		}
-		facts[i].Cleaned, state = s.CleanLine(line, state)
+		facts[i], state = s.lineFacts(line, state)
 	}
 	return facts
+}
+
+// lineFacts returns the facts of one line that starts in state, and the state the next line starts in. A caller that
+// skips some lines (a heredoc body is not cleaned) passes on the state of the last line it cleaned.
+func (s *Sanitizer) lineFacts(line string, state ParserState) (LineFacts, ParserState) {
+	fact := LineFacts{
+		StartState: state,
+		Indent:     GetIndentLevel(line),
+		CodeText:   hasCodeText(line),
+	}
+	var next ParserState
+	fact.Cleaned, next = s.CleanLine(line, state)
+	return fact, next
 }
 
 // cleanedTexts returns the cleaned text of each line, for the helpers that look across lines.
