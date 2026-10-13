@@ -52,6 +52,10 @@ type ComplexityMetrics struct {
 	// the general branching score.
 	MaxLoopNestingDepth int   `json:"max_loop_nesting_depth"`
 	NestingHistory      []int `json:"nesting_history"`
+	// DecisionCount and BooleanLines are the figures behind the score (see breakdown.go): how many lines open a
+	// decision, and how many combine conditions with && / || or and / or.
+	DecisionCount       int   `json:"decision_count"`
+	BooleanLines        int   `json:"boolean_lines"`
 }
 
 // FileComplexity contains complexity metrics for a single file
@@ -190,6 +194,7 @@ func main() {
 	thresholdFlag := flag.Int("t", 0, "Show only functions with nesting depth >= N (0 = show all)")
 	topN := flag.Int("n", 0, "Show top N most complex functions")
 	showDetails := flag.Bool("v", false, "Show detailed nesting analysis")
+	breakdownFlag := flag.Bool("breakdown", false, "Show the figures behind each score: size, decisions, branch and loop depth, boolean lines")
 	noSimple := flag.Bool("nosimple", false, "Hide SIMPLE level functions (score <= 3)")
 	flag.Parse()
 
@@ -352,6 +357,9 @@ func main() {
 				metrics.MaxLoopNestingDepth, metrics.MaxLoopNestingDepth)
 		}
 		fmt.Printf("  Lines: %d, File: %s\n", metrics.LinesOfCode, metrics.File)
+		if *breakdownFlag {
+			printBreakdown(metrics)
+		}
 		fmt.Println()
 	}
 
@@ -480,6 +488,8 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 			MaxNestingDepth:     maxDepth,
 			MaxLoopNestingDepth: loopResult.maxDepth,
 			NestingHistory:      nestingResult.history,
+			DecisionCount:       countDecisions(cleaned),
+			BooleanLines:        countBooleanLines(cleaned),
 		}
 
 		functions = append(functions, metrics)

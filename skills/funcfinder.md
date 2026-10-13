@@ -156,6 +156,8 @@ stat internal/finder.go -l go
 
 # Cognitive complexity — find the hard functions
 complexity internal/dirprocessor.go -l go --nosimple
+# Figures behind each score: size, decisions, branch depth, loop depth, boolean lines, and which thresholds it passes
+complexity internal/dirprocessor.go -l go --breakdown
 
 # Import graph for one file
 deps internal/finder.go -l go --json
