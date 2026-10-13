@@ -43,7 +43,7 @@ func AnalyzePythonScopes(filePath string) ([]PythonScope, error) {
 		return nil, err
 	}
 	lines := strings.Split(string(content), "\n")
-	logical := pythonLogicalLines(lines)
+	logical := pythonLogicalLines(lines, pyConfig)
 	var stack []*PythonScope
 	var all []*PythonScope
 	for i, line := range logical {

@@ -1,8 +1,6 @@
 package internal
 
 import (
-	"bufio"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -270,15 +268,5 @@ func FormatCallGraphText(cg *CallGraphResult) string {
 
 // readAllLines reads a file and returns all lines (without newline characters).
 func readAllLines(path string) ([]string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	var lines []string
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		lines = append(lines, sc.Text())
-	}
-	return lines, sc.Err()
+	return readFileLines(path)
 }

@@ -4,11 +4,13 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,8 +26,10 @@ type Job struct {
 // DirResult represents the outcome of processing a single file
 type DirResult struct {
 	Path      string
+	LangKey   string // language key the file was processed with (as in languages.json)
 	Functions []FunctionBounds
 	Classes   []ClassBounds
+	Aliases   []AliasBounds // Go type aliases: names of existing types, not types of their own
 	Error     error
 }
 
@@ -183,8 +187,19 @@ func (dp *DirProcessor) processFilesParallel(jobs []Job) ([]DirResult, error) {
 	for result := range resultsChan {
 		results = append(results, result)
 	}
+	reportFileErrors(os.Stderr, results)
 
 	return results, nil
+}
+
+// reportFileErrors prints one warning per file that could not be processed. The other files' results are kept:
+// a file that fails must not disappear without a word.
+func reportFileErrors(w io.Writer, results []DirResult) {
+	for _, r := range results {
+		if r.Error != nil {
+			fmt.Fprintf(w, "Warning: %s: %v\n", r.Path, r.Error)
+		}
+	}
 }
 
 // worker processes jobs from the channel
@@ -198,7 +213,8 @@ func (dp *DirProcessor) worker(jobsChan <-chan Job, resultsChan chan<- DirResult
 // processFile processes a single file
 func (dp *DirProcessor) processFile(job Job) DirResult {
 	result := DirResult{
-		Path: job.Path,
+		Path:    job.Path,
+		LangKey: job.LangKey,
 	}
 
 	langConfig, err := dp.config.GetLanguageConfig(job.LangKey)
@@ -207,11 +223,14 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 		return result
 	}
 
+	// The file is read at most once per job: the finders that take lines and the struct finder share it.
+	fileLines := lazyLines(job.Path)
+
 	switch dp.workMode {
 	case "functions":
 		// Find only functions
 		finder := CreateFinder(langConfig, "", "map", false, false)
-		findResult, err := finder.FindFunctions(job.Path)
+		findResult, err := findFunctionsOf(finder, job.Path, fileLines)
 		if err != nil {
 			result.Error = err
 			return result
@@ -227,7 +246,7 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 		}
 		factory := NewStructFinderFactory()
 		structFinder := factory.CreateStructFinder(langConfig, "", true, false)
-		structResult, err := structFinder.FindStructures(job.Path)
+		structResult, err := findStructuresOf(structFinder, job.Path, fileLines)
 		if err != nil {
 			result.Error = err
 			return result
@@ -238,13 +257,14 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 				Name:  typ.Name,
 				Start: typ.Start,
 				End:   typ.End,
+				Kind:  typ.Kind,
 			})
 		}
 
 	case "all":
 		// Find both functions and structs
 		finder := CreateFinder(langConfig, "", "map", false, false)
-		findResult, err := finder.FindFunctions(job.Path)
+		findResult, err := findFunctionsOf(finder, job.Path, fileLines)
 		if err != nil {
 			result.Error = err
 			return result
@@ -256,32 +276,93 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 		if langConfig.HasStructSupport() {
 			factory := NewStructFinderFactory()
 			structFinder := factory.CreateStructFinder(langConfig, "", true, false)
-			structResult, err := structFinder.FindStructures(job.Path)
+			structResult, err := findStructuresOf(structFinder, job.Path, fileLines)
 			if err == nil {
-				// Dedup: only add types not already in Classes (from class_pattern)
-				seen := make(map[string]bool, len(result.Classes))
-				for _, c := range result.Classes {
-					seen[c.Name+":"+strconv.Itoa(c.Start)] = true
+				// Dedup: a type already in Classes (from class_pattern) keeps its entry and takes the struct finder's kind
+				index := make(map[string]int, len(result.Classes))
+				for i, c := range result.Classes {
+					index[c.Name+":"+strconv.Itoa(c.Start)] = i
 				}
 				for _, typ := range structResult.Types {
 					key := typ.Name + ":" + strconv.Itoa(typ.Start)
-					if !seen[key] {
-						result.Classes = append(result.Classes, ClassBounds{
-							Name:  typ.Name,
-							Start: typ.Start,
-							End:   typ.End,
-						})
+					if i, ok := index[key]; ok {
+						result.Classes[i].Kind = typ.Kind
+						continue
 					}
+					result.Classes = append(result.Classes, ClassBounds{
+						Name:  typ.Name,
+						Start: typ.Start,
+						End:   typ.End,
+						Kind:  typ.Kind,
+					})
 				}
 			}
 		}
 	}
 
+	// Go type aliases are names for existing types: they are listed apart from the types.
+	if job.LangKey == "go" && dp.workMode != "functions" {
+		lines, err := fileLines()
+		if err != nil {
+			result.Error = err
+			return result
+		}
+		// Cleaned first: a line inside a string or a comment is not a declaration.
+		cleaned := NewSanitizer(langConfig, false).CleanLines(lines)
+		result.Aliases = findGoAliases(cleaned)
+	}
+
 	return result
+}
+
+// lazyLines returns a reader of the file's lines: the file is read on the first call, and the result is kept.
+func lazyLines(path string) func() ([]string, error) {
+	var lines []string
+	var err error
+	loaded := false
+	return func() ([]string, error) {
+		if !loaded {
+			lines, err = readFileLines(path)
+			loaded = true
+		}
+		return lines, err
+	}
+}
+
+// linesFinder is a finder that can run on lines the caller has already read.
+type linesFinder interface {
+	FindFunctionsInLines(lines []string, startLine int, filename string) (*FindResult, error)
+}
+
+// findFunctionsOf runs a function finder on a file. A finder that takes lines gets the shared lines; the others
+// (Python) read the file themselves, as before.
+func findFunctionsOf(finder LanguageFinder, path string, fileLines func() ([]string, error)) (*FindResult, error) {
+	lf, ok := finder.(linesFinder)
+	if !ok {
+		return finder.FindFunctions(path)
+	}
+	lines, err := fileLines()
+	if err != nil {
+		return nil, err
+	}
+	return lf.FindFunctionsInLines(lines, 1, path)
+}
+
+// findStructuresOf runs a struct finder on the shared lines of a file.
+func findStructuresOf(sf StructFinderInterface, path string, fileLines func() ([]string, error)) (*StructFindResult, error) {
+	lines, err := fileLines()
+	if err != nil {
+		return nil, err
+	}
+	return sf.FindStructuresInLines(lines, 1, path)
 }
 
 // AggregateDirResults aggregates results from multiple files
 func AggregateDirResults(results []DirResult, jsonOut, treeMode, treeFull bool) string {
+	// Files are reported in path order: workers finish in any order, and the output must not depend on that.
+	results = append([]DirResult(nil), results...)
+	sort.SliceStable(results, func(i, j int) bool { return results[i].Path < results[j].Path })
+
 	if jsonOut {
 		return formatDirResultsJSON(results)
 	}
@@ -300,10 +381,18 @@ type jsonSymbol struct {
 	Line int    `json:"line"`
 }
 
+// jsonAlias is a Go type alias: a name, the line it is declared on, and the type it names.
+type jsonAlias struct {
+	Name   string `json:"name"`
+	Line   int    `json:"line"`
+	Target string `json:"target"`
+}
+
 type jsonFile struct {
 	Path      string       `json:"path"`
 	Functions []jsonSymbol `json:"functions"`
 	Classes   []jsonSymbol `json:"classes"`
+	Aliases   []jsonAlias  `json:"aliases,omitempty"`
 }
 
 type jsonDirResults struct {
@@ -316,7 +405,7 @@ type jsonDirResults struct {
 func formatDirResultsJSON(results []DirResult) string {
 	out := jsonDirResults{Files: []jsonFile{}}
 	for _, r := range results {
-		if len(r.Functions) == 0 && len(r.Classes) == 0 {
+		if len(r.Functions) == 0 && len(r.Classes) == 0 && len(r.Aliases) == 0 {
 			continue
 		}
 		jf := jsonFile{
@@ -326,6 +415,9 @@ func formatDirResultsJSON(results []DirResult) string {
 		}
 		for _, fn := range r.Functions {
 			jf.Functions = append(jf.Functions, jsonSymbol{Name: fn.Name, Line: fn.Start})
+		}
+		for _, a := range r.Aliases {
+			jf.Aliases = append(jf.Aliases, jsonAlias{Name: a.Name, Line: a.Start, Target: a.Target})
 		}
 		for _, c := range r.Classes {
 			jf.Classes = append(jf.Classes, jsonSymbol{Name: c.Name, Line: c.Start})
@@ -425,10 +517,15 @@ func buildTreeOutput(node *DirTreeNode, prefix string, isLast bool) string {
 		}
 	}
 
-	// Process children
-	children := make([]*DirTreeNode, 0, len(node.Children))
-	for _, child := range node.Children {
-		children = append(children, child)
+	// Process children in name order: a map's iteration order is random, and the tree must not change between runs.
+	names := make([]string, 0, len(node.Children))
+	for name := range node.Children {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	children := make([]*DirTreeNode, 0, len(names))
+	for _, name := range names {
+		children = append(children, node.Children[name])
 	}
 
 	for i, child := range children {

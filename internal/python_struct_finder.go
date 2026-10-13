@@ -3,23 +3,21 @@
 package internal
 
 import (
-	"bufio"
-	"fmt"
-	"os"
 	"regexp"
 	"strings"
 )
 
 // PythonStructFinder finds data types in Python source code
 type PythonStructFinder struct {
-	config      LanguageConfig
+	config      *LanguageConfig
+	sanitizer   *Sanitizer
 	typeNames   map[string]bool
 	mapMode     bool
 	extractMode bool
 }
 
 // NewPythonStructFinder creates a new Python struct finder
-func NewPythonStructFinder(config LanguageConfig, typeNamesStr string, mapMode, extractMode bool) *PythonStructFinder {
+func NewPythonStructFinder(config *LanguageConfig, typeNamesStr string, mapMode, extractMode bool) *PythonStructFinder {
 	nameMap := make(map[string]bool)
 	for _, name := range ParseFuncNames(typeNamesStr) {
 		nameMap[name] = true
@@ -27,6 +25,7 @@ func NewPythonStructFinder(config LanguageConfig, typeNamesStr string, mapMode, 
 
 	return &PythonStructFinder{
 		config:      config,
+		sanitizer:   NewSanitizer(config, false),
 		typeNames:   nameMap,
 		mapMode:     mapMode,
 		extractMode: extractMode,
@@ -35,21 +34,10 @@ func NewPythonStructFinder(config LanguageConfig, typeNamesStr string, mapMode, 
 
 // FindStructures finds all types in Python file
 func (f *PythonStructFinder) FindStructures(filename string) (*StructFindResult, error) {
-	file, err := os.Open(filename)
+	lines, err := readFileLines(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, err
 	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
 	return f.FindStructuresInLines(lines, 1, filename)
 }
 
@@ -62,13 +50,16 @@ func (f *PythonStructFinder) FindStructuresInLines(lines []string, startLine int
 		Types:    []TypeBounds{},
 	}
 
+	// One pass gives the cleaned text and the indentation of every line; the finders below read only these facts.
+	facts := f.sanitizer.CleanLinesFacts(lines)
+
 	// Find all class/type definitions
-	types := f.findAllTypes(lines, lineOffset)
+	types := f.findAllTypes(facts, lineOffset)
 
 	// For each type, find its fields
 	for i := range types {
 		typeBounds := &types[i]
-		fields := f.findFieldsForType(lines, typeBounds, lineOffset)
+		fields := f.findFieldsForType(facts, typeBounds, lineOffset)
 		typeBounds.Fields = fields
 		result.Types = append(result.Types, *typeBounds)
 	}
@@ -84,8 +75,11 @@ var (
 	// identifiers, dots and brackets.
 	classPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*(\(\s*([\w,\s\.\[\]='"]*)\s*\))?\s*:`)
 
-	// Dataclass: @dataclass\nclass Name:
-	dataclassPattern = regexp.MustCompile(`^\s*@dataclass\s*\nclass\s+(\w+)\s*(\(\s*([\w,\s\.\[\]='"]*)\s*\))?\s*:`)
+	// Dataclass decorator: @dataclass, @dataclass(...), @dataclasses.dataclass
+	dataclassDecoratorPattern = regexp.MustCompile(`^@(dataclasses\.)?dataclass(\(.*\))?$`)
+
+	// attrs decorator: @attr.s, @attr.s(...)
+	attrsDecoratorPattern = regexp.MustCompile(`^@attr\.s(\(.*\))?$`)
 
 	// NamedTuple: class Name(NamedTuple):
 	namedTuplePattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*\(\s*NamedTuple\s*\)\s*:`)
@@ -96,70 +90,63 @@ var (
 	// Enum: class Name(Enum):
 	enumPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*\(\s*Enum\s*\)\s*:`)
 
-	// attrs: @attr.s\nclass Name:
-	attrsPattern = regexp.MustCompile(`^\s*@attr\.s\s*\nclass\s+(\w+)\s*(\(\s*([\w,\s\.\[\]='"]*)\s*\))?\s*:`)
-
 	// ABC: class Name(ABC):
 	abcPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*\(\s*ABC\s*\)\s*:`)
 
 	// Protocol: class Name(Protocol):
 	protocolPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*\(\s*Protocol\s*\)\s*:`)
+
+	// Field patterns: name: type, name: type = value, name = value
+	pythonFieldPattern = regexp.MustCompile(`^\s*(\w+)\s*:\s*([\w\[\],\s\.\*]*)\s*(=|$)`)
 )
 
-// findAllTypes finds all type definitions in Python file
-func (f *PythonStructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds {
+// pythonCodeLine reports whether a line is code: it starts outside a string and holds code text. A blank line, a comment,
+// and a line of a docstring are not code.
+func pythonCodeLine(fact LineFacts) bool {
+	return fact.StartState == StateNormal && fact.CodeText
+}
+
+// findAllTypes finds all type definitions in Python file. Headers are matched on the cleaned text, so a class header
+// written in a docstring or a comment is not a class. A decorator on the line above a class names its kind.
+func (f *PythonStructFinder) findAllTypes(facts []LineFacts, lineOffset int) []TypeBounds {
 	var types []TypeBounds
 
-	for lineNum, line := range lines {
-		trimmed := strings.TrimSpace(line)
+	// Kind named by the decorators above the next class header. A code line that is neither a decorator nor a class
+	// header clears it, so a decorator above a def does not reach a class after the def.
+	decoratedKind := ""
 
-		// Check for decorators before class
+	for lineNum := range facts {
+		if !pythonCodeLine(facts[lineNum]) {
+			continue
+		}
+		trimmed := strings.TrimSpace(facts[lineNum].Cleaned)
+
+		// A decorator names the kind of the class below it; other decorators in between keep the name
 		if strings.HasPrefix(trimmed, "@") {
-			// Check if next line is a dataclass or attrs class
-			if lineNum+1 < len(lines) {
-				nextLine := strings.TrimSpace(lines[lineNum+1])
-
-				// Dataclass
-				if matches := dataclassPattern.FindStringSubmatch(nextLine); matches != nil {
-					typeName := matches[1]
-					if f.mapMode || f.typeNames[typeName] {
-						endLine := f.findTypeEnd(lines, lineNum+1, lineOffset)
-						types = append(types, TypeBounds{
-							Name:   typeName,
-							Kind:   "dataclass",
-							Start:  lineNum + 1 + 1 + lineOffset,
-							End:    endLine,
-							Fields: []FieldBounds{},
-						})
-					}
-					continue
-				}
-
-				// attrs
-				if matches := attrsPattern.FindStringSubmatch(nextLine); matches != nil {
-					typeName := matches[1]
-					if f.mapMode || f.typeNames[typeName] {
-						endLine := f.findTypeEnd(lines, lineNum+1, lineOffset)
-						types = append(types, TypeBounds{
-							Name:   typeName,
-							Kind:   "attrs",
-							Start:  lineNum + 1 + 1 + lineOffset,
-							End:    endLine,
-							Fields: []FieldBounds{},
-						})
-					}
-					continue
-				}
+			switch {
+			case dataclassDecoratorPattern.MatchString(trimmed):
+				decoratedKind = "dataclass"
+			case attrsDecoratorPattern.MatchString(trimmed):
+				decoratedKind = "attrs"
 			}
+			continue
 		}
 
-		// Check for standard class definitions
-		if matches := classPattern.FindStringSubmatch(trimmed); matches != nil {
-			typeName := matches[1]
-			bases := matches[3] // Base classes if any
+		headerKind := decoratedKind
+		decoratedKind = ""
 
-			// Determine type kind from bases
-			kind := "class"
+		// Check for class definitions
+		matches := classPattern.FindStringSubmatch(trimmed)
+		if matches == nil {
+			continue
+		}
+		typeName := matches[1]
+		bases := matches[3] // Base classes if any
+
+		// A dataclass or attrs decorator decides the kind; without one, the base classes do
+		kind := headerKind
+		if kind == "" {
+			kind = "class"
 			switch {
 			case strings.Contains(bases, "NamedTuple"):
 				kind = "NamedTuple"
@@ -172,55 +159,51 @@ func (f *PythonStructFinder) findAllTypes(lines []string, lineOffset int) []Type
 			case strings.Contains(bases, "Protocol"):
 				kind = "Protocol"
 			}
+		}
 
-			if f.mapMode || f.typeNames[typeName] {
-				endLine := f.findTypeEnd(lines, lineNum, lineOffset)
-				types = append(types, TypeBounds{
-					Name:   typeName,
-					Kind:   kind,
-					Start:  lineNum + 1 + lineOffset,
-					End:    endLine,
-					Fields: []FieldBounds{},
-				})
-			}
+		if f.mapMode || f.typeNames[typeName] {
+			endLine := f.findTypeEnd(facts, lineNum, lineOffset)
+			types = append(types, TypeBounds{
+				Name:   typeName,
+				Kind:   kind,
+				Start:  lineNum + 1 + lineOffset,
+				End:    endLine,
+				Fields: []FieldBounds{},
+			})
 		}
 	}
 
 	return types
 }
 
-// findTypeEnd finds the end line of a type definition using indentation
-func (f *PythonStructFinder) findTypeEnd(lines []string, startLine int, lineOffset int) int {
-	if startLine >= len(lines) {
+// findTypeEnd finds the end line of a type definition using indentation. Only code lines end a block: the text of a
+// docstring does not, whatever its indentation.
+func (f *PythonStructFinder) findTypeEnd(facts []LineFacts, startLine int, lineOffset int) int {
+	if startLine >= len(facts) {
 		return startLine + 1 + lineOffset
 	}
 
 	// Get the indentation level of the class definition
-	startIndent := GetIndentLevel(lines[startLine])
+	startIndent := facts[startLine].Indent
 
-	// Find the first line with indentation <= startIndent
-	for i := startLine + 1; i < len(lines); i++ {
-		trimmed := strings.TrimSpace(lines[i])
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue // Skip empty and comment lines
+	// Find the first code line with indentation <= startIndent
+	for i := startLine + 1; i < len(facts); i++ {
+		if !pythonCodeLine(facts[i]) {
+			continue // Skip empty and comment lines, and lines of a docstring
 		}
 
-		currentIndent := GetIndentLevel(lines[i])
-		if currentIndent <= startIndent {
+		if facts[i].Indent <= startIndent {
 			return i + lineOffset
 		}
 	}
 
-	return len(lines) + lineOffset
+	return len(facts) + lineOffset
 }
 
-// findFieldsForType finds all fields/members in a Python type
-func (f *PythonStructFinder) findFieldsForType(lines []string, typeBounds *TypeBounds, lineOffset int) []FieldBounds {
+// findFieldsForType finds all fields/members in a Python type, read from the cleaned lines: a line of a docstring is
+// not a field.
+func (f *PythonStructFinder) findFieldsForType(facts []LineFacts, typeBounds *TypeBounds, lineOffset int) []FieldBounds {
 	var fields []FieldBounds
-
-	// Field patterns for Python
-	// Field patterns: name: type, name: type = value, name = value
-	fieldPattern := regexp.MustCompile(`^\s*(\w+)\s*:\s*([\w\[\],\s\.\*]*)\s*(=|$)`)
 
 	// For dataclass: fields are often defined with type hints
 	// For regular class: look for instance variables in __init__ or class body
@@ -231,16 +214,18 @@ func (f *PythonStructFinder) findFieldsForType(lines []string, typeBounds *TypeB
 	if startIdx < 0 {
 		startIdx = 0
 	}
-	if endIdx > len(lines) {
-		endIdx = len(lines)
+	if endIdx > len(facts) {
+		endIdx = len(facts)
 	}
 
 	for lineNum := startIdx; lineNum < endIdx; lineNum++ {
-		line := lines[lineNum]
-		trimmed := strings.TrimSpace(line)
+		if !pythonCodeLine(facts[lineNum]) {
+			continue // Skip comments, blank lines, and lines of a docstring
+		}
+		trimmed := strings.TrimSpace(facts[lineNum].Cleaned)
 
-		// Skip comments and decorators
-		if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "@") {
+		// Skip decorators
+		if strings.HasPrefix(trimmed, "@") {
 			continue
 		}
 
@@ -255,7 +240,7 @@ func (f *PythonStructFinder) findFieldsForType(lines []string, typeBounds *TypeB
 		}
 
 		// Look for field declarations
-		if matches := fieldPattern.FindStringSubmatch(trimmed); matches != nil {
+		if matches := pythonFieldPattern.FindStringSubmatch(trimmed); matches != nil {
 			fieldName := matches[1]
 			fieldType := strings.TrimSpace(matches[2])
 

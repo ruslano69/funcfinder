@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -182,11 +181,11 @@ func classifyDep(dep, langKey string, localPkgs map[string]bool) string {
 func collectFileImports(filename string, config *internal.LanguageConfig, excludeREs []*regexp.Regexp) []string {
 	var imports []string
 
-	file, err := os.Open(filename)
+	lines, err := internal.ReadLines(filename)
 	if err != nil {
+		internal.WarnError("%s: %v", filename, err)
 		return imports
 	}
-	defer file.Close()
 
 	importRe := config.ImportRegex()
 	if importRe == nil {
@@ -196,11 +195,9 @@ func collectFileImports(filename string, config *internal.LanguageConfig, exclud
 	blockImportRe := regexp.MustCompile(`^\s*"([^"]+)"`)
 	inBlock := false
 
-	scanner := bufio.NewScanner(file)
 	isRust := strings.EqualFold(config.Name, "rust")
 	pendingUse := "" // a Rust use item still waiting for its semicolon
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range lines {
 		if isRust {
 			// A use item can span lines (use kanzi::{ ... };): join them up to the
 			// semicolon, so the item is read as a single line would be.

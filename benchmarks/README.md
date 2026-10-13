@@ -20,6 +20,13 @@ funcfinder — being line-based — also reports. An earlier top-level-only vers
 undercounted these and unfairly dented funcfinder's precision; a ruler that
 undercounts is a broken ruler.
 
+A **type alias** (`type A = S`, or a line `A = S` of a `type ( ... )` group) is a
+name for an existing type, not a new one. Both tools list aliases apart from the
+types, in a file's `aliases` list (`name`, `line`, `target`), so one struct with
+several names is counted once. The `classes` list compared by `specsheet.py` holds
+only real types. On the working tree of 2026-10-13 the self-host run gives types
+2376/2376 (recall and precision 100%) and aliases 21/21 against the ruler.
+
 The ruler exists to *measure*, never to become the product. The target is not
 "match the AST 1:1" — past "the agent reaches the right code", extra accuracy
 costs tokens and time, which are the product. The ruler tells us **where** the
@@ -159,6 +166,55 @@ version/hash, preprocessing flags, executable hash and every mismatch/inactive
 candidate. Results describe the selected compiler/configuration; other conditional
 variants need separate runs. On Windows the evaluator adds the GCC binary directory
 to its child process PATH so the compiler subprocesses can load their dependencies.
+
+### C++ functions and declarations
+
+`cpp_tree_eval.py` scans tracked `.cc`, `.cpp`, `.cxx`, `.hpp` and `.h` files with
+libclang, the front end the compilers use, so macros such as `FMT_CONSTEXPR` are
+expanded as the compiler sees them. Truth includes constructors, destructors and
+bodyless declarations; a declaration's end is the `;` after its trailing return type.
+Active lines come from `g++ -E` with the same standard, so candidates inside disabled
+`#if` branches are recorded separately. Files clang cannot parse are explicit exclusions.
+
+```bash
+python -m pip install libclang
+python benchmarks/cpp_tree_eval.py --root <fmt-checkout> --label fmt \
+  --binary ./funcfinder.exe --gxx <g++-executable> \
+  --include-dir <fmt-checkout>/include \
+  --system-include <gcc-lib>/include/c++ --system-include <gcc-lib>/include \
+  --system-include <gcc-lib>/include-fixed --system-include <sysroot>/include \
+  --pathspec include --pathspec src --output build/fmt.cpp-eval.json
+```
+
+The recorded fmt profile uses `b4ffa39b9994c961418406f47358791d89a5aa48`, C++17,
+the `x86_64-w64-mingw32` target, MinGW-Builds GCC 15.2.0 and libclang 18.1.1. The
+evaluator measures `include/` and `src/` only: the tests need a vendored gtest that
+is not on the include path. `src/fmt.cc` (a C++20 module unit) and `src/os.cc` (an
+x86 builtin this target does not provide) are excluded, so 18 files are scored.
+
+Output retains the project and finder SHAs, dirty states, libclang and compiler
+versions and hashes, the standard, target, system include directories and every
+mismatch. The remaining misses are conversion operators (named by their canonical
+type, which funcfinder does not reproduce), macro-generated declarations and
+template specializations on their own line; the remaining false positives are
+explicit instantiations (`extern template`, `template FMT_API`).
+
+### TypeScript functions and declarations
+
+`ts_tree_eval.py` scans tracked `.ts` and `.tsx` files with tree-sitter-typescript. Truth
+covers function declarations and signatures (overloads, `declare function`), class and
+interface methods (bodyless ones included), constructors, and functions bound to a variable
+(`const f = () => ...`). Anonymous callbacks and computed method names are not truth; they are
+counted apart. A string-named method keeps its quotes, as the finder names it.
+
+```bash
+python -m pip install tree-sitter-typescript
+python benchmarks/ts_tree_eval.py --root <zod-checkout> --label zod \
+  --binary ./funcfinder.exe --output build/zod.ts-eval.json
+```
+
+The recorded zod profile uses `b500a2ee95134f81d74da7911d7378dd2853d042` and the
+hr_gemini profile `5b69a1eb`; both are measured on 2026-10-13 with tree-sitter-typescript 0.23.2.
 
 ### Go symbol maps
 

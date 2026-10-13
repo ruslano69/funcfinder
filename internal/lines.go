@@ -3,10 +3,57 @@ package internal
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 )
+
+// readFileLines reads every line of a file. Its errors name the step that failed; the finders
+// that open a file themselves report the same messages.
+func readFileLines(filename string) ([]string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	var lines []string
+	err = forEachLine(file, func(line string) bool {
+		lines = append(lines, line)
+		return true
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+	return lines, nil
+}
+
+// ReadLines reads every line of a file, with no line-length limit. Its errors name the step that failed. The CLI
+// tools read files through it: a scanner with the default limit stops at a long line and drops the rest silently.
+func ReadLines(filename string) ([]string, error) {
+	return readFileLines(filename)
+}
+
+// forEachLine calls fn with each line of r, in order, until fn returns false. The line rules are bufio.Scanner's,
+// without its 64 KB line limit (minified bundles have longer lines): a CR before the LF is dropped, and a last line
+// without a newline is a line; a file that ends with a newline has no extra empty line.
+func forEachLine(r io.Reader, fn func(line string) bool) error {
+	reader := bufio.NewReader(r)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if err == io.EOF && line == "" {
+			return nil
+		}
+		line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+		if !fn(line) || err == io.EOF {
+			return nil
+		}
+	}
+}
 
 // LineRange represents a range of lines to extract
 type LineRange struct {
@@ -82,25 +129,24 @@ func ReadFileLines(filename string, lineRange LineRange) ([]string, int, error) 
 	defer file.Close()
 
 	var lines []string
-	scanner := bufio.NewScanner(file)
 	lineNum := 1
 	actualEnd := lineRange.End
 
-	for scanner.Scan() {
+	err = forEachLine(file, func(line string) bool {
 		if lineNum >= lineRange.Start {
 			if lineRange.End == -1 || lineNum <= lineRange.End {
-				lines = append(lines, scanner.Text())
+				lines = append(lines, line)
 			}
 		}
 
 		if lineRange.End != -1 && lineNum > lineRange.End {
-			break
+			return false
 		}
 
 		lineNum++
-	}
-
-	if err := scanner.Err(); err != nil {
+		return true
+	})
+	if err != nil {
 		return nil, 0, err
 	}
 

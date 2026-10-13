@@ -1,7 +1,9 @@
 package internal
 
 import (
+	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 type ParserState int
@@ -80,6 +82,10 @@ type Sanitizer struct {
 	// stringDelim is the delimiter that opened the current StateString: only
 	// the same delimiter closes it ("it's" is one string, not two).
 	stringDelim string
+	// runeBuf and resultBuf are reused from line to line by cleanLineSlow. A Sanitizer belongs to one finder
+	// at a time (it already keeps stringDelim), so the buffers are not shared between goroutines.
+	runeBuf   []rune
+	resultBuf []rune
 }
 
 func NewSanitizer(config *LanguageConfig, useRaw bool) *Sanitizer {
@@ -343,6 +349,29 @@ func (s *Sanitizer) handleRawString(runes []rune, result []rune, idx int) (int, 
 			return end, StateRawString
 		}
 	}
+	// A raw string with its own closing delimiter (r", r#", @") closes only at that delimiter.
+	if s.stringDelim != "" {
+		if s.stringDelim == `@"` && runes[idx] == '"' {
+			if idx+1 < len(runes) && runes[idx+1] == '"' {
+				// a doubled quote in a verbatim string is one quote, and the string goes on
+				if s.useRaw {
+					result[idx], result[idx+1] = runes[idx], runes[idx+1]
+				}
+				return idx + 2, StateRawString
+			}
+			s.stringDelim = ""
+			return idx + 1, StateNormal
+		}
+		if s.stringDelim != `@"` && s.matchesAt(runes, idx, s.stringDelim) {
+			end := idx + runeLen(s.stringDelim)
+			s.stringDelim = ""
+			return end, StateNormal
+		}
+		if s.useRaw {
+			result[idx] = runes[idx]
+		}
+		return idx + 1, StateRawString
+	}
 	if n := s.rawDelimiterLen(runes, idx); n > 0 {
 		// A multi-quote delimiter (Kotlin """) closes at the end of its run: a longer run
 		// keeps its extra quotes as content, so the closing quotes are consumed whole.
@@ -379,18 +408,21 @@ func (s *Sanitizer) handleMultiLineString(line string, runes []rune, result []ru
 	foundDelim := ""
 	newState := StateMultiLineString
 
-	// Special case: C# verbatim strings end with " not @"
-	// Check if we started with @" by looking for " as closing
-	if pos := indexRunesFrom(runes, idx, `"`); pos >= 0 {
-		// Check if it's unescaped (not "")
-		if pos+1 >= len(runes) || runes[pos+1] != '"' {
-			foundEnd = pos
-			foundDelim = `"`
+	if s.stringDelim == `@"` {
+		// C# verbatim string: it ends at a " that is not doubled (`""` is an escaped quote).
+		if pos := indexRunesFrom(runes, idx, `"`); pos >= 0 {
+			if pos+1 >= len(runes) || runes[pos+1] != '"' {
+				foundEnd = pos
+				foundDelim = `"`
+			}
 		}
-	}
-
-	// Standard docstring markers
-	if foundEnd < 0 {
+	} else if s.stringDelim != "" {
+		// A docstring ends only with the marker that opened it: a single quote inside `"""` is text.
+		if pos := indexRunesFrom(runes, idx, s.stringDelim); pos >= 0 {
+			foundEnd = pos
+			foundDelim = s.stringDelim
+		}
+	} else {
 		for _, marker := range s.config.DocStringMarkers {
 			if pos := indexRunesFrom(runes, idx, marker); pos >= 0 {
 				if foundEnd == -1 || pos < foundEnd {
@@ -404,10 +436,11 @@ func (s *Sanitizer) handleMultiLineString(line string, runes []rune, result []ru
 	if foundEnd >= 0 {
 		end := foundEnd + runeLen(foundDelim)
 		fillWithSpaces(result, idx, end-idx)
-		idx = end
-		newState = StateNormal
+		s.stringDelim = ""
+		// The rest of the line is code again: the caller goes on from the closing delimiter.
+		return end, StateNormal
 	}
-	// Always replace rest of line with spaces (even if closing delimiter found)
+	// Still open: the rest of the line is text.
 	fillToEndWithSpaces(result, idx)
 	return len(runes), newState
 }
@@ -433,17 +466,70 @@ func (s *Sanitizer) tryHandleLineComment(runes []rune, idx int) (int, bool) {
 	return idx, false
 }
 
-func (s *Sanitizer) tryHandleRegularStrings(runes []rune, idx int) (ParserState, bool) {
+// rawOpenerRe matches a raw-string opener of the forms r", r', r#", @" and a backtick.
+var rawOpenerRe = regexp.MustCompile("^([r@]?)(#*)([\"'`])$")
+
+// rawClosing returns the delimiter that closes a raw string opened with the entry of raw_string_chars: `"` for r",
+// `"#` for r#", and `@"` for a C# verbatim string (its doubled quote is one quote). A backtick closes at its own run,
+// and so do the forms that match no rule here (`"""`): those return "" and keep the run-based rule.
+func rawClosing(opener string) string {
+	m := rawOpenerRe.FindStringSubmatch(opener)
+	if m == nil {
+		return ""
+	}
+	if m[1] == "@" {
+		return `@"`
+	}
+	return m[3] + m[2]
+}
+
+// rawOpenerAt returns the longest raw_string_chars entry that matches at pos, or "".
+func (s *Sanitizer) rawOpenerAt(runes []rune, pos int) string {
+	best := ""
+	for _, char := range s.config.RawStringChars {
+		if s.matchesAt(runes, pos, char) && len(char) > len(best) {
+			best = char
+		}
+	}
+	return best
+}
+
+// tripleQuoteAt reports whether a raw opener with a prefix (r", r') is the start of a triple-quoted string: its
+// quote is followed by two more of the same quote.
+func tripleQuoteAt(runes []rune, idx int, opener string) bool {
+	if len(opener) < 2 || opener[0] == opener[len(opener)-1] {
+		return false
+	}
+	q := rune(opener[len(opener)-1])
+	if q != '"' && q != '\'' {
+		return false
+	}
+	n := idx + runeLen(opener)
+	return n+1 < len(runes) && runes[n] == q && runes[n+1] == q
+}
+
+// tryHandleRegularStrings opens a string at idx. It returns how many runes the opener takes: a raw opener such as r"
+// is read whole, so that its quote is not taken for the closing delimiter.
+func (s *Sanitizer) tryHandleRegularStrings(runes []rune, idx int) (ParserState, int, bool) {
 	if !s.useRaw && s.matchesRawStringDelimiter(runes, idx) {
-		return StateRawString, true
+		opener := s.rawOpenerAt(runes, idx)
+		if tripleQuoteAt(runes, idx, opener) {
+			// r""" is a triple-quoted string with a prefix: the prefix is code, and the quotes are a docstring's.
+			return StateNormal, 1, false
+		}
+		s.stringDelim = rawClosing(opener)
+		if s.stringDelim == "" {
+			return StateRawString, 1, true
+		}
+		return StateRawString, runeLen(opener), true
 	}
 	for _, char := range s.config.StringChars {
 		if s.matchesAt(runes, idx, char) {
 			s.stringDelim = char
-			return StateString, true
+			return StateString, 1, true
 		}
 	}
-	return StateNormal, false
+	return StateNormal, 1, false
 }
 
 func (s *Sanitizer) tryHandleMultiLineString(line string, runes []rune, result []rune, idx int) (int, ParserState, bool) {
@@ -502,6 +588,7 @@ func (s *Sanitizer) tryHandleMultiLineString(line string, runes []rune, result [
 	} else {
 		// No closing - fill rest of line and transition to StateMultiLineString
 		fillToEndWithSpaces(result, idx)
+		s.stringDelim = matchedMarker // the marker that closes this string
 		return len(runes), StateMultiLineString, true
 	}
 }
@@ -553,15 +640,61 @@ func (s *Sanitizer) tryHandleBlockComment(line string, runes []rune, result []ru
 	}
 }
 
+// noLiteralStarts reports whether no string, character, comment, or percent or regex literal can start anywhere on
+// the line. Every handler in CleanLine fires only where one of the configured markers occurs, so when none occurs,
+// a line in the normal state cleans to itself. An empty marker matches everywhere: it disables the check.
+func (s *Sanitizer) noLiteralStarts(line string) bool {
+	c := s.config
+	for _, list := range [][]string{c.CharDelimiters, c.StringChars, c.RawStringChars, c.DocStringMarkers} {
+		for _, marker := range list {
+			if marker == "" || strings.Contains(line, marker) {
+				return false
+			}
+		}
+	}
+	for _, marker := range []string{c.LineComment, c.BlockCommentStart} {
+		if marker != "" && strings.Contains(line, marker) {
+			return false
+		}
+	}
+	if c.PercentLiterals && strings.Contains(line, "%") {
+		return false
+	}
+	if c.RegexLiterals && strings.Contains(line, "/") {
+		return false
+	}
+	return true
+}
+
 func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserState) {
 	if len(line) == 0 {
 		return line, state
 	}
 
+	// Fast path: nothing in a valid line in the normal state can start a literal or a comment, so the line is its own
+	// cleaned form and the rune conversion below is not needed.
+	if state == StateNormal && utf8.ValidString(line) && s.noLiteralStarts(line) {
+		return line, state
+	}
+
+	return s.cleanLineSlow(line, state)
+}
+
+// cleanLineSlow is the rune-by-rune cleaner that CleanLine's fast path must agree with.
+func (s *Sanitizer) cleanLineSlow(line string, state ParserState) (string, ParserState) {
 	// Size the buffer by rune count, not byte count: a byte-sized buffer would
 	// leave (bytes-runes) trailing spaces on lines containing multibyte runes.
-	runes := []rune(line)
-	result := make([]rune, len(runes))
+	// The rune buffers are the sanitizer's own, reused from line to line. Ranging over the string yields the same
+	// runes as []rune(line), including U+FFFD for each invalid byte.
+	runes := s.runeBuf[:0]
+	for _, r := range line {
+		runes = append(runes, r)
+	}
+	s.runeBuf = runes
+	if cap(s.resultBuf) < len(runes) {
+		s.resultBuf = make([]rune, len(runes))
+	}
+	result := s.resultBuf[:len(runes)]
 	for i := range result {
 		result[i] = ' '
 	}
@@ -625,8 +758,10 @@ func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserSta
 			}
 
 			// 5. Regular strings and raw strings
-			if state, handled = s.tryHandleRegularStrings(runes, idx); handled {
-				// State changed, continue to next iteration
+			var consumed int
+			if state, consumed, handled = s.tryHandleRegularStrings(runes, idx); handled {
+				// the opener is read whole: its rest is not a closing delimiter
+				idx += consumed - 1
 			}
 
 			// 6. Copy character if still in StateNormal
@@ -653,6 +788,69 @@ func (s *Sanitizer) CleanLines(lines []string) []string {
 	}
 
 	return result
+}
+
+// LineFacts is what the sanitizer gives a finder about one source line, computed in one pass over the file.
+// Decisions read these fields. The raw line is kept for the output, and for the few facts the sanitizer cannot
+// give (heredoc terminators, quoted method names).
+type LineFacts struct {
+	Cleaned    string      // the line with comments and literals blanked
+	StartState ParserState // the state the line starts in
+	Indent     int         // indentation of the raw line (GetIndentLevel)
+	CodeText   bool        // the raw line holds text outside comments; a literal-only line has it with a blank Cleaned
+}
+
+// CleanLinesFacts cleans a file line by line and returns the facts of each line.
+func (s *Sanitizer) CleanLinesFacts(lines []string) []LineFacts {
+	facts := make([]LineFacts, len(lines))
+	state := StateNormal
+	for i, line := range lines {
+		facts[i], state = s.lineFacts(line, state)
+	}
+	return facts
+}
+
+// lineFacts returns the facts of one line that starts in state, and the state the next line starts in. A caller that
+// skips some lines (a heredoc body is not cleaned) passes on the state of the last line it cleaned.
+func (s *Sanitizer) lineFacts(line string, state ParserState) (LineFacts, ParserState) {
+	fact := LineFacts{
+		StartState: state,
+		Indent:     GetIndentLevel(line),
+		CodeText:   hasCodeText(line),
+	}
+	// A line that starts outside any literal and opens with the language's line comment (`# note` in Python and
+	// Ruby) is a comment: hasCodeText knows only the C-family markers. Inside a literal the same text is its content.
+	if state == StateNormal && s.config.LineComment != "" && strings.HasPrefix(strings.TrimSpace(line), s.config.LineComment) {
+		fact.CodeText = false
+	}
+	var next ParserState
+	fact.Cleaned, next = s.CleanLine(line, state)
+	return fact, next
+}
+
+// lexerFacts returns the facts of lines that a language lexer has cleaned already (D, Scala): the lexer's text is the
+// cleaned text, and the sanitizer does not run on it again. The raw lines give the indentation. The lexer's text holds
+// no literal or comment start, so every line starts in the normal state.
+func lexerFacts(cleaned, raw []string) []LineFacts {
+	facts := make([]LineFacts, len(cleaned))
+	for i := range cleaned {
+		facts[i] = LineFacts{
+			Cleaned:    cleaned[i],
+			StartState: StateNormal,
+			Indent:     GetIndentLevel(raw[i]),
+			CodeText:   hasCodeText(cleaned[i]),
+		}
+	}
+	return facts
+}
+
+// cleanedTexts returns the cleaned text of each line, for the helpers that look across lines.
+func cleanedTexts(facts []LineFacts) []string {
+	texts := make([]string, len(facts))
+	for i := range facts {
+		texts[i] = facts[i].Cleaned
+	}
+	return texts
 }
 
 func (s *Sanitizer) CleanCode(code string) string {
@@ -710,10 +908,29 @@ const regexPrecededBy = "(,=:[!&|?{};+-*%<>~^"
 // regexKeywords are the words after which a slash starts a regular expression.
 var regexKeywords = map[string]bool{"return": true, "typeof": true, "case": true, "in": true, "of": true, "yield": true, "await": true, "if": true, "elsif": true, "unless": true, "when": true}
 
+// endsJSXAttribute reports whether the last non-blank character before idx ends a JSX attribute value or a
+// tag name: `}` of an expression, a closing quote, `]`, or a name character.
+func endsJSXAttribute(result []rune, idx int) bool {
+	k := idx - 1
+	for k >= 0 && (result[k] == ' ' || result[k] == '\t') {
+		k--
+	}
+	if k < 0 {
+		return false
+	}
+	c := result[k]
+	return c == '}' || c == '"' || c == '\'' || c == '`' || c == ']' || c == '_' || c == '$' ||
+		(c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+}
+
 // regexPositionAllowed reports whether a slash at idx starts a regular expression: the
 // last non-blank character before it is an operator or an opening bracket, or the word
 // before it is one of regexKeywords.
 func regexPositionAllowed(result []rune, idx int) bool {
+	// A slash right after '<' is a closing tag (</h4>) in JSX, not the start of a regular expression.
+	if idx > 0 && result[idx-1] == '<' {
+		return false
+	}
 	k := idx - 1
 	for k >= 0 && (result[k] == ' ' || result[k] == '\t') {
 		k--
@@ -785,6 +1002,11 @@ func (s *Sanitizer) tryHandleRegexLiteral(runes []rune, result []rune, idx int) 
 		return idx, false
 	}
 	if idx+1 < len(runes) && (runes[idx+1] == '/' || runes[idx+1] == '*') {
+		return idx, false
+	}
+	// `/>` ends a self-closing JSX tag (`<input ... />`, `}/>`): the slash is not a regular expression. A regex
+	// may be `/>/` after '(' or ',', so only a slash after a tag's last attribute value or name is exempt.
+	if idx+1 < len(runes) && runes[idx+1] == '>' && endsJSXAttribute(result, idx) {
 		return idx, false
 	}
 	if !regexPositionAllowed(result, idx) {

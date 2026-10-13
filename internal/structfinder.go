@@ -3,9 +3,8 @@
 package internal
 
 import (
-	"bufio"
-	"fmt"
-	"os"
+	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -59,21 +58,10 @@ func NewStructFinder(config *LanguageConfig, typeNamesStr string, mapMode bool) 
 
 // FindStructures finds all types in the file
 func (f *StructFinder) FindStructures(filename string) (*StructFindResult, error) {
-	file, err := os.Open(filename)
+	lines, err := readFileLines(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, err
 	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
 	return f.FindStructuresInLines(lines, 1, filename)
 }
 
@@ -86,13 +74,16 @@ func (f *StructFinder) FindStructuresInLines(lines []string, startLine int, file
 		Types:    []TypeBounds{},
 	}
 
+	// The cleaned lines and the indentation of each line come from one pass over the file (LineFacts).
+	facts := f.sanitizer.CleanLinesFacts(lines)
+
 	// Find all types using new struct patterns
-	types := f.findAllTypes(lines, lineOffset)
+	types := f.findAllTypes(facts, lineOffset)
 
 	// For each type, find its fields
 	for i := range types {
 		typeBounds := &types[i]
-		fields := f.findFieldsForType(lines, typeBounds, lineOffset)
+		fields := f.findFieldsForType(facts, typeBounds, lineOffset)
 		typeBounds.Fields = fields
 		result.Types = append(result.Types, *typeBounds)
 	}
@@ -101,33 +92,31 @@ func (f *StructFinder) FindStructuresInLines(lines []string, startLine int, file
 }
 
 // findAllTypes finds all type definitions in the file
-func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds {
-	state := StateNormal
+func (f *StructFinder) findAllTypes(facts []LineFacts, lineOffset int) []TypeBounds {
 	var types []TypeBounds
 	var currentType *TypeBounds
 	depth := 0
 
 	// Use struct patterns from config if available, otherwise fall back to classRegex
 	structPatterns := f.config.GetStructPatterns()
+	patternKinds := structPatternOrder(structPatterns)
 	hasStructPatterns := len(structPatterns) > 0
 
-	for lineNum, line := range lines {
-		// Clean line from comments and literals
-		cleaned, newState := f.sanitizer.CleanLine(line, state)
-		state = newState
+	for lineNum, fact := range facts {
+		cleaned := fact.Cleaned
 
 		if currentType != nil {
 			// We're inside a type definition - find end based on language type
 			if f.config.BlockEndKeyword != "" {
 				// Ruby-like: find 'end' at same indent level as type start
-				if isRubyBlockEnd(line, f.config.BlockEndKeyword, currentType.StartLineIndent) {
+				if rubyBlockEndAt(cleaned, fact.Indent, f.config.BlockEndKeyword, currentType.StartLineIndent) {
 					currentType.End = lineNum + 1 + lineOffset
 					types = append(types, *currentType)
 					currentType = nil
 				}
 			} else if f.config.IndentBased {
 				// For indent-based languages like Python, use indentation
-				indent := GetIndentLevel(line)
+				indent := fact.Indent
 				if indent <= currentType.StartLineIndent {
 					currentType.End = lineNum + 1 + lineOffset
 					types = append(types, *currentType)
@@ -149,25 +138,20 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 			// Look for new type definition using struct patterns
 			found := false
 
-			if hasStructPatterns {
+			if hasStructPatterns && f.config.MayStartType(cleaned) {
 				// Use new struct patterns for type detection
-				for typeKind, pattern := range structPatterns {
+				for _, typeKind := range patternKinds {
+					pattern := structPatterns[typeKind]
 					matches := pattern.FindStringSubmatch(cleaned)
 					if matches != nil {
 						// Extract type name (last non-empty group)
-						typeName := ""
-						for i := len(matches) - 1; i >= 1; i-- {
-							if matches[i] != "" {
-								typeName = matches[i]
-								break
-							}
-						}
+						typeName := lastNonEmptyGroup(matches)
 
 						if typeName != "" && (f.mapMode || f.typeNames[typeName]) {
 							// Determine opening brace position
 							braceCount := CountBraces(cleaned)
 
-							startIndent := GetIndentLevel(line)
+							startIndent := fact.Indent
 
 							currentType = &TypeBounds{
 								Name:            typeName,
@@ -189,8 +173,8 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 								depth = 1 // Mark as inside
 							} else if typeKind == "named" || typeKind == "type_alias" {
 								// Single-line type definitions (Go `type X string`,
-								// `type X func(...)`, `type X = Y`) complete on their
-								// own line. Close immediately so they don't stay "open"
+								// `type X func(...)`; TypeScript `type X = Y`) complete
+								// on their own line. Close immediately so they don't stay "open"
 								// and swallow following declarations while waiting for
 								// a brace that never comes.
 								currentType.End = lineNum + 1 + lineOffset
@@ -221,7 +205,10 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 			if !found && !hasStructPatterns {
 				// Fall back to classRegex for backward compatibility
 				classRegex := f.config.ClassRegex()
-				matches := classRegex.FindStringSubmatch(cleaned)
+				var matches []string
+				if f.config.MayStartType(cleaned) {
+					matches = classRegex.FindStringSubmatch(cleaned)
+				}
 				if matches != nil {
 					// Extract type name (last non-empty group)
 					typeName := ""
@@ -242,7 +229,7 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 						// Determine opening brace position
 						braceCount := CountBraces(cleaned)
 
-						startIndent := GetIndentLevel(line)
+						startIndent := fact.Indent
 
 						currentType = &TypeBounds{
 							Name:            typeName,
@@ -289,7 +276,7 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 
 	// Handle types that extend to EOF
 	if currentType != nil && currentType.End == 0 {
-		currentType.End = len(lines) + lineOffset
+		currentType.End = len(facts) + lineOffset
 		types = append(types, *currentType)
 	}
 
@@ -297,6 +284,33 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 }
 
 // determineTypeKind determines the type kind from the matched pattern
+// lastNonEmptyGroup returns the last non-empty capture group of a struct pattern's match: the type's name.
+func lastNonEmptyGroup(matches []string) string {
+	for i := len(matches) - 1; i >= 1; i-- {
+		if matches[i] != "" {
+			return matches[i]
+		}
+	}
+	return ""
+}
+
+// structPatternOrder returns the pattern kinds in sorted order. When two patterns match the same line, the first
+// kind in this order names the type, so the kind does not depend on map iteration. The catch-all "named" pattern
+// (Go's `type X Y`) also matches a one-line `type X struct{}`, so it comes last and the specific kinds win.
+func structPatternOrder(patterns map[string]*regexp.Regexp) []string {
+	kinds := make([]string, 0, len(patterns))
+	for kind := range patterns {
+		if kind != "named" {
+			kinds = append(kinds, kind)
+		}
+	}
+	sort.Strings(kinds)
+	if _, ok := patterns["named"]; ok {
+		kinds = append(kinds, "named")
+	}
+	return kinds
+}
+
 func determineTypeKind(pattern string) string {
 	patternLower := strings.ToLower(pattern)
 	if strings.Contains(patternLower, "class") {
@@ -324,7 +338,7 @@ func determineTypeKind(pattern string) string {
 }
 
 // findFieldsForType finds all fields/members in a type definition
-func (f *StructFinder) findFieldsForType(lines []string, typeBounds *TypeBounds, lineOffset int) []FieldBounds {
+func (f *StructFinder) findFieldsForType(facts []LineFacts, typeBounds *TypeBounds, lineOffset int) []FieldBounds {
 	var fields []FieldBounds
 
 	// Get the field pattern from config
@@ -334,14 +348,9 @@ func (f *StructFinder) findFieldsForType(lines []string, typeBounds *TypeBounds,
 		return fields // No pattern configured
 	}
 
-	state := StateNormal
-
-	for lineNum := typeBounds.Start - 1 - lineOffset; lineNum < len(lines) && lineNum < typeBounds.End-1-lineOffset; lineNum++ {
-		line := lines[lineNum]
-
-		// Clean line from comments and strings
-		cleaned, newState := f.sanitizer.CleanLine(line, state)
-		state = newState
+	for lineNum := typeBounds.Start - 1 - lineOffset; lineNum < len(facts) && lineNum < typeBounds.End-1-lineOffset; lineNum++ {
+		fact := facts[lineNum]
+		cleaned := fact.Cleaned
 
 		// Skip empty lines and comments
 		if IsEmptyOrComment(cleaned, f.config.LineComment) {
@@ -350,7 +359,7 @@ func (f *StructFinder) findFieldsForType(lines []string, typeBounds *TypeBounds,
 
 		// Check if we exited the type (for indent-based)
 		if f.config.IndentBased {
-			indent := GetIndentLevel(line)
+			indent := fact.Indent
 			if indent <= typeBounds.StartLineIndent {
 				break
 			}
@@ -395,12 +404,8 @@ func isExcludedWord(name string, excludeWords []string) bool {
 	return false
 }
 
-// isRubyBlockEnd checks if line is a block end keyword at the expected indent level
-// Used for Ruby-like languages where 'end' closes class/module at matching indent
-func isRubyBlockEnd(line string, keyword string, expectedIndent int) bool {
-	trimmed := strings.TrimSpace(line)
-	if trimmed != keyword {
-		return false
-	}
-	return GetIndentLevel(line) == expectedIndent
+// rubyBlockEndAt is isRubyBlockEnd for a cleaned line: the keyword is read from the cleaned text, so a trailing
+// comment after `end` does not hide it, and the indentation is the one LineFacts gives (of the raw line).
+func rubyBlockEndAt(cleaned string, indent int, keyword string, expectedIndent int) bool {
+	return strings.TrimSpace(cleaned) == keyword && indent == expectedIndent
 }

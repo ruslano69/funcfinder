@@ -1,5 +1,154 @@
 # Changelog
 
+## Unreleased
+
+## v1.13.0 - 2026-10-13
+
+Two new listings for working with names: `--names` lists the kind, name and location of every declaration, and
+`--doc` prints the comment above named declarations. Python dataclass and attrs classes are reported with their kind,
+and one-line Go structs are structs. C++ and TypeScript/JavaScript parsing is more complete.
+
+Known limits: `--doc` does not read Python docstrings yet (only the comment above `def`/`class`), and a Go receiver
+method is listed as a `function`, because its receiver is not recorded.
+
+### C++ parsing
+
+- Functions are found in more shapes: signatures with nested parentheses or a
+  body on the header line, signatures that continue on later lines, constructors
+  and destructors (in a class and out of it), operator overloads, bodyless
+  declarations, and class headers with a template prefix or an export macro.
+- In a constructor's member-initializer list, a braced `member{...}` is an
+  initialization, not the body.
+- A conversion operator (`operator bool() const`) is no longer reported as a
+  function named after its type.
+- On fmt, recall of the real-project measurement rose from 49.9% to 97.5% and
+  false functions fell from 21 to 7 (`benchmarks/cpp_tree_eval.py`).
+
+- `override` and `final` after `const` or `noexcept` no longer hide a virtual
+  declaration or definition (tinyxml2 recall 53.0% -> 99.8%).
+
+### Output
+
+- A directory run gives the same `--tree`, `--json` and grep output on every
+  run: files are reported in path order and tree children are sorted by name.
+  The tree used to change between runs, because its children came from a map.
+- `--names` lists the names of a file or a directory, one per line: `kind<TAB>name<TAB>file:line`. The kinds are
+  `function`, `method`, `class`, the kind of a type (`struct`, `enum`, `dataclass`...) and `alias` for a Go alias.
+  `--struct` and `--all` add the types and the aliases. A file runs through the directory job, so the two give the same
+  names. Signatures stay in `--tree-full`. A Go receiver method is listed as a `function` for now.
+- `--doc NAME[,NAME...]` prints each named function, type or alias as `path:line: kind name`, the comment directly
+  above it as written, and its first line. The body is left to `--extract`. Decorators above a declaration are skipped
+  (the comment above them is the doc). Python docstrings are not read yet: for Python the comment above the `def` or
+  `class` is shown.
+- A one-line Go struct (`type X struct{}`) is a `struct`; it was `named`, because the catch-all `named` pattern matched
+  it first. Two declarations in the corpus change kind, and nothing else.
+
+### TypeScript / JavaScript
+
+- `abstract class`, `export default class` and `export default abstract class` headers are
+  classes: their methods get the class name, and a multi-line method in them is found (zod: 11 more
+  functions, including the methods of `ZodType`).
+- An abstract method without a body (`abstract run(): void;`) is listed as a function.
+
+- Interface and overload signatures, and `declare`/`export function` overloads, are listed as bodyless
+  functions: `write(line: string): void;`, `static create(...): T;`.
+- Multi-line signatures in an interface are found, and they belong to the interface.
+- A multi-line class header (`export class X<` ... `> {`) keeps its members: the class no longer ends
+  on the header line.
+- `const x = (expr).method(() => ...)` is a value, not a function: the arrow belongs to the call.
+
+- A closing JSX tag (`</h4>`) no longer starts a regular expression, which blanked the code between it and
+  the next slash. React components ending in a JSX body are found again.
+- A typed component (`React.FC<{ children: T }> = (...) => (...)`) keeps its body: braces in a type argument
+  and a `;` inside them are not the end of the signature.
+- A base list on the next line (`class X : public A,` or `: public B {`) and a multi-line class header keep
+  the class open, so its constructors and destructors keep their class.
+
+- A parameter list that continues on the next lines inside an interface or a class is listed: `process(input: {`
+  and optional methods `permits?(...)` are signatures, and a return type may hold `;` in its braces.
+- `const x = (` whose parenthesis closes on a later line and is followed by no arrow is a value, and an
+  immediately invoked function `(() => {...})()` is a value; a value assigned in a one-line block is a value too.
+  hr_gemini: 24 false functions -> 0.
+
+- A typed component or a method whose type-argument list runs over lines (`const X: React.FC<{` ... `}> = (...)`,
+  `async list(): Promise<` ... `> {`) is found; a property (`items: Array<{`) is not a method.
+- The braces of a type argument are not counted into a function body: a typed component with a block body
+  ends with its own closing brace. hr_gemini: 11 missing -> 2, 24 false functions -> 0.
+- A self-closing JSX tag after an expression attribute (`}/>`) no longer starts a regular expression.
+- A `{` after `<` opens a type literal (`query<{ ... }>(`), also across lines: its braces are not counted into a
+  function body.
+- A function whose body opens and closes on its header line ends there, so what follows the closing brace
+  (`});`) belongs to the caller. hr_gemini: 2 wrong ends -> 0, 1 missing -> 0 after the next item.
+- A later declarator of a `const|let|var` list on one line is a function when its value is an arrow or a
+  parenthesized header (`const id = f(), notification = (x) => ...`). The list's keyword applies to it.
+
+### Long lines and read errors
+
+- A line longer than 64 KB no longer stops a read. Minified bundles have such lines: a directory run skipped
+  `jquery.js` without a word, and `--inp` on it failed with `token too long`. Every reader goes through one line
+  reader with no length limit (`readFileLines`; the CLI tools call `internal.ReadLines`).
+- `stat`, `complexity`, `deps` and `callgraph` used a scanner that stopped at such a line and ignored its error:
+  `stat` counted 1 line of a 34-line file, and `complexity` panicked on the mismatch. They read through the same
+  reader now, and a read error is reported instead of being dropped.
+- A file that fails in a directory run is reported on stderr as `Warning: <path>: <error>`. The other files'
+  results are kept.
+- On the fixed corpus only `jquery.js` changes: it now contributes 139 functions.
+
+### Determinism and speed
+
+- The D and Scala lexers' text is no longer cleaned a second time by the sanitizer; the finders read its facts. The
+  fixed corpus output is unchanged.
+- Raw strings close at their own delimiter. `r"..."` (Python, D), `r#"..."#` (Rust) and `@"..."` (C# verbatim) used
+  to close at their opener, so they never closed and the lines after them were blanked: `Example` in
+  `test_csharp_verbatim.cs` was missed. A triple-quoted string with a raw prefix (`r"""`) is a docstring.
+- A multi-line string closes at its own marker (a single quote inside a docstring is text), and the code after the
+  closing quotes on the same line is code again (`""", {"key": 1})` keeps its brackets). Python's logical lines now
+  read the sanitizer's facts; the separate Python string cleaner is gone. The fixed corpus output is unchanged by it.
+- The Python struct finder reads the same facts. A docstring's text is not a class, a field or the end of one: before,
+  a line like `class Fake(Base):` inside a docstring was a class, and an unindented line of a docstring ended the class
+  above it. `pythonCodeLine` counts a line only when it starts outside a string and holds code.
+- A `@dataclass` or `@attr.s` decorator now sets its class's kind (`dataclass`, `attrs`) in the struct tree
+  (`--struct --tree`). The decorator was matched against the class line, which never holds it, so these classes were
+  reported as `class`. Only the kind label changes: on the Python fixtures, 15 classes change kind and nothing else.
+- A class header followed by a comment and then its body (`class Widget` / `// the body follows` / `{`) keeps its body:
+  the header check reads the next code line, and a comment is not code. Before, the class ended on its header.
+- Ruby: `end` followed by a comment (`end # the class`) closes its class, and a method (`end # the first method`) closes too. The structural finders read the end from
+  the cleaned line, where the comment is blank; before, the raw line never matched and the class swallowed the next one.
+  The structural finders read the cleaned text and the indentation through `LineFacts`, computed in one pass.
+
+- A `.h` file is read with the C++ configuration on every run. `--dir` used to pick the C or the C++ configuration
+  at random for `.h` (both claim it), so the functions of a header changed from run to run: on the repository the
+  total ranged from 17.3k to 19.8k functions across runs of the same binary.
+- Nested-path languages (TypeScript, JavaScript, Go, and others) clean each line once instead of twice. The output
+  is unchanged; the repository benchmark takes about 5% less time and 12% fewer allocations.
+- A file is read once per job: the finders and the Go alias pass share its lines (it used to be read up to three
+  times). The four copies of the open-and-scan code are one helper.
+- Language configurations compile their regular expressions on first use, not at startup: a run pays only for the
+  languages of its files. A single-file run starts about 20 ms faster.
+- A line in the normal state that holds no string, comment, or literal start is returned as it is, without the
+  rune conversion. The output is unchanged; a test compares the fast and the slow path on every fixture line.
+- A line that matches two struct patterns (Go `type X struct{ Y int }` matches `struct` and `named`) takes its kind
+  from the patterns in sorted order, not map order. The names and spans did not change.
+- Pre-filters skip lines that cannot hold a function header (`func_requires`: a `(` or `<`, for the languages
+  whose every header pattern needs one) or a class or struct header (`type_keywords`). Both are checked on
+  every fixture line by a test. Cleaning a line reuses the sanitizer's rune buffers.
+- Corpus full run after these changes: about 1.09 s, against 1.59 s before them (median of 7).
+- Corpus of 725 files, full run: about 1.75 s before, 1.53 s after (median of 5). The output is byte-identical.
+
+### Go type aliases
+
+- A Go type alias (`type A = S`, or a line `A = S` of a `type ( ... )` group) is a name for an existing type, not a
+  new one. It is no longer in a Go file's `classes`; it is listed in the file's `aliases` list (`name`, `line`,
+  `target`) in `--json` output, and only files that have aliases carry the key. A Go count of `classes` drops by
+  the number of single-line aliases. `cmd/astoracle` lists aliases the same way (21/21 on this repository).
+
+### Class bounds (all languages)
+
+- A class whose body opens and closes on its header line (`struct A : B {};`)
+  no longer keeps the next class open, so the next class's members are found
+  under their own class. This changes class lookup for every language with
+  classes; see `TODO.md` for what was re-measured.
+
 ## v1.12.2 - 2026-10-12
 
 Function discovery and boundaries are more accurate across the supported

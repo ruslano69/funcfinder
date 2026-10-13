@@ -30,7 +30,7 @@ func TestLoadConfig_AllLanguagesHaveRegex(t *testing.T) {
 	}
 
 	for lang, langConfig := range config {
-		if langConfig.funcRegex == nil {
+		if langConfig.FuncRegex() == nil {
 			t.Errorf("Language %s has nil funcRegex", lang)
 		}
 	}
@@ -299,7 +299,7 @@ func TestLoadConfig_LanguageConfigurations(t *testing.T) {
 			}
 
 			// Verify regex is compiled
-			if langConfig.funcRegex == nil {
+			if langConfig.FuncRegex() == nil {
 				t.Error("funcRegex is nil (not compiled)")
 			}
 		})

@@ -7,7 +7,7 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 ## Language coverage on real projects: status and next steps (2026-10-12)
 
 Earlier measurements used `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
-language); subsequent runs and their revisions are recorded below. Python, PHP, Scala/D and C evaluators now live in `benchmarks/`. Truth
+language); subsequent runs and their revisions are recorded below. Python, PHP, Scala/D, C and C++ evaluators now live in `benchmarks/`. Truth
 includes declarations without a body (interface, abstract, prototype members): the design lists
 them with their own span, so a missing C# or Java declaration counts as missing.
 
@@ -18,11 +18,12 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Swift | Alamofire (1890), Kingfisher (109) | 99.6%, 100% | 2, 0 | 6, 0 | good |
 | Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |
 | Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
-| TypeScript | hr_gemini (3096), zod (2416) | 98.8%, 98.7% | 12, 1 | 26, 31 | hr_gemini open |
+| TypeScript | hr_gemini (2988), zod (2072) | 100%, 99.3% | 0, 1 | 0, 14 | hr_gemini measured 2026-10-13 after the declarator fix (tree-sitter TypeScript reference, 0 false functions); zod measured before it, 3 false functions |
 | JavaScript | lodash (1918, minified) | 81.0% | 7 | 357 | open |
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
-| C++ | fmt | about 39% | not measured | about 61% (earlier run) | open |
+| C++ | fmt (1450 truth) | 97.5% | 0 | 36 (19 conversion operators, 11 macro-generated) | measured 2026-10-13; 7 false functions (explicit instantiations) |
+| C++ | tinyxml2 (627 truth) | 99.8% | 0 | 1 | measured 2026-10-13; 0 false functions; `8224e427b655b83dae5e2298f1e6919523a78737` |
 | C | Lua (1568, including 391 prototypes) | 100% | 0 | 0 | local fix verified; no false functions; one GCC configuration |
 | Python | Flask (1462), Requests (711), hr_portal (711) | 100%, 100%, 100% | 0, 0, 0 | 0, 0, 0 | local fix verified; no false functions |
 | PHP | Monolog (1602), Symfony Routing (1125) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
@@ -90,6 +91,24 @@ definition), 136 false names, zero wrong ends; after: zero in all three categori
 The earlier 99.9% did not measure prototypes. Evaluator: `benchmarks/c_tree_eval.py`;
 exact flags, compiler/binary hashes and findings are in the ignored build directory.
 
+TypeScript was measured on 2026-10-13 with `benchmarks/ts_tree_eval.py` (tree-sitter-typescript 0.23.2 as the reference). Truth: function declarations and signatures, class and interface methods (including bodyless overloads and abstract methods), constructors, and functions bound to a variable; anonymous callbacks are not truth. zod `b500a2ee95134f81d74da7911d7378dd2853d042` (511 tracked files, 4 unparseable): on `main` 2007 of 2072 found, recall 96.9%, precision 99.0%; now 2057 found, recall 99.3%, precision 99.85%. hr_gemini `5b69a1eb` (455 tracked files, 9 unparseable): on `main` recall 91.3%, precision 96.2%; now recall 99.9%, precision 100%, 2 wrong ends (down from 12: a closing JSX tag was read as a regular expression, and a typed component React.FC<{...}> lost its body). Still open: the 2 wrong ends (onData, an object-literal method closed by a brace and a semicolon on its line, and loadBonusGrantsForYear); 0 false functions; 2 missing (a second declarator in one const, and OrderCreationForm whose parameter destructuring runs over lines). zod: 3 false functions and 15 missing. Lodash is not in this table: its reference is a minified bundle, and a non-minified JavaScript project is still needed.
+
+C++ was also measured on tinyxml2 `8224e427b655b83dae5e2298f1e6919523a78737` (`tinyxml2.h` and
+`tinyxml2.cpp`, 627 truth, libclang 18.1.1, same target): on `main` 332 found, recall 53.0%, precision
+100%; now 626 found, recall 99.8%, precision 100%, no wrong ends or false functions. The override and
+final specifiers were the largest remaining miss. CLI11 (`07c9f13b15a70c367a406e1cfe2c363aa1b66894`)
+is not measured: 22 of its 29 headers fail to parse with the clang reference (a GCC-only x86 builtin in
+the mingw headers, and redefinitions from its include structure).
+
+C++ was measured on 2026-10-13 on a working-tree fix based on `edc5f94`, against fmt
+`b4ffa39b9994c961418406f47358791d89a5aa48`, with libclang 18.1.1 and MinGW-Builds GCC 15.2.0
+(C++17, `x86_64-w64-mingw32`). `include/` and `src/` were measured: 18 files are scored, and
+`src/fmt.cc` (a C++20 module unit) and `src/os.cc` (an x86 builtin this target lacks) are unparseable
+exclusions. Truth is 1450 functions and declarations, 138 of them bodyless. On `main` at `edc5f94`:
+727 missing, 21 false functions, 2 wrong ends (recall 49.9%, precision 97.2%). Now: 36 missing,
+7 false functions, 0 wrong ends (recall 97.5%, precision 99.5%). Evaluator:
+`benchmarks/cpp_tree_eval.py`; raw JSON is in the ignored build directory.
+
 - [ ] **Verify CI on `main` at `2022d5b`.** PR #77 was merged while four of its checks (Analyze
   (go), Build, Build Windows, Build macOS) were still running. Read the result once; do not poll.
 
@@ -114,19 +133,33 @@ exact flags, compiler/binary hashes and findings are in the ignored build direct
   lines (`export const X: React.FC<P> = ({` and `async issue(input: {`), and 7 others, including
   `export default function App()`, which may be a cascade from an earlier frame that did not close
   (not checked yet). Also `notification=` after a comma in a `const` list.
-- [x] **TypeScript, hr_gemini: 23 wrong ends, now 13.** Four causes fixed: a template literal's
+- [x] **TypeScript, hr_gemini: 23 wrong ends, now 0 (2026-10-13).** Causes fixed: a template literal's
   `${...}` holds strings and nested templates (the sanitizer closed the outer template at the
   first inner backtick, which hid whole files), an arrow header ending in `=>` is not complete,
-  a parenthesized arrow body runs to its closing `);`, and a brace inside a type argument
-  (`React.FC<{...}>`) does not stop the bracket count. The 13 left are mostly early ends in React
-  components; not analysed further yet.
+  a parenthesized arrow body runs to its closing `);`, a brace inside a type argument
+  (`React.FC<{...}>`) does not stop the bracket count, a closing JSX tag (`</h4>`) and a
+  self-closing `}/>` are not regular expressions, and a body that opens and closes on its header
+  line ends there.
+- [ ] **TypeScript, zod: 14 missing, 3 false functions, 1 wrong end (2026-10-13; not re-measured after the declarator fix).**
+  zod missing: `catch`, `create`, `args`, `returns`, `$constructor` (generic header over lines), the
+  `formatContributor` and `createToJSONSchemaMethod` consts whose `=` sits on the previous line,
+  `createStandardJSONSchemaMethod`, `registries.add<` over lines, `async "array-objects"`, and
+  `loadPriorTriage` (return type with braces). zod false functions: the methods named `async` and `new`.
+  zod wrong end: `validate-abort-sweep.ts` `deepInput` (truth 78-81): funcfinder ends it at 80.
 - [ ] **C#, Polly: 1272 missing.** Two causes. Multi-line signatures, and about 172 declarations
   without a body (`void Foo();` in interfaces), which funcfinder does not list at all. A `;` at the
   end of the header pattern was tried and rejected: +76 correct, but +211 false functions and 35
   wrong ends, because calls inside bodies (`throw new X(a);`) match. A rule has to tell a
   declaration from a statement call; the statement context is not visible to the pattern.
-- [ ] **C++, fmt: about 61% missing.** Multi-line signatures, constructors, functions with macro
-  prefixes. Regex will not get far; this needs a parser-level approach.
+- [x] **C++, fmt: 727 missing, now 36.** Fixed with header patterns and a few engine rules:
+  nested parentheses in parameters, bodies on the header line, signatures that continue on later
+  lines, constructors and destructors (in-class and out-of-class), operator symbols, template
+  prefixes, export macros in class headers (`class FMT_API file`), braced initializations in
+  constructor initializer lists, and one-line classes that held the next class open. Remaining:
+  conversion operators (19, which clang names by canonical type), declarations generated by
+  `FMT_*` macros (11), template specializations and `template <...>` headers that do not fit
+  one line (6), and the 7 false functions in the table. The C++20 module unit and the x86 builtin
+  file are not measured.
 - [ ] **Java, gson: 364 missing (10.5%).** Not analysed yet. Suspects: methods of nested classes and
   constructors. Measure before changing anything.
 - [ ] **Kotlin, NekoBox `ServiceButton.kt`: `counters` ends late.** A local expression body is
@@ -183,7 +216,50 @@ The nested path is shared. Before a PR that touches `findFunctionsWithNesting`, 
 `continuesExpression` or the sanitizer, run the same projects and compare with the table above:
 TypeScript (`hr_gemini`, `zod`), JavaScript (`lodash`), Go (`gin`, funcfinder itself), Rust
 (`kanzi-rs`), Swift (`Alamofire`, `Kingfisher`). A PR that moves any of these numbers down has to
-say so and why.
+say so and why. The 2026-10-13 change to class bounds (`findClassesWithOffset`, net brace depth) and
+to `sigScanner` (braced initializers, used by C++ only) touches the class lookup of every language
+with classes. Differential check on 2026-10-13 (`main` binary against this change, same checkouts, no
+truth oracle): zod `b500a2ee95134f81d74da7911d7378dd2853d042` 2472 functions, lodash
+`2b5e6f7399a7b48005140b5d5c6bc6c0e62919a8` 2120, hr_gemini `5b69a1eb` 3277 — identical function sets.
+Class attribution changed only for one-line class declarations (`class Test {}`: 11 in zod, 9 in
+hr_gemini); methods after them no longer belong to that class. `abstract class X {` was not a class in the
+TS/JS `class_pattern` (the `--struct` pattern already accepted it). Fixed on 2026-10-13: zod gains 11 methods of
+its abstract classes (`ZodType`, `Metabench`), lodash and hr_gemini are unchanged. Abstract methods without a body are listed too (zod: `run`, `_parse`). The truth-based numbers for the 2026-10-13 TypeScript fixes are in the table above.
+The fixtures in `test_examples/` and `test_files/` show no change outside C++.
+
+### Profile and duplicates (2026-10-13)
+
+Measured with a temporary `BenchmarkProfileRepo` (whole repository, `all` mode; 124 tracked files, 29.7k lines):
+about 95 ms and 39 MB per run, 335k allocations. `LoadConfig` costs about 17 ms per CLI run. Profile reports:
+`build/profile-cpu-top.txt`, `build/profile-cpu-cum.txt`, `build/profile-mem-top.txt` (ignored by git).
+
+Open speed items, by share of the cumulative CPU profile:
+- `Sanitizer.CleanLine` about 36%: every line is converted to `[]rune` and back. A byte path for ASCII lines is the largest single gain.
+- Struct finder second pass about 19% (`FindStructures`): the whole file is scanned again for types the class pattern has already found in `all` mode.
+- Regex execution about 21%: function patterns run on every line; a cheap pre-check could skip most lines.
+- Repeated file reads: finder, struct finder and the Go alias pass each open the file (`os.Open` about 4.5%); the alias pass also sanitizes the file again (about 5% on Go files).
+- `LoadConfig` compiles every language's patterns on each run; a lazy compile per language would remove most of its 17 ms.
+
+Duplicates in production code:
+- Open and scan into `[]string`, four copies (`finder.go`, `python_struct_finder.go`, `struct_finder_factory.go`, `structfinder.go`); `readAllLines` already exists.
+- The type-scan loop is copied between `structfinder.go` and the hybrid finder in `struct_finder_factory.go`: the largest duplicate.
+- The shard-key choice (`splitBy == "file"`) is repeated three times in `dirprocessor.go`.
+- Rune-slice cleaning is repeated in `d_lines.go`, `python_finder.go` and `scala_lines.go`.
+
+Done in the same pass (2026-10-13), each checked against the reference output on a fixed corpus (725 files, byte
+identical in four output modes): each file is read once; regex patterns compile on first use; `CleanLine` has a fast
+path for lines with no literal or comment start (checked against the slow path); the four open-and-scan copies are
+one helper; the struct-pattern kind is fixed by sorted order. Corpus full run 1.75 s to 1.53 s; a single-file run
+150 ms to 129 ms (the process itself is about 70 ms of that).
+
+Left, and why:
+- Merging `HybridStructFinder` into `StructFinder` changes TypeScript and JavaScript output: the hybrid closes a
+  class or interface header that has no brace on its line, the generic finder waits for the brace. That needs a
+  decision on which behaviour is wanted before the merge.
+- The `all` mode still scans each file a second time for types (`FindStructures`, about 19% of CPU before these
+  changes); the classes of the first pass could be reused if the dedupe rule is kept.
+- The shard-key choice in `dirprocessor.go` (three copies) and the rune-slice cleaning in `d_lines.go`,
+  `python_finder.go` and `scala_lines.go` are duplicates that are not yet merged.
 
 ### Harness
 

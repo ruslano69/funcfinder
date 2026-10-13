@@ -9,7 +9,7 @@ type LanguageFinder interface {
 func CreateFinder(config *LanguageConfig, funcNamesStr string, mode string, extract bool, useRaw bool) LanguageFinder {
 	// Для языков на основе отступов (Python) используем специальный парсер
 	if config.IndentBased {
-		return NewPythonFinder(*config, funcNamesStr, mode, extract)
+		return NewPythonFinder(config, funcNamesStr, mode, extract)
 	}
 
 	// Для остальных языков (C-подобных со скобками) используем стандартный парсер

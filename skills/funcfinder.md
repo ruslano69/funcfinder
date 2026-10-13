@@ -58,6 +58,12 @@ cat .codemap/internal_auth.json
 grep -i "auth" .codemap/internal_auth.json
 ```
 
+Names only (one line each: kind, name, file:line) — when you need the list, not the bodies:
+```bash
+funcfinder --dir . --names | grep -i "auth"
+funcfinder --dir . --names --all      # adds types and Go aliases
+```
+
 Use `jq` when grep isn't precise enough:
 ```bash
 jq '.files[] | .path as $p | .functions[] | select(.name | contains("Auth")) | {path: $p, name, line}' map.json
@@ -76,7 +82,12 @@ funcfinder --inp auth/handler.go --source go --func "AuthenticateUser,ValidateTo
 
 # Extract a type/struct
 funcfinder --inp auth/handler.go --source go --struct "User,Session" --extract
+
+# Doc comment and first line of a declaration, without the body
+funcfinder --inp auth/handler.go --source go --doc AuthenticateUser
 ```
+
+**Doc first**: `--doc Name` gives the comment above a declaration and its first line, without the body. Use it to learn what a function is for; read the body with `--extract` only when the code itself is needed.
 
 **Rule**: extract only the specific function you need, not the whole file.
 
@@ -154,6 +165,8 @@ deps internal/finder.go -l go --json
 | `cat manifest.json` | ~50-200 | Always — free orientation |
 | `grep map.json` | ~10 | Faster than jq for simple lookups |
 | `cat shard.json` | ~1000-4000 | When you know which module |
+| `--names` | ~10-15 per name | List what exists in a file or project |
+| `--doc` one name | ~20-100 (depends on the comment) | Learn what a function is for |
 | `--extract` one function | ~50-500 | When you know which function |
 | `callgraph --reverse` | ~100 | Impact analysis before editing |
 | Read full source file | ~500-5000 | Almost never needed |
@@ -192,7 +205,10 @@ callgraph --dir . -l go --reverse --func AuthenticateUser
 | Loading full JSON for large project | Use `--split`, read manifest first |
 | `deps`/`callgraph` misses `cmd/` | Add `--no-gitignore` |
 | `--split` without `--json` | Always pair: `--json --split` |
-| Calling `--extract` without knowing the line | Use `--map` first, then `--func Name --extract` |
+| Calling `--extract` without knowing the line | Use `--names` or `--map` first, then `--func Name --extract` |
+| Wanting the purpose of a function from its body | Use `--doc Name`: it shows the comment above the declaration |
+| Expecting Go methods as `method` in `--names`/`--doc` | They show as `function` for now: the receiver is not recorded |
+| Expecting a Python docstring from `--doc` | Not read yet: only the comment above `def`/`class` is shown |
 | `deps --shards` returns an empty/all-leaf graph | You rooted below `go.mod`/`tsconfig.json` — heed the resolution-% WARNING and re-run from the real root |
 
 ---
@@ -205,9 +221,11 @@ funcfinder --dir . --all --json --split && cat .codemap/manifest.json
 
 # Find
 grep -i "<name>" .codemap/<shard>.json
+funcfinder --dir . --names | grep -i "<name>"    # kind, name, file:line (add --all for types and aliases)
 
 # Extract
 funcfinder --inp <file> --source <lang> --func <Name> --extract
+funcfinder --inp <file> --source <lang> --doc <Name>    # comment + first line, no body
 
 # Impact
 callgraph --dir . -l <lang> --reverse --func <Name>

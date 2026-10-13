@@ -1,9 +1,6 @@
 package internal
 
 import (
-	"bufio"
-	"fmt"
-	"os"
 	"regexp"
 	"strings"
 )
@@ -24,6 +21,7 @@ type ClassBounds struct {
 	Name  string
 	Start int
 	End   int
+	Kind  string // kind of a type from the struct finder (struct, enum, dataclass...); empty for a class from the class finder
 }
 
 // FindResult содержит результат поиска
@@ -43,6 +41,10 @@ type FunctionContext struct {
 	sigLast int
 	// afterBlock: the body closed, but the expression goes on (see continuesExpression).
 	afterBlock bool
+	// bodyStarted: the signature opened its body on the current line; bodyDelta is the brace balance from
+	// that brace on. The braces before it (a type argument's) are not the body's.
+	bodyStarted bool
+	bodyDelta   int
 }
 
 // sigEvent is what a line means to a signature that has not opened its body.
@@ -96,6 +98,29 @@ func continuesExpression(lines []string, i int) bool {
 // the function simply covers the lines up to it.
 type sigScanner struct {
 	brackets int
+	// braceInits is set for a language whose constructors have a member-initializer list (C++).
+	// After a top-level ':' the list's `member{...}` is a braced initialization, not the body: a
+	// body brace follows ')' or a space. bodyAt is the position of the body's brace.
+	braceInits bool
+	initList   bool
+	initBraces int
+	typeBraces int
+	bodyAt     int
+}
+
+// initPrefix reports whether a brace after c opens a braced initialization (`member{`, `member {`).
+func initPrefix(c byte) bool {
+	return c == '_' || c == '>' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+// prevNonSpace returns the last byte before position i that is not blank, or 0 if there is none.
+func prevNonSpace(s string, i int) byte {
+	for j := i - 1; j >= 0; j-- {
+		if s[j] != ' ' && s[j] != '\t' {
+			return s[j]
+		}
+	}
+	return 0
 }
 
 // feed reads one cleaned line of a pending signature.
@@ -108,12 +133,35 @@ func (s *sigScanner) feed(cleaned string) sigEvent {
 			if s.brackets > 0 {
 				s.brackets--
 			}
+		case ':':
+			if s.braceInits && s.brackets == 0 && !s.initList && !strings.HasPrefix(cleaned[i:], "::") && (i == 0 || cleaned[i-1] != ':') {
+				s.initList = true
+			}
 		case '{':
 			if s.brackets == 0 {
+				// A brace in a type argument (`React.FC<{ children: T }>`) is not the body.
+				if s.typeBraces > 0 || prevNonSpace(cleaned, i) == '<' {
+					s.typeBraces++
+					continue
+				}
+				if s.initBraces > 0 || (s.initList && initPrefix(prevNonSpace(cleaned, i))) {
+					s.initBraces++
+					continue
+				}
+				s.bodyAt = i
 				return sigBody
 			}
-		case ';':
+		case '}':
 			if s.brackets == 0 {
+				if s.typeBraces > 0 {
+					s.typeBraces--
+				} else if s.initBraces > 0 {
+					s.initBraces--
+				}
+			}
+		case ';':
+			// A ';' inside a type argument's braces separates its members, not the signature.
+			if s.brackets == 0 && s.typeBraces == 0 {
 				return sigEnd
 			}
 		}
@@ -167,14 +215,220 @@ func isCompleteValueAssignment(matches []string, cleaned string) bool {
 	if len(matches) <= 5 || (matches[4] != "const" && matches[4] != "let" && matches[4] != "var") {
 		return false
 	}
-	if strings.Contains(cleaned, "=>") || strings.Contains(cleaned, "function") {
+	if strings.Contains(cleaned, "function") {
 		return false
 	}
-	// A value that awaits (const rows=(await db.query(...)) is not an arrow function.
+	closed, arrow := assignedParen(cleaned)
+	if closed {
+		// The parenthesis after the '=' closes here: it is a parameter list only when an arrow or a return type
+		// follows it. Otherwise the line assigns a value (const x = (a).b(), const x = (1 + 2) * 3).
+		return !arrow
+	}
+	// The parenthesis continues on the next lines: an awaited value (const rows = (await db.query() is not an
+	// arrow function, and neither is a statement that ends in ';' without an arrow.
 	if strings.Contains(cleaned, "await") {
 		return true
 	}
-	return strings.HasSuffix(strings.TrimSpace(cleaned), ";")
+	return !strings.Contains(cleaned, "=>") && strings.HasSuffix(strings.TrimSpace(cleaned), ";")
+}
+
+// declParenIndex returns the index of the parenthesis after the '=' of a declaration, after an optional
+// `async` and an optional type-parameter list (`async <T>(`), or -1 when the text after the '=' does not
+// open a parenthesis. The '=' of a default type argument (`<T = any>`) is not the declaration's.
+func declParenIndex(cleaned string) int {
+	eq := -1
+	angles := 0
+	for i := 0; i < len(cleaned); i++ {
+		c := cleaned[i]
+		if c == '<' {
+			angles++
+			continue
+		}
+		if c == '>' && angles > 0 && !(i > 0 && cleaned[i-1] == '=') {
+			angles--
+			continue
+		}
+		if c != '=' || angles > 0 {
+			continue
+		}
+		var prev, next byte
+		if i > 0 {
+			prev = cleaned[i-1]
+		}
+		if i+1 < len(cleaned) {
+			next = cleaned[i+1]
+		}
+		if next == '>' || next == '=' || prev == '=' || prev == '!' || prev == '<' || prev == '>' {
+			continue
+		}
+		eq = i
+		break
+	}
+	if eq < 0 {
+		return -1
+	}
+	j := skipBlanks(cleaned, eq+1)
+	if strings.HasPrefix(cleaned[j:], "async") {
+		j = skipBlanks(cleaned, j+len("async"))
+	}
+	if j < len(cleaned) && cleaned[j] == '<' {
+		depth := 0
+		for ; j < len(cleaned); j++ {
+			if cleaned[j] == '<' {
+				depth++
+			} else if cleaned[j] == '>' && !(j > 0 && cleaned[j-1] == '=') {
+				depth--
+				if depth == 0 {
+					j++
+					break
+				}
+			}
+		}
+		j = skipBlanks(cleaned, j)
+	}
+	if j < len(cleaned) && cleaned[j] == '(' {
+		return j
+	}
+	return -1
+}
+
+// skipBlanks returns the index of the first byte at or after i that is neither a space nor a tab.
+func skipBlanks(s string, i int) int {
+	for i < len(s) && (s[i] == ' ' || s[i] == '\t') {
+		i++
+	}
+	return i
+}
+
+// openAngles counts the type arguments a line leaves open: '<' that no later '>' on the line closes.
+func openAngles(cleaned string) int {
+	n := 0
+	for i := 0; i < len(cleaned); i++ {
+		switch cleaned[i] {
+		case '<':
+			n++
+		case '>':
+			if !(i > 0 && cleaned[i-1] == '=') && n > 0 {
+				n--
+			}
+		}
+	}
+	return n
+}
+
+// typedHeaderIsFunction reports whether a declaration or a member whose type-argument list runs over lines is a
+// function: the list closes, and then a body '{', a signature ';', or an arrow (`= (`, `= async`, `= <`) follows.
+// `const items: Item<{...}> = [...]` is a value, not a function.
+func typedHeaderIsFunction(cleanedLines []string, i int) bool {
+	depth := openAngles(cleanedLines[i])
+	for j := i + 1; j < len(cleanedLines) && j < i+200; j++ {
+		text := cleanedLines[j]
+		for k := 0; k < len(text); k++ {
+			switch text[k] {
+			case '<':
+				depth++
+			case '>':
+				if k > 0 && text[k-1] == '=' {
+					continue
+				}
+				depth--
+				if depth == 0 {
+					return closedTypeIsFunction(text[k+1:], cleanedLines, j+1)
+				}
+			}
+		}
+	}
+	return false
+}
+
+// closedTypeIsFunction looks at what follows a closed type-argument list: the rest of its line, or the next
+// non-blank line when the rest is blank.
+func closedTypeIsFunction(rest string, cleanedLines []string, next int) bool {
+	t := strings.TrimSpace(rest)
+	for j := next; t == "" && j < len(cleanedLines); j++ {
+		t = strings.TrimSpace(cleanedLines[j])
+	}
+	if strings.HasPrefix(t, "{") || strings.HasPrefix(t, ";") {
+		return true
+	}
+	if strings.HasPrefix(t, "=") && !strings.HasPrefix(t, "=>") {
+		rhs := strings.TrimSpace(t[1:])
+		return strings.HasPrefix(rhs, "(") || strings.HasPrefix(rhs, "async") || strings.HasPrefix(rhs, "<")
+	}
+	return false
+}
+
+// assignedParen looks at the parenthesis right after the '=' of a declaration. closed reports whether it
+// closes on this line; arrow reports whether an arrow or a return type follows it. The arrow inside a value
+// (`.map((r) => r.id)`) is not this parenthesis's. A parenthesis that opens another (`((`) wraps an
+// expression, as in an immediately invoked function, and is a value.
+func assignedParen(cleaned string) (closed, arrow bool) {
+	open := declParenIndex(cleaned)
+	if open < 0 {
+		return false, false
+	}
+	rest := cleaned[open:]
+	if strings.HasPrefix(strings.TrimLeft(rest[1:], " \t"), "(") {
+		return true, false
+	}
+	depth := 0
+	for i := 0; i < len(rest); i++ {
+		switch rest[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				after := strings.TrimSpace(rest[i+1:])
+				return true, strings.HasPrefix(after, "=>") || strings.HasPrefix(after, ":")
+			}
+		}
+	}
+	return false, false
+}
+
+// valueSpansLines reports whether the declaration on line i takes a parenthesis that closes on a later line
+// and is followed by no arrow or return type: `const x = (` ... `).rows;` is a value, `const f = (` ... `) => {`
+// is a function. cleanedLines are the sanitized lines of the file.
+func valueSpansLines(cleanedLines []string, i int) bool {
+	open := declParenIndex(cleanedLines[i])
+	if open < 0 {
+		return false
+	}
+	depth := 0
+	for j := i; j < len(cleanedLines); j++ {
+		text := cleanedLines[j]
+		from := 0
+		if j == i {
+			from = open
+		}
+		for k := from; k < len(text); k++ {
+			switch text[k] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+				if depth == 0 {
+					after := strings.TrimSpace(text[k+1:])
+					if after == "" {
+						return !startsArrowOrType(cleanedLines, j+1)
+					}
+					return !(strings.HasPrefix(after, "=>") || strings.HasPrefix(after, ":"))
+				}
+			}
+		}
+	}
+	return false
+}
+
+// startsArrowOrType reports whether the next non-blank line from index i starts with an arrow or a return type.
+func startsArrowOrType(cleanedLines []string, i int) bool {
+	for j := i; j < len(cleanedLines); j++ {
+		if t := strings.TrimSpace(cleanedLines[j]); t != "" {
+			return strings.HasPrefix(t, "=>") || strings.HasPrefix(t, ":")
+		}
+	}
+	return false
 }
 
 // NewFinder создает новый искатель функций
@@ -195,22 +449,10 @@ func NewFinder(config *LanguageConfig, funcNames []string, mapMode, extractMode,
 
 // FindFunctions ищет функции в файле
 func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
-	file, err := os.Open(filename)
+	lines, err := readFileLines(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, err
 	}
-	defer file.Close()
-
-	// Читаем файл построчно
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
 	return f.FindFunctionsInLines(lines, 1, filename)
 }
 
@@ -219,14 +461,17 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename string) (*FindResult, error) {
 	var prepared []string
 	var dHeaderEnds map[int]int
+	var preparedFacts []LineFacts
 	switch f.config.LangKey {
 	case "php":
 		prepared = maskPHPHeredocs(lines, f.config)
+		preparedFacts = f.sanitizer.CleanLinesFacts(prepared)
 	case "d":
 		prepared, dHeaderEnds = prepareDLines(lines, f.config)
+		preparedFacts = lexerFacts(prepared, lines)
 	case "scala":
 		cleaned := cleanScalaLines(lines)
-		result, err := f.findFunctionsInPreparedLines(cleaned, startLine, filename)
+		result, err := f.findFunctionsInPreparedLines(cleaned, lexerFacts(cleaned, lines), startLine, filename)
 		if err != nil {
 			return nil, err
 		}
@@ -261,7 +506,7 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 		}
 		return result, nil
 	default:
-		return f.findFunctionsInPreparedLines(lines, startLine, filename)
+		return f.findFunctionsInPreparedLines(lines, f.sanitizer.CleanLinesFacts(lines), startLine, filename)
 	}
 	scanner := f
 	if f.config.LangKey == "d" && !f.mapMode {
@@ -269,7 +514,7 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 		all.mapMode = true // Constructor calls need the surrounding function context.
 		scanner = &all
 	}
-	result, err := scanner.findFunctionsInPreparedLines(prepared, startLine, filename)
+	result, err := scanner.findFunctionsInPreparedLines(prepared, preparedFacts, startLine, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +545,7 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 	return result, nil
 }
 
-func (f *Finder) findFunctionsInPreparedLines(lines []string, startLine int, filename string) (*FindResult, error) {
+func (f *Finder) findFunctionsInPreparedLines(lines []string, facts []LineFacts, startLine int, filename string) (*FindResult, error) {
 	lineOffset := startLine - 1 // Offset для корректировки номеров строк
 
 	result := &FindResult{
@@ -315,7 +560,7 @@ func (f *Finder) findFunctionsInPreparedLines(lines []string, startLine int, fil
 		if f.config.LangKey == "d" {
 			classes = findDClasses(lines, lineOffset, f.config)
 		} else {
-			classes = f.findClassesWithOffset(lines, lineOffset)
+			classes = f.findClassesWithOffset(facts, lineOffset)
 		}
 		result.Classes = classes
 	}
@@ -327,16 +572,15 @@ func (f *Finder) findFunctionsInPreparedLines(lines []string, startLine int, fil
 	}
 
 	if f.config.SupportsNested {
-		return f.findFunctionsWithNesting(lines, lineOffset, classes, result)
+		return f.findFunctionsWithNesting(lines, facts, lineOffset, classes, result)
 	}
 
 	// Старая логика для языков без вложенных функций
-	return f.findFunctionsSimple(lines, lineOffset, classes, result)
+	return f.findFunctionsSimple(lines, facts, lineOffset, classes, result)
 }
 
 // findFunctionsSimple - старая логика для языков без вложенных функций
-func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
-	state := StateNormal
+func (f *Finder) findFunctionsSimple(lines []string, facts []LineFacts, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
 	var currentFunc *FunctionBounds
 	var sig *sigScanner // the current function's signature, until its body opens
 	var sigLast int     // where that signature ends if it never gets a body
@@ -345,9 +589,8 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 	funcRegex := f.config.FuncRegex()
 
 	for lineNum, line := range lines {
-		// Очищаем строку от комментариев и литералов
-		cleaned, newState := f.sanitizer.CleanLine(line, state)
-		state = newState
+		// comments and literals are blank in the cleaned text (LineFacts)
+		cleaned := facts[lineNum].Cleaned
 
 		// A header that starts while the signature still waits for its body or a
 		// ';' means that signature had neither (Kotlin, Swift): it ends on its last
@@ -365,6 +608,9 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 				currentFunc.Lines = append(currentFunc.Lines, line)
 			}
 
+			// counted is the part of the line that the body's braces count in: a C++ signature's
+			// initializer list may hold braces before the body's opening brace.
+			counted := cleaned
 			if sig != nil {
 				atTop := sig.brackets == 0
 				ev := sig.feed(cleaned)
@@ -379,6 +625,9 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 					sig = nil
 					continue
 				case sigBody:
+					if sig.braceInits {
+						counted = cleaned[sig.bodyAt:]
+					}
 					sig = nil
 				}
 			}
@@ -390,8 +639,8 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			}
 
 			prevDepth := depth
-			hasBrace := strings.Contains(cleaned, "{")
-			depth += CountBraces(cleaned)
+			hasBrace := strings.Contains(counted, "{")
+			depth += CountBraces(counted)
 
 			// Функция заканчивается если мы ВЫХОДИМ из тела функции
 			// (prevDepth > 0 && depth == 0) — а не просто depth == 0, что
@@ -436,6 +685,38 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			if matches == nil && f.config.ClassMethodOpenRegex() != nil && f.config.HasClasses() && f.findClassForLine(classes, lineNum+lineOffset) != "" {
 				matches = f.config.ClassMethodOpenRegex().FindStringSubmatch(cleaned)
 			}
+			// C++ headers the main pattern cannot take: a signature that continues on the next lines,
+			// a constructor (no return type, named as its class), and a bodyless declaration. A line
+			// that starts with a statement word (return, throw) is a statement, never one of them.
+			hasHeaderPatterns := f.config.HeaderOpenRegex() != nil || f.config.ConstructorRegex() != nil || f.config.DeclarationRegex() != nil
+			if matches == nil && hasHeaderPatterns && !startsWithReservedWord(cleaned, f.config.StatementWords) {
+				cls := f.findClassForLine(classes, lineNum+lineOffset)
+				if f.config.HeaderOpenRegex() != nil && openParens(cleaned) > 0 {
+					matches = f.config.HeaderOpenRegex().FindStringSubmatch(cleaned)
+				}
+				if matches == nil && cls != "" && f.config.ConstructorRegex() != nil {
+					if m := f.config.ConstructorRegex().FindStringSubmatch(cleaned); m != nil {
+						if name := ExtractFuncName(m); name == cls || name == "~"+cls {
+							matches = m
+						}
+					}
+				}
+				if matches == nil && f.config.DeclarationRegex() != nil {
+					decl := f.config.DeclarationRegex()
+					if cls != "" && f.config.MemberDeclarationRegex() != nil {
+						decl = f.config.MemberDeclarationRegex()
+					}
+					matches = decl.FindStringSubmatch(cleaned)
+				}
+			}
+			// A conversion operator's name is a type the compiler spells in its own canonical form, so its
+			// header is not taken as a function (it would be named after the type's last word). The
+			// word-named operators (operator new, operator co_await) are functions, not conversions.
+			if matches != nil && f.config.ConversionOperatorRegex() != nil {
+				if m := f.config.ConversionOperatorRegex().FindStringSubmatch(cleaned); m != nil && !wordOperators[strings.TrimSpace(m[1])] {
+					matches = nil
+				}
+			}
 			if matches != nil {
 				funcName := ExtractFuncName(matches)
 
@@ -473,13 +754,19 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 						// прототип, '=> x;'), либо скобки закрыты и тело открыто и закрыто
 						// тут же (однострочная функция). Скобка '{' внутри открытых круглых
 						// скобок — значение по умолчанию (remember { x }), часть сигнатуры.
-						sig = &sigScanner{}
+						sig = &sigScanner{braceInits: f.config.InitializerLists}
 						sigLast = lineNum + 1 + lineOffset
 						ev := sig.feed(cleaned)
 						// A header that ends in '=' starts an expression body on the next line: it is
 						// not complete here, even when its braces balance.
 						endsWithEq := strings.HasSuffix(strings.TrimSpace(cleaned), "=")
-						if ev == sigEnd || (hasBrace && sig.brackets == 0 && !endsWithEq) {
+						closes := ev == sigEnd || (hasBrace && sig.brackets == 0 && !endsWithEq)
+						if sig.braceInits {
+							// A brace inside the parentheses (a default value `= {}`) or a braced initialization
+							// (`: a{1}`) is not the body: the header closes here only when its own body does.
+							closes = ev == sigEnd || (ev == sigBody && CountBraces(cleaned[sig.bodyAt:]) == 0 && !endsWithEq)
+						}
+						if closes {
 							currentFunc.End = lineNum + 1 + lineOffset
 							result.Functions = append(result.Functions, *currentFunc)
 							currentFunc = nil
@@ -518,6 +805,34 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 	return result, nil
 }
 
+// wordOperators are the C++ operators named by a word rather than by symbols.
+var wordOperators = map[string]bool{"new": true, "delete": true, "co_await": true, "co_yield": true, "co_return": true}
+
+// leadingWord matches the first identifier of a line.
+var leadingWord = regexp.MustCompile(`^\s*([A-Za-z_]\w*)`)
+
+// templatePrefix matches a `template <...>` prefix; the shortest match ends at the first '>'.
+var templatePrefix = regexp.MustCompile(`^\s*template\s*<.*?>\s*`)
+
+// startsWithReservedWord reports whether a line begins with one of the language's statement words
+// (return, throw, ...): such a line is a statement, whatever its parentheses look like. A complete
+// line may begin with a template prefix (`template <class T> void f(T);`), which is read past first.
+func startsWithReservedWord(line string, words []string) bool {
+	if openParens(line) == 0 {
+		line = templatePrefix.ReplaceAllString(line, "")
+	}
+	m := leadingWord.FindStringSubmatch(line)
+	if m == nil {
+		return false
+	}
+	for _, w := range words {
+		if w == m[1] {
+			return true
+		}
+	}
+	return false
+}
+
 // isKeywordName reports whether a match names a reserved word of the language, which
 // is a statement such as if (x), not a function.
 func (f *Finder) isKeywordName(name string) bool {
@@ -528,25 +843,32 @@ func (f *Finder) isKeywordName(name string) bool {
 }
 
 // findFunctionsWithNesting - новая логика для языков с вложенными функциями
-func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
-	state := StateNormal
+func (f *Finder) findFunctionsWithNesting(lines []string, facts []LineFacts, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
 	funcStack := []*FunctionContext{} // Стек активных функций
 	funcRegex := f.config.FuncRegex()
+	// The whole file, cleaned line by line: a declaration's value may span lines. The facts come from the caller.
+	cleanedLines := cleanedTexts(facts)
+	// typeDepth: the type-literal braces (`query<{`) still open from earlier lines; they are not code braces.
+	typeDepth := 0
 
 	for lineNum, line := range lines {
 		// Очищаем строку от комментариев и литералов
-		inComment := state == StateBlockComment // the line starts inside a block comment
-		startsNormal := state == StateNormal    // the line starts outside any string or comment
-		cleaned, newState := f.sanitizer.CleanLine(line, state)
-		state = newState
+		inComment := facts[lineNum].StartState == StateBlockComment // the line starts inside a block comment
+		startsNormal := facts[lineNum].StartState == StateNormal    // the line starts outside any string or comment
+		cleaned := cleanedLines[lineNum]
 
-		braceDelta := CountBraces(cleaned)
+		var braceDelta int
+		braceDelta, typeDepth = braceDeltaSkippingTypeLiterals(cleaned, typeDepth)
 
 		// 0. Сигнатура без тела, начатая раньше, ждёт этой строки: она может
 		// открыть тело или закончиться ';'. Если здесь начинается следующая функция,
 		// сигнатура без тела и без ';' (Kotlin, Swift) кончилась на своей последней
 		// строке. Решение принимается до обновления глубин (шаг 2).
-		matches := funcRegex.FindStringSubmatch(cleaned)
+		// A line that cannot hold a header is not run through the pattern (see func_requires).
+		var matches []string
+		if f.config.MayStartFunction(cleaned) {
+			matches = funcRegex.FindStringSubmatch(cleaned)
+		}
 		// A method named by a string literal is read from the raw line: the sanitizer blanks
 		// the literal, so the cleaned line has no name.
 		if matches == nil && startsNormal && f.config.QuotedMethodRegex() != nil {
@@ -555,12 +877,37 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		if matches != nil && isCompleteValueAssignment(matches, cleaned) {
 			matches = nil
 		}
+		if matches != nil && len(matches) > 5 && (matches[4] == "const" || matches[4] == "let" || matches[4] == "var") && valueSpansLines(cleanedLines, lineNum) {
+			matches = nil
+		}
 		// A class method whose parameter list continues on the next lines: its first line is
 		// the method only at the top of a class body, not inside another function.
 		if matches == nil && len(funcStack) == 0 && f.config.ClassMethodOpenRegex() != nil && f.config.HasClasses() {
 			if f.findClassForLine(classes, lineNum+lineOffset) != "" {
 				matches = f.config.ClassMethodOpenRegex().FindStringSubmatch(cleaned)
 			}
+		}
+		// A member signature whose parameter list continues on the next lines (`process(input: {`), inside a class
+		// or an interface: its first line ends with the parenthesis still open, and the signature ends with ';'.
+		if matches == nil && len(funcStack) == 0 && f.config.HeaderOpenRegex() != nil && f.config.HasClasses() && openParens(cleaned) > 0 {
+			if f.findClassForLine(classes, lineNum+lineOffset) != "" {
+				matches = f.config.HeaderOpenRegex().FindStringSubmatch(cleaned)
+			}
+		}
+		// A declaration or a member whose type-argument list runs over lines (`const X: React.FC<{` ... `}> = (`,
+		// `async list(): Promise<` ... `> {`): its header is a function when the list closes into a body, a
+		// signature or an arrow. Its braces are type braces, so it is read by the signature scanner.
+		typedOpen := false
+		if matches == nil && len(funcStack) == 0 && f.config.OpenTypeHeaderRegex() != nil && openAngles(cleaned) > 0 {
+			if m := f.config.OpenTypeHeaderRegex().FindStringSubmatch(cleaned); m != nil && typedHeaderIsFunction(cleanedLines, lineNum) {
+				matches = m
+				typedOpen = true
+			}
+		}
+		// A bodyless declaration at the top of a scope (TypeScript's `abstract run(): void;`): a
+		// method without a body ends with ';' on its own line, and is listed as a function.
+		if matches == nil && len(funcStack) == 0 && f.config.DeclarationRegex() != nil {
+			matches = f.config.DeclarationRegex().FindStringSubmatch(cleaned)
 		}
 		events := make([]sigEvent, len(funcStack))
 		for i, ctx := range funcStack {
@@ -576,9 +923,13 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			}
 			atTop := ctx.sig.brackets == 0
 			events[i] = ctx.sig.feed(cleaned)
+			if events[i] == sigBody {
+				ctx.bodyStarted = true
+				ctx.bodyDelta = CountBraces(cleaned[ctx.sig.bodyAt:])
+			}
 			if events[i] != sigOpen {
 				ctx.sig = nil
-			} else if t := strings.TrimSpace(cleaned); (t != "" || (!inComment && hasCodeText(line))) && !(atTop && strings.HasPrefix(t, "}")) && !(atTop && declStart.MatchString(t)) {
+			} else if t := strings.TrimSpace(cleaned); (t != "" || (!inComment && facts[lineNum].CodeText)) && !(atTop && strings.HasPrefix(t, "}")) && !(atTop && declStart.MatchString(t)) {
 				ctx.sigLast = lineNum + 1 + lineOffset
 			}
 		}
@@ -593,9 +944,9 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		}
 
 		// The functions that start after a separator on this line (TypeScript and JavaScript).
-		var inlineStarts []int
-		if f.config.InlineHeaders && !headerOpen {
-			inlineStarts = inlineHeaderStarts(cleaned, funcRegex)
+		var inlineStarts []inlineStart
+		if f.config.InlineHeaders && !headerOpen && f.config.MayStartFunction(cleaned) {
+			inlineStarts = inlineHeaderStarts(cleaned, funcRegex, f.config.DeclaratorRegex())
 		}
 
 		// 1. Сохраняем предыдущие глубины ДО обновления
@@ -612,7 +963,12 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			// A pending signature's braces sit inside its parentheses (a default value such
 			// as context: {} ): they are not the body, so they do not change the depth.
 			if ctx.sig == nil {
-				ctx.Depth += braceDelta
+				if ctx.bodyStarted {
+					ctx.Depth += ctx.bodyDelta
+					ctx.bodyStarted = false
+				} else {
+					ctx.Depth += braceDelta
+				}
 			}
 		}
 
@@ -646,7 +1002,18 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 				// A header that ends in '=' starts an expression body on the next line: it is not
 				// complete here, even when its braces balance (as on the simple path).
 				endsWithEq := strings.HasSuffix(strings.TrimSpace(cleaned), "=") || strings.HasSuffix(strings.TrimSpace(cleaned), "=>")
-				if braceDelta == 0 && strings.Contains(cleaned, "{") && openParens(cleaned) == 0 && !endsWithEq {
+				probe := &sigScanner{}
+				bodyOnLine := probe.feed(cleaned) == sigBody
+				if typedOpen {
+					sig := &sigScanner{}
+					sig.feed(cleaned)
+					funcStack = append(funcStack, &FunctionContext{Func: newFunc, sig: sig, sigLast: lineNum + 1 + lineOffset})
+				} else if braceDelta < 0 && bodyOnLine && openParens(cleaned[:probe.bodyAt]) == 0 && !endsWithEq && closeIndex(cleaned[probe.bodyAt:], 0) >= 0 {
+					// The body opens and closes on this line, and the line closes more braces after it (`}});`): what
+					// follows the body belongs to the caller. A return type's braces are not this case: they balance.
+					newFunc.End = lineNum + 1 + lineOffset
+					result.Functions = append(result.Functions, *newFunc)
+				} else if braceDelta == 0 && bodyOnLine && openParens(cleaned) == 0 && !endsWithEq {
 					newFunc.End = lineNum + 1 + lineOffset
 					result.Functions = append(result.Functions, *newFunc)
 				} else if braceDelta == 0 {
@@ -674,8 +1041,8 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		// (`let n=0;const f=…`, `cookie='';constructor(){`, `}, m(){`). Each is read from its own
 		// start, and its body is counted from there.
 		if len(inlineStarts) > 0 {
-			for _, p := range inlineStarts {
-				done, open := f.inlineFunction(cleaned, line, p, lineNum+lineOffset, funcRegex, classes)
+			for _, s := range inlineStarts {
+				done, open := f.inlineFunction(cleaned, line, s, lineNum+lineOffset, classes)
 				if done != nil {
 					result.Functions = append(result.Functions, *done)
 				} else if open != nil {
@@ -764,6 +1131,30 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 	return result, nil
 }
 
+// braceDeltaSkippingTypeLiterals returns the brace balance of a line that is not a type literal's, and the number
+// of type-literal braces still open after it. A '{' that follows '<' (or sits inside such a literal) opens a type
+// literal (`query<{ id: string }>(`): its braces are the type's, not the code's.
+func braceDeltaSkippingTypeLiterals(cleaned string, typeDepth int) (int, int) {
+	delta := 0
+	for i := 0; i < len(cleaned); i++ {
+		switch cleaned[i] {
+		case '{':
+			if typeDepth > 0 || prevNonSpace(cleaned, i) == '<' {
+				typeDepth++
+			} else {
+				delta++
+			}
+		case '}':
+			if typeDepth > 0 {
+				typeDepth--
+			} else {
+				delta--
+			}
+		}
+	}
+	return delta, typeDepth
+}
+
 // closeIndex returns the byte offset of the brace that brings a cleaned line down to a depth
 // of zero, for a body that was depth levels deep before the line, or -1 when the line does not.
 func closeIndex(cleaned string, depth int) int {
@@ -783,9 +1174,9 @@ func closeIndex(cleaned string, depth int) int {
 }
 
 // headerAfter reports whether a function header starts after byte pos of the line.
-func headerAfter(starts []int, pos int) bool {
-	for _, p := range starts {
-		if p > pos {
+func headerAfter(starts []inlineStart, pos int) bool {
+	for _, s := range starts {
+		if s.at > pos {
 			return true
 		}
 	}
@@ -828,10 +1219,22 @@ func arrowBodyTail(cleaned string) (*sigScanner, bool) {
 // that already holds code: the end of a statement, a separator, or a brace.
 const inlineHeaderSeparators = ";,{}"
 
-// inlineHeaderStarts returns the byte offsets, in order, where a function header begins after a
-// separator on a cleaned line. The start of the line is not among them: the caller reads it.
-func inlineHeaderStarts(cleaned string, funcRegex *regexp.Regexp) []int {
-	var starts []int
+// inlineStart is a function header that begins after a separator on a cleaned line, at byte offset at. re reads
+// the header from there: the function pattern, or for a later declarator of a const list (declarator) the
+// declarator pattern.
+type inlineStart struct {
+	at         int
+	re         *regexp.Regexp
+	declarator bool
+}
+
+// listDeclarationRe opens a declaration statement: the keyword that the declarators of its list follow.
+var listDeclarationRe = regexp.MustCompile(`^(?:export\s+)?(?:const|let|var)\s`)
+
+// inlineHeaderStarts returns the headers that begin after a separator on a cleaned line, in order. The start of
+// the line is not among them: the caller reads it. A later declarator of a const|let|var list begins after its ','.
+func inlineHeaderStarts(cleaned string, funcRegex, declRegex *regexp.Regexp) []inlineStart {
+	var starts []inlineStart
 	for i := 0; i < len(cleaned); i++ {
 		if !strings.ContainsRune(inlineHeaderSeparators, rune(cleaned[i])) {
 			continue
@@ -840,11 +1243,49 @@ func inlineHeaderStarts(cleaned string, funcRegex *regexp.Regexp) []int {
 		for p < len(cleaned) && (cleaned[p] == ' ' || cleaned[p] == '\t') {
 			p++
 		}
-		if p < len(cleaned) && funcRegex.MatchString(cleaned[p:]) {
-			starts = append(starts, p)
+		if p >= len(cleaned) {
+			continue
+		}
+		if funcRegex.MatchString(cleaned[p:]) {
+			starts = append(starts, inlineStart{at: p, re: funcRegex})
+		} else if declRegex != nil && cleaned[i] == ',' && declRegex.MatchString(cleaned[p:]) && listDeclarationBefore(cleaned, i) {
+			starts = append(starts, inlineStart{at: p, re: declRegex, declarator: true})
 		}
 	}
 	return starts
+}
+
+// listDeclarationBefore reports whether the ',' at comma separates the declarators of a const|let|var statement.
+func listDeclarationBefore(cleaned string, comma int) bool {
+	start := statementStart(cleaned, comma)
+	return start >= 0 && listDeclarationRe.MatchString(strings.TrimSpace(cleaned[start:comma]))
+}
+
+// statementStart returns the offset where the statement that holds the ',' at comma starts: after the last ';' or
+// '{' outside any bracket, or 0 for the line start. It returns -1 when the comma sits inside an open bracket.
+func statementStart(cleaned string, comma int) int {
+	depth := 0
+	for j := comma - 1; j >= 0; j-- {
+		switch cleaned[j] {
+		case ')', ']', '}':
+			depth++
+		case '(', '[':
+			if depth == 0 {
+				return -1
+			}
+			depth--
+		case '{':
+			if depth == 0 {
+				return j + 1
+			}
+			depth--
+		case ';':
+			if depth == 0 {
+				return j + 1
+			}
+		}
+	}
+	return 0
 }
 
 // headerEnd reads a header outside its brackets: sigEnd for a ';' that ends it, sigBody for a
@@ -871,12 +1312,22 @@ func headerEnd(text string) (sigEvent, int) {
 	return sigOpen, -1
 }
 
-// inlineFunction reads the function whose header starts at byte p of a cleaned line, after a
+// inlineFunction reads the function whose header starts at s.at of a cleaned line, after a
 // separator. It returns the function when it ends on this line, or the open frame when its
 // body or its signature goes on to the next lines.
-func (f *Finder) inlineFunction(cleaned, line string, p, lineIdx int, funcRegex *regexp.Regexp, classes []ClassBounds) (*FunctionBounds, *FunctionContext) {
-	matches := funcRegex.FindStringSubmatch(cleaned[p:])
+func (f *Finder) inlineFunction(cleaned, line string, s inlineStart, lineIdx int, classes []ClassBounds) (*FunctionBounds, *FunctionContext) {
+	p := s.at
+	matches := s.re.FindStringSubmatch(cleaned[p:])
 	if matches == nil {
+		return nil, nil
+	}
+	if s.declarator {
+		// A later declarator has no keyword of its own: the one that opened its list is the keyword, so the
+		// match reads as the const alternative of func_pattern (keyword in group 4, name in group 5).
+		matches = []string{matches[0], "", "", "", "const", matches[1]}
+	}
+	// A value assigned in a block (`{const x=(await q()).rows;}`) is not a function, as on the line path.
+	if isCompleteValueAssignment(matches, cleaned[p:]) {
 		return nil, nil
 	}
 	name := ExtractFuncName(matches)
@@ -944,11 +1395,11 @@ func ParseFuncNames(funcStr string) []string {
 
 // findClasses находит все классы в файле
 func (f *Finder) findClasses(lines []string) []ClassBounds {
-	return f.findClassesWithOffset(lines, 0)
+	return f.findClassesWithOffset(f.sanitizer.CleanLinesFacts(lines), 0)
 }
 
 // findClassesWithOffset находит все классы с учетом offset номеров строк
-func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBounds {
+func (f *Finder) findClassesWithOffset(facts []LineFacts, lineOffset int) []ClassBounds {
 	var classes []ClassBounds
 	var currentClass *ClassBounds
 	classRegex := f.config.ClassRegex()
@@ -956,40 +1407,66 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 		return classes
 	}
 
-	state := StateNormal
 	classDepth := 0
+	// classOpened: the body's '{' has been seen. A header may span lines (`export class X<` ... `> {`),
+	// and the class must not end on a header line, where the depth is still zero.
+	classOpened := false
 
-	for lineNum, line := range lines {
-		cleaned, newState := f.sanitizer.CleanLine(line, state)
-		state = newState
+	for lineNum := range facts {
+		cleaned := facts[lineNum].Cleaned
 
 		if currentClass != nil {
 			// Отслеживаем баланс скобок
-			braceDelta := CountBraces(cleaned)
-			classDepth += braceDelta
+			if strings.Contains(cleaned, "{") {
+				classOpened = true
+			}
+			classDepth += CountBraces(cleaned)
 
-			// Если глубина стала 0, класс завершён
-			if classDepth <= 0 {
+			// Если тело открылось и глубина стала 0, класс завершён
+			if classOpened && classDepth <= 0 {
 				currentClass.End = lineNum + 1 + lineOffset
 				classes = append(classes, *currentClass)
 				currentClass = nil
 				classDepth = 0
+				classOpened = false
 			}
 		} else {
 			// Ищем начало нового класса
-			matches := classRegex.FindStringSubmatch(cleaned)
+			var matches []string
+			if f.config.MayStartType(cleaned) {
+				matches = classRegex.FindStringSubmatch(cleaned)
+			}
 			if matches != nil && len(matches) >= 2 {
-				className := matches[1]
-				// Проверяем, есть ли открывающая скобка на этой строке
-				braceCount := strings.Count(cleaned, "{")
-				if braceCount > 0 {
-					classDepth = braceCount
-				} else {
-					classDepth = 0 // Ждём скобку на следующей строке
+				// `class A;` is a forward declaration: it has no body, so it opens no class.
+				if !strings.Contains(cleaned, "{") && strings.Contains(cleaned, ";") {
+					continue
 				}
+				className := matches[1]
 				currentClass = &ClassBounds{
 					Name:  className,
 					Start: lineNum + 1 + lineOffset,
+				}
+				classDepth = 0 // Ждём скобку на следующей строке
+				// Проверяем, есть ли открывающая скобка на этой строке. The depth is net: a body that
+				// opens and closes on this line (`struct A : B {};`) ends with the line, and must not
+				// hold the class open over the code that follows.
+				if strings.Contains(cleaned, "{") {
+					classOpened = true
+					classDepth = CountBraces(cleaned)
+					if classDepth <= 0 {
+						currentClass.End = lineNum + 1 + lineOffset
+						classes = append(classes, *currentClass)
+						currentClass = nil
+						classDepth = 0
+						classOpened = false
+					}
+				} else if !classHeaderContinues(facts, lineNum, cleaned) {
+					// A complete header without a body (`case class Success(v: T) extends Result`) is a class of
+					// one line: the next code must not be taken for its body.
+					currentClass.End = lineNum + 1 + lineOffset
+					classes = append(classes, *currentClass)
+					currentClass = nil
+					classDepth = 0
 				}
 			}
 		}
@@ -997,11 +1474,31 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 
 	// Если класс не был закрыт до конца файла
 	if currentClass != nil {
-		currentClass.End = len(lines) + lineOffset
+		currentClass.End = len(facts) + lineOffset
 		classes = append(classes, *currentClass)
 	}
 
 	return classes
+}
+
+// classHeaderContinues reports whether a class header with no '{' goes on: an unclosed generic list or
+// parenthesis (`export class X<`, `case class X(`), or a body that starts on the next line (`class X` `{`).
+func classHeaderContinues(facts []LineFacts, i int, cleaned string) bool {
+	if strings.Count(cleaned, "<") > strings.Count(cleaned, ">") || openParens(cleaned) > 0 {
+		return true
+	}
+	// A base list that goes on (`class X : public A,` or `class X extends`) continues on the next line.
+	t := strings.TrimSpace(cleaned)
+	if strings.HasSuffix(t, ",") || strings.HasSuffix(t, ":") || strings.HasSuffix(t, "extends") || strings.HasSuffix(t, "implements") {
+		return true
+	}
+	for j := i + 1; j < len(facts); j++ {
+		if t := strings.TrimSpace(facts[j].Cleaned); t != "" {
+			// The body opens here, or a base list starts (`: public B {`, `extends B {`).
+			return strings.HasPrefix(t, "{") || strings.HasPrefix(t, ":") || strings.HasPrefix(t, "extends") || strings.HasPrefix(t, "implements")
+		}
+	}
+	return false
 }
 
 // findClassForLine находит класс, которому принадлежит строка

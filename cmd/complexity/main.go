@@ -11,7 +11,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -409,17 +408,11 @@ func getScoreThreshold(level ComplexityLevel) int {
 
 // analyzeFileComplexity calculates nesting complexity for all functions in a file
 func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig) FileComplexity {
-	file, err := os.Open(filename)
-	if err != nil {
-		return FileComplexity{Filename: filename}
-	}
-	defer file.Close()
-
 	// Read all lines
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+	lines, err := internal.ReadLines(filename)
+	if err != nil {
+		internal.WarnError("%s: %v", filename, err)
+		return FileComplexity{Filename: filename}
 	}
 
 	// Use finder to get function bounds (auto-selects PythonFinder for Python)

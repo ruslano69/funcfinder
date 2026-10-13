@@ -41,6 +41,7 @@ func (f *Finder) findFunctionsByBlockEnd(lines []string, lineOffset int, classes
 	for lineNum, line := range lines {
 		lineNo := lineNum + 1 + lineOffset
 		if heredocEnd != "" {
+			// The body is not cleaned, so its terminator is compared with the raw line.
 			if strings.TrimSpace(line) == heredocEnd {
 				heredocEnd = ""
 			}
@@ -49,8 +50,9 @@ func (f *Finder) findFunctionsByBlockEnd(lines []string, lineOffset int, classes
 			}
 			continue
 		}
-		cleaned, newState := f.sanitizer.CleanLine(line, state)
-		state = newState
+		fact, next := f.sanitizer.lineFacts(line, state)
+		state = next
+		cleaned := fact.Cleaned
 		if m := rubyHeredoc.FindStringSubmatch(cleaned); m != nil {
 			heredocEnd = m[1]
 		}
@@ -59,11 +61,11 @@ func (f *Finder) findFunctionsByBlockEnd(lines []string, lineOffset int, classes
 			if f.extractMode {
 				current.Lines = append(current.Lines, line)
 			}
-			if isRubyBlockEnd(line, keyword, indent) {
+			if rubyBlockEndAt(cleaned, fact.Indent, keyword, indent) {
 				current.End = lineNo
 				result.Functions = append(result.Functions, *current)
 				current = nil
-			} else if strings.TrimSpace(line) == keyword && GetIndentLevel(line) < indent {
+			} else if strings.TrimSpace(cleaned) == keyword && fact.Indent < indent {
 				current.End = lineNo - 1
 				result.Functions = append(result.Functions, *current)
 				current = nil
@@ -93,7 +95,7 @@ func (f *Finder) findFunctionsByBlockEnd(lines []string, lineOffset int, classes
 		if f.extractMode {
 			current.Lines = append(current.Lines, line)
 		}
-		indent = GetIndentLevel(line)
+		indent = fact.Indent
 		if rubyOneLine(cleaned) {
 			current.End = lineNo
 			result.Functions = append(result.Functions, *current)
