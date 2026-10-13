@@ -50,6 +50,9 @@ Core parsing engine. Implements function/struct discovery, body extraction, call
 - Incremental split (`ProcessDirectoryIncremental`, `WriteSplitOutputIncremental`): a shard is a file's directory, and its checksum covers all its files, sorted. A shard with no declaration has no shard file; its checksum is in `Manifest.EmptyShards` (`emptyShardChecksums`), so the next run does not take it for changed. Both split writers record it.
 - Shard graph (`importresolver.go`): `BuildShardGraphFor` takes a `ResolveContext` with the language's data (Go module prefix, TS/JS aliases, Rust crates). Rust crates come from `DetectRustCrates` (`importresolver_rust.go`): each `Cargo.toml` that names a `[package]` or `[lib]`. A Rust import resolves by crate name or `crate::`, and walks the crate's `src/` shard directories as far as the tree has files. Rust imports count toward `ShardGraphStats` only when they name a known crate.
 - `shardutil.go` owns all `.codemap/` path conventions; do not hardcode shard paths elsewhere.
+- Output formatters build their text in a `strings.Builder` (`formatDirResultsGrep`, `buildTreeOutput`/`writeTreeNode`),
+  never with `+=` on a string in a loop: that copies the whole output per line, and on OmniRoute it made `--dir --map`
+  take 10.9 s instead of 1.7 s.
 - `DetectLanguage` (`detect.go`) gives a directory's language by source-file count, ties by language key, and a file
   by its extension. `complexity` uses it when `-l` is absent.
 - `FilterExcluded` (`exclude.go`) applies `complexity`'s `-exclude` globs to a file list: a pattern matches a base name,
