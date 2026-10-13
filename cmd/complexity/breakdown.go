@@ -9,12 +9,14 @@ import (
 	"strings"
 )
 
-// Thresholds for the --breakdown flags. They are heuristics for where a function gets hard to hold in one reading, not
-// limits of any language. The loop threshold is the one the loop-nesting signal already uses.
+// Thresholds for the --breakdown flags, set to the common warning levels rather than the loosest ones: a flag that fires
+// early costs a glance, a flag that fires late is missed. Lines: about 100 is the Clippy too_many_lines default.
+// Decisions: 10 is McCabe's classic limit. Branch depth: 3 to 4 levels is the usual limit, so 4 is flagged. Loop depth:
+// the loop-nesting signal that was already there.
 const (
-	breakdownLongLines     = 300 // lines of code
-	breakdownManyDecisions = 50  // if / else if / match / for / while / loop
-	breakdownDeepBranches  = 5   // nesting depth of if / match
+	breakdownLongLines     = 100 // lines of code
+	breakdownManyDecisions = 10  // if / elif / match / switch / for / while / loop
+	breakdownDeepBranches  = 4   // nesting depth of if / match
 	breakdownLoopNesting   = 2   // loops inside loops
 )
 
