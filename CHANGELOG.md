@@ -63,6 +63,18 @@
 - A later declarator of a `const|let|var` list on one line is a function when its value is an arrow or a
   parenthesized header (`const id = f(), notification = (x) => ...`). The list's keyword applies to it.
 
+### Long lines and read errors
+
+- A line longer than 64 KB no longer stops a read. Minified bundles have such lines: a directory run skipped
+  `jquery.js` without a word, and `--inp` on it failed with `token too long`. Every reader goes through one line
+  reader with no length limit (`readFileLines`; the CLI tools call `internal.ReadLines`).
+- `stat`, `complexity`, `deps` and `callgraph` used a scanner that stopped at such a line and ignored its error:
+  `stat` counted 1 line of a 34-line file, and `complexity` panicked on the mismatch. They read through the same
+  reader now, and a read error is reported instead of being dropped.
+- A file that fails in a directory run is reported on stderr as `Warning: <path>: <error>`. The other files'
+  results are kept.
+- On the fixed corpus only `jquery.js` changes: it now contributes 139 functions.
+
 ### Determinism and speed
 
 - A `.h` file is read with the C++ configuration on every run. `--dir` used to pick the C or the C++ configuration
