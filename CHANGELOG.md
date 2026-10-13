@@ -31,6 +31,13 @@
   functions, including the methods of `ZodType`).
 - An abstract method without a body (`abstract run(): void;`) is listed as a function.
 
+- Interface and overload signatures, and `declare`/`export function` overloads, are listed as bodyless
+  functions: `write(line: string): void;`, `static create(...): T;`.
+- Multi-line signatures in an interface are found, and they belong to the interface.
+- A multi-line class header (`export class X<` ... `> {`) keeps its members: the class no longer ends
+  on the header line.
+- `const x = (expr).method(() => ...)` is a value, not a function: the arrow belongs to the call.
+
 ### Class bounds (all languages)
 
 - A class whose body opens and closes on its header line (`struct A : B {};`)

@@ -192,6 +192,23 @@ type, which funcfinder does not reproduce), macro-generated declarations and
 template specializations on their own line; the remaining false positives are
 explicit instantiations (`extern template`, `template FMT_API`).
 
+### TypeScript functions and declarations
+
+`ts_tree_eval.py` scans tracked `.ts` and `.tsx` files with tree-sitter-typescript. Truth
+covers function declarations and signatures (overloads, `declare function`), class and
+interface methods (bodyless ones included), constructors, and functions bound to a variable
+(`const f = () => ...`). Anonymous callbacks and computed method names are not truth; they are
+counted apart. A string-named method keeps its quotes, as the finder names it.
+
+```bash
+python -m pip install tree-sitter-typescript
+python benchmarks/ts_tree_eval.py --root <zod-checkout> --label zod \
+  --binary ./funcfinder.exe --output build/zod.ts-eval.json
+```
+
+The recorded zod profile uses `b500a2ee95134f81d74da7911d7378dd2853d042` and the
+hr_gemini profile `5b69a1eb`; both are measured on 2026-10-13 with tree-sitter-typescript 0.23.2.
+
 ### Go symbol maps
 
 | Project | Commit | Lang | Recall | Precision | Token savings | Notes |

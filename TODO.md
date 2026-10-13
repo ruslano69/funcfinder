@@ -18,7 +18,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Swift | Alamofire (1890), Kingfisher (109) | 99.6%, 100% | 2, 0 | 6, 0 | good |
 | Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |
 | Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
-| TypeScript | hr_gemini (3096), zod (2416) | 98.8%, 98.7% | 12, 1 | 26, 31 | hr_gemini open |
+| TypeScript | hr_gemini (2988), zod (2072) | 98.8%, 99.0% | 12, 1 | 36, 21 | measured 2026-10-13 with the tree-sitter TypeScript reference; 23 and 10 false functions |
 | JavaScript | lodash (1918, minified) | 81.0% | 7 | 357 | open |
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
@@ -90,6 +90,8 @@ not all conditional variants. Before the fix: 157 missing (156 prototypes, one
 definition), 136 false names, zero wrong ends; after: zero in all three categories.
 The earlier 99.9% did not measure prototypes. Evaluator: `benchmarks/c_tree_eval.py`;
 exact flags, compiler/binary hashes and findings are in the ignored build directory.
+
+TypeScript was measured on 2026-10-13 with `benchmarks/ts_tree_eval.py` (tree-sitter-typescript 0.23.2 as the reference). Truth: function declarations and signatures, class and interface methods (including bodyless overloads and abstract methods), constructors, and functions bound to a variable; anonymous callbacks are not truth. zod `b500a2ee95134f81d74da7911d7378dd2853d042` (511 tracked files, 4 unparseable): on `main` 2007 of 2072 found, recall 96.9%, precision 99.0%; now 2051 found, recall 99.0%, precision 99.5%. hr_gemini `5b69a1eb` (455 tracked files, 9 unparseable): on `main` recall 91.3%, precision 96.2%; now recall 98.8%, precision 99.2%. Still open: 12 wrong ends in hr_gemini, all React components whose JSX body is cut short; 23 and 10 false functions; 36 and 21 missing. Lodash is not in this table: its reference is a minified bundle, and a non-minified JavaScript project is still needed.
 
 C++ was also measured on tinyxml2 `8224e427b655b83dae5e2298f1e6919523a78737` (`tinyxml2.h` and
 `tinyxml2.cpp`, 627 truth, libclang 18.1.1, same target): on `main` 332 found, recall 53.0%, precision

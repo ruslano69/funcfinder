@@ -11,6 +11,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 - `php_tree_eval.py` compares named PHP functions/methods, including bodyless declarations, with tree-sitter PHP.
 - `scala_d_tree_eval.py` compares Scala definitions/declarations and D functions/constructors/destructors/postblits with their tree-sitter grammars.
 - `c_tree_eval.py` compares C definitions/prototypes after GCC preprocessing, mapped back to original source lines.
+- `ts_tree_eval.py` compares TypeScript functions, methods, signatures and variable-bound functions with tree-sitter-typescript.
 - `cpp_tree_eval.py` compares C++ functions, constructors, destructors and bodyless declarations with libclang, keeping only the active lines of `g++ -E`.
 - `README.md` owns evaluator usage and measurement limitations.
 - `searchserver/` contains the existing search-server load harness.
@@ -38,6 +39,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 - Run `python benchmarks/scala_d_tree_eval.py --help` after changing its interface.
 - Run `python benchmarks/c_tree_eval.py --help` after changing its interface.
 - Run `python benchmarks/cpp_tree_eval.py --help` after changing its interface.
+- Run `python benchmarks/ts_tree_eval.py --help` after changing its interface.
 - Re-run the evaluator on the affected pinned reference projects after a measurement change.
 
 ## Child DOX Index
