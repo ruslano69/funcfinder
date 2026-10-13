@@ -15,6 +15,13 @@
   the file's functions and then in that set. On OmniRoute (43k functions, 6.8k files) the copies were about 290
   million map inserts: CPU time 47 → 23 s, wall time 4.5 → 3.7 s. The output is unchanged.
 
+### Complexity (`complexity`)
+
+- The breakdown counts (`decision_count`, `boolean_lines`, `max_bool_operators`) are read by a scanner instead of
+  regular expressions. In 1.14.0 they took about half of the analysis time and made `complexity` 10-50% slower than
+  1.12.2; it is now 7-37% faster than 1.12.2 (`-j`, median: tdtp-framework 470 → 302 ms, OmniRoute 11.7 → 8.5 s).
+  The output is byte-identical, and a test compares the scanner with the old patterns on every fixture line.
+
 ## v1.14.0 - 2026-10-13
 
 ### funcstats
