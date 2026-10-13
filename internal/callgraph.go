@@ -80,13 +80,12 @@ func buildFileCallGraph(
 	knownFuncs map[string]bool,
 	importAliases map[string]string,
 ) *FileCallGraph {
-	// Build a combined known set: file-local functions + provided knownFuncs
-	localFuncs := make(map[string]bool, len(funcs)+len(knownFuncs))
+	// A bare call counts when it names a function of this file or one of knownFuncs. The two sets are looked up in
+	// turn, not merged: knownFuncs is every function of a directory run, and copying it once per file was most of
+	// the time of a callgraph run on a large tree.
+	fileFuncs := make(map[string]bool, len(funcs))
 	for _, f := range funcs {
-		localFuncs[f.Name] = true
-	}
-	for k := range knownFuncs {
-		localFuncs[k] = true
+		fileFuncs[f.Name] = true
 	}
 
 	// Build line → caller name index
@@ -159,7 +158,7 @@ func buildFileCallGraph(
 			} else if m[3] != "" {
 				// bare Func( form
 				fname := m[3]
-				if !localFuncs[fname] {
+				if !fileFuncs[fname] && !knownFuncs[fname] {
 					continue // not a known function → skip
 				}
 				callee = fname

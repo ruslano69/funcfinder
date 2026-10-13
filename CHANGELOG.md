@@ -11,6 +11,9 @@
 - Files are reported in path order. Before, they came in the order the workers finished, so two runs of the same
   tree could differ in order. The edges are unchanged: on eight projects the JSON, the text lines and `--reverse` match
   the previous binary once its files are sorted.
+- The call scan no longer copies the set of all the run's functions into a map for every file; it looks names up in
+  the file's functions and then in that set. On OmniRoute (43k functions, 6.8k files) the copies were about 290
+  million map inserts: CPU time 47 → 23 s, wall time 4.5 → 3.7 s. The output is unchanged.
 
 ## v1.14.0 - 2026-10-13
 
