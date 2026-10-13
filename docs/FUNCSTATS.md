@@ -16,7 +16,7 @@ funcstats [flags] --dir <directory>
 | `<source file>` | One file: its statistics and call counts. |
 | `--dir DIR` | Every source file under DIR, recursively, with the totals. |
 | `-l LANG` | Force the language. Without it, the language is the one with the most source files under DIR (a file is taken by its extension). |
-| `-n N` | Show the N most called names. `0` shows all. |
+| `-n N` | Show the N most called names. `0` shows all. Names are listed by call count, most first, and by name among equal counts, so the list and the cut are the same on every run. |
 | `-j`, `--json` | Print JSON instead of text. |
 | `--uncalled` | Dir mode: list the functions that no code line names (see below). Needs `--dir`. |
 | `--exclude GLOB` | Dir mode: leave out files whose base name, or whose path under DIR with `/`, matches the glob. Repeat the flag for more patterns. It applies to every dir-mode output. |

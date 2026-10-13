@@ -35,6 +35,9 @@ The output is a probe for where to read first, not a verdict on the code.
   there and nowhere else.
 - `-bool` reads `max_bool_operators`, the most operators on one line (`countMaxBoolOps`). `boolean_lines` stays a line
   count; the two are not interchangeable.
+- The breakdown counts run on every function, with or without `--breakdown`, so they use the hand scanners `boolOps` and
+  `hasDecision`, not `regexp`: `\b` patterns backtracked and took half of the analysis time. The scanners must give what
+  the reference patterns in `breakdown_scan_test.go` give; change both together.
 
 ## Work Guidance
 
