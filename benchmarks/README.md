@@ -20,6 +20,13 @@ funcfinder — being line-based — also reports. An earlier top-level-only vers
 undercounted these and unfairly dented funcfinder's precision; a ruler that
 undercounts is a broken ruler.
 
+A **type alias** (`type A = S`, or a line `A = S` of a `type ( ... )` group) is a
+name for an existing type, not a new one. Both tools list aliases apart from the
+types, in a file's `aliases` list (`name`, `line`, `target`), so one struct with
+several names is counted once. The `classes` list compared by `specsheet.py` holds
+only real types. On the working tree of 2026-10-13 the self-host run gives types
+2376/2376 (recall and precision 100%) and aliases 21/21 against the ruler.
+
 The ruler exists to *measure*, never to become the product. The target is not
 "match the AST 1:1" — past "the agent reaches the right code", extra accuracy
 costs tokens and time, which are the product. The ruler tells us **where** the

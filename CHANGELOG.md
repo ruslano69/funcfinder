@@ -63,6 +63,13 @@
 - A later declarator of a `const|let|var` list on one line is a function when its value is an arrow or a
   parenthesized header (`const id = f(), notification = (x) => ...`). The list's keyword applies to it.
 
+### Go type aliases
+
+- A Go type alias (`type A = S`, or a line `A = S` of a `type ( ... )` group) is a name for an existing type, not a
+  new one. It is no longer in a Go file's `classes`; it is listed in the file's `aliases` list (`name`, `line`,
+  `target`) in `--json` output, and only files that have aliases carry the key. A Go count of `classes` drops by
+  the number of single-line aliases. `cmd/astoracle` lists aliases the same way (21/21 on this repository).
+
 ### Class bounds (all languages)
 
 - A class whose body opens and closes on its header line (`struct A : B {};`)
