@@ -52,6 +52,33 @@ func TestDocLines_CodeBeforeBlockEndIsNotDoc(t *testing.T) {
 	}
 }
 
+// A Rust attribute between the doc comment and the item is skipped: the doc is the comment above it.
+func TestDocLines_RustAttributeSkipped(t *testing.T) {
+	lines := []string{"/// Adds.", "#[derive(Debug)]", "struct S;"}
+	got := DocLines(lines, 3, langConfigOf(t, "rust"))
+	if want := []string{"/// Adds."}; !reflect.DeepEqual(got, want) {
+		t.Errorf("DocLines = %q, want %q", got, want)
+	}
+}
+
+// A multi-line Rust attribute, from its `#[` opener to its `)]` closer, is skipped as a whole.
+func TestDocLines_RustMultiLineAttributeSkipped(t *testing.T) {
+	lines := []string{"/// Doc.", "#[derive(", "    Debug,", "    Clone", ")]", "struct S;"}
+	got := DocLines(lines, 6, langConfigOf(t, "rust"))
+	if want := []string{"/// Doc."}; !reflect.DeepEqual(got, want) {
+		t.Errorf("DocLines = %q, want %q", got, want)
+	}
+}
+
+// Outside Rust, `#[` is an ordinary comment in Python, so it is part of the doc, not skipped.
+func TestDocLines_HashBracketIsCommentOutsideRust(t *testing.T) {
+	lines := []string{"# note", "#[x]", "def f():"}
+	got := DocLines(lines, 3, langConfigOf(t, "py"))
+	if want := []string{"# note", "#[x]"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("DocLines = %q, want %q", got, want)
+	}
+}
+
 // --doc prints each named declaration: a header, its doc comment, and its first line; a declaration with no comment
 // has no doc lines; a name that matches nothing is not printed.
 func TestFormatDocs_GoDeclarations(t *testing.T) {
