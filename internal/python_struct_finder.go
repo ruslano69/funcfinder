@@ -75,8 +75,11 @@ var (
 	// identifiers, dots and brackets.
 	classPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*(\(\s*([\w,\s\.\[\]='"]*)\s*\))?\s*:`)
 
-	// Dataclass: @dataclass\nclass Name:
-	dataclassPattern = regexp.MustCompile(`^\s*@dataclass\s*\nclass\s+(\w+)\s*(\(\s*([\w,\s\.\[\]='"]*)\s*\))?\s*:`)
+	// Dataclass decorator: @dataclass, @dataclass(...), @dataclasses.dataclass
+	dataclassDecoratorPattern = regexp.MustCompile(`^@(dataclasses\.)?dataclass(\(.*\))?$`)
+
+	// attrs decorator: @attr.s, @attr.s(...)
+	attrsDecoratorPattern = regexp.MustCompile(`^@attr\.s(\(.*\))?$`)
 
 	// NamedTuple: class Name(NamedTuple):
 	namedTuplePattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*\(\s*NamedTuple\s*\)\s*:`)
@@ -86,9 +89,6 @@ var (
 
 	// Enum: class Name(Enum):
 	enumPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*\(\s*Enum\s*\)\s*:`)
-
-	// attrs: @attr.s\nclass Name:
-	attrsPattern = regexp.MustCompile(`^\s*@attr\.s\s*\nclass\s+(\w+)\s*(\(\s*([\w,\s\.\[\]='"]*)\s*\))?\s*:`)
 
 	// ABC: class Name(ABC):
 	abcPattern = regexp.MustCompile(`^\s*class\s+(\w+)\s*\(\s*ABC\s*\)\s*:`)
@@ -107,9 +107,13 @@ func pythonCodeLine(fact LineFacts) bool {
 }
 
 // findAllTypes finds all type definitions in Python file. Headers are matched on the cleaned text, so a class header
-// written in a docstring or a comment is not a class.
+// written in a docstring or a comment is not a class. A decorator on the line above a class names its kind.
 func (f *PythonStructFinder) findAllTypes(facts []LineFacts, lineOffset int) []TypeBounds {
 	var types []TypeBounds
+
+	// Kind named by the decorators above the next class header. A code line that is neither a decorator nor a class
+	// header clears it, so a decorator above a def does not reach a class after the def.
+	decoratedKind := ""
 
 	for lineNum := range facts {
 		if !pythonCodeLine(facts[lineNum]) {
@@ -117,53 +121,32 @@ func (f *PythonStructFinder) findAllTypes(facts []LineFacts, lineOffset int) []T
 		}
 		trimmed := strings.TrimSpace(facts[lineNum].Cleaned)
 
-		// Check for decorators before class
+		// A decorator names the kind of the class below it; other decorators in between keep the name
 		if strings.HasPrefix(trimmed, "@") {
-			// Check if next line is a dataclass or attrs class
-			if lineNum+1 < len(facts) {
-				nextLine := strings.TrimSpace(facts[lineNum+1].Cleaned)
-
-				// Dataclass
-				if matches := dataclassPattern.FindStringSubmatch(nextLine); matches != nil {
-					typeName := matches[1]
-					if f.mapMode || f.typeNames[typeName] {
-						endLine := f.findTypeEnd(facts, lineNum+1, lineOffset)
-						types = append(types, TypeBounds{
-							Name:   typeName,
-							Kind:   "dataclass",
-							Start:  lineNum + 1 + 1 + lineOffset,
-							End:    endLine,
-							Fields: []FieldBounds{},
-						})
-					}
-					continue
-				}
-
-				// attrs
-				if matches := attrsPattern.FindStringSubmatch(nextLine); matches != nil {
-					typeName := matches[1]
-					if f.mapMode || f.typeNames[typeName] {
-						endLine := f.findTypeEnd(facts, lineNum+1, lineOffset)
-						types = append(types, TypeBounds{
-							Name:   typeName,
-							Kind:   "attrs",
-							Start:  lineNum + 1 + 1 + lineOffset,
-							End:    endLine,
-							Fields: []FieldBounds{},
-						})
-					}
-					continue
-				}
+			switch {
+			case dataclassDecoratorPattern.MatchString(trimmed):
+				decoratedKind = "dataclass"
+			case attrsDecoratorPattern.MatchString(trimmed):
+				decoratedKind = "attrs"
 			}
+			continue
 		}
 
-		// Check for standard class definitions
-		if matches := classPattern.FindStringSubmatch(trimmed); matches != nil {
-			typeName := matches[1]
-			bases := matches[3] // Base classes if any
+		headerKind := decoratedKind
+		decoratedKind = ""
 
-			// Determine type kind from bases
-			kind := "class"
+		// Check for class definitions
+		matches := classPattern.FindStringSubmatch(trimmed)
+		if matches == nil {
+			continue
+		}
+		typeName := matches[1]
+		bases := matches[3] // Base classes if any
+
+		// A dataclass or attrs decorator decides the kind; without one, the base classes do
+		kind := headerKind
+		if kind == "" {
+			kind = "class"
 			switch {
 			case strings.Contains(bases, "NamedTuple"):
 				kind = "NamedTuple"
@@ -176,17 +159,17 @@ func (f *PythonStructFinder) findAllTypes(facts []LineFacts, lineOffset int) []T
 			case strings.Contains(bases, "Protocol"):
 				kind = "Protocol"
 			}
+		}
 
-			if f.mapMode || f.typeNames[typeName] {
-				endLine := f.findTypeEnd(facts, lineNum, lineOffset)
-				types = append(types, TypeBounds{
-					Name:   typeName,
-					Kind:   kind,
-					Start:  lineNum + 1 + lineOffset,
-					End:    endLine,
-					Fields: []FieldBounds{},
-				})
-			}
+		if f.mapMode || f.typeNames[typeName] {
+			endLine := f.findTypeEnd(facts, lineNum, lineOffset)
+			types = append(types, TypeBounds{
+				Name:   typeName,
+				Kind:   kind,
+				Start:  lineNum + 1 + lineOffset,
+				End:    endLine,
+				Fields: []FieldBounds{},
+			})
 		}
 	}
 
