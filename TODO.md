@@ -18,7 +18,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Swift | Alamofire (1890), Kingfisher (109) | 99.6%, 100% | 2, 0 | 6, 0 | good |
 | Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |
 | Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
-| TypeScript | hr_gemini (2988), zod (2072) | 99.97%, 99.3% | 0, 1 | 1, 14 | measured 2026-10-13 with the tree-sitter TypeScript reference; 0 and 3 false functions |
+| TypeScript | hr_gemini (2988), zod (2072) | 100%, 99.3% | 0, 1 | 0, 14 | hr_gemini measured 2026-10-13 after the declarator fix (tree-sitter TypeScript reference, 0 false functions); zod measured before it, 3 false functions |
 | JavaScript | lodash (1918, minified) | 81.0% | 7 | 357 | open |
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
@@ -140,8 +140,7 @@ exclusions. Truth is 1450 functions and declarations, 138 of them bodyless. On `
   (`React.FC<{...}>`) does not stop the bracket count, a closing JSX tag (`</h4>`) and a
   self-closing `}/>` are not regular expressions, and a body that opens and closes on its header
   line ends there.
-- [ ] **TypeScript, hr_gemini: 1 missing; zod: 14 missing, 3 false functions, 1 wrong end (2026-10-13).**
-  hr_gemini: `notification` is the second declarator of `const id = randomUUID(), notification = (...) => {`.
+- [ ] **TypeScript, zod: 14 missing, 3 false functions, 1 wrong end (2026-10-13; not re-measured after the declarator fix).**
   zod missing: `catch`, `create`, `args`, `returns`, `$constructor` (generic header over lines), the
   `formatContributor` and `createToJSONSchemaMethod` consts whose `=` sits on the previous line,
   `createStandardJSONSchemaMethod`, `registries.add<` over lines, `async "array-objects"`, and

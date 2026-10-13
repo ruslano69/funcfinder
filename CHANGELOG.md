@@ -59,7 +59,9 @@
 - A `{` after `<` opens a type literal (`query<{ ... }>(`), also across lines: its braces are not counted into a
   function body.
 - A function whose body opens and closes on its header line ends there, so what follows the closing brace
-  (`});`) belongs to the caller. hr_gemini: 2 wrong ends -> 0, 1 missing left.
+  (`});`) belongs to the caller. hr_gemini: 2 wrong ends -> 0, 1 missing -> 0 after the next item.
+- A later declarator of a `const|let|var` list on one line is a function when its value is an arrow or a
+  parenthesized header (`const id = f(), notification = (x) => ...`). The list's keyword applies to it.
 
 ### Class bounds (all languages)
 
