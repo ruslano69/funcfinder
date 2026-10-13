@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Incremental split (`--split --inc`)
+
+- A shard whose files hold no declaration (data tables, re-export modules) has no shard file, so it was never in the
+  manifest, and every incremental run counted it as changed: "2 shards changed" on an unchanged tree. The manifest now
+  keeps the checksum of each such shard in `empty_shards`, and the incremental pass reads it. A shard that loses all its
+  declarations drops its shard file and its `shards` entry. Shard files of shards with declarations are unchanged.
+
 ## v1.13.0 - 2026-10-13
 
 Two new listings for working with names: `--names` lists the kind, name and location of every declaration, and
