@@ -38,6 +38,13 @@
   on the header line.
 - `const x = (expr).method(() => ...)` is a value, not a function: the arrow belongs to the call.
 
+- A closing JSX tag (`</h4>`) no longer starts a regular expression, which blanked the code between it and
+  the next slash. React components ending in a JSX body are found again.
+- A typed component (`React.FC<{ children: T }> = (...) => (...)`) keeps its body: braces in a type argument
+  and a `;` inside them are not the end of the signature.
+- A base list on the next line (`class X : public A,` or `: public B {`) and a multi-line class header keep
+  the class open, so its constructors and destructors keep their class.
+
 ### Class bounds (all languages)
 
 - A class whose body opens and closes on its header line (`struct A : B {};`)
