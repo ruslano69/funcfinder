@@ -51,6 +51,11 @@
   immediately invoked function `(() => {...})()` is a value; a value assigned in a one-line block is a value too.
   hr_gemini: 24 false functions -> 0.
 
+- A typed component or a method whose type-argument list runs over lines (`const X: React.FC<{` ... `}> = (...)`,
+  `async list(): Promise<` ... `> {`) is found; a property (`items: Array<{`) is not a method.
+- The braces of a type argument are not counted into a function body: a typed component with a block body
+  ends with its own closing brace. hr_gemini: 11 missing -> 2, 24 false functions -> 0.
+
 ### Class bounds (all languages)
 
 - A class whose body opens and closes on its header line (`struct A : B {};`)
