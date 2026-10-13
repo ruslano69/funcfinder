@@ -510,6 +510,16 @@ enterprise/Pro correctness story.
 
 ## Bugs
 
+### `.gitignore` globs: `*` is a regex quantifier, `**` lines are dropped (2026-10-13)
+
+- [ ] **Open.** `IgnoreMatcher.patternToRegex` (`internal/dirprocessor.go`) escapes regex characters with a class that
+  leaves out `*`, so its `\*` and `\*\*` replacements never fire. A `*` stays a regex quantifier on the character before
+  it: `*.log` becomes `(^|/)*\.log($|/)`, which works by accident, but `ab*c` matches `ac`, and `/_*` becomes `^_*$`,
+  which matches only paths made of underscores instead of every top-level name starting with `_`. A line with `**` (`.agents/**`, `**/build`, `foo/**/bar`) does not compile
+  and `parsePatterns` drops it without a word: OmniRoute's `.gitignore` has a dozen such lines that never apply.
+  Fixing it changes which files every tool reads, so it needs its own change, a re-measure, and a CHANGELOG entry.
+  `globLiteral` follows the current regexes and must change with them (`TestIgnoreMatcher_LiteralGateMatchesRegex`).
+
 ### HybridStructFinder: brace-less `type_alias` swallows following types (TS/JS)
 
 - [x] **FIXED (2026-07-17).** `findAllTypes` in

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Directory walk (`.gitignore`)
+
+- Each `.gitignore` pattern is checked against a path only when the path holds the pattern's literal part. Every
+  pattern's regex ran on every path of the walk, and the walk runs before any file is processed: on OmniRoute (164
+  patterns) matching took 0.89 s of a 1.9 s `funcfinder --dir` run, now 16 ms. The files read are unchanged.
+  `funcfinder --dir --all --json`, median: OmniRoute 1.88 → 1.03 s, tdtp-framework 153 → 107 ms. `complexity`,
+  `funcstats` and `callgraph` walk the same way and gain the same time.
+
 ## v1.14.0 - 2026-10-13
 
 ### funcstats

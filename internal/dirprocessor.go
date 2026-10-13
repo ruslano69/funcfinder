@@ -606,7 +606,41 @@ type IgnoreMatcher struct {
 
 type ignorePattern struct {
 	regex     *regexp.Regexp
-	directory bool // pattern ends with /
+	directory bool   // pattern ends with /
+	literal   string // longest piece of the glob between * and ?: a path that lacks it cannot match
+}
+
+// globLiteral returns the longest piece of a gitignore glob that every path its regex matches must contain. The
+// regexes are unanchored at the start ((^|/)) and were run for every pattern on every path of a walk; checking the
+// piece first skips almost all of them (OmniRoute: 0.89 s of matching down to 16 ms).
+//
+// The piece follows what patternToRegex really builds, not glob syntax: it escapes every character but *, and ? is
+// read as any one character, so pieces end at ?; a * is left as a regex quantifier on the character before it
+// (`ab*c` matches "ac"), so a piece ends at * and loses that character.
+func globLiteral(glob string) string {
+	lit := ""
+	var piece []rune
+	flush := func() {
+		if len(piece) > len([]rune(lit)) {
+			lit = string(piece)
+		}
+		piece = piece[:0]
+	}
+	for _, r := range strings.TrimPrefix(glob, "/") {
+		switch r {
+		case '*':
+			if len(piece) > 0 {
+				piece = piece[:len(piece)-1]
+			}
+			flush()
+		case '?':
+			flush()
+		default:
+			piece = append(piece, r)
+		}
+	}
+	flush()
+	return lit
 }
 
 func NewIgnoreMatcher(root string) *IgnoreMatcher {
@@ -664,6 +698,7 @@ func (m *IgnoreMatcher) parsePatterns(content string) {
 			m.patterns = append(m.patterns, ignorePattern{
 				regex:     re,
 				directory: isDir,
+				literal:   globLiteral(line),
 			})
 		}
 	}
@@ -695,6 +730,9 @@ func (m *IgnoreMatcher) patternToRegex(pattern string) string {
 func (m *IgnoreMatcher) Matches(path string, isDir bool) bool {
 	for _, p := range m.patterns {
 		if p.directory && !isDir {
+			continue
+		}
+		if p.literal != "" && !strings.Contains(path, p.literal) {
 			continue
 		}
 		if p.regex.MatchString(path) {
