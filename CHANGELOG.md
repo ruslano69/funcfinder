@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v1.13.0 - 2026-10-13
+
+Two new listings for working with names: `--names` lists the kind, name and location of every declaration, and
+`--doc` prints the comment above named declarations. Python dataclass and attrs classes are reported with their kind,
+and one-line Go structs are structs. C++ and TypeScript/JavaScript parsing is more complete.
+
+Known limits: `--doc` does not read Python docstrings yet (only the comment above `def`/`class`), and a Go receiver
+method is listed as a `function`, because its receiver is not recorded.
+
 ### C++ parsing
 
 - Functions are found in more shapes: signatures with nested parentheses or a
