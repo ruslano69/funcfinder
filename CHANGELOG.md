@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Call graph (`callgraph`)
+
+- A directory run no longer finds every file's functions twice. The directory job finds them in parallel, and the call
+  scan used to find them again, one file after another: most of a run's time. The scan now takes the job's functions,
+  runs over the files in parallel, and skips the signature check on lines that do not hold the caller's name.
+  `--dir --json`, median: arsd 10.6 → 2.0 s, OmniRoute 20.3 → 4.6 s, tdtp-framework 707 → 295 ms.
+- Files are reported in path order. Before, they came in the order the workers finished, so two runs of the same
+  tree could differ in order. The edges are unchanged: on eight projects the JSON, the text lines and `--reverse` match
+  the previous binary once its files are sorted.
+
 ### Complexity (`complexity`)
 
 - The breakdown counts (`decision_count`, `boolean_lines`, `max_bool_operators`) are read by a scanner instead of
