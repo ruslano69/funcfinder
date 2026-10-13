@@ -47,6 +47,7 @@ Core parsing engine. Implements function/struct discovery, body extraction, call
 - `--doc` (`docs.go`) reads the raw lines above a declaration (`DocLines`): line comments, or a block comment that ends on the line above, with decorators skipped. Comments are output only, so raw lines are fine there. `DirResult.LangKey` gives the comment markers (`LineComment`, `BlockCommentStart/End`). Python docstrings are not read yet.
 - `structPatternOrder` tries the Go `named` pattern last: it also matches a one-line `type X struct{}`.
 - Incremental split (`ProcessDirectoryIncremental`, `WriteSplitOutputIncremental`): a shard is a file's directory, and its checksum covers all its files, sorted. A shard with no declaration has no shard file; its checksum is in `Manifest.EmptyShards` (`emptyShardChecksums`), so the next run does not take it for changed. Both split writers record it.
+- Shard graph (`importresolver.go`): `BuildShardGraphFor` takes a `ResolveContext` with the language's data (Go module prefix, TS/JS aliases, Rust crates). Rust crates come from `DetectRustCrates` (`importresolver_rust.go`): each `Cargo.toml` that names a `[package]` or `[lib]`. A Rust import resolves by crate name or `crate::`, and walks the crate's `src/` shard directories as far as the tree has files. Rust imports count toward `ShardGraphStats` only when they name a known crate.
 - `shardutil.go` owns all `.codemap/` path conventions; do not hardcode shard paths elsewhere.
 
 ## Verification
