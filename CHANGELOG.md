@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### funcstats
+
+- Names with the same call count are listed by name. They came in random order, so two runs of the same input could
+  differ, and with `-n` so could which of the tied names made the cut. The counts are unchanged.
+
 ## v1.14.0 - 2026-10-13
 
 ### funcstats
