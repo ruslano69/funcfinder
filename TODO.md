@@ -213,8 +213,9 @@ with classes. Differential check on 2026-10-13 (`main` binary against this chang
 truth oracle): zod `b500a2ee95134f81d74da7911d7378dd2853d042` 2472 functions, lodash
 `2b5e6f7399a7b48005140b5d5c6bc6c0e62919a8` 2120, hr_gemini `5b69a1eb` 3277 — identical function sets.
 Class attribution changed only for one-line class declarations (`class Test {}`: 11 in zod, 9 in
-hr_gemini); methods after them no longer belong to that class. `abstract class X {` is still not a
-class in the TS/JS `class_pattern`, which predates this change. Truth-based numbers were not re-measured.
+hr_gemini); methods after them no longer belong to that class. `abstract class X {` was not a class in the
+TS/JS `class_pattern` (the `--struct` pattern already accepted it). Fixed on 2026-10-13: zod gains 11 methods of
+its abstract classes (`ZodType`, `Metabench`), lodash and hr_gemini are unchanged. Truth-based numbers were not re-measured.
 The fixtures in `test_examples/` and `test_files/` show no change outside C++.
 
 ### Harness

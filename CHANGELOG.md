@@ -24,6 +24,12 @@
   run: files are reported in path order and tree children are sorted by name.
   The tree used to change between runs, because its children came from a map.
 
+### TypeScript / JavaScript
+
+- `abstract class`, `export default class` and `export default abstract class` headers are
+  classes: their methods get the class name, and a multi-line method in them is found (zod: 11 more
+  functions, including the methods of `ZodType`).
+
 ### Class bounds (all languages)
 
 - A class whose body opens and closes on its header line (`struct A : B {};`)
