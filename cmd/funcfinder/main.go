@@ -35,6 +35,7 @@ func main() {
 	treeFull := flag.Bool("tree-full", false, "output in tree format with signatures")
 	jsonOut := flag.Bool("json", false, "output in JSON format")
 	extract := flag.Bool("extract", false, "extract function/type bodies")
+	namesMode := flag.Bool("names", false, "list names: kind, name and file:line, one per line (--struct or --all add types and aliases)")
 
 	// Advanced flags
 	rawMode := flag.Bool("raw", false, "include raw strings in brace counting")
@@ -71,6 +72,12 @@ func main() {
 		internal.FatalError("loading config: %v", err)
 	}
 
+	// Список имён (--names): файл и каталог проходят одну и ту же задачу
+	if *namesMode {
+		handleNamesMode(config, *inp, *dir, *source, *workers, *recursive, !*noGitignore, *structMode, *allMode)
+		return
+	}
+
 	// Режим обработки каталога
 	if *dir != "" {
 		// Автоматически включаем --map если не указан другой режим вывода
@@ -84,6 +91,61 @@ func main() {
 
 	// Режим обработки одного файла (существующая логика)
 	handleFileMode(config, *inp, *source, *funcStr, *typeStr, *structMode, *allMode, *mapMode, *treeMode, *treeFull, *jsonOut, *extract, *rawMode, *linesRange)
+}
+
+// namesFlags are the flags --names works with; any other flag set alongside it is an error.
+var namesFlags = map[string]bool{
+	"names": true, "inp": true, "dir": true, "source": true, "workers": true,
+	"recursive": true, "no-gitignore": true, "struct": true, "all": true,
+}
+
+// handleNamesMode prints the names of a file or a directory (--names): kind, name and file:line, one per line. A file
+// runs through the same job as a directory, so the two give the same names.
+func handleNamesMode(config internal.Config, inp, dirPath, source string, workers int, recursive, useGitignore, structMode, allMode bool) {
+	flag.Visit(func(f *flag.Flag) {
+		if !namesFlags[f.Name] {
+			internal.FatalError("--names cannot be combined with --%s", f.Name)
+		}
+	})
+	if structMode && allMode {
+		internal.FatalError("--struct and --all are mutually exclusive")
+	}
+	workMode := "functions"
+	if structMode {
+		workMode = "structs"
+	} else if allMode {
+		workMode = "all"
+	}
+
+	if dirPath != "" {
+		info, err := os.Stat(dirPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				internal.FatalError("directory does not exist: %s", dirPath)
+			}
+			internal.FatalError("accessing directory: %v", err)
+		}
+		if !info.IsDir() {
+			internal.FatalError("path is not a directory: %s", dirPath)
+		}
+
+		processor := internal.NewDirProcessor(config, workers, recursive, useGitignore, workMode)
+		results, err := processor.ProcessDirectory(dirPath)
+		if err != nil {
+			internal.FatalError("processing directory: %v", err)
+		}
+		fmt.Print(internal.FormatNames(results))
+		return
+	}
+
+	if source == "" {
+		internal.FatalError("--source parameter is required with --names")
+	}
+	result := internal.ProcessSingleFile(config, inp, source, workMode)
+	if result.Error != nil {
+		internal.FatalError("%v", result.Error)
+	}
+	fmt.Print(internal.FormatNames([]internal.DirResult{result}))
 }
 
 func handleDirectoryMode(config internal.Config, dirPath string, workers int, recursive, useGitignore bool, funcStr string, mapMode, treeMode, treeFull, jsonOut, extract, structMode, allMode, splitMode bool, splitBy, outDir string, incMode bool) {

@@ -255,6 +255,7 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 				Name:  typ.Name,
 				Start: typ.Start,
 				End:   typ.End,
+				Kind:  typ.Kind,
 			})
 		}
 
@@ -275,20 +276,23 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 			structFinder := factory.CreateStructFinder(langConfig, "", true, false)
 			structResult, err := findStructuresOf(structFinder, job.Path, fileLines)
 			if err == nil {
-				// Dedup: only add types not already in Classes (from class_pattern)
-				seen := make(map[string]bool, len(result.Classes))
-				for _, c := range result.Classes {
-					seen[c.Name+":"+strconv.Itoa(c.Start)] = true
+				// Dedup: a type already in Classes (from class_pattern) keeps its entry and takes the struct finder's kind
+				index := make(map[string]int, len(result.Classes))
+				for i, c := range result.Classes {
+					index[c.Name+":"+strconv.Itoa(c.Start)] = i
 				}
 				for _, typ := range structResult.Types {
 					key := typ.Name + ":" + strconv.Itoa(typ.Start)
-					if !seen[key] {
-						result.Classes = append(result.Classes, ClassBounds{
-							Name:  typ.Name,
-							Start: typ.Start,
-							End:   typ.End,
-						})
+					if i, ok := index[key]; ok {
+						result.Classes[i].Kind = typ.Kind
+						continue
 					}
+					result.Classes = append(result.Classes, ClassBounds{
+						Name:  typ.Name,
+						Start: typ.Start,
+						End:   typ.End,
+						Kind:  typ.Kind,
+					})
 				}
 			}
 		}

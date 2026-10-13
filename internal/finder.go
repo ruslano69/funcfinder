@@ -21,6 +21,7 @@ type ClassBounds struct {
 	Name  string
 	Start int
 	End   int
+	Kind  string // kind of a type from the struct finder (struct, enum, dataclass...); empty for a class from the class finder
 }
 
 // FindResult содержит результат поиска
