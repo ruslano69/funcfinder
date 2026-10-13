@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
 
@@ -26,14 +25,67 @@ type breakdownThresholds struct {
 // lines), so the loop flag starts at three deep. The plain output's loop-nesting line still starts at two.
 var defaultThresholds = breakdownThresholds{Lines: 100, Decisions: 10, Bool: 2, Depth: 4, Loops: 3}
 
-// booleanRe matches a line that combines conditions: && or || (C-like), and / or (Python, Ruby). It is applied to
-// cleaned lines, so operators in strings and comments do not count. A closure taking no arguments (|| expr) in Rust
-// matches too; that is the known false positive of this count.
-var booleanRe = regexp.MustCompile(`&&|\|\||\band\b|\bor\b`)
+// The breakdown counts scan each cleaned line by hand instead of with regular expressions: a pattern with \b and an
+// alternation has no literal prefix, so Go's regexp backtracks at every position of every line, and these counts took
+// half of the analysis time. The scanners keep the regexp semantics exactly (breakdown_scan_test.go compares them with
+// the patterns): a word is a maximal run of ASCII letters, digits and _, as \b sees it.
 
-// decisionRe matches the keywords that open a decision: if, elif, match, switch, for, while, loop, as whole words. An
-// else is a sibling branch and is not one; "else if" counts once, as its if. Whole words only, so loop_count does not.
-var decisionRe = regexp.MustCompile(`\b(if|elif|match|switch|for|while|loop)\b`)
+// isWordByte reports whether b is a word character for \b: ASCII letter, digit or underscore. A byte of a multi-byte
+// UTF-8 rune is not, as the rune is not a word character for \b either.
+func isWordByte(b byte) bool {
+	return b == '_' || '0' <= b && b <= '9' || 'a' <= b && b <= 'z' || 'A' <= b && b <= 'Z'
+}
+
+// boolOps counts the boolean operators on a cleaned line: && or || (C-like), and / or as whole words (Python, Ruby),
+// left to right without overlap, as FindAllString(`&&|\|\||\band\b|\bor\b`) does. Operators in strings and comments
+// are blanked by the sanitizer and do not count. A closure taking no arguments (|| expr) in Rust counts too; that is
+// the known false positive of this count.
+func boolOps(line string) int {
+	n := 0
+	for i := 0; i < len(line); {
+		c := line[i]
+		if (c == '&' || c == '|') && i+1 < len(line) && line[i+1] == c {
+			n++
+			i += 2
+			continue
+		}
+		if !isWordByte(c) {
+			i++
+			continue
+		}
+		j := i
+		for j < len(line) && isWordByte(line[j]) {
+			j++
+		}
+		if w := line[i:j]; w == "and" || w == "or" {
+			n++
+		}
+		i = j
+	}
+	return n
+}
+
+// hasDecision reports whether a cleaned line holds a keyword that opens a decision: if, elif, match, switch, for,
+// while, loop, as whole words. An else is a sibling branch and is not one; "else if" counts once, as its if. Whole
+// words only, so loop_count does not.
+func hasDecision(line string) bool {
+	for i := 0; i < len(line); {
+		if !isWordByte(line[i]) {
+			i++
+			continue
+		}
+		j := i
+		for j < len(line) && isWordByte(line[j]) {
+			j++
+		}
+		switch line[i:j] {
+		case "if", "elif", "match", "switch", "for", "while", "loop":
+			return true
+		}
+		i = j
+	}
+	return false
+}
 
 // countDecisions counts the cleaned lines that contain a decision keyword, wherever it sits on the line. The score
 // reads the keyword only at the start of a line (the nesting pattern), so an if or match inside an expression is
@@ -41,7 +93,7 @@ var decisionRe = regexp.MustCompile(`\b(if|elif|match|switch|for|while|loop)\b`)
 func countDecisions(lines []string) int {
 	n := 0
 	for _, line := range lines {
-		if decisionRe.MatchString(line) {
+		if hasDecision(line) {
 			n++
 		}
 	}
@@ -53,7 +105,7 @@ func countDecisions(lines []string) int {
 func countBooleanLines(lines []string) int {
 	n := 0
 	for _, line := range lines {
-		if booleanRe.MatchString(line) {
+		if boolOps(line) > 0 {
 			n++
 		}
 	}
@@ -65,7 +117,7 @@ func countBooleanLines(lines []string) int {
 func countMaxBoolOps(lines []string) int {
 	most := 0
 	for _, line := range lines {
-		if n := len(booleanRe.FindAllString(line, -1)); n > most {
+		if n := boolOps(line); n > most {
 			most = n
 		}
 	}

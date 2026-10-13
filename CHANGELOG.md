@@ -10,6 +10,45 @@
   `funcstats` the same content. Median: `complexity` on OmniRoute 10.9 → 2.2 s, on arsd 7.8 → 1.9 s; `funcstats --dir`
   on OmniRoute 12.9 → 2.3 s, on arsd 8.1 → 2.0 s.
 
+### Output
+
+- `--dir --map` (the default directory output) and `--dir --tree` write into one buffer. The map grew a string line by
+  line, copying the whole output each time, so a large tree spent most of its run building the text. The output is
+  byte-identical. `--dir --map`, median: OmniRoute 10.9 → 1.7 s, arsd 4.5 → 1.8 s, tdtp-framework 282 → 128 ms.
+
+### funcstats
+
+- Names with the same call count are listed by name. They came in random order, so two runs of the same input could
+  differ, and with `-n` so could which of the tied names made the cut. The counts are unchanged.
+
+### D
+
+- The D function pattern runs only on lines that hold a `(` (`func_requires`), in the D preparation pass and in the
+  finder; the attribute pattern skips blank lines. Most D lines have no `(`, and the lines that the lexer blanks
+  (comments) are long runs of spaces, where the patterns backtracked for nothing. The output is unchanged. On arsd
+  (11 MB of D): `funcfinder --dir --all --json` 1.8 → 0.4 s, `complexity` 7.9 → 3.1 s, `funcstats` 8.1 → 3.3 s,
+  `callgraph` 10.7 → 4.3 s.
+
+### Call graph (`callgraph`)
+
+- A directory run no longer finds every file's functions twice. The directory job finds them in parallel, and the call
+  scan used to find them again, one file after another: most of a run's time. The scan now takes the job's functions,
+  runs over the files in parallel, and skips the signature check on lines that do not hold the caller's name.
+  `--dir --json`, median: arsd 10.6 → 2.0 s, OmniRoute 20.3 → 4.6 s, tdtp-framework 707 → 295 ms.
+- Files are reported in path order. Before, they came in the order the workers finished, so two runs of the same
+  tree could differ in order. The edges are unchanged: on eight projects the JSON, the text lines and `--reverse` match
+  the previous binary once its files are sorted.
+- The call scan no longer copies the set of all the run's functions into a map for every file; it looks names up in
+  the file's functions and then in that set. On OmniRoute (43k functions, 6.8k files) the copies were about 290
+  million map inserts: CPU time 47 → 23 s, wall time 4.5 → 3.7 s. The output is unchanged.
+
+### Complexity (`complexity`)
+
+- The breakdown counts (`decision_count`, `boolean_lines`, `max_bool_operators`) are read by a scanner instead of
+  regular expressions. In 1.14.0 they took about half of the analysis time and made `complexity` 10-50% slower than
+  1.12.2; it is now 7-37% faster than 1.12.2 (`-j`, median: tdtp-framework 470 → 302 ms, OmniRoute 11.7 → 8.5 s).
+  The output is byte-identical, and a test compares the scanner with the old patterns on every fixture line.
+
 ## v1.14.0 - 2026-10-13
 
 ### funcstats

@@ -230,7 +230,9 @@ func analyzeLines(filename string, lines []string, config *internal.LanguageConf
 	return callCounts, metrics
 }
 
-// sortedCalls converts a callCounts map to a sorted slice of pairs.
+// sortedCalls converts a callCounts map to a slice of pairs, most calls first and names in order among equal counts.
+// The name breaks the tie because the map is read in random order: without it the output changed from run to run, and
+// with -n so did which of the tied names made the cut.
 func sortedCalls(callCounts map[string]int) []struct {
 	name  string
 	count int
@@ -243,7 +245,12 @@ func sortedCalls(callCounts map[string]int) []struct {
 	for name, count := range callCounts {
 		calls = append(calls, pair{name, count})
 	}
-	sort.Slice(calls, func(i, j int) bool { return calls[i].count > calls[j].count })
+	sort.Slice(calls, func(i, j int) bool {
+		if calls[i].count != calls[j].count {
+			return calls[i].count > calls[j].count
+		}
+		return calls[i].name < calls[j].name
+	})
 	result := make([]struct {
 		name  string
 		count int
