@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Complexity (`complexity`)
+
+- `--breakdown` prints the figures behind each score: size in lines, the number of decisions (if, elif, match, switch,
+  for, while, loop, wherever they sit on the line), branch depth, loop depth, and the lines that combine conditions with
+  && / || or and / or. It then names the thresholds a function passes: more than 300 lines, more than 50 decisions,
+  branch depth 5 or more, nested loops. The score itself is unchanged, and the same figures are in the JSON output
+  (`decision_count`, `boolean_lines`).
+- The score counts a Rust decision only when its keyword starts the line, so an `if` or `match` inside an expression
+  (`let v = if a { … }`) is not in the score. `--breakdown` shows the count of keywords, so the two can differ; on
+  `canvas_view` in photocraft the score sees 126 decisions and the code has 185. Changing the Rust pattern would change
+  the scores of Rust functions, so it is a separate decision.
+
 ## v1.13.1 - 2026-10-13
 
 Fixes from the analysis of two real Rust projects (gridcraft, photocraft): Rust parsing no longer loses the rest of a
