@@ -105,9 +105,19 @@ type sigScanner struct {
 	bodyAt     int
 }
 
-// initPrefix reports whether a brace right after c opens a braced initialization (`member{`).
+// initPrefix reports whether a brace after c opens a braced initialization (`member{`, `member {`).
 func initPrefix(c byte) bool {
 	return c == '_' || c == '>' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+// prevNonSpace returns the last byte before position i that is not blank, or 0 if there is none.
+func prevNonSpace(s string, i int) byte {
+	for j := i - 1; j >= 0; j-- {
+		if s[j] != ' ' && s[j] != '\t' {
+			return s[j]
+		}
+	}
+	return 0
 }
 
 // feed reads one cleaned line of a pending signature.
@@ -126,7 +136,7 @@ func (s *sigScanner) feed(cleaned string) sigEvent {
 			}
 		case '{':
 			if s.brackets == 0 {
-				if s.initBraces > 0 || (s.initList && i > 0 && initPrefix(cleaned[i-1])) {
+				if s.initBraces > 0 || (s.initList && initPrefix(prevNonSpace(cleaned, i))) {
 					s.initBraces++
 					continue
 				}
@@ -472,10 +482,11 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			// that starts with a statement word (return, throw) is a statement, never one of them.
 			hasHeaderPatterns := f.config.HeaderOpenRegex() != nil || f.config.ConstructorRegex() != nil || f.config.DeclarationRegex() != nil
 			if matches == nil && hasHeaderPatterns && !startsWithReservedWord(cleaned, f.config.StatementWords) {
+				cls := f.findClassForLine(classes, lineNum+lineOffset)
 				if f.config.HeaderOpenRegex() != nil && openParens(cleaned) > 0 {
 					matches = f.config.HeaderOpenRegex().FindStringSubmatch(cleaned)
 				}
-				if cls := f.findClassForLine(classes, lineNum+lineOffset); matches == nil && cls != "" && f.config.ConstructorRegex() != nil {
+				if matches == nil && cls != "" && f.config.ConstructorRegex() != nil {
 					if m := f.config.ConstructorRegex().FindStringSubmatch(cleaned); m != nil {
 						if name := ExtractFuncName(m); name == cls || name == "~"+cls {
 							matches = m
@@ -483,13 +494,20 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 					}
 				}
 				if matches == nil && f.config.DeclarationRegex() != nil {
-					matches = f.config.DeclarationRegex().FindStringSubmatch(cleaned)
+					decl := f.config.DeclarationRegex()
+					if cls != "" && f.config.MemberDeclarationRegex() != nil {
+						decl = f.config.MemberDeclarationRegex()
+					}
+					matches = decl.FindStringSubmatch(cleaned)
 				}
 			}
 			// A conversion operator's name is a type the compiler spells in its own canonical form, so its
-			// header is not taken as a function (it would be named after the type's last word).
-			if matches != nil && f.config.ConversionOperatorRegex() != nil && f.config.ConversionOperatorRegex().MatchString(cleaned) {
-				matches = nil
+			// header is not taken as a function (it would be named after the type's last word). The
+			// word-named operators (operator new, operator co_await) are functions, not conversions.
+			if matches != nil && f.config.ConversionOperatorRegex() != nil {
+				if m := f.config.ConversionOperatorRegex().FindStringSubmatch(cleaned); m != nil && !wordOperators[strings.TrimSpace(m[1])] {
+					matches = nil
+				}
 			}
 			if matches != nil {
 				funcName := ExtractFuncName(matches)
@@ -578,6 +596,9 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 
 	return result, nil
 }
+
+// wordOperators are the C++ operators named by a word rather than by symbols.
+var wordOperators = map[string]bool{"new": true, "delete": true, "co_await": true, "co_yield": true, "co_return": true}
 
 // leadingWord matches the first identifier of a line.
 var leadingWord = regexp.MustCompile(`^\s*([A-Za-z_]\w*)`)

@@ -102,13 +102,14 @@
       ".hpp",
       ".h"
     ],
-    "func_pattern": "^\\s*(?:template\\s*<.*?>\\s*)?(?:(?:[@\\w<\\[~*&][@\\w<>\\[\\],.?*&:~]*\\s+)+(?:[\\w~]+::)*|(?:[\\w~]+(?:<[^()]*>)?::)+)(~?{IDENT}+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))(?:<[^()]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:->\\s*[^{;]*?)?(?:\\s*:[^{;]*)?\\s*(?:\\{.*)?$",
-    "header_open_pattern": "^\\s*(?:[@\\w<\\[~*&][@\\w<>\\[\\],.?*&:~]*\\s+)+(?:[\\w~]+::)*(~?{IDENT}+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))\\s*\\(",
+    "func_pattern": "^\\s*(?:template\\s*<.*?>\\s*)?(?:(?:[@\\w<\\[~*&][@\\w<>\\[\\],.?*&:~]*\\s+)+?(?:[\\w~]+::)*|(?:[\\w~]+(?:<[^()]*>)?::)+)(~?{IDENT}+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))(?:<[^()]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:->\\s*[^{;]*?)?(?:\\s*:[^{;]*)?\\s*(?:\\{.*)?$",
+    "header_open_pattern": "^\\s*(?:[@\\w<\\[~*&][@\\w<>\\[\\],.?*&:~]*\\s+)+?(?:[\\w~]+::)*(~?{IDENT}+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))\\s*\\(",
     "constructor_pattern": "^\\s*(?:(?:explicit|inline|constexpr|virtual|FMT_[A-Z0-9_]+)\\s+)*(~?{IDENT}+)\\s*\\(",
-    "declaration_pattern": "^\\s*(?:template\\s*<.*?>\\s*)?(?:(?:[@\\w<\\[~*&][@\\w<>\\[\\],.?*&:~]*\\s+)+(?:[\\w~]+::)*)(~?{IDENT}+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))(?:<[^()]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:->\\s*[^{;]+?)?\\s*(?:=\\s*(?:0|default|delete)\\s*)?;\\s*$",
+    "declaration_pattern": "^\\s*(?:template\\s*<.*?>\\s*)?(?:(?:[@\\w<\\[~*&][@\\w<>\\[\\],.?*&:~]*\\s+)+?(?:[\\w~]+::)*)(~?{IDENT}+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))(?:<[^()]*>)?\\s*\\((?:\\s*\\)|(?:(?:\\s*(?:void|int|char|bool|float|double|long|short|unsigned|signed|size_t|auto)\\b|\\s*[A-Za-z_][\\w:]*(?:<[^()]*>)?(?:\\s+[*&]*|[*&]+)\\s*[A-Za-z_]|\\s*\\.\\.\\.))(?:[^()]|\\([^()]*\\))*\\)|\\s*[A-Za-z_][\\w:]*(?:<[^()]*>)?[*&]+\\s*(?:\\)|,(?:[^()]|\\([^()]*\\))*\\)))\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:->\\s*[^{;]+?)?\\s*(?:=\\s*(?:0|default|delete)\\s*)?;\\s*$",
+    "member_declaration_pattern": "^\\s*(?:template\\s*<.*?>\\s*)?(?:(?:[@\\w<\\[~*&][@\\w<>\\[\\],.?*&:~]*\\s+)+?(?:[\\w~]+::)*)(~?{IDENT}+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))(?:<[^()]*>)?\\s*\\((?:\\s*\\)|(?:(?:\\s*(?:void|int|char|bool|float|double|long|short|unsigned|signed|size_t|auto)\\b|\\s*[A-Za-z_][\\w:]*(?:<[^()]*>)?(?:\\s+[*&]*|[*&]+)\\s*[A-Za-z_]|\\s*\\.\\.\\.))(?:[^()]|\\([^()]*\\))*\\)|\\s*[A-Za-z_][\\w:]*(?:<[^()]*>)?[*&]+\\s*(?:\\)|,(?:[^()]|\\([^()]*\\))*\\))|\\s*[A-Za-z_][\\w:]*(?:<[^()]*>)?\\s*(?:\\)|,(?:[^()]|\\([^()]*\\))*\\)))\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:->\\s*[^{;]+?)?\\s*(?:=\\s*(?:0|default|delete)\\s*)?;\\s*$",
     "initializer_lists": true,
     "statement_words": ["if", "else", "while", "for", "switch", "case", "do", "catch", "return", "throw", "new", "delete", "co_return", "co_await", "co_yield", "static_assert", "sizeof", "typeid", "template"],
-    "conversion_operator_pattern": "\\boperator\\s+[\\w:<>*&\\s]+?\\s*\\(",
+    "conversion_operator_pattern": "\\boperator\\s+([\\w:<>*&\\s]+?)\\s*\\(",
     "class_pattern": "^\\s*(?:template\\s*<.*>\\s*)?(?:[\\w\\s]+\\s+)?(?:class|struct)\\s+(?:[A-Z][A-Z0-9_]*\\s+)?({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:\\w+\\s+)?class\\s+({IDENT}+)",

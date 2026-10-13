@@ -13,7 +13,7 @@
 - A conversion operator (`operator bool() const`) is no longer reported as a
   function named after its type.
 - On fmt, recall of the real-project measurement rose from 49.9% to 97.5% and
-  false functions fell from 21 to 9 (`benchmarks/cpp_tree_eval.py`).
+  false functions fell from 21 to 7 (`benchmarks/cpp_tree_eval.py`).
 
 ### Class bounds (all languages)
 

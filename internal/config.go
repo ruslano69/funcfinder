@@ -50,6 +50,9 @@ type LanguageConfig struct {
 	// DeclarationPattern matches a bodyless declaration that ends in ';' (`void f(int);`) at any
 	// scope. A line that starts with a reserved word (return, throw) is a statement, not one (C++).
 	DeclarationPattern string `json:"declaration_pattern,omitempty"`
+	// MemberDeclarationPattern is DeclarationPattern for a class body, where a direct initialization
+	// (`Widget w(a);`) cannot occur, so a parameter may be a single name (`map(T) -> T;`). C++ only.
+	MemberDeclarationPattern string `json:"member_declaration_pattern,omitempty"`
 	// InitializerLists: a constructor's member-initializer list (`: a{1}, b(2) {`) may hold braced
 	// initializations, which are not the body. Set for C++ only.
 	InitializerLists bool `json:"initializer_lists,omitempty"`
@@ -131,6 +134,7 @@ type LanguageConfig struct {
 	headerOpenRe      *regexp.Regexp
 	constructorRe     *regexp.Regexp
 	declarationRe     *regexp.Regexp
+	memberDeclRe      *regexp.Regexp
 	conversionRe      *regexp.Regexp
 	quotedMethodRe    *regexp.Regexp
 	classRegex        *regexp.Regexp
@@ -211,7 +215,7 @@ func LoadConfig() (Config, error) {
 		for _, p := range []struct {
 			src string
 			dst **regexp.Regexp
-		}{{conf.HeaderOpenPattern, &conf.headerOpenRe}, {conf.ConstructorPattern, &conf.constructorRe}, {conf.DeclarationPattern, &conf.declarationRe}, {conf.ConversionOperatorPattern, &conf.conversionRe}} {
+		}{{conf.HeaderOpenPattern, &conf.headerOpenRe}, {conf.ConstructorPattern, &conf.constructorRe}, {conf.DeclarationPattern, &conf.declarationRe}, {conf.MemberDeclarationPattern, &conf.memberDeclRe}, {conf.ConversionOperatorPattern, &conf.conversionRe}} {
 			if p.src == "" {
 				continue
 			}
@@ -377,6 +381,11 @@ func (lc *LanguageConfig) ConstructorRegex() *regexp.Regexp {
 // DeclarationRegex matches a bodyless declaration; nil if the language has none.
 func (lc *LanguageConfig) DeclarationRegex() *regexp.Regexp {
 	return lc.declarationRe
+}
+
+// MemberDeclarationRegex matches a bodyless declaration inside a class body; nil if the language has none.
+func (lc *LanguageConfig) MemberDeclarationRegex() *regexp.Regexp {
+	return lc.memberDeclRe
 }
 
 // ConversionOperatorRegex matches a conversion operator's header; nil if the language has none.

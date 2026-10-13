@@ -155,7 +155,7 @@ func TestCpp_TemplatePrefixedClassHeader(t *testing.T) {
 
 // A template prefix does not stop a one-line declaration, and a declaration line is not a call.
 func TestCpp_TemplateDeclarationAndStatementsAreNotFunctions(t *testing.T) {
-	src := `template <typename T> void tf(T);
+	src := `template <typename T> void tf(T t);
 template <typename T>
 void tg(T t) {
   use(t);
@@ -188,6 +188,70 @@ func TestCpp_OperatorsAndConversions(t *testing.T) {
 `
 	got := spans(mapFunctions(t, "cpp", src))
 	want := []string{"get:7-7", "operator==:3-5", "operator>:2-2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// Direct initialization at namespace scope is a variable, not a function: its argument is a literal
+// or a single name, while a declaration's parameters are types with names (or a builtin type).
+func TestCpp_DirectInitializationIsNotDeclaration(t *testing.T) {
+	src := `Widget global_widget(42);
+std::vector<int> values(10, 3);
+Widget named(other);
+void f(int);
+int g(Foo bar);
+`
+	got := spans(mapFunctions(t, "cpp", src))
+	want := []string{"f:4-4", "g:5-5"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// Word-named operators are functions, not conversion operators.
+func TestCpp_WordNamedOperatorsAreFunctions(t *testing.T) {
+	src := `struct Pool {
+  void* operator new(std::size_t size);
+  void operator delete(void* p) noexcept;
+  Awaiter operator co_await() const;
+};
+`
+	got := spans(mapFunctions(t, "cpp", src))
+	want := []string{"operator co_await:4-4", "operator delete:3-3", "operator new:2-2"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// A member initializer may have a space before its brace: `member_ {` is still a braced initialization.
+func TestCpp_SpacedBracedMemberInitializer(t *testing.T) {
+	src := `struct S {
+  S(int n)
+      : member_ {
+          n, n + 1},
+        other_(n) {
+    run();
+  }
+};
+`
+	got := spans(mapFunctions(t, "cpp", src))
+	want := []string{"S:2-7"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
+
+// Inside a class body a parameter may be a single name: a direct initialization cannot occur there,
+// so `map(ullong) -> ullong;` is a declaration.
+func TestCpp_MemberDeclarationWithSingleNameParameter(t *testing.T) {
+	src := `struct Box {
+  template <typename T> static void tf(T);
+  static auto map(ullong) -> ullong;
+};
+`
+	got := spans(mapFunctions(t, "cpp", src))
+	want := []string{"map:3-3", "tf:2-2"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
