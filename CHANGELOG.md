@@ -55,6 +55,11 @@
   `async list(): Promise<` ... `> {`) is found; a property (`items: Array<{`) is not a method.
 - The braces of a type argument are not counted into a function body: a typed component with a block body
   ends with its own closing brace. hr_gemini: 11 missing -> 2, 24 false functions -> 0.
+- A self-closing JSX tag after an expression attribute (`}/>`) no longer starts a regular expression.
+- A `{` after `<` opens a type literal (`query<{ ... }>(`), also across lines: its braces are not counted into a
+  function body.
+- A function whose body opens and closes on its header line ends there, so what follows the closing brace
+  (`});`) belongs to the caller. hr_gemini: 2 wrong ends -> 0, 1 missing left.
 
 ### Class bounds (all languages)
 

@@ -18,7 +18,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Swift | Alamofire (1890), Kingfisher (109) | 99.6%, 100% | 2, 0 | 6, 0 | good |
 | Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |
 | Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
-| TypeScript | hr_gemini (2988), zod (2072) | 99.9%, 99.3% | 2, 1 | 2, 15 | measured 2026-10-13 with the tree-sitter TypeScript reference; 0 and 3 false functions |
+| TypeScript | hr_gemini (2988), zod (2072) | 99.97%, 99.3% | 0, 1 | 1, 14 | measured 2026-10-13 with the tree-sitter TypeScript reference; 0 and 3 false functions |
 | JavaScript | lodash (1918, minified) | 81.0% | 7 | 357 | open |
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
@@ -133,12 +133,20 @@ exclusions. Truth is 1450 functions and declarations, 138 of them bodyless. On `
   lines (`export const X: React.FC<P> = ({` and `async issue(input: {`), and 7 others, including
   `export default function App()`, which may be a cascade from an earlier frame that did not close
   (not checked yet). Also `notification=` after a comma in a `const` list.
-- [x] **TypeScript, hr_gemini: 23 wrong ends, now 13.** Four causes fixed: a template literal's
+- [x] **TypeScript, hr_gemini: 23 wrong ends, now 0 (2026-10-13).** Causes fixed: a template literal's
   `${...}` holds strings and nested templates (the sanitizer closed the outer template at the
   first inner backtick, which hid whole files), an arrow header ending in `=>` is not complete,
-  a parenthesized arrow body runs to its closing `);`, and a brace inside a type argument
-  (`React.FC<{...}>`) does not stop the bracket count. The 13 left are mostly early ends in React
-  components; not analysed further yet.
+  a parenthesized arrow body runs to its closing `);`, a brace inside a type argument
+  (`React.FC<{...}>`) does not stop the bracket count, a closing JSX tag (`</h4>`) and a
+  self-closing `}/>` are not regular expressions, and a body that opens and closes on its header
+  line ends there.
+- [ ] **TypeScript, hr_gemini: 1 missing; zod: 14 missing, 3 false functions, 1 wrong end (2026-10-13).**
+  hr_gemini: `notification` is the second declarator of `const id = randomUUID(), notification = (...) => {`.
+  zod missing: `catch`, `create`, `args`, `returns`, `$constructor` (generic header over lines), the
+  `formatContributor` and `createToJSONSchemaMethod` consts whose `=` sits on the previous line,
+  `createStandardJSONSchemaMethod`, `registries.add<` over lines, `async "array-objects"`, and
+  `loadPriorTriage` (return type with braces). zod false functions: the methods named `async` and `new`.
+  zod wrong end: `validate-abort-sweep.ts` `deepInput` (truth 78-81): funcfinder ends it at 80.
 - [ ] **C#, Polly: 1272 missing.** Two causes. Multi-line signatures, and about 172 declarations
   without a body (`void Foo();` in interfaces), which funcfinder does not list at all. A `;` at the
   end of the header pattern was tried and rejected: +76 correct, but +211 false functions and 35
@@ -217,7 +225,7 @@ truth oracle): zod `b500a2ee95134f81d74da7911d7378dd2853d042` 2472 functions, lo
 Class attribution changed only for one-line class declarations (`class Test {}`: 11 in zod, 9 in
 hr_gemini); methods after them no longer belong to that class. `abstract class X {` was not a class in the
 TS/JS `class_pattern` (the `--struct` pattern already accepted it). Fixed on 2026-10-13: zod gains 11 methods of
-its abstract classes (`ZodType`, `Metabench`), lodash and hr_gemini are unchanged. Abstract methods without a body are listed too (zod: `run`, `_parse`). Truth-based numbers were not re-measured.
+its abstract classes (`ZodType`, `Metabench`), lodash and hr_gemini are unchanged. Abstract methods without a body are listed too (zod: `run`, `_parse`). The truth-based numbers for the 2026-10-13 TypeScript fixes are in the table above.
 The fixtures in `test_examples/` and `test_files/` show no change outside C++.
 
 ### Harness
