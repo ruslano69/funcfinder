@@ -10,6 +10,22 @@
 - Functions with `pub(super)`, `pub(self)` and `pub(in path)` are found, as `pub(crate)` already was. On the gridcraft
   workspace the listing went from 6320 to 6489 names.
 
+### Incremental split (`--split --inc`)
+
+- A shard whose files hold no declaration (data tables, re-export modules) has no shard file, so it was never in the
+  manifest, and every incremental run counted it as changed: "2 shards changed" on an unchanged tree. The manifest now
+  keeps the checksum of each such shard in `empty_shards`, and the incremental pass reads it. A shard that loses all its
+  declarations drops its shard file and its `shards` entry. Shard files of shards with declarations are unchanged.
+
+### Shard graph (`deps --shards`)
+
+- Rust: the inter-shard graph of a workspace had no edges. `use core_lib::f` matched no resolution rule, so the import
+  was neither resolved nor counted, and the trust check stayed silent. Crate names now come from each `Cargo.toml`
+  (`[lib] name`, else the `[package]` name with `-` read as `_`). A path into a crate walks its `src/` directories as far
+  as the tree has files and takes the deepest shard reached. `std` and external crates are not counted. An unresolved
+  crate import now produces the warning. On the gridcraft workspace the graph went from 0 to 69 edges. Go, TS/JS and
+  Python resolution is unchanged.
+
 ## v1.13.0 - 2026-10-13
 
 Two new listings for working with names: `--names` lists the kind, name and location of every declaration, and
