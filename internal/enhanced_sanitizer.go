@@ -828,6 +828,22 @@ func (s *Sanitizer) lineFacts(line string, state ParserState) (LineFacts, Parser
 	return fact, next
 }
 
+// lexerFacts returns the facts of lines that a language lexer has cleaned already (D, Scala): the lexer's text is the
+// cleaned text, and the sanitizer does not run on it again. The raw lines give the indentation. The lexer's text holds
+// no literal or comment start, so every line starts in the normal state.
+func lexerFacts(cleaned, raw []string) []LineFacts {
+	facts := make([]LineFacts, len(cleaned))
+	for i := range cleaned {
+		facts[i] = LineFacts{
+			Cleaned:    cleaned[i],
+			StartState: StateNormal,
+			Indent:     GetIndentLevel(raw[i]),
+			CodeText:   hasCodeText(cleaned[i]),
+		}
+	}
+	return facts
+}
+
 // cleanedTexts returns the cleaned text of each line, for the helpers that look across lines.
 func cleanedTexts(facts []LineFacts) []string {
 	texts := make([]string, len(facts))

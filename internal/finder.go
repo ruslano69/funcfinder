@@ -460,14 +460,17 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename string) (*FindResult, error) {
 	var prepared []string
 	var dHeaderEnds map[int]int
+	var preparedFacts []LineFacts
 	switch f.config.LangKey {
 	case "php":
 		prepared = maskPHPHeredocs(lines, f.config)
+		preparedFacts = f.sanitizer.CleanLinesFacts(prepared)
 	case "d":
 		prepared, dHeaderEnds = prepareDLines(lines, f.config)
+		preparedFacts = lexerFacts(prepared, lines)
 	case "scala":
 		cleaned := cleanScalaLines(lines)
-		result, err := f.findFunctionsInPreparedLines(cleaned, startLine, filename)
+		result, err := f.findFunctionsInPreparedLines(cleaned, lexerFacts(cleaned, lines), startLine, filename)
 		if err != nil {
 			return nil, err
 		}
@@ -502,7 +505,7 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 		}
 		return result, nil
 	default:
-		return f.findFunctionsInPreparedLines(lines, startLine, filename)
+		return f.findFunctionsInPreparedLines(lines, f.sanitizer.CleanLinesFacts(lines), startLine, filename)
 	}
 	scanner := f
 	if f.config.LangKey == "d" && !f.mapMode {
@@ -510,7 +513,7 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 		all.mapMode = true // Constructor calls need the surrounding function context.
 		scanner = &all
 	}
-	result, err := scanner.findFunctionsInPreparedLines(prepared, startLine, filename)
+	result, err := scanner.findFunctionsInPreparedLines(prepared, preparedFacts, startLine, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -541,7 +544,7 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 	return result, nil
 }
 
-func (f *Finder) findFunctionsInPreparedLines(lines []string, startLine int, filename string) (*FindResult, error) {
+func (f *Finder) findFunctionsInPreparedLines(lines []string, facts []LineFacts, startLine int, filename string) (*FindResult, error) {
 	lineOffset := startLine - 1 // Offset для корректировки номеров строк
 
 	result := &FindResult{
@@ -556,7 +559,7 @@ func (f *Finder) findFunctionsInPreparedLines(lines []string, startLine int, fil
 		if f.config.LangKey == "d" {
 			classes = findDClasses(lines, lineOffset, f.config)
 		} else {
-			classes = f.findClassesWithOffset(lines, lineOffset)
+			classes = f.findClassesWithOffset(facts, lineOffset)
 		}
 		result.Classes = classes
 	}
@@ -568,22 +571,21 @@ func (f *Finder) findFunctionsInPreparedLines(lines []string, startLine int, fil
 	}
 
 	if f.config.SupportsNested {
-		return f.findFunctionsWithNesting(lines, lineOffset, classes, result)
+		return f.findFunctionsWithNesting(lines, facts, lineOffset, classes, result)
 	}
 
 	// Старая логика для языков без вложенных функций
-	return f.findFunctionsSimple(lines, lineOffset, classes, result)
+	return f.findFunctionsSimple(lines, facts, lineOffset, classes, result)
 }
 
 // findFunctionsSimple - старая логика для языков без вложенных функций
-func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
+func (f *Finder) findFunctionsSimple(lines []string, facts []LineFacts, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
 	var currentFunc *FunctionBounds
 	var sig *sigScanner // the current function's signature, until its body opens
 	var sigLast int     // where that signature ends if it never gets a body
 	var afterBlock bool // the body closed, but the expression goes on (see continuesExpression)
 	depth := 0
 	funcRegex := f.config.FuncRegex()
-	facts := f.sanitizer.CleanLinesFacts(lines)
 
 	for lineNum, line := range lines {
 		// comments and literals are blank in the cleaned text (LineFacts)
@@ -840,12 +842,10 @@ func (f *Finder) isKeywordName(name string) bool {
 }
 
 // findFunctionsWithNesting - новая логика для языков с вложенными функциями
-func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
+func (f *Finder) findFunctionsWithNesting(lines []string, facts []LineFacts, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
 	funcStack := []*FunctionContext{} // Стек активных функций
 	funcRegex := f.config.FuncRegex()
-	// The whole file, sanitized the same way line by line: a declaration's value may span lines.
-	// The state each line starts in comes from the same pass, so a line is cleaned once.
-	facts := f.sanitizer.CleanLinesFacts(lines)
+	// The whole file, cleaned line by line: a declaration's value may span lines. The facts come from the caller.
 	cleanedLines := cleanedTexts(facts)
 	// typeDepth: the type-literal braces (`query<{`) still open from earlier lines; they are not code braces.
 	typeDepth := 0
@@ -1394,11 +1394,11 @@ func ParseFuncNames(funcStr string) []string {
 
 // findClasses находит все классы в файле
 func (f *Finder) findClasses(lines []string) []ClassBounds {
-	return f.findClassesWithOffset(lines, 0)
+	return f.findClassesWithOffset(f.sanitizer.CleanLinesFacts(lines), 0)
 }
 
 // findClassesWithOffset находит все классы с учетом offset номеров строк
-func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBounds {
+func (f *Finder) findClassesWithOffset(facts []LineFacts, lineOffset int) []ClassBounds {
 	var classes []ClassBounds
 	var currentClass *ClassBounds
 	classRegex := f.config.ClassRegex()
@@ -1410,8 +1410,6 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 	// classOpened: the body's '{' has been seen. A header may span lines (`export class X<` ... `> {`),
 	// and the class must not end on a header line, where the depth is still zero.
 	classOpened := false
-
-	facts := f.sanitizer.CleanLinesFacts(lines)
 
 	for lineNum := range facts {
 		cleaned := facts[lineNum].Cleaned
