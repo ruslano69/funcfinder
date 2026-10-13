@@ -77,7 +77,7 @@
 
 ### Determinism and speed
 
-- Ruby: `end` followed by a comment (`end # the class`) closes its class. The structural finders read the end from
+- Ruby: `end` followed by a comment (`end # the class`) closes its class, and a method (`end # the first method`) closes too. The structural finders read the end from
   the cleaned line, where the comment is blank; before, the raw line never matched and the class swallowed the next one.
   The structural finders read the cleaned text and the indentation through `LineFacts`, computed in one pass.
 
