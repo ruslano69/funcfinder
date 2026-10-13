@@ -955,9 +955,9 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		}
 
 		// The functions that start after a separator on this line (TypeScript and JavaScript).
-		var inlineStarts []int
+		var inlineStarts []inlineStart
 		if f.config.InlineHeaders && !headerOpen {
-			inlineStarts = inlineHeaderStarts(cleaned, funcRegex)
+			inlineStarts = inlineHeaderStarts(cleaned, funcRegex, f.config.DeclaratorRegex())
 		}
 
 		// 1. Сохраняем предыдущие глубины ДО обновления
@@ -1052,8 +1052,8 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		// (`let n=0;const f=…`, `cookie='';constructor(){`, `}, m(){`). Each is read from its own
 		// start, and its body is counted from there.
 		if len(inlineStarts) > 0 {
-			for _, p := range inlineStarts {
-				done, open := f.inlineFunction(cleaned, line, p, lineNum+lineOffset, funcRegex, classes)
+			for _, s := range inlineStarts {
+				done, open := f.inlineFunction(cleaned, line, s, lineNum+lineOffset, classes)
 				if done != nil {
 					result.Functions = append(result.Functions, *done)
 				} else if open != nil {
@@ -1185,9 +1185,9 @@ func closeIndex(cleaned string, depth int) int {
 }
 
 // headerAfter reports whether a function header starts after byte pos of the line.
-func headerAfter(starts []int, pos int) bool {
-	for _, p := range starts {
-		if p > pos {
+func headerAfter(starts []inlineStart, pos int) bool {
+	for _, s := range starts {
+		if s.at > pos {
 			return true
 		}
 	}
@@ -1230,10 +1230,22 @@ func arrowBodyTail(cleaned string) (*sigScanner, bool) {
 // that already holds code: the end of a statement, a separator, or a brace.
 const inlineHeaderSeparators = ";,{}"
 
-// inlineHeaderStarts returns the byte offsets, in order, where a function header begins after a
-// separator on a cleaned line. The start of the line is not among them: the caller reads it.
-func inlineHeaderStarts(cleaned string, funcRegex *regexp.Regexp) []int {
-	var starts []int
+// inlineStart is a function header that begins after a separator on a cleaned line, at byte offset at. re reads
+// the header from there: the function pattern, or for a later declarator of a const list (declarator) the
+// declarator pattern.
+type inlineStart struct {
+	at         int
+	re         *regexp.Regexp
+	declarator bool
+}
+
+// listDeclarationRe opens a declaration statement: the keyword that the declarators of its list follow.
+var listDeclarationRe = regexp.MustCompile(`^(?:export\s+)?(?:const|let|var)\s`)
+
+// inlineHeaderStarts returns the headers that begin after a separator on a cleaned line, in order. The start of
+// the line is not among them: the caller reads it. A later declarator of a const|let|var list begins after its ','.
+func inlineHeaderStarts(cleaned string, funcRegex, declRegex *regexp.Regexp) []inlineStart {
+	var starts []inlineStart
 	for i := 0; i < len(cleaned); i++ {
 		if !strings.ContainsRune(inlineHeaderSeparators, rune(cleaned[i])) {
 			continue
@@ -1242,11 +1254,49 @@ func inlineHeaderStarts(cleaned string, funcRegex *regexp.Regexp) []int {
 		for p < len(cleaned) && (cleaned[p] == ' ' || cleaned[p] == '\t') {
 			p++
 		}
-		if p < len(cleaned) && funcRegex.MatchString(cleaned[p:]) {
-			starts = append(starts, p)
+		if p >= len(cleaned) {
+			continue
+		}
+		if funcRegex.MatchString(cleaned[p:]) {
+			starts = append(starts, inlineStart{at: p, re: funcRegex})
+		} else if declRegex != nil && cleaned[i] == ',' && declRegex.MatchString(cleaned[p:]) && listDeclarationBefore(cleaned, i) {
+			starts = append(starts, inlineStart{at: p, re: declRegex, declarator: true})
 		}
 	}
 	return starts
+}
+
+// listDeclarationBefore reports whether the ',' at comma separates the declarators of a const|let|var statement.
+func listDeclarationBefore(cleaned string, comma int) bool {
+	start := statementStart(cleaned, comma)
+	return start >= 0 && listDeclarationRe.MatchString(strings.TrimSpace(cleaned[start:comma]))
+}
+
+// statementStart returns the offset where the statement that holds the ',' at comma starts: after the last ';' or
+// '{' outside any bracket, or 0 for the line start. It returns -1 when the comma sits inside an open bracket.
+func statementStart(cleaned string, comma int) int {
+	depth := 0
+	for j := comma - 1; j >= 0; j-- {
+		switch cleaned[j] {
+		case ')', ']', '}':
+			depth++
+		case '(', '[':
+			if depth == 0 {
+				return -1
+			}
+			depth--
+		case '{':
+			if depth == 0 {
+				return j + 1
+			}
+			depth--
+		case ';':
+			if depth == 0 {
+				return j + 1
+			}
+		}
+	}
+	return 0
 }
 
 // headerEnd reads a header outside its brackets: sigEnd for a ';' that ends it, sigBody for a
@@ -1273,13 +1323,19 @@ func headerEnd(text string) (sigEvent, int) {
 	return sigOpen, -1
 }
 
-// inlineFunction reads the function whose header starts at byte p of a cleaned line, after a
+// inlineFunction reads the function whose header starts at s.at of a cleaned line, after a
 // separator. It returns the function when it ends on this line, or the open frame when its
 // body or its signature goes on to the next lines.
-func (f *Finder) inlineFunction(cleaned, line string, p, lineIdx int, funcRegex *regexp.Regexp, classes []ClassBounds) (*FunctionBounds, *FunctionContext) {
-	matches := funcRegex.FindStringSubmatch(cleaned[p:])
+func (f *Finder) inlineFunction(cleaned, line string, s inlineStart, lineIdx int, classes []ClassBounds) (*FunctionBounds, *FunctionContext) {
+	p := s.at
+	matches := s.re.FindStringSubmatch(cleaned[p:])
 	if matches == nil {
 		return nil, nil
+	}
+	if s.declarator {
+		// A later declarator has no keyword of its own: the one that opened its list is the keyword, so the
+		// match reads as the const alternative of func_pattern (keyword in group 4, name in group 5).
+		matches = []string{matches[0], "", "", "", "const", matches[1]}
 	}
 	// A value assigned in a block (`{const x=(await q()).rows;}`) is not a function, as on the line path.
 	if isCompleteValueAssignment(matches, cleaned[p:]) {

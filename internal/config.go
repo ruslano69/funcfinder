@@ -60,6 +60,10 @@ type LanguageConfig struct {
 	// its line (`const X: React.FC<{`, `async list(): Promise<`). It is read only when the list runs over lines,
 	// and the lines after it decide whether it is a function. TypeScript only.
 	OpenTypeHeaderPattern string `json:"open_type_header_pattern,omitempty"`
+	// DeclaratorPattern matches a later declarator of a `const|let|var` list on the same line, after its ',':
+	// the name and an assignment of a parenthesis, an arrow or a type argument (`, f = (x) => ...`). The keyword
+	// that opened the list applies to it. TypeScript and JavaScript.
+	DeclaratorPattern string `json:"declarator_pattern,omitempty"`
 	// ConversionOperatorPattern matches a conversion operator's header (`operator bool() const`).
 	// Its name is a type that the compilers spell canonically, so the finder does not name it;
 	// the header is not taken as a function. C++ only.
@@ -140,6 +144,7 @@ type LanguageConfig struct {
 	declarationRe     *regexp.Regexp
 	memberDeclRe      *regexp.Regexp
 	openTypeHeaderRe  *regexp.Regexp
+	declaratorRe      *regexp.Regexp
 	conversionRe      *regexp.Regexp
 	quotedMethodRe    *regexp.Regexp
 	classRegex        *regexp.Regexp
@@ -220,7 +225,7 @@ func LoadConfig() (Config, error) {
 		for _, p := range []struct {
 			src string
 			dst **regexp.Regexp
-		}{{conf.HeaderOpenPattern, &conf.headerOpenRe}, {conf.ConstructorPattern, &conf.constructorRe}, {conf.DeclarationPattern, &conf.declarationRe}, {conf.MemberDeclarationPattern, &conf.memberDeclRe}, {conf.ConversionOperatorPattern, &conf.conversionRe}, {conf.OpenTypeHeaderPattern, &conf.openTypeHeaderRe}} {
+		}{{conf.HeaderOpenPattern, &conf.headerOpenRe}, {conf.ConstructorPattern, &conf.constructorRe}, {conf.DeclarationPattern, &conf.declarationRe}, {conf.MemberDeclarationPattern, &conf.memberDeclRe}, {conf.ConversionOperatorPattern, &conf.conversionRe}, {conf.OpenTypeHeaderPattern, &conf.openTypeHeaderRe}, {conf.DeclaratorPattern, &conf.declaratorRe}} {
 			if p.src == "" {
 				continue
 			}
@@ -397,6 +402,11 @@ func (lc *LanguageConfig) MemberDeclarationRegex() *regexp.Regexp {
 // nil if the language has none.
 func (lc *LanguageConfig) OpenTypeHeaderRegex() *regexp.Regexp {
 	return lc.openTypeHeaderRe
+}
+
+// DeclaratorRegex matches a later declarator of a const list after its ','; nil if the language has none.
+func (lc *LanguageConfig) DeclaratorRegex() *regexp.Regexp {
+	return lc.declaratorRe
 }
 
 // ConversionOperatorRegex matches a conversion operator's header; nil if the language has none.
