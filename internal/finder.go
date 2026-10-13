@@ -230,10 +230,9 @@ func isCompleteValueAssignment(matches []string, cleaned string) bool {
 	return !strings.Contains(cleaned, "=>") && strings.HasSuffix(strings.TrimSpace(cleaned), ";")
 }
 
-// assignedParen looks at the parenthesis right after the '=' of a declaration. closed reports whether it
-// closes on this line; arrow reports whether an arrow or a return type follows it. The arrow inside a value
-// (`.map((r) => r.id)`) is not this parenthesis's.
-func assignedParen(cleaned string) (closed, arrow bool) {
+// declParenIndex returns the index of the parenthesis after the '=' of a declaration (after an optional
+// `async`), or -1 when the text after the '=' does not open a parenthesis.
+func declParenIndex(cleaned string) int {
 	eq := -1
 	for i := 0; i < len(cleaned); i++ {
 		if cleaned[i] != '=' {
@@ -253,12 +252,36 @@ func assignedParen(cleaned string) (closed, arrow bool) {
 		break
 	}
 	if eq < 0 {
+		return -1
+	}
+	j := eq + 1
+	for j < len(cleaned) && (cleaned[j] == ' ' || cleaned[j] == '\t') {
+		j++
+	}
+	if strings.HasPrefix(cleaned[j:], "async") {
+		j += len("async")
+		for j < len(cleaned) && (cleaned[j] == ' ' || cleaned[j] == '\t') {
+			j++
+		}
+	}
+	if j < len(cleaned) && cleaned[j] == '(' {
+		return j
+	}
+	return -1
+}
+
+// assignedParen looks at the parenthesis right after the '=' of a declaration. closed reports whether it
+// closes on this line; arrow reports whether an arrow or a return type follows it. The arrow inside a value
+// (`.map((r) => r.id)`) is not this parenthesis's. A parenthesis that opens another (`((`) wraps an
+// expression, as in an immediately invoked function, and is a value.
+func assignedParen(cleaned string) (closed, arrow bool) {
+	open := declParenIndex(cleaned)
+	if open < 0 {
 		return false, false
 	}
-	rest := strings.TrimLeft(cleaned[eq+1:], " \t")
-	rest = strings.TrimLeft(strings.TrimPrefix(rest, "async"), " \t")
-	if !strings.HasPrefix(rest, "(") {
-		return false, false
+	rest := cleaned[open:]
+	if strings.HasPrefix(strings.TrimLeft(rest[1:], " \t"), "(") {
+		return true, false
 	}
 	depth := 0
 	for i := 0; i < len(rest); i++ {
@@ -274,6 +297,50 @@ func assignedParen(cleaned string) (closed, arrow bool) {
 		}
 	}
 	return false, false
+}
+
+// valueSpansLines reports whether the declaration on line i takes a parenthesis that closes on a later line
+// and is followed by no arrow or return type: `const x = (` ... `).rows;` is a value, `const f = (` ... `) => {`
+// is a function. cleanedLines are the sanitized lines of the file.
+func valueSpansLines(cleanedLines []string, i int) bool {
+	open := declParenIndex(cleanedLines[i])
+	if open < 0 {
+		return false
+	}
+	depth := 0
+	for j := i; j < len(cleanedLines); j++ {
+		text := cleanedLines[j]
+		from := 0
+		if j == i {
+			from = open
+		}
+		for k := from; k < len(text); k++ {
+			switch text[k] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+				if depth == 0 {
+					after := strings.TrimSpace(text[k+1:])
+					if after == "" {
+						return !startsArrowOrType(cleanedLines, j+1)
+					}
+					return !(strings.HasPrefix(after, "=>") || strings.HasPrefix(after, ":"))
+				}
+			}
+		}
+	}
+	return false
+}
+
+// startsArrowOrType reports whether the next non-blank line from index i starts with an arrow or a return type.
+func startsArrowOrType(cleanedLines []string, i int) bool {
+	for j := i; j < len(cleanedLines); j++ {
+		if t := strings.TrimSpace(cleanedLines[j]); t != "" {
+			return strings.HasPrefix(t, "=>") || strings.HasPrefix(t, ":")
+		}
+	}
+	return false
 }
 
 // NewFinder создает новый искатель функций
@@ -703,6 +770,8 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 	state := StateNormal
 	funcStack := []*FunctionContext{} // Стек активных функций
 	funcRegex := f.config.FuncRegex()
+	// The whole file, sanitized the same way line by line: a declaration's value may span lines.
+	cleanedLines := f.sanitizer.CleanLines(lines)
 
 	for lineNum, line := range lines {
 		// Очищаем строку от комментариев и литералов
@@ -726,11 +795,21 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		if matches != nil && isCompleteValueAssignment(matches, cleaned) {
 			matches = nil
 		}
+		if matches != nil && len(matches) > 5 && (matches[4] == "const" || matches[4] == "let" || matches[4] == "var") && valueSpansLines(cleanedLines, lineNum) {
+			matches = nil
+		}
 		// A class method whose parameter list continues on the next lines: its first line is
 		// the method only at the top of a class body, not inside another function.
 		if matches == nil && len(funcStack) == 0 && f.config.ClassMethodOpenRegex() != nil && f.config.HasClasses() {
 			if f.findClassForLine(classes, lineNum+lineOffset) != "" {
 				matches = f.config.ClassMethodOpenRegex().FindStringSubmatch(cleaned)
+			}
+		}
+		// A member signature whose parameter list continues on the next lines (`process(input: {`), inside a class
+		// or an interface: its first line ends with the parenthesis still open, and the signature ends with ';'.
+		if matches == nil && len(funcStack) == 0 && f.config.HeaderOpenRegex() != nil && f.config.HasClasses() && openParens(cleaned) > 0 {
+			if f.findClassForLine(classes, lineNum+lineOffset) != "" {
+				matches = f.config.HeaderOpenRegex().FindStringSubmatch(cleaned)
 			}
 		}
 		// A bodyless declaration at the top of a scope (TypeScript's `abstract run(): void;`): a
@@ -1053,6 +1132,10 @@ func headerEnd(text string) (sigEvent, int) {
 func (f *Finder) inlineFunction(cleaned, line string, p, lineIdx int, funcRegex *regexp.Regexp, classes []ClassBounds) (*FunctionBounds, *FunctionContext) {
 	matches := funcRegex.FindStringSubmatch(cleaned[p:])
 	if matches == nil {
+		return nil, nil
+	}
+	// A value assigned in a block (`{const x=(await q()).rows;}`) is not a function, as on the line path.
+	if isCompleteValueAssignment(matches, cleaned[p:]) {
 		return nil, nil
 	}
 	name := ExtractFuncName(matches)
