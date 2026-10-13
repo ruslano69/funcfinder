@@ -45,6 +45,12 @@
 - A base list on the next line (`class X : public A,` or `: public B {`) and a multi-line class header keep
   the class open, so its constructors and destructors keep their class.
 
+- A parameter list that continues on the next lines inside an interface or a class is listed: `process(input: {`
+  and optional methods `permits?(...)` are signatures, and a return type may hold `;` in its braces.
+- `const x = (` whose parenthesis closes on a later line and is followed by no arrow is a value, and an
+  immediately invoked function `(() => {...})()` is a value; a value assigned in a one-line block is a value too.
+  hr_gemini: 24 false functions -> 0.
+
 ### Class bounds (all languages)
 
 - A class whose body opens and closes on its header line (`struct A : B {};`)

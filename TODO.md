@@ -18,7 +18,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Swift | Alamofire (1890), Kingfisher (109) | 99.6%, 100% | 2, 0 | 6, 0 | good |
 | Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |
 | Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
-| TypeScript | hr_gemini (2988), zod (2072) | 99.0%, 99.0% | 2, 1 | 29, 21 | measured 2026-10-13 with the tree-sitter TypeScript reference; 24 and 10 false functions |
+| TypeScript | hr_gemini (2988), zod (2072) | 99.6%, 99.3% | 2, 1 | 11, 15 | measured 2026-10-13 with the tree-sitter TypeScript reference; 0 and 3 false functions |
 | JavaScript | lodash (1918, minified) | 81.0% | 7 | 357 | open |
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
@@ -91,7 +91,7 @@ definition), 136 false names, zero wrong ends; after: zero in all three categori
 The earlier 99.9% did not measure prototypes. Evaluator: `benchmarks/c_tree_eval.py`;
 exact flags, compiler/binary hashes and findings are in the ignored build directory.
 
-TypeScript was measured on 2026-10-13 with `benchmarks/ts_tree_eval.py` (tree-sitter-typescript 0.23.2 as the reference). Truth: function declarations and signatures, class and interface methods (including bodyless overloads and abstract methods), constructors, and functions bound to a variable; anonymous callbacks are not truth. zod `b500a2ee95134f81d74da7911d7378dd2853d042` (511 tracked files, 4 unparseable): on `main` 2007 of 2072 found, recall 96.9%, precision 99.0%; now 2051 found, recall 99.0%, precision 99.5%. hr_gemini `5b69a1eb` (455 tracked files, 9 unparseable): on `main` recall 91.3%, precision 96.2%; now recall 99.0%, precision 99.2%, 2 wrong ends (down from 12: a closing JSX tag was read as a regular expression, and a typed component React.FC<{...}> lost its body). Still open: the 2 wrong ends (onData, an object-literal method closed by a brace and a semicolon on its line, and loadBonusGrantsForYear); 24 and 10 false functions; 29 and 21 missing. Lodash is not in this table: its reference is a minified bundle, and a non-minified JavaScript project is still needed.
+TypeScript was measured on 2026-10-13 with `benchmarks/ts_tree_eval.py` (tree-sitter-typescript 0.23.2 as the reference). Truth: function declarations and signatures, class and interface methods (including bodyless overloads and abstract methods), constructors, and functions bound to a variable; anonymous callbacks are not truth. zod `b500a2ee95134f81d74da7911d7378dd2853d042` (511 tracked files, 4 unparseable): on `main` 2007 of 2072 found, recall 96.9%, precision 99.0%; now 2057 found, recall 99.3%, precision 99.9%. hr_gemini `5b69a1eb` (455 tracked files, 9 unparseable): on `main` recall 91.3%, precision 96.2%; now recall 99.6%, precision 100%, 2 wrong ends (down from 12: a closing JSX tag was read as a regular expression, and a typed component React.FC<{...}> lost its body). Still open: the 2 wrong ends (onData, an object-literal method closed by a brace and a semicolon on its line, and loadBonusGrantsForYear); 0 false functions; 11 missing (zod: 3 false functions and 15 missing). Lodash is not in this table: its reference is a minified bundle, and a non-minified JavaScript project is still needed.
 
 C++ was also measured on tinyxml2 `8224e427b655b83dae5e2298f1e6919523a78737` (`tinyxml2.h` and
 `tinyxml2.cpp`, 627 truth, libclang 18.1.1, same target): on `main` 332 found, recall 53.0%, precision
