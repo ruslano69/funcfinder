@@ -619,17 +619,17 @@
     "extensions": [
       ".rs"
     ],
-    "func_pattern": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?(?:async\\s+)?(?:unsafe\\s+)?(?:const\\s+)?(?:extern\\s+(?:\"C\"\\s+)?)?fn\\s+({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\(",
+    "func_pattern": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?(?:async\\s+)?(?:unsafe\\s+)?(?:const\\s+)?(?:extern\\s+(?:\"C\"\\s+)?)?fn\\s+({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\(",
     "type_keywords": ["struct", "enum", "trait", "impl", "union"],
     "func_requires": ["("],
-    "class_pattern": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?(?:struct|trait|enum|impl)(?:\\s*<[^>]*>)?\\s+(?:[^{;]*?\\s+for\\s+)?({IDENT}+)",
+    "class_pattern": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?(?:struct|trait|enum|impl)(?:\\s*<[^>]*>)?\\s+(?:[^{;]*?\\s+for\\s+)?({IDENT}+)",
     "struct_type_patterns": {
-      "struct": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?struct\\s+({IDENT}+)",
-      "enum": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?enum\\s+({IDENT}+)",
-      "trait": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?trait\\s+({IDENT}+)",
-      "union": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?union\\s+({IDENT}+)"
+      "struct": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?struct\\s+({IDENT}+)",
+      "enum": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?enum\\s+({IDENT}+)",
+      "trait": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?trait\\s+({IDENT}+)",
+      "union": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?union\\s+({IDENT}+)"
     },
-    "field_pattern": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?(?:const\\s+)?(?:static\\s+)?(?:mut\\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\\s*:(?:\\s*<[^>]*>\\s*)?\\s*[a-zA-Z_][\\w<>,\\[\\]\\s]*",
+    "field_pattern": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?(?:const\\s+)?(?:static\\s+)?(?:mut\\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\\s*:(?:\\s*<[^>]*>\\s*)?\\s*[a-zA-Z_][\\w<>,\\[\\]\\s]*",
     "call_pattern": "({IDENT}+)\\s*\\(",
     "import_pattern": "^\\s*(?:pub(?:\\([^)]*\\))?\\s+)?use\\s+([^;]+)",
     "exclude_patterns": [
@@ -642,6 +642,8 @@
     "comment_patterns": [
       "//.*"
     ],
+    "char_delimiters": ["'"],
+    "char_literal_lookahead": true,
     "string_chars": [
       "\""
     ],

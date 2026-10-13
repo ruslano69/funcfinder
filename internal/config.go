@@ -132,6 +132,11 @@ type LanguageConfig struct {
 	// stray apostrophe in JSX text (<p>Зв'язок</p>) would otherwise do.
 	SingleLineStrings bool     `json:"single_line_strings,omitempty"`
 	CharDelimiters    []string `json:"char_delimiters,omitempty"`
+
+	// CharLiteralLookahead: a quote in CharDelimiters opens a char literal only when the literal closes on the
+	// same line ('x', '\n', '\u{a0}'); any other quote is code. Rust needs it: 'a is a lifetime.
+	CharLiteralLookahead bool `json:"char_literal_lookahead,omitempty"`
+
 	DocStringMarkers  []string `json:"doc_string_markers,omitempty"`
 	IndentBased       bool     `json:"indent_based"`
 	BlockEndKeyword   string   `json:"block_end_keyword,omitempty"` // For Ruby-like languages (end keyword)
