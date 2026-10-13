@@ -647,10 +647,7 @@
     "string_chars": [
       "\""
     ],
-    "raw_string_chars": [
-      "r#\"",
-      "r#*[^\"]*#*"
-    ],
+    "raw_string_chars": ["r\"", "r#\"", "r##\"", "r###\"", "r####\""],
     "escape_char": "\\",
     "exclude_words": [
       "if",
