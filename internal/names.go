@@ -20,6 +20,22 @@ func ProcessSingleFile(config Config, path, langKey, workMode string) DirResult 
 	return dp.processFile(Job{Path: path, LangKey: langKey})
 }
 
+// functionKind is "method" for a function inside a class, and "function" otherwise.
+func functionKind(fn FunctionBounds) string {
+	if fn.ClassName != "" {
+		return "method"
+	}
+	return "function"
+}
+
+// classKind is the kind of a type from the struct finder, and "class" for one only the class finder found.
+func classKind(cl ClassBounds) string {
+	if cl.Kind == "" {
+		return "class"
+	}
+	return cl.Kind
+}
+
 // FormatNames lists the names of the results, one per line: kind, name and file:line, tab-separated. Files are in path
 // order and the names of a file in line order. Kinds: "function"; "method" for a function inside a class; the kind of a
 // type ("class" when the class finder found it); "alias" for a Go type alias.
@@ -31,18 +47,10 @@ func FormatNames(results []DirResult) string {
 	for _, r := range results {
 		var names []nameLine
 		for _, fn := range r.Functions {
-			kind := "function"
-			if fn.ClassName != "" {
-				kind = "method"
-			}
-			names = append(names, nameLine{Kind: kind, Name: fn.Name, Line: fn.Start})
+			names = append(names, nameLine{Kind: functionKind(fn), Name: fn.Name, Line: fn.Start})
 		}
 		for _, cl := range r.Classes {
-			kind := cl.Kind
-			if kind == "" {
-				kind = "class"
-			}
-			names = append(names, nameLine{Kind: kind, Name: cl.Name, Line: cl.Start})
+			names = append(names, nameLine{Kind: classKind(cl), Name: cl.Name, Line: cl.Start})
 		}
 		for _, a := range r.Aliases {
 			names = append(names, nameLine{Kind: "alias", Name: a.Name, Line: a.Start})

@@ -36,6 +36,7 @@ func main() {
 	jsonOut := flag.Bool("json", false, "output in JSON format")
 	extract := flag.Bool("extract", false, "extract function/type bodies")
 	namesMode := flag.Bool("names", false, "list names: kind, name and file:line, one per line (--struct or --all add types and aliases)")
+	docNames := flag.String("doc", "", "print the doc comment and first line of the named functions, types and aliases (comma-separated), without the body")
 
 	// Advanced flags
 	rawMode := flag.Bool("raw", false, "include raw strings in brace counting")
@@ -75,6 +76,12 @@ func main() {
 	// Список имён (--names): файл и каталог проходят одну и ту же задачу
 	if *namesMode {
 		handleNamesMode(config, *inp, *dir, *source, *workers, *recursive, !*noGitignore, *structMode, *allMode)
+		return
+	}
+
+	// Документация (--doc): комментарий над объявлением и его первая строка, без тела
+	if *docNames != "" {
+		handleDocMode(config, *inp, *dir, *source, *workers, *recursive, !*noGitignore, *docNames)
 		return
 	}
 
@@ -118,16 +125,7 @@ func handleNamesMode(config internal.Config, inp, dirPath, source string, worker
 	}
 
 	if dirPath != "" {
-		info, err := os.Stat(dirPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				internal.FatalError("directory does not exist: %s", dirPath)
-			}
-			internal.FatalError("accessing directory: %v", err)
-		}
-		if !info.IsDir() {
-			internal.FatalError("path is not a directory: %s", dirPath)
-		}
+		checkDirectory(dirPath)
 
 		processor := internal.NewDirProcessor(config, workers, recursive, useGitignore, workMode)
 		results, err := processor.ProcessDirectory(dirPath)
@@ -146,6 +144,73 @@ func handleNamesMode(config internal.Config, inp, dirPath, source string, worker
 		internal.FatalError("%v", result.Error)
 	}
 	fmt.Print(internal.FormatNames([]internal.DirResult{result}))
+}
+
+// checkDirectory stops with a clear message unless dirPath is an existing directory.
+func checkDirectory(dirPath string) {
+	info, err := os.Stat(dirPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			internal.FatalError("directory does not exist: %s", dirPath)
+		}
+		internal.FatalError("accessing directory: %v", err)
+	}
+	if !info.IsDir() {
+		internal.FatalError("path is not a directory: %s", dirPath)
+	}
+}
+
+// docFlags are the flags --doc works with; any other flag set alongside it is an error.
+var docFlags = map[string]bool{
+	"doc": true, "inp": true, "dir": true, "source": true, "workers": true,
+	"recursive": true, "no-gitignore": true,
+}
+
+// handleDocMode prints the doc comments of the named functions, types and aliases (--doc), each with its first line.
+// A file runs through the same job as a directory.
+func handleDocMode(config internal.Config, inp, dirPath, source string, workers int, recursive, useGitignore bool, docNames string) {
+	flag.Visit(func(f *flag.Flag) {
+		if !docFlags[f.Name] {
+			internal.FatalError("--doc cannot be combined with --%s", f.Name)
+		}
+	})
+	names := internal.ParseFuncNames(docNames)
+	if len(names) == 0 {
+		internal.FatalError("--doc needs at least one name")
+	}
+	wanted := make(map[string]bool, len(names))
+	for _, n := range names {
+		wanted[n] = true
+	}
+
+	var results []internal.DirResult
+	if dirPath != "" {
+		checkDirectory(dirPath)
+		processor := internal.NewDirProcessor(config, workers, recursive, useGitignore, "all")
+		var err error
+		results, err = processor.ProcessDirectory(dirPath)
+		if err != nil {
+			internal.FatalError("processing directory: %v", err)
+		}
+	} else {
+		if source == "" {
+			internal.FatalError("--source parameter is required with --doc")
+		}
+		result := internal.ProcessSingleFile(config, inp, source, "all")
+		if result.Error != nil {
+			internal.FatalError("%v", result.Error)
+		}
+		results = []internal.DirResult{result}
+	}
+
+	output, err := internal.FormatDocs(config, results, wanted)
+	if err != nil {
+		internal.FatalError("%v", err)
+	}
+	if output == "" {
+		internal.FatalErrorWithCode(2, "No declarations named %s found", docNames)
+	}
+	fmt.Print(output)
 }
 
 func handleDirectoryMode(config internal.Config, dirPath string, workers int, recursive, useGitignore bool, funcStr string, mapMode, treeMode, treeFull, jsonOut, extract, structMode, allMode, splitMode bool, splitBy, outDir string, incMode bool) {

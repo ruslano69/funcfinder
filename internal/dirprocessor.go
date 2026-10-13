@@ -26,6 +26,7 @@ type Job struct {
 // DirResult represents the outcome of processing a single file
 type DirResult struct {
 	Path      string
+	LangKey   string // language key the file was processed with (as in languages.json)
 	Functions []FunctionBounds
 	Classes   []ClassBounds
 	Aliases   []AliasBounds // Go type aliases: names of existing types, not types of their own
@@ -212,7 +213,8 @@ func (dp *DirProcessor) worker(jobsChan <-chan Job, resultsChan chan<- DirResult
 // processFile processes a single file
 func (dp *DirProcessor) processFile(job Job) DirResult {
 	result := DirResult{
-		Path: job.Path,
+		Path:    job.Path,
+		LangKey: job.LangKey,
 	}
 
 	langConfig, err := dp.config.GetLanguageConfig(job.LangKey)

@@ -295,13 +295,19 @@ func lastNonEmptyGroup(matches []string) string {
 }
 
 // structPatternOrder returns the pattern kinds in sorted order. When two patterns match the same line, the first
-// kind in this order names the type, so the kind does not depend on map iteration.
+// kind in this order names the type, so the kind does not depend on map iteration. The catch-all "named" pattern
+// (Go's `type X Y`) also matches a one-line `type X struct{}`, so it comes last and the specific kinds win.
 func structPatternOrder(patterns map[string]*regexp.Regexp) []string {
 	kinds := make([]string, 0, len(patterns))
 	for kind := range patterns {
-		kinds = append(kinds, kind)
+		if kind != "named" {
+			kinds = append(kinds, kind)
+		}
 	}
 	sort.Strings(kinds)
+	if _, ok := patterns["named"]; ok {
+		kinds = append(kinds, "named")
+	}
 	return kinds
 }
 
