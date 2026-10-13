@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Incremental split (`--split --inc`)
+
+- A shard whose files hold no declaration (data tables, re-export modules) has no shard file, so it was never in the
+  manifest, and every incremental run counted it as changed: "2 shards changed" on an unchanged tree. The manifest now
+  keeps the checksum of each such shard in `empty_shards`, and the incremental pass reads it. A shard that loses all its
+  declarations drops its shard file and its `shards` entry. Shard files of shards with declarations are unchanged.
+
 ### Shard graph (`deps --shards`)
 
 - Rust: the inter-shard graph of a workspace had no edges. `use core_lib::f` matched no resolution rule, so the import
