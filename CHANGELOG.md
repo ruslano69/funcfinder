@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Output
+
+- `--dir --map` (the default directory output) and `--dir --tree` write into one buffer. The map grew a string line by
+  line, copying the whole output each time, so a large tree spent most of its run building the text. The output is
+  byte-identical. `--dir --map`, median: OmniRoute 10.9 → 1.7 s, arsd 4.5 → 1.8 s, tdtp-framework 282 → 128 ms.
+
 ### funcstats
 
 - Names with the same call count are listed by name. They came in random order, so two runs of the same input could
