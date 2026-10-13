@@ -34,7 +34,8 @@ Core parsing engine. Implements function/struct discovery, body extraction, call
 - `BuildDirCallGraph` reuses the directory job's `DirResult.Functions` (`dirFileCallGraph`); it finds a file's bounds
   again only when `DirResult.LangKey` differs from the language the extension gives (a `.h` under `-l c`). Files are
   scanned in parallel and reported in path order. `TestBuildDirCallGraph_ReusedBoundsMatchRefind` checks that reused
-  and re-found bounds give the same graph on the fixtures.
+  and re-found bounds give the same graph on the fixtures. `buildFileCallGraph` looks a bare call up in the file's own
+  functions and then in `knownFuncs`; it never copies `knownFuncs` (every function of the run) per file.
 - Reverse lookup uses `ReverseCallers`: bare names include qualified callees with the same final name; qualified queries match exactly. Results are sorted, deduplicated name-based candidates, not type-resolved method identities. The full reverse graph preserves qualified keys.
 - Language regular expressions compile on first use: `LoadConfig` only parses `languages.json`, and every accessor on `LanguageConfig` calls `ensure()` first. Read compiled fields through the accessors, never directly; `TestEveryLanguageCompiles` makes a broken pattern fail the build. `NewPythonFinder` and `NewPythonStructFinder` take the config by pointer: a copy would copy the `sync.Once`.
 - `CleanLine` returns a line unchanged when `noLiteralStarts` holds: no configured string, char, doc-string, comment, or percent/regex marker occurs in it. A new marker field in `LanguageConfig` that the sanitizer reads must be added to `noLiteralStarts`; `TestCleanLineFastPathMatchesSlowPath` checks the fast path against `cleanLineSlow` on every fixture line. `char_literal_lookahead` (Rust) makes a quote in `char_delimiters` open a literal only when it closes on the same line (`charLiteralEnd`); a lifetime stays code.
