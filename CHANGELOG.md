@@ -77,6 +77,10 @@
 
 ### Determinism and speed
 
+- Ruby: `end` followed by a comment (`end # the class`) closes its class. The structural finders read the end from
+  the cleaned line, where the comment is blank; before, the raw line never matched and the class swallowed the next one.
+  The structural finders read the cleaned text and the indentation through `LineFacts`, computed in one pass.
+
 - A `.h` file is read with the C++ configuration on every run. `--dir` used to pick the C or the C++ configuration
   at random for `.h` (both claim it), so the functions of a header changed from run to run: on the repository the
   total ranged from 17.3k to 19.8k functions across runs of the same binary.
