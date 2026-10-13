@@ -27,6 +27,12 @@
   `function`, `method`, `class`, the kind of a type (`struct`, `enum`, `dataclass`...) and `alias` for a Go alias.
   `--struct` and `--all` add the types and the aliases. A file runs through the directory job, so the two give the same
   names. Signatures stay in `--tree-full`. A Go receiver method is listed as a `function` for now.
+- `--doc NAME[,NAME...]` prints each named function, type or alias as `path:line: kind name`, the comment directly
+  above it as written, and its first line. The body is left to `--extract`. Decorators above a declaration are skipped
+  (the comment above them is the doc). Python docstrings are not read yet: for Python the comment above the `def` or
+  `class` is shown.
+- A one-line Go struct (`type X struct{}`) is a `struct`; it was `named`, because the catch-all `named` pattern matched
+  it first. Two declarations in the corpus change kind, and nothing else.
 
 ### TypeScript / JavaScript
 

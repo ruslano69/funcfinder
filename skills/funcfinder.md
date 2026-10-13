@@ -76,6 +76,9 @@ funcfinder --inp auth/handler.go --source go --func "AuthenticateUser,ValidateTo
 
 # Extract a type/struct
 funcfinder --inp auth/handler.go --source go --struct "User,Session" --extract
+
+# Doc comment and first line of a declaration, without the body
+funcfinder --inp auth/handler.go --source go --doc AuthenticateUser
 ```
 
 **Rule**: extract only the specific function you need, not the whole file.

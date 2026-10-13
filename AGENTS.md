@@ -189,6 +189,7 @@ deps frontend -l ts --shards --update-manifest .codemap/manifest.json
 | Extract all structs | `funcfinder --inp file.go --source go --struct --extract` |
 | Tree view | `funcfinder --dir . --tree` |
 | Names only (kind, name, file:line) | `funcfinder --dir . --names` (`--all` adds types and aliases) |
+| Doc comment and first line, no body | `funcfinder --inp file.go --source go --doc Name,Other` (also `--dir`) |
 
 **Key Rules**:
 - `--dir` mode: `--map` is DEFAULT
