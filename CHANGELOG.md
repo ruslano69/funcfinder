@@ -15,6 +15,15 @@
 - On fmt, recall of the real-project measurement rose from 49.9% to 97.5% and
   false functions fell from 21 to 7 (`benchmarks/cpp_tree_eval.py`).
 
+- `override` and `final` after `const` or `noexcept` no longer hide a virtual
+  declaration or definition (tinyxml2 recall 53.0% -> 99.8%).
+
+### Output
+
+- A directory run gives the same `--tree`, `--json` and grep output on every
+  run: files are reported in path order and tree children are sorted by name.
+  The tree used to change between runs, because its children came from a map.
+
 ### Class bounds (all languages)
 
 - A class whose body opens and closes on its header line (`struct A : B {};`)

@@ -23,6 +23,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
 | C# | Polly (5070) | 74.9% | 3 | 1272 | open |
 | C++ | fmt (1450 truth) | 97.5% | 0 | 36 (19 conversion operators, 11 macro-generated) | measured 2026-10-13; 7 false functions (explicit instantiations) |
+| C++ | tinyxml2 (627 truth) | 99.8% | 0 | 1 | measured 2026-10-13; 0 false functions; `8224e427b655b83dae5e2298f1e6919523a78737` |
 | C | Lua (1568, including 391 prototypes) | 100% | 0 | 0 | local fix verified; no false functions; one GCC configuration |
 | Python | Flask (1462), Requests (711), hr_portal (711) | 100%, 100%, 100% | 0, 0, 0 | 0, 0, 0 | local fix verified; no false functions |
 | PHP | Monolog (1602), Symfony Routing (1125) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
@@ -89,6 +90,13 @@ not all conditional variants. Before the fix: 157 missing (156 prototypes, one
 definition), 136 false names, zero wrong ends; after: zero in all three categories.
 The earlier 99.9% did not measure prototypes. Evaluator: `benchmarks/c_tree_eval.py`;
 exact flags, compiler/binary hashes and findings are in the ignored build directory.
+
+C++ was also measured on tinyxml2 `8224e427b655b83dae5e2298f1e6919523a78737` (`tinyxml2.h` and
+`tinyxml2.cpp`, 627 truth, libclang 18.1.1, same target): on `main` 332 found, recall 53.0%, precision
+100%; now 626 found, recall 99.8%, precision 100%, no wrong ends or false functions. The override and
+final specifiers were the largest remaining miss. CLI11 (`07c9f13b15a70c367a406e1cfe2c363aa1b66894`)
+is not measured: 22 of its 29 headers fail to parse with the clang reference (a GCC-only x86 builtin in
+the mingw headers, and redefinitions from its include structure).
 
 C++ was measured on 2026-10-13 on a working-tree fix based on `edc5f94`, against fmt
 `b4ffa39b9994c961418406f47358791d89a5aa48`, with libclang 18.1.1 and MinGW-Builds GCC 15.2.0
