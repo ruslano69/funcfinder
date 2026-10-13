@@ -714,6 +714,10 @@ var regexKeywords = map[string]bool{"return": true, "typeof": true, "case": true
 // last non-blank character before it is an operator or an opening bracket, or the word
 // before it is one of regexKeywords.
 func regexPositionAllowed(result []rune, idx int) bool {
+	// A slash right after '<' is a closing tag (</h4>) in JSX, not the start of a regular expression.
+	if idx > 0 && result[idx-1] == '<' {
+		return false
+	}
 	k := idx - 1
 	for k >= 0 && (result[k] == ' ' || result[k] == '\t') {
 		k--

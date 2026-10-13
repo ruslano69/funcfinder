@@ -102,6 +102,7 @@ type sigScanner struct {
 	braceInits bool
 	initList   bool
 	initBraces int
+	typeBraces int
 	bodyAt     int
 }
 
@@ -136,6 +137,11 @@ func (s *sigScanner) feed(cleaned string) sigEvent {
 			}
 		case '{':
 			if s.brackets == 0 {
+				// A brace in a type argument (`React.FC<{ children: T }>`) is not the body.
+				if s.typeBraces > 0 || prevNonSpace(cleaned, i) == '<' {
+					s.typeBraces++
+					continue
+				}
 				if s.initBraces > 0 || (s.initList && initPrefix(prevNonSpace(cleaned, i))) {
 					s.initBraces++
 					continue
@@ -144,11 +150,16 @@ func (s *sigScanner) feed(cleaned string) sigEvent {
 				return sigBody
 			}
 		case '}':
-			if s.brackets == 0 && s.initBraces > 0 {
-				s.initBraces--
+			if s.brackets == 0 {
+				if s.typeBraces > 0 {
+					s.typeBraces--
+				} else if s.initBraces > 0 {
+					s.initBraces--
+				}
 			}
 		case ';':
-			if s.brackets == 0 {
+			// A ';' inside a type argument's braces separates its members, not the signature.
+			if s.brackets == 0 && s.typeBraces == 0 {
 				return sigEnd
 			}
 		}
@@ -1200,9 +1211,15 @@ func classHeaderContinues(lines []string, i int, cleaned string) bool {
 	if strings.Count(cleaned, "<") > strings.Count(cleaned, ">") || openParens(cleaned) > 0 {
 		return true
 	}
+	// A base list that goes on (`class X : public A,` or `class X extends`) continues on the next line.
+	t := strings.TrimSpace(cleaned)
+	if strings.HasSuffix(t, ",") || strings.HasSuffix(t, ":") || strings.HasSuffix(t, "extends") || strings.HasSuffix(t, "implements") {
+		return true
+	}
 	for j := i + 1; j < len(lines); j++ {
 		if t := strings.TrimSpace(lines[j]); t != "" {
-			return strings.HasPrefix(t, "{")
+			// The body opens here, or a base list starts (`: public B {`, `extends B {`).
+			return strings.HasPrefix(t, "{") || strings.HasPrefix(t, ":") || strings.HasPrefix(t, "extends") || strings.HasPrefix(t, "implements")
 		}
 	}
 	return false
