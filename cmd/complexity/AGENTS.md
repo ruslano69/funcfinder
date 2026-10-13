@@ -13,6 +13,9 @@ The output is a probe for where to read first, not a verdict on the code.
   `printBreakdown`.
 - Language patterns (`nesting_pattern`, `flat_pattern`, `loop_pattern`) live in `internal/languages.json`, not here.
 - Language detection without `-l` is `internal.DetectLanguage` (`internal/detect.go`). Do not reimplement it here.
+- Files are analysed in parallel with `internal.ForEachParallel` and collected in input order; `analyzeFileComplexity`
+  must not write shared state. The later sort by `MaxComplexity` is not stable, so the input order is what keeps the
+  output the same from run to run.
 - `-exclude` is `internal.FilterExcluded` (`internal/exclude.go`); the flag type is `stringList` in `exclude.go`.
 - `-summary` counts are in `summary.go` (`summarize`, `printSummary`). They are for tracking a goal, so the limits line is
   printed with them and stays first in the output.
@@ -32,6 +35,9 @@ The output is a probe for where to read first, not a verdict on the code.
   there and nowhere else.
 - `-bool` reads `max_bool_operators`, the most operators on one line (`countMaxBoolOps`). `boolean_lines` stays a line
   count; the two are not interchangeable.
+- The breakdown counts run on every function, with or without `--breakdown`, so they use the hand scanners `boolOps` and
+  `hasDecision`, not `regexp`: `\b` patterns backtracked and took half of the analysis time. The scanners must give what
+  the reference patterns in `breakdown_scan_test.go` give; change both together.
 
 ## Work Guidance
 
