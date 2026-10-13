@@ -184,7 +184,7 @@ type Finder struct {
 // group 3 for `function name(...)` and group 5 for `const name = (...) =>`,
 // so those are checked first when both groups exist. Shared by the finder
 // itself, callgraph.go (to recognize a function's own signature line and
-// not record it as a call to itself) and stat.go (same reason).
+// not record it as a call to itself) and funcstats (same reason).
 func ExtractFuncName(matches []string) string {
 	// Для JS/TS с поддержкой arrow functions: проверяем группы 3 и 5
 	// Группа 3: function declarations (function name, function* name)

@@ -1,5 +1,5 @@
 // config.go - Unified language configuration
-// Loads and manages language patterns for funcfinder, stat, deps, complexity, and findstruct
+// Loads and manages language patterns for funcfinder, funcstats, deps, complexity, and findstruct
 package internal
 
 import (
@@ -43,7 +43,7 @@ type LanguageConfig struct {
 	StructTypePatterns []StructTypePattern `json:"struct_type_patterns,omitempty"`
 	FieldPattern       string              `json:"field_pattern,omitempty"`
 
-	// Call patterns (for stat.go)
+	// Call patterns (for funcstats)
 	CallPattern  string   `json:"call_pattern"`
 	ExcludeWords []string `json:"exclude_words"`
 	// ClassMethodOpen matches a class member's first line when its signature continues
@@ -546,7 +546,7 @@ func (lc *LanguageConfig) HasStructSupport() bool {
 	return len(lc.structPatterns) > 0
 }
 
-// Regex getters for stat.go
+// Regex getters for funcstats
 func (lc *LanguageConfig) CallRegex() *regexp.Regexp {
 	lc.ensure()
 	return lc.callRegex

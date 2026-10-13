@@ -56,6 +56,10 @@ type ComplexityMetrics struct {
 	// decision, and how many combine conditions with && / || or and / or.
 	DecisionCount       int   `json:"decision_count"`
 	BooleanLines        int   `json:"boolean_lines"`
+	// MaxBoolOps is the most boolean operators on one line of the function: the figure the -bool limit reads.
+	MaxBoolOps int `json:"max_bool_operators"`
+	// TriggeredFlags names the --breakdown limits this function passes (len, if, bool, deep, loop), with the limits in effect.
+	TriggeredFlags []string `json:"triggered_flags"`
 }
 
 // FileComplexity contains complexity metrics for a single file
@@ -158,7 +162,8 @@ var genericLoopPattern = regexp.MustCompile(`\b(for|while)\b`)
 // "complexity -l js file.go").
 func reorderArgs(args []string) []string {
 	// Flags that consume the next argument as their value.
-	valueFlags := map[string]bool{"l": true, "t": true, "n": true}
+	valueFlags := map[string]bool{"l": true, "t": true, "n": true, "len": true, "if": true, "deep": true, "loop": true,
+		"bool": true, "exclude": true}
 
 	var flags []string
 	var positional []string
@@ -196,7 +201,18 @@ func main() {
 	showDetails := flag.Bool("v", false, "Show detailed nesting analysis")
 	breakdownFlag := flag.Bool("breakdown", false, "Show the figures behind each score: size, decisions, branch and loop depth, boolean lines")
 	noSimple := flag.Bool("nosimple", false, "Hide SIMPLE level functions (score <= 3)")
+	lenFlag := flag.Int("len", defaultThresholds.Lines, "--breakdown: flag a function over N lines (0 = off)")
+	ifFlag := flag.Int("if", defaultThresholds.Decisions, "--breakdown: flag a function over N decisions (0 = off)")
+	deepFlag := flag.Int("deep", defaultThresholds.Depth, "--breakdown: flag branch depth N or more (0 = off)")
+	loopFlag := flag.Int("loop", defaultThresholds.Loops, "--breakdown: flag loop depth N or more (0 = off)")
+	boolFlag := flag.Int("bool", defaultThresholds.Bool, "--breakdown: flag a line with more than N boolean operators, && || and or (0 = off)")
+	var excludeFlag stringList
+	flag.Var(&excludeFlag, "exclude", "Leave out files matching a glob, by name or by path under the analysed directory (repeatable)")
+	summaryFlag := flag.Bool("summary", false, "Print counts only: the limits in effect, functions per level, the functions each --breakdown limit flags, and the total score")
 	flag.Parse()
+	if *summaryFlag && *jsonOut {
+		internal.FatalErrorMsg("-summary and -j cannot be used together")
+	}
 
 	// Handle version flag
 	if *showVersion {
@@ -223,12 +239,18 @@ func main() {
 			internal.FatalError("%v", err)
 		}
 	} else {
-		for _, l := range config {
-			files, _ := filepath.Glob(filepath.Join(dir, "*"+l.Extensions[0]))
-			if len(files) > 0 {
-				langConfig = l
-				break
+		var counts map[string]int
+		langConfig, counts, err = internal.DetectLanguage(config, dir)
+		if err != nil {
+			internal.FatalError("detecting language: %v", err)
+		}
+		if langConfig != nil {
+			total := 0
+			for _, n := range counts {
+				total += n
 			}
+			internal.InfoMessage(fmt.Sprintf("Detected %s: %d of %d source files (use -l to force another language)",
+				langConfig.Name, counts[langConfig.LangKey], total))
 		}
 	}
 
@@ -245,8 +267,16 @@ func main() {
 	if walkErr != nil {
 		internal.FatalError("walking directory: %v", walkErr)
 	}
+	dirFiles, err = internal.FilterExcluded(dirFiles, dir, excludeFlag)
+	if err != nil {
+		internal.FatalError("%v", err)
+	}
+	th := breakdownThresholds{Lines: *lenFlag, Decisions: *ifFlag, Bool: *boolFlag, Depth: *deepFlag, Loops: *loopFlag}
 	for _, path := range dirFiles {
 		fileComplexity := analyzeFileComplexity(path, langConfig)
+		for i := range fileComplexity.Functions {
+			fileComplexity.Functions[i].TriggeredFlags = triggeredFlags(fileComplexity.Functions[i], th)
+		}
 		if fileComplexity.TotalFunctions > 0 {
 			allFiles = append(allFiles, fileComplexity)
 			totalFunctions += fileComplexity.TotalFunctions
@@ -276,6 +306,11 @@ func main() {
 		}
 		jsonBytes, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Println(string(jsonBytes))
+		return
+	}
+
+	if *summaryFlag {
+		printSummary(allFiles, th)
 		return
 	}
 
@@ -358,7 +393,7 @@ func main() {
 		}
 		fmt.Printf("  Lines: %d, File: %s\n", metrics.LinesOfCode, metrics.File)
 		if *breakdownFlag {
-			printBreakdown(metrics)
+			printBreakdown(metrics, th)
 		}
 		fmt.Println()
 	}
@@ -436,7 +471,7 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 	loopRe := getLoopPattern(langConfig)
 
 	// One sanitizer per file, driven by the language config — the same one the
-	// finder, stat and callgraph already use. Built here rather than per
+	// finder, funcstats and callgraph already use. Built here rather than per
 	// function so the language lookup happens once.
 	sanitizer := internal.NewSanitizer(langConfig, false)
 
@@ -490,6 +525,7 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 			NestingHistory:      nestingResult.history,
 			DecisionCount:       countDecisions(cleaned),
 			BooleanLines:        countBooleanLines(cleaned),
+			MaxBoolOps: countMaxBoolOps(cleaned),
 		}
 
 		functions = append(functions, metrics)
@@ -914,7 +950,7 @@ func getLoopPattern(langConfig *internal.LanguageConfig) *regexp.Regexp {
 // the top of the CRITICAL list.
 //
 // Sanitizer answers this from languages.json (line_comment, block_comment_*,
-// string_chars, raw_string_chars, escape_char) and is what finder, stat and
+// string_chars, raw_string_chars, escape_char) and is what finder, funcstats and
 // callgraph already use; complexity was the one tool doing it by hand. It
 // blanks literal contents to spaces rather than deleting them, so brace
 // counting and the nesting/flat keyword patterns still see correct columns —

@@ -32,9 +32,9 @@ CLI entrypoints for the funcfinder toolkit. Each subdirectory contains a single 
 ## Child DOX Index
 
 - `cmd/funcfinder/` — primary tool: function/type mapping, extraction, split-shard output
-- `cmd/stat/` — call frequency analysis for a single file
+- `cmd/funcstats/` — call counts and file statistics; `--uncalled` lists candidates to delete. See [docs/FUNCSTATS.md](../docs/FUNCSTATS.md)
 - `cmd/deps/` — import dependency and inter-shard graph
 - `cmd/callgraph/` — forward/reverse call graph traversal
-- `cmd/complexity/` — cognitive complexity scoring per function
+- `cmd/complexity/` — cognitive complexity scoring per function, breakdown flags and their limits — see [cmd/complexity/AGENTS.md](complexity/AGENTS.md)
 - `cmd/benchmark/` — internal throughput benchmark, not a user-facing tool
 - `cmd/astoracle/` — Go-only ground-truth symbol oracle (go/ast) for benchmarking funcfinder's regex output; not shipped

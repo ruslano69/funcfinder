@@ -5,7 +5,7 @@
 # Version — the single source of truth is the VERSION file (also read by
 # build.sh, build.ps1 and checked against the tag by the release workflow).
 VERSION := $(strip $(shell cat VERSION))
-BINARIES := funcfinder stat deps complexity callgraph
+BINARIES := funcfinder funcstats deps complexity callgraph
 BUILD_DIR := build
 DIST_DIR := dist
 GO := go
@@ -36,8 +36,8 @@ build:
 	@echo "$(COLOR_GREEN)Building funcfinder toolkit v$(VERSION)...$(COLOR_RESET)"
 	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o funcfinder ./cmd/funcfinder
 	@echo "  ✓ funcfinder"
-	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o stat ./cmd/stat
-	@echo "  ✓ stat"
+	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o funcstats ./cmd/funcstats
+	@echo "  ✓ funcstats"
 	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o deps ./cmd/deps
 	@echo "  ✓ deps"
 	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o complexity ./cmd/complexity
@@ -66,7 +66,7 @@ build-all: clean
 install: build
 	@echo "$(COLOR_YELLOW)Installing to /usr/local/bin...$(COLOR_RESET)"
 	@sudo cp funcfinder /usr/local/bin/
-	@sudo cp stat /usr/local/bin/
+	@sudo cp funcstats /usr/local/bin/
 	@sudo cp deps /usr/local/bin/
 	@sudo cp complexity /usr/local/bin/
 	@sudo cp callgraph /usr/local/bin/
@@ -77,7 +77,7 @@ install: build
 uninstall:
 	@echo "$(COLOR_YELLOW)Uninstalling from /usr/local/bin...$(COLOR_RESET)"
 	@sudo rm -f /usr/local/bin/funcfinder
-	@sudo rm -f /usr/local/bin/stat
+	@sudo rm -f /usr/local/bin/funcstats /usr/local/bin/stat
 	@sudo rm -f /usr/local/bin/deps
 	@sudo rm -f /usr/local/bin/complexity
 	@sudo rm -f /usr/local/bin/callgraph
@@ -150,7 +150,7 @@ analyze: build
 	@./funcfinder --inp ./internal --source go --tree
 	@echo ""
 	@echo "$(COLOR_BOLD)=== Statistics ===$(COLOR_RESET)"
-	@./stat ./internal -l go
+	@./funcstats ./internal -l go
 	@echo ""
 	@echo "$(COLOR_BOLD)=== Dependencies ===$(COLOR_RESET)"
 	@./deps . -l go

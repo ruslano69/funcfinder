@@ -32,8 +32,8 @@ system_message: |
   ### deps - Analyze imports
   Usage: deps --inp FILE --source LANG [--json]
 
-  ### stat - Count function calls
-  Usage: stat --inp FILE --source LANG [--json]
+  ### funcstats - Count function calls
+  Usage: funcstats FILE -l LANG [--json]
 
   ## Working Rules
 
@@ -63,7 +63,7 @@ system_message: |
      deps --inp src/main.go --source go --json
 
      # 4. Check usage
-     stat --inp src/ --source go --json | jq ".$FUNC"
+     funcstats --dir src/ -l go --json | jq ".$FUNC"
      ```
 
   ## Example Tasks
@@ -79,7 +79,7 @@ system_message: |
   1. complexity PROJECT/ -t 5 -n 10 -j (find candidates)
   2. funcfinder --inp FILE --source LANG --func COMPLEX_FUNC --extract (get code)
   3. deps --inp FILE --source LANG --json (check dependencies)
-  4. stat --inp PROJECT/ --source LANG --json (check impact)
+  4. funcstats --dir PROJECT/ -l LANG --json (check impact)
   5. Refactor and test
 
   ### Add new feature:

@@ -9,7 +9,7 @@ import (
 	"github.com/ruslano69/funcfinder/internal"
 )
 
-// A minified bundle has a line longer than 64 KB. stat must count every line of such a file, not stop at that line.
+// A minified bundle has a line longer than 64 KB. funcstats must count every line of such a file, not stop at that line.
 func TestAnalyzeFile_CountsLinesAfterLongLine(t *testing.T) {
 	cfg, err := internal.LoadConfig()
 	if err != nil {

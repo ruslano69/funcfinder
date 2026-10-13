@@ -8,7 +8,7 @@
 # level, so it swallowed cmd/complexity/ whole and any new file inside it was
 # invisible to git. Same for the five names beside it.
 /funcfinder
-/stat
+/funcstats
 /deps
 /complexity
 /callgraph
@@ -50,7 +50,7 @@ bin/
 *.log
 /benchmark
 cmd/*/funcfinder
-cmd/*/stat
+cmd/*/funcstats
 cmd/*/deps
 cmd/*/complexity
 cmd/*/benchmark

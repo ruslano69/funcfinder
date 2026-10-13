@@ -88,7 +88,7 @@ jobs:
     - name: Test binaries
       run: |
         ./funcfinder --version
-        ./stat --version
+        ./funcstats --version
         ./deps --version
         ./complexity --version
         ./callgraph --version
@@ -99,7 +99,7 @@ jobs:
         name: binaries-linux
         path: |
           funcfinder
-          stat
+          funcstats
           deps
           complexity
           callgraph
@@ -125,7 +125,7 @@ jobs:
     - name: Test binaries
       run: |
         .\funcfinder.exe --version
-        .\stat.exe --version
+        .\funcstats.exe --version
         .\deps.exe --version
         .\complexity.exe --version
         .\callgraph.exe --version
@@ -136,7 +136,7 @@ jobs:
         name: binaries-windows
         path: |
           funcfinder.exe
-          stat.exe
+          funcstats.exe
           deps.exe
           complexity.exe
           callgraph.exe
@@ -162,7 +162,7 @@ jobs:
     - name: Test binaries
       run: |
         ./funcfinder --version
-        ./stat --version
+        ./funcstats --version
         ./deps --version
         ./complexity --version
         ./callgraph --version
@@ -173,7 +173,7 @@ jobs:
         name: binaries-macos
         path: |
           funcfinder
-          stat
+          funcstats
           deps
           complexity
           callgraph

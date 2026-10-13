@@ -10,7 +10,7 @@
 ./build.sh   # Required before first use (~5 sec)
 ```
 
-Builds 5 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`.
+Builds 5 binaries: `funcfinder`, `funcstats`, `deps`, `complexity`, `callgraph`.
 
 ## Releases
 
@@ -31,7 +31,7 @@ Builds 5 binaries: `funcfinder`, `stat`, `deps`, `complexity`, `callgraph`.
 | `funcfinder` | Map functions & types, extract bodies | file or dir |
 | `deps` | Import dependencies + shard graph | dir |
 | `callgraph` | Who calls whom | file or dir |
-| `stat` | Call frequency & hotspots | file |
+| `funcstats` | File statistics (LOC, comments, imports), call frequency & hotspots | file |
 | `complexity` | Cognitive complexity per function | file |
 
 ---
@@ -238,7 +238,7 @@ funcfinder --dir . --json --split --inc
 
 ### 7. cmd/ excluded by gitignore in deps/callgraph
 ```bash
-# Bare names like "deps", "stat" in .gitignore match directories.
+# Bare names like "deps", "funcstats" in .gitignore match directories.
 # Use --no-gitignore to include cmd/ packages:
 deps . -l go --shards --no-gitignore
 callgraph --dir . -l go --no-gitignore
@@ -422,7 +422,7 @@ When the user requests a durable behavior change, record it here or in the relev
 ## Child DOX Index
 
 - `benchmarks/` → Real-project evaluators, measurement contracts and load harness — see [benchmarks/AGENTS.md](benchmarks/AGENTS.md)
-- `cmd/` → CLI entrypoints for all 5 tools (funcfinder, stat, deps, callgraph, complexity) — see [cmd/AGENTS.md](cmd/AGENTS.md)
+- `cmd/` → CLI entrypoints for all 5 tools (funcfinder, funcstats, deps, callgraph, complexity) — see [cmd/AGENTS.md](cmd/AGENTS.md)
 - `internal/` → Core parsing engine: language finders, formatters, call graph, shard logic — see [internal/AGENTS.md](internal/AGENTS.md)
 - `docs/` → User-facing documentation and usage examples — see [docs/AGENTS.md](docs/AGENTS.md)
 - `examples/` → Shell script usage examples and swe-agent integration workflows — see [examples/AGENTS.md](examples/AGENTS.md)
