@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### funcstats
+
+- Names with the same call count are listed by name. They came in random order, so two runs of the same input could
+  differ, and with `-n` so could which of the tied names made the cut. The counts are unchanged.
+
 ### D
 
 - The D function pattern runs only on lines that hold a `(` (`func_requires`), in the D preparation pass and in the
