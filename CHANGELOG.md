@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### TypeScript
+
+- The bodyless-declaration pattern runs only on lines that can hold one: a line with a `func_requires` character that
+  ends with `;`. It ran on every top-level line, and a profile of `funcfinder --dir` on OmniRoute put it at 6.2 of
+  21 s of CPU, three times the function pattern itself. Over OmniRoute's 1.6 million lines the pattern now takes 0.43 s
+  instead of 4.35 s, with the same 4216 matches. The output is unchanged. CPU time of `funcfinder --dir --all --json`
+  on OmniRoute 18 → 13 s; single-threaded `complexity` 10.9 → 8.4 s.
+
 ## v1.14.0 - 2026-10-13
 
 ### funcstats
