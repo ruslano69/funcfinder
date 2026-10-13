@@ -461,6 +461,13 @@ func (lc *LanguageConfig) MayStartFunction(cleaned string) bool {
 	return containsAnyOf(cleaned, lc.FuncRequires)
 }
 
+// MayDeclare reports whether a cleaned line can hold a bodyless declaration (declaration_pattern): it can hold a
+// function header, and it ends with ';' before any trailing whitespace, as every declaration pattern requires. The
+// pattern is costly, and most lines fail this check.
+func (lc *LanguageConfig) MayDeclare(cleaned string) bool {
+	return lc.MayStartFunction(cleaned) && strings.HasSuffix(strings.TrimRight(cleaned, " \t\n\f\r"), ";")
+}
+
 // MayStartType reports whether a cleaned line can hold a class or struct header: it holds one of the type_keywords.
 // Without type_keywords every line may.
 func (lc *LanguageConfig) MayStartType(cleaned string) bool {

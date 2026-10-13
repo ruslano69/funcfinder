@@ -84,7 +84,11 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 	if err != nil {
 		internal.FatalError("reading file: %v", err)
 	}
+	return analyzeLines(filename, lines, config)
+}
 
+// analyzeLines analyzes the lines of a source file, already read, and returns function calls and metrics.
+func analyzeLines(filename string, lines []string, config *internal.LanguageConfig) (map[string]int, *FileMetrics) {
 	// Get file size
 	fileInfo, _ := os.Stat(filename)
 	metrics := &FileMetrics{
@@ -104,7 +108,7 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 	// effort: an error here just means no self-definition line is skipped,
 	// same as funcstats' behavior before this existed.
 	definedNames := make(map[string]bool)
-	if fr, ferr := internal.CreateFinder(config, "", "map", false, false).FindFunctions(filename); ferr == nil {
+	if fr, ferr := internal.FindFunctionsInFile(internal.CreateFinder(config, "", "map", false, false), filename, lines); ferr == nil {
 		for _, fn := range fr.Functions {
 			definedNames[fn.Name] = true
 		}
@@ -226,7 +230,9 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 	return callCounts, metrics
 }
 
-// sortedCalls converts a callCounts map to a sorted slice of pairs.
+// sortedCalls converts a callCounts map to a slice of pairs, most calls first and names in order among equal counts.
+// The name breaks the tie because the map is read in random order: without it the output changed from run to run, and
+// with -n so did which of the tied names made the cut.
 func sortedCalls(callCounts map[string]int) []struct {
 	name  string
 	count int
@@ -239,7 +245,12 @@ func sortedCalls(callCounts map[string]int) []struct {
 	for name, count := range callCounts {
 		calls = append(calls, pair{name, count})
 	}
-	sort.Slice(calls, func(i, j int) bool { return calls[i].count > calls[j].count })
+	sort.Slice(calls, func(i, j int) bool {
+		if calls[i].count != calls[j].count {
+			return calls[i].count > calls[j].count
+		}
+		return calls[i].name < calls[j].name
+	})
 	result := make([]struct {
 		name  string
 		count int
@@ -420,8 +431,27 @@ func main() {
 			printUncalled(report, jsonOut)
 			return
 		}
-		for _, path := range dirFiles {
-			counts, m := analyzeFile(path, langConfig)
+		// Files are analysed in parallel, each into its own slot, and aggregated in the order of dirFiles, so the output
+		// and the first unreadable file reported are the same as in a sequential run.
+		type analysed struct {
+			counts map[string]int
+			m      *FileMetrics
+			err    error
+		}
+		results := make([]analysed, len(dirFiles))
+		internal.ForEachParallel(len(dirFiles), func(i int) {
+			lines, err := internal.ReadLines(dirFiles[i])
+			if err != nil {
+				results[i].err = err
+				return
+			}
+			results[i].counts, results[i].m = analyzeLines(dirFiles[i], lines, langConfig)
+		})
+		for i, path := range dirFiles {
+			if results[i].err != nil {
+				internal.FatalError("reading file: %v", results[i].err)
+			}
+			counts, m := results[i].counts, results[i].m
 			for fn, cnt := range counts {
 				aggregateCounts[fn] += cnt
 			}

@@ -306,6 +306,7 @@
     ],
     "func_pattern": "^\\s*(?:(?:@{IDENT}+(?:\\((?:[^()]|\\([^()]*\\))*\\))?|public|private|protected|package|export|static|final|override|abstract|synchronized|pure|nothrow|scope|ref|const|immutable|shared|inout|auto)\\s+)*(?:(~?this|new)|(?:(?:const|immutable|shared|inout|typeof)\\s*\\((?:[^()]|\\([^()]*\\))*\\)|\\.?{IDENT}+(?:\\.{IDENT}+)*(?:!(?:\\((?:[^()]|\\([^()]*\\))*\\)|{IDENT}+))?)(?:\\s*\\*|\\[[^\\]]*\\])*(?:(?:\\s*\\*)+\\s*|\\s+)(?:(?:delegate|function)\\((?:[^()]|\\([^()]*\\))*\\)(?:\\s+(?:@{IDENT}+|pure|nothrow))*\\s+)?({IDENT}+))\\s*\\(|^\\s*(?:(?:@{IDENT}+(?:\\((?:[^()]|\\([^()]*\\))*\\))?|public|private|protected|package|export|static|final|override|abstract|synchronized|pure|nothrow|scope|ref|const|immutable|shared|inout|auto)\\s+)*@property\\s+({IDENT}+)\\s*\\(",
     "type_keywords": ["class", "struct", "interface", "enum", "union"],
+    "func_requires": ["("],
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|struct|interface|enum)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:(?:public|private|protected|static|const|immutable|shared)\\s+)*class\\s+({IDENT}+)",

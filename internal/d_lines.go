@@ -21,13 +21,15 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 	}
 	// Return types and names can be on separate lines. Move only a recognized
 	// header onto its first line, retaining blank lines for original coordinates.
+	// The function pattern runs only on text that can hold a header (func_requires, "("): on the other lines,
+	// many of them long runs of blanked comments, it backtracked for nothing and took most of the time.
 	for i := 0; i+1 < len(result); i++ {
-		if strings.TrimSpace(result[i]) == "" || dAttributeLine.MatchString(result[i]) || config.FuncRegex().MatchString(result[i]) || dStatementHeader.MatchString(result[i]) || dTypeHeader.MatchString(result[i]) || strings.ContainsAny(result[i], ";{}=") {
+		if strings.TrimSpace(result[i]) == "" || dAttributeLine.MatchString(result[i]) || dFuncHeader(result[i], config) || dStatementHeader.MatchString(result[i]) || dTypeHeader.MatchString(result[i]) || strings.ContainsAny(result[i], ";{}=") {
 			continue
 		}
 		for j := i + 1; j < len(result) && j <= i+4; j++ {
 			joined := strings.Join(result[i:j+1], " ")
-			if matches := config.FuncRegex().FindStringSubmatch(joined); matches != nil {
+			if dFuncHeader(joined, config) {
 				result[i] = joined
 				headerEnds[i] = j
 				for k := i + 1; k <= j; k++ {
@@ -66,11 +68,12 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 				}
 			}
 		}
-		if dAttributeLine.MatchString(string(code)) {
+		// An attribute line holds at least one attribute word, so a blank line is not one and skips the pattern.
+		if text != "" && dAttributeLine.MatchString(string(code)) {
 			result[i] = strings.Repeat(" ", len(code))
 			continue
 		}
-		if config.FuncRegex().MatchString(string(code)) && contractDepth == 0 {
+		if contractDepth == 0 && dFuncHeader(string(code), config) {
 			pending, parens, contract = true, 0, false
 		}
 		for j := 0; j < len(code); j++ {
@@ -149,6 +152,12 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 		result[i] = string(code)
 	}
 	return result, headerEnds
+}
+
+// dFuncHeader reports whether a prepared D line matches the function pattern. A line without a func_requires
+// character cannot, so the pattern is not run on it.
+func dFuncHeader(line string, config *LanguageConfig) bool {
+	return config.MayStartFunction(line) && config.FuncRegex().MatchString(line)
 }
 
 // Conditional declarations and parameterized attributes prefix a declaration,

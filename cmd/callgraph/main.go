@@ -105,20 +105,23 @@ func runDirMode(config internal.Config, dir, lang string, jsonOut, reverseMode b
 		}
 	}
 
-	// Collect files
+	// Collect files. The list is only used to read import aliases, so the walk runs while the directory job below
+	// finds the functions, and its result is awaited before the imports are read.
 	var allFiles []string
-	if langConfig != nil {
-		allFiles, err = internal.CollectSourceFiles(dir, langConfig, true, !noGitignore)
-	} else {
-		// Auto-detect: collect all supported files
-		for _, lc := range config {
-			files, _ := internal.CollectSourceFiles(dir, lc, true, !noGitignore)
-			allFiles = append(allFiles, files...)
+	var walkErr error
+	walkDone := make(chan struct{})
+	go func() {
+		defer close(walkDone)
+		if langConfig != nil {
+			allFiles, walkErr = internal.CollectSourceFiles(dir, langConfig, true, !noGitignore)
+		} else {
+			// Auto-detect: collect all supported files
+			for _, lc := range config {
+				files, _ := internal.CollectSourceFiles(dir, lc, true, !noGitignore)
+				allFiles = append(allFiles, files...)
+			}
 		}
-	}
-	if err != nil {
-		internal.FatalError("collecting files: %v", err)
-	}
+	}()
 
 	// Run funcfinder on each file to get function boundaries. When -l is set,
 	// scope this to that single language too — otherwise DirProcessor
@@ -131,18 +134,38 @@ func runDirMode(config internal.Config, dir, lang string, jsonOut, reverseMode b
 	}
 	processor := internal.NewDirProcessor(procConfig, 0, true, !noGitignore, "functions")
 	results, err := processor.ProcessDirectory(dir)
+	<-walkDone
+	if walkErr != nil {
+		internal.FatalError("collecting files: %v", walkErr)
+	}
 	if err != nil {
 		internal.FatalError("processing directory: %v", err)
 	}
 
-	// Collect per-file import aliases
-	importsByFile := make(map[string]map[string]string)
+	// Collect per-file import aliases, in parallel, for the files the call graph scans: BuildDirCallGraph reads
+	// importsByFile only for a result with functions. A file the walk did not list keeps no aliases, as before.
+	listed := make(map[string]bool, len(allFiles))
 	for _, path := range allFiles {
-		lc := config.GetLanguageByExtension(path)
-		if lc == nil {
+		listed[path] = true
+	}
+	var importPaths []string
+	var importLangs []*internal.LanguageConfig
+	for _, r := range results {
+		if len(r.Functions) == 0 || !listed[r.Path] {
 			continue
 		}
-		importsByFile[path] = collectImports(path, lc)
+		if lc := config.GetLanguageByExtension(r.Path); lc != nil {
+			importPaths = append(importPaths, r.Path)
+			importLangs = append(importLangs, lc)
+		}
+	}
+	aliases := make([]map[string]string, len(importPaths))
+	internal.ForEachParallel(len(importPaths), func(i int) {
+		aliases[i] = collectImports(importPaths[i], importLangs[i])
+	})
+	importsByFile := make(map[string]map[string]string, len(importPaths))
+	for i, path := range importPaths {
+		importsByFile[path] = aliases[i]
 	}
 
 	cg := internal.BuildDirCallGraph(results, config, importsByFile)
@@ -299,6 +322,9 @@ func printCallTree(cg *internal.CallGraphResult, root string) {
 }
 
 // collectImports parses a file and returns alias → package base name.
+// blockImportRe reads one line of an import block: an optional alias and the quoted path.
+var blockImportRe = regexp.MustCompile(`^\s*(?:(\w+)\s+)?"([^"]+)"`)
+
 func collectImports(path string, langConfig *internal.LanguageConfig) map[string]string {
 	aliases := make(map[string]string)
 
@@ -313,7 +339,6 @@ func collectImports(path string, langConfig *internal.LanguageConfig) map[string
 		return aliases
 	}
 
-	blockImportRe := regexp.MustCompile(`^\s*(?:(\w+)\s+)?"([^"]+)"`)
 	inBlock := false
 
 	for _, line := range lines {

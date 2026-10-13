@@ -530,9 +530,15 @@ func formatDirResultsTree(results []DirResult, full bool) string {
 	return buildTreeOutput(root, "", true)
 }
 
+// The text formatters write into one strings.Builder. They used to grow a string with +=, which copies the whole
+// output for every line: on a large tree (arsd, 1.5 MB of map) that took most of the run.
 func buildTreeOutput(node *DirTreeNode, prefix string, isLast bool) string {
-	var output string
+	var sb strings.Builder
+	writeTreeNode(&sb, node, prefix, isLast)
+	return sb.String()
+}
 
+func writeTreeNode(sb *strings.Builder, node *DirTreeNode, prefix string, isLast bool) {
 	// Determine connector
 	connector := "├── "
 	if isLast {
@@ -540,7 +546,7 @@ func buildTreeOutput(node *DirTreeNode, prefix string, isLast bool) string {
 	}
 
 	if node.Path != "" {
-		output += prefix + connector + filepath.Base(node.Path) + "\n"
+		sb.WriteString(prefix + connector + filepath.Base(node.Path) + "\n")
 		newPrefix := prefix
 		if isLast {
 			newPrefix += "    "
@@ -555,14 +561,14 @@ func buildTreeOutput(node *DirTreeNode, prefix string, isLast bool) string {
 				if i == len(node.Functions)+len(node.Classes)-1 {
 					funcPrefix = newPrefix + "└── "
 				}
-				output += funcPrefix + "def " + fn.Name + " (line " + strconv.Itoa(fn.Start) + ")\n"
+				sb.WriteString(funcPrefix + "def " + fn.Name + " (line " + strconv.Itoa(fn.Start) + ")\n")
 			}
 			for i, c := range node.Classes {
 				classPrefix := newPrefix + "├── "
 				if i == len(node.Classes)-1 && len(node.Functions) == 0 {
 					classPrefix = newPrefix + "└── "
 				}
-				output += classPrefix + "class " + c.Name + " (line " + strconv.Itoa(c.Start) + ")\n"
+				sb.WriteString(classPrefix + "class " + c.Name + " (line " + strconv.Itoa(c.Start) + ")\n")
 			}
 		}
 	}
@@ -573,29 +579,22 @@ func buildTreeOutput(node *DirTreeNode, prefix string, isLast bool) string {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	children := make([]*DirTreeNode, 0, len(names))
-	for _, name := range names {
-		children = append(children, node.Children[name])
+	for i, name := range names {
+		writeTreeNode(sb, node.Children[name], prefix, i == len(names)-1)
 	}
-
-	for i, child := range children {
-		output += buildTreeOutput(child, prefix, i == len(children)-1)
-	}
-
-	return output
 }
 
 func formatDirResultsGrep(results []DirResult) string {
-	var output string
+	var sb strings.Builder
 	for _, r := range results {
 		for _, fn := range r.Functions {
-			output += r.Path + ":" + strconv.Itoa(fn.Start) + ": " + fn.Name + "\n"
+			sb.WriteString(r.Path + ":" + strconv.Itoa(fn.Start) + ": " + fn.Name + "\n")
 		}
 		for _, cl := range r.Classes {
-			output += r.Path + ":" + strconv.Itoa(cl.Start) + ": " + cl.Name + "\n"
+			sb.WriteString(r.Path + ":" + strconv.Itoa(cl.Start) + ": " + cl.Name + "\n")
 		}
 	}
-	return output
+	return sb.String()
 }
 
 // IgnoreMatcher handles .gitignore pattern matching
