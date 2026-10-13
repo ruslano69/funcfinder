@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Rust
+
+- A char literal that holds a quote (`'"'`) no longer opens a string that never closes: the rest of the file was lost,
+  every function after it. Rust has char literals now, with a lookahead rule: a quote opens a literal only when it closes
+  on the same line, so lifetimes (`'a`) stay code.
+- Functions with `pub(super)`, `pub(self)` and `pub(in path)` are found, as `pub(crate)` already was. On the gridcraft
+  workspace the listing went from 6320 to 6489 names.
+
 ## v1.13.0 - 2026-10-13
 
 Two new listings for working with names: `--names` lists the kind, name and location of every declaration, and
