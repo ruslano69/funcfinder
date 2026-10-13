@@ -577,18 +577,17 @@ func (f *Finder) findFunctionsInPreparedLines(lines []string, startLine int, fil
 
 // findFunctionsSimple - старая логика для языков без вложенных функций
 func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
-	state := StateNormal
 	var currentFunc *FunctionBounds
 	var sig *sigScanner // the current function's signature, until its body opens
 	var sigLast int     // where that signature ends if it never gets a body
 	var afterBlock bool // the body closed, but the expression goes on (see continuesExpression)
 	depth := 0
 	funcRegex := f.config.FuncRegex()
+	facts := f.sanitizer.CleanLinesFacts(lines)
 
 	for lineNum, line := range lines {
-		// Очищаем строку от комментариев и литералов
-		cleaned, newState := f.sanitizer.CleanLine(line, state)
-		state = newState
+		// comments and literals are blank in the cleaned text (LineFacts)
+		cleaned := facts[lineNum].Cleaned
 
 		// A header that starts while the signature still waits for its body or a
 		// ';' means that signature had neither (Kotlin, Swift): it ends on its last
@@ -1407,15 +1406,15 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 		return classes
 	}
 
-	state := StateNormal
 	classDepth := 0
 	// classOpened: the body's '{' has been seen. A header may span lines (`export class X<` ... `> {`),
 	// and the class must not end on a header line, where the depth is still zero.
 	classOpened := false
 
-	for lineNum, line := range lines {
-		cleaned, newState := f.sanitizer.CleanLine(line, state)
-		state = newState
+	facts := f.sanitizer.CleanLinesFacts(lines)
+
+	for lineNum := range facts {
+		cleaned := facts[lineNum].Cleaned
 
 		if currentClass != nil {
 			// Отслеживаем баланс скобок
@@ -1462,7 +1461,7 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 						classDepth = 0
 						classOpened = false
 					}
-				} else if !classHeaderContinues(lines, lineNum, cleaned) {
+				} else if !classHeaderContinues(facts, lineNum, cleaned) {
 					// A complete header without a body (`case class Success(v: T) extends Result`) is a class of
 					// one line: the next code must not be taken for its body.
 					currentClass.End = lineNum + 1 + lineOffset
@@ -1476,7 +1475,7 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 
 	// Если класс не был закрыт до конца файла
 	if currentClass != nil {
-		currentClass.End = len(lines) + lineOffset
+		currentClass.End = len(facts) + lineOffset
 		classes = append(classes, *currentClass)
 	}
 
@@ -1485,7 +1484,7 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 
 // classHeaderContinues reports whether a class header with no '{' goes on: an unclosed generic list or
 // parenthesis (`export class X<`, `case class X(`), or a body that starts on the next line (`class X` `{`).
-func classHeaderContinues(lines []string, i int, cleaned string) bool {
+func classHeaderContinues(facts []LineFacts, i int, cleaned string) bool {
 	if strings.Count(cleaned, "<") > strings.Count(cleaned, ">") || openParens(cleaned) > 0 {
 		return true
 	}
@@ -1494,8 +1493,8 @@ func classHeaderContinues(lines []string, i int, cleaned string) bool {
 	if strings.HasSuffix(t, ",") || strings.HasSuffix(t, ":") || strings.HasSuffix(t, "extends") || strings.HasSuffix(t, "implements") {
 		return true
 	}
-	for j := i + 1; j < len(lines); j++ {
-		if t := strings.TrimSpace(lines[j]); t != "" {
+	for j := i + 1; j < len(facts); j++ {
+		if t := strings.TrimSpace(facts[j].Cleaned); t != "" {
 			// The body opens here, or a base list starts (`: public B {`, `extends B {`).
 			return strings.HasPrefix(t, "{") || strings.HasPrefix(t, ":") || strings.HasPrefix(t, "extends") || strings.HasPrefix(t, "implements")
 		}

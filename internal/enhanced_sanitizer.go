@@ -713,7 +713,7 @@ type LineFacts struct {
 	Cleaned    string      // the line with comments and literals blanked
 	StartState ParserState // the state the line starts in
 	Indent     int         // indentation of the raw line (GetIndentLevel)
-	CodeText   bool        // the raw line holds text outside comments (hasCodeText); a literal-only line has it with a blank Cleaned
+	CodeText   bool        // the raw line holds text outside comments; a literal-only line has it with a blank Cleaned
 }
 
 // CleanLinesFacts cleans a file line by line and returns the facts of each line.
@@ -733,6 +733,11 @@ func (s *Sanitizer) lineFacts(line string, state ParserState) (LineFacts, Parser
 		StartState: state,
 		Indent:     GetIndentLevel(line),
 		CodeText:   hasCodeText(line),
+	}
+	// A line that starts outside any literal and opens with the language's line comment (`# note` in Python and
+	// Ruby) is a comment: hasCodeText knows only the C-family markers. Inside a literal the same text is its content.
+	if state == StateNormal && s.config.LineComment != "" && strings.HasPrefix(strings.TrimSpace(line), s.config.LineComment) {
+		fact.CodeText = false
 	}
 	var next ParserState
 	fact.Cleaned, next = s.CleanLine(line, state)

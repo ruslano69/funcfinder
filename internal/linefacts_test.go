@@ -3,6 +3,7 @@ package internal
 import (
 	"io/fs"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -58,8 +59,13 @@ func TestLineFactsMatchPreviousInputs(t *testing.T) {
 			if f.Indent != GetIndentLevel(raw) {
 				t.Fatalf("%s:%d: Indent = %d, want %d (the raw line's)", path, i+1, f.Indent, GetIndentLevel(raw))
 			}
-			if f.CodeText != hasCodeText(raw) {
-				t.Fatalf("%s:%d: CodeText = %v, want %v", path, i+1, f.CodeText, hasCodeText(raw))
+			// the previous rule, and the comment rule: a line that starts outside a literal with the line-comment marker
+			wantCode := hasCodeText(raw)
+			if start == StateNormal && lc.LineComment != "" && strings.HasPrefix(strings.TrimSpace(raw), lc.LineComment) {
+				wantCode = false
+			}
+			if f.CodeText != wantCode {
+				t.Fatalf("%s:%d: CodeText = %v, want %v", path, i+1, f.CodeText, wantCode)
 			}
 			checked++
 		}
