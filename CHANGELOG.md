@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Output
+
+- A directory run names the files it skipped because no language is configured for their extension: one INFO line on
+  stderr, with the total and the most frequent kinds (at most six). Before, the skipped files were not mentioned, so a
+  repository with Shell, PowerShell or HTML files looked analysed in full. stdout is unchanged.
+
 ## v1.13.0 - 2026-10-13
 
 Two new listings for working with names: `--names` lists the kind, name and location of every declaration, and
