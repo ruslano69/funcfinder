@@ -77,6 +77,8 @@
 
 ### Determinism and speed
 
+- The D and Scala lexers' text is no longer cleaned a second time by the sanitizer; the finders read its facts. The
+  fixed corpus output is unchanged.
 - Raw strings close at their own delimiter. `r"..."` (Python, D), `r#"..."#` (Rust) and `@"..."` (C# verbatim) used
   to close at their opener, so they never closed and the lines after them were blanked: `Example` in
   `test_csharp_verbatim.cs` was missed. A triple-quoted string with a raw prefix (`r"""`) is a docstring.
