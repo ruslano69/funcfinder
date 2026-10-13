@@ -862,6 +862,8 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 	funcRegex := f.config.FuncRegex()
 	// The whole file, sanitized the same way line by line: a declaration's value may span lines.
 	cleanedLines := f.sanitizer.CleanLines(lines)
+	// typeDepth: the type-literal braces (`query<{`) still open from earlier lines; they are not code braces.
+	typeDepth := 0
 
 	for lineNum, line := range lines {
 		// Очищаем строку от комментариев и литералов
@@ -870,7 +872,8 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		cleaned, newState := f.sanitizer.CleanLine(line, state)
 		state = newState
 
-		braceDelta := CountBraces(cleaned)
+		var braceDelta int
+		braceDelta, typeDepth = braceDeltaSkippingTypeLiterals(cleaned, typeDepth)
 
 		// 0. Сигнатура без тела, начатая раньше, ждёт этой строки: она может
 		// открыть тело или закончиться ';'. Если здесь начинается следующая функция,
@@ -1010,11 +1013,18 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 				// A header that ends in '=' starts an expression body on the next line: it is not
 				// complete here, even when its braces balance (as on the simple path).
 				endsWithEq := strings.HasSuffix(strings.TrimSpace(cleaned), "=") || strings.HasSuffix(strings.TrimSpace(cleaned), "=>")
+				probe := &sigScanner{}
+				bodyOnLine := probe.feed(cleaned) == sigBody
 				if typedOpen {
 					sig := &sigScanner{}
 					sig.feed(cleaned)
 					funcStack = append(funcStack, &FunctionContext{Func: newFunc, sig: sig, sigLast: lineNum + 1 + lineOffset})
-				} else if braceDelta == 0 && strings.Contains(cleaned, "{") && openParens(cleaned) == 0 && !endsWithEq {
+				} else if braceDelta < 0 && bodyOnLine && openParens(cleaned[:probe.bodyAt]) == 0 && !endsWithEq && closeIndex(cleaned[probe.bodyAt:], 0) >= 0 {
+					// The body opens and closes on this line, and the line closes more braces after it (`}});`): what
+					// follows the body belongs to the caller. A return type's braces are not this case: they balance.
+					newFunc.End = lineNum + 1 + lineOffset
+					result.Functions = append(result.Functions, *newFunc)
+				} else if braceDelta == 0 && bodyOnLine && openParens(cleaned) == 0 && !endsWithEq {
 					newFunc.End = lineNum + 1 + lineOffset
 					result.Functions = append(result.Functions, *newFunc)
 				} else if braceDelta == 0 {
@@ -1130,6 +1140,30 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 	}
 
 	return result, nil
+}
+
+// braceDeltaSkippingTypeLiterals returns the brace balance of a line that is not a type literal's, and the number
+// of type-literal braces still open after it. A '{' that follows '<' (or sits inside such a literal) opens a type
+// literal (`query<{ id: string }>(`): its braces are the type's, not the code's.
+func braceDeltaSkippingTypeLiterals(cleaned string, typeDepth int) (int, int) {
+	delta := 0
+	for i := 0; i < len(cleaned); i++ {
+		switch cleaned[i] {
+		case '{':
+			if typeDepth > 0 || prevNonSpace(cleaned, i) == '<' {
+				typeDepth++
+			} else {
+				delta++
+			}
+		case '}':
+			if typeDepth > 0 {
+				typeDepth--
+			} else {
+				delta--
+			}
+		}
+	}
+	return delta, typeDepth
 }
 
 // closeIndex returns the byte offset of the brace that brings a cleaned line down to a depth

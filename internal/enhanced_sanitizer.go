@@ -710,6 +710,21 @@ const regexPrecededBy = "(,=:[!&|?{};+-*%<>~^"
 // regexKeywords are the words after which a slash starts a regular expression.
 var regexKeywords = map[string]bool{"return": true, "typeof": true, "case": true, "in": true, "of": true, "yield": true, "await": true, "if": true, "elsif": true, "unless": true, "when": true}
 
+// endsJSXAttribute reports whether the last non-blank character before idx ends a JSX attribute value or a
+// tag name: `}` of an expression, a closing quote, `]`, or a name character.
+func endsJSXAttribute(result []rune, idx int) bool {
+	k := idx - 1
+	for k >= 0 && (result[k] == ' ' || result[k] == '\t') {
+		k--
+	}
+	if k < 0 {
+		return false
+	}
+	c := result[k]
+	return c == '}' || c == '"' || c == '\'' || c == '`' || c == ']' || c == '_' || c == '$' ||
+		(c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+}
+
 // regexPositionAllowed reports whether a slash at idx starts a regular expression: the
 // last non-blank character before it is an operator or an opening bracket, or the word
 // before it is one of regexKeywords.
@@ -789,6 +804,11 @@ func (s *Sanitizer) tryHandleRegexLiteral(runes []rune, result []rune, idx int) 
 		return idx, false
 	}
 	if idx+1 < len(runes) && (runes[idx+1] == '/' || runes[idx+1] == '*') {
+		return idx, false
+	}
+	// `/>` ends a self-closing JSX tag (`<input ... />`, `}/>`): the slash is not a regular expression. A regex
+	// may be `/>/` after '(' or ',', so only a slash after a tag's last attribute value or name is exempt.
+	if idx+1 < len(runes) && runes[idx+1] == '>' && endsJSXAttribute(result, idx) {
 		return idx, false
 	}
 	if !regexPositionAllowed(result, idx) {
