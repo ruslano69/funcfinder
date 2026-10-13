@@ -77,6 +77,12 @@
 
 ### Determinism and speed
 
+- Raw strings close at their own delimiter. `r"..."` (Python, D), `r#"..."#` (Rust) and `@"..."` (C# verbatim) used
+  to close at their opener, so they never closed and the lines after them were blanked: `Example` in
+  `test_csharp_verbatim.cs` was missed. A triple-quoted string with a raw prefix (`r"""`) is a docstring.
+- A multi-line string closes at its own marker (a single quote inside a docstring is text), and the code after the
+  closing quotes on the same line is code again (`""", {"key": 1})` keeps its brackets). Python's logical lines now
+  read the sanitizer's facts; the separate Python string cleaner is gone. The fixed corpus output is unchanged by it.
 - A class header followed by a comment and then its body (`class Widget` / `// the body follows` / `{`) keeps its body:
   the header check reads the next code line, and a comment is not code. Before, the class ended on its header.
 - Ruby: `end` followed by a comment (`end # the class`) closes its class, and a method (`end # the first method`) closes too. The structural finders read the end from
