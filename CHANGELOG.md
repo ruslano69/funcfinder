@@ -8,6 +8,12 @@
   stderr, with the total and the most frequent kinds (at most six). Before, the skipped files were not mentioned, so a
   repository with Shell, PowerShell or HTML files looked analysed in full. stdout is unchanged.
 
+### Dependencies (`deps`)
+
+- In the plain listing, a Go import under the module of `go.mod` is internal. Before, every import with a `/` was
+  external unless it had `internal/` or `vendor/` in it, so the project's own packages were counted as third-party. The
+  module is read from the nearest `go.mod` at or above the analyzed directory, so a run on a subdirectory works too.
+
 ### Incremental split (`--split --inc`)
 
 - A shard whose files hold no declaration (data tables, re-export modules) has no shard file, so it was never in the
