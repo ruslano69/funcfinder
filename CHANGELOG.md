@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### `callgraph --dir`
+
+- Import aliases are read in parallel, and only for the files the graph scans (files with functions); the walk that
+  lists them runs while the directory job finds the functions. Reading them one file at a time was the largest
+  sequential step of a run: 660 ms of 1.7 s on OmniRoute. The output is unchanged.
+
 ### `complexity` and `funcstats --dir`
 
 - Files are analysed in parallel, on all cores. Both tools used one core: a profile of `complexity` on OmniRoute put 95%
