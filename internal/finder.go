@@ -669,6 +669,11 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 				matches = f.config.ClassMethodOpenRegex().FindStringSubmatch(cleaned)
 			}
 		}
+		// A bodyless declaration at the top of a scope (TypeScript's `abstract run(): void;`): a
+		// method without a body ends with ';' on its own line, and is listed as a function.
+		if matches == nil && len(funcStack) == 0 && f.config.DeclarationRegex() != nil {
+			matches = f.config.DeclarationRegex().FindStringSubmatch(cleaned)
+		}
 		events := make([]sigEvent, len(funcStack))
 		for i, ctx := range funcStack {
 			if ctx.sig == nil {

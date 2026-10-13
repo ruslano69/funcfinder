@@ -29,6 +29,7 @@
 - `abstract class`, `export default class` and `export default abstract class` headers are
   classes: their methods get the class name, and a multi-line method in them is found (zod: 11 more
   functions, including the methods of `ZodType`).
+- An abstract method without a body (`abstract run(): void;`) is listed as a function.
 
 ### Class bounds (all languages)
 

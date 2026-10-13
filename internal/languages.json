@@ -468,6 +468,7 @@
     "quoted_method_pattern": "^\\s*((?:\"[^\"]*\"|'[^']*'))\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{",
     "class_method_open": "^\\s*(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\(\\s*$",
     "class_pattern": "^\\s*(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?class\\s+({IDENT}+)",
+    "declaration_pattern": "^\\s*(?:(?:export|default|public|protected|private|static|readonly|override)\\s+)*abstract\\s+(?:async\\s+)?({IDENT}+)\\s*(?:<[^()]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)(?::[^;]+)?\\s*;\\s*$",
     "struct_type_patterns": {
       "class": "^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+({IDENT}+)",
       "interface": "^\\s*(?:export\\s+)?interface\\s+({IDENT}+)",
