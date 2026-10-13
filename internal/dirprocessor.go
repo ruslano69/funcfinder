@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -282,6 +283,10 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 
 // AggregateDirResults aggregates results from multiple files
 func AggregateDirResults(results []DirResult, jsonOut, treeMode, treeFull bool) string {
+	// Files are reported in path order: workers finish in any order, and the output must not depend on that.
+	results = append([]DirResult(nil), results...)
+	sort.SliceStable(results, func(i, j int) bool { return results[i].Path < results[j].Path })
+
 	if jsonOut {
 		return formatDirResultsJSON(results)
 	}
@@ -425,10 +430,15 @@ func buildTreeOutput(node *DirTreeNode, prefix string, isLast bool) string {
 		}
 	}
 
-	// Process children
-	children := make([]*DirTreeNode, 0, len(node.Children))
-	for _, child := range node.Children {
-		children = append(children, child)
+	// Process children in name order: a map's iteration order is random, and the tree must not change between runs.
+	names := make([]string, 0, len(node.Children))
+	for name := range node.Children {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	children := make([]*DirTreeNode, 0, len(names))
+	for _, name := range names {
+		children = append(children, node.Children[name])
 	}
 
 	for i, child := range children {
