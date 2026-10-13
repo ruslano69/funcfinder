@@ -189,8 +189,8 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 								depth = 1 // Mark as inside
 							} else if typeKind == "named" || typeKind == "type_alias" {
 								// Single-line type definitions (Go `type X string`,
-								// `type X func(...)`, `type X = Y`) complete on their
-								// own line. Close immediately so they don't stay "open"
+								// `type X func(...)`; TypeScript `type X = Y`) complete
+								// on their own line. Close immediately so they don't stay "open"
 								// and swallow following declarations while waiting for
 								// a brace that never comes.
 								currentType.End = lineNum + 1 + lineOffset

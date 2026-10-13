@@ -27,6 +27,7 @@ type DirResult struct {
 	Path      string
 	Functions []FunctionBounds
 	Classes   []ClassBounds
+	Aliases   []AliasBounds // Go type aliases: names of existing types, not types of their own
 	Error     error
 }
 
@@ -278,6 +279,18 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 		}
 	}
 
+	// Go type aliases are names for existing types: they are listed apart from the types.
+	if job.LangKey == "go" && dp.workMode != "functions" {
+		lines, err := readAllLines(job.Path)
+		if err != nil {
+			result.Error = err
+			return result
+		}
+		// Cleaned first: a line inside a string or a comment is not a declaration.
+		cleaned := NewSanitizer(langConfig, false).CleanLines(lines)
+		result.Aliases = findGoAliases(cleaned)
+	}
+
 	return result
 }
 
@@ -305,10 +318,18 @@ type jsonSymbol struct {
 	Line int    `json:"line"`
 }
 
+// jsonAlias is a Go type alias: a name, the line it is declared on, and the type it names.
+type jsonAlias struct {
+	Name   string `json:"name"`
+	Line   int    `json:"line"`
+	Target string `json:"target"`
+}
+
 type jsonFile struct {
 	Path      string       `json:"path"`
 	Functions []jsonSymbol `json:"functions"`
 	Classes   []jsonSymbol `json:"classes"`
+	Aliases   []jsonAlias  `json:"aliases,omitempty"`
 }
 
 type jsonDirResults struct {
@@ -321,7 +342,7 @@ type jsonDirResults struct {
 func formatDirResultsJSON(results []DirResult) string {
 	out := jsonDirResults{Files: []jsonFile{}}
 	for _, r := range results {
-		if len(r.Functions) == 0 && len(r.Classes) == 0 {
+		if len(r.Functions) == 0 && len(r.Classes) == 0 && len(r.Aliases) == 0 {
 			continue
 		}
 		jf := jsonFile{
@@ -331,6 +352,9 @@ func formatDirResultsJSON(results []DirResult) string {
 		}
 		for _, fn := range r.Functions {
 			jf.Functions = append(jf.Functions, jsonSymbol{Name: fn.Name, Line: fn.Start})
+		}
+		for _, a := range r.Aliases {
+			jf.Aliases = append(jf.Aliases, jsonAlias{Name: a.Name, Line: a.Start, Target: a.Target})
 		}
 		for _, c := range r.Classes {
 			jf.Classes = append(jf.Classes, jsonSymbol{Name: c.Name, Line: c.Start})

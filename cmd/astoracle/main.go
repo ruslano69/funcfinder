@@ -17,6 +17,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,10 +28,18 @@ type sym struct {
 	Line int    `json:"line"`
 }
 
+// aliasSym is a Go type alias: a name, its line, and the type it names as written.
+type aliasSym struct {
+	Name   string `json:"name"`
+	Line   int    `json:"line"`
+	Target string `json:"target"`
+}
+
 type fileOut struct {
-	Path      string `json:"path"`
-	Functions []sym  `json:"functions"`
-	Classes   []sym  `json:"classes"`
+	Path      string     `json:"path"`
+	Functions []sym      `json:"functions"`
+	Classes   []sym      `json:"classes"`
+	Aliases   []aliasSym `json:"aliases,omitempty"`
 }
 
 type out struct {
@@ -93,7 +102,15 @@ func main() {
 			case *ast.GenDecl:
 				if d.Tok == token.TYPE {
 					for _, spec := range d.Specs {
-						if ts, ok := spec.(*ast.TypeSpec); ok {
+						ts, ok := spec.(*ast.TypeSpec)
+						if !ok {
+							continue
+						}
+						// An alias (`type A = S`) names an existing type, so it is listed apart
+						// from the types: one struct with several names is one struct.
+						if ts.Assign.IsValid() {
+							fo.Aliases = append(fo.Aliases, aliasSym{ts.Name.Name, fset.Position(ts.Pos()).Line, types.ExprString(ts.Type)})
+						} else {
 							fo.Classes = append(fo.Classes, sym{ts.Name.Name, fset.Position(ts.Pos()).Line})
 						}
 					}
@@ -102,7 +119,7 @@ func main() {
 			return true
 		})
 
-		if len(fo.Functions) > 0 || len(fo.Classes) > 0 {
+		if len(fo.Functions) > 0 || len(fo.Classes) > 0 || len(fo.Aliases) > 0 {
 			o.Files = append(o.Files, fo)
 			o.TotalFiles++
 			o.TotalFunctions += len(fo.Functions)

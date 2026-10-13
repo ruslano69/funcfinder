@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -36,15 +37,19 @@ type Handler = Config
 		got[ty.Name] = ty.Start
 	}
 
-	// All six must be present — crucially Config (a real struct) must NOT be
+	// All five must be present — crucially Config (a real struct) must NOT be
 	// swallowed by the brace-less defined types that precede it.
 	for name, wantStart := range map[string]int{
 		"SyncMode": 3, "RetryableFunc": 4, "MultiStringFlag": 5,
-		"Mapping": 6, "Config": 8, "Handler": 12,
+		"Mapping": 6, "Config": 8,
 	} {
 		if got[name] != wantStart {
 			t.Errorf("type %q start = %d, want %d (all types: %v)", name, got[name], wantStart, got)
 		}
+	}
+	// Handler is an alias for Config: a name for an existing type, not a type of its own.
+	if _, ok := got["Handler"]; ok {
+		t.Errorf("alias Handler listed as a type (all types: %v)", got)
 	}
 
 	// Config must still span its braces (8-10), proving the preceding defined
@@ -53,6 +58,41 @@ type Handler = Config
 		if ty.Name == "Config" && ty.End != 10 {
 			t.Errorf("Config span = %d-%d, want 8-10", ty.Start, ty.End)
 		}
+	}
+}
+
+// A Go alias (`type A = S`, or a line of a `type (...)` group) is a name for an existing type, not a new one:
+// one struct with several names is one struct. Only S and the defined type E are types here.
+func TestGoStructFinder_AliasIsNotAType(t *testing.T) {
+	goCfg := getGoConfig(t)
+	code := `package alias
+
+type S struct{ X int }
+
+type A = S
+
+type (
+	B = S
+	C = S
+	D = int
+)
+
+type E int
+`
+	factory := NewStructFinderFactory()
+	sf := factory.CreateStructFinder(goCfg, "", true, false)
+	res, err := sf.FindStructuresInLines(strings.Split(code, "\n"), 1, "alias.go")
+	if err != nil {
+		t.Fatalf("FindStructuresInLines() error = %v", err)
+	}
+
+	var names []string
+	for _, ty := range res.Types {
+		names = append(names, ty.Name)
+	}
+	want := []string{"S", "E"}
+	if !reflect.DeepEqual(names, want) {
+		t.Fatalf("types = %v, want %v", names, want)
 	}
 }
 
