@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Dependencies (`deps`)
+
+- In the plain listing, a Go import under the module of `go.mod` is internal. Before, every import with a `/` was
+  external unless it had `internal/` or `vendor/` in it, so the project's own packages were counted as third-party. The
+  module is read from the nearest `go.mod` at or above the analyzed directory, so a run on a subdirectory works too.
+
 ## v1.13.0 - 2026-10-13
 
 Two new listings for working with names: `--names` lists the kind, name and location of every declaration, and
