@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.13.1 - 2026-10-13
+
+Fixes from the analysis of two real Rust projects (gridcraft, photocraft): Rust parsing no longer loses the rest of a
+file after a char literal with a quote, the Rust shard graph has edges, an incremental split no longer reports unchanged
+shards as changed, and the plain `deps` listing counts a Go project's own packages as internal. A directory run also
+names the files it skipped.
+
 ### Rust
 
 - A char literal that holds a quote (`'"'`) no longer opens a string that never closes: the rest of the file was lost,
