@@ -10,7 +10,7 @@ echo "╚═══════════════════════�
 echo ""
 
 # Ensure all binaries are built
-if [ ! -f ./funcfinder ] || [ ! -f ./stat ] || [ ! -f ./deps ] || [ ! -f ./complexity ]; then
+if [ ! -f ./funcfinder ] || [ ! -f ./funcstats ] || [ ! -f ./deps ] || [ ! -f ./complexity ]; then
     echo "⚠️  Building utilities..."
     ./build.sh > /dev/null 2>&1
 fi
@@ -55,9 +55,9 @@ echo ""
 # Show detailed stats for key files
 echo "Key Files Analysis:"
 echo "-----------------------------------"
-for file in cmd/funcfinder/main.go internal/config.go internal/finder.go cmd/complexity/main.go cmd/stat/main.go cmd/deps/main.go; do
+for file in cmd/funcfinder/main.go internal/config.go internal/finder.go cmd/complexity/main.go cmd/funcstats/main.go cmd/deps/main.go; do
     if [ -f "$file" ]; then
-        ./stat "$file" -l go 2>/dev/null | head -8 | tail -5
+        ./funcstats "$file" -l go 2>/dev/null | head -8 | tail -5
         echo ""
     fi
 done
@@ -112,7 +112,7 @@ echo ""
 for file in main.go finder.go config.go; do
     if [ -f "$file" ]; then
         echo "📄 $(basename $file):"
-        ./stat "$file" -n 8 2>/dev/null | tail -8
+        ./funcstats "$file" -n 8 2>/dev/null | tail -8
         echo ""
     fi
 done

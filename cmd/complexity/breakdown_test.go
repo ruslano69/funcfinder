@@ -77,25 +77,43 @@ func TestBreakdownOfNestedFunction(t *testing.T) {
 
 // Each threshold is named once, in reading order, and a small function passes none.
 func TestBreakdownFlags(t *testing.T) {
-	big := ComplexityMetrics{LinesOfCode: 943, DecisionCount: 185, MaxNestingDepth: 4, MaxLoopNestingDepth: 2}
-	want := []string{"long (>100 lines)", "many decisions (>10)", "deep branches (depth >=4)", "nested loops"}
-	if got := breakdownFlags(big); !reflect.DeepEqual(got, want) {
+	big := ComplexityMetrics{LinesOfCode: 943, DecisionCount: 185, MaxNestingDepth: 4, MaxLoopNestingDepth: 3}
+	want := []string{"long (>100 lines)", "many decisions (>10)", "deep branches (depth >=4)", "nested loops (depth >=3)"}
+	if got := breakdownFlags(big, defaultThresholds); !reflect.DeepEqual(got, want) {
 		t.Errorf("breakdownFlags(big) = %v, want %v", got, want)
 	}
 
 	deep := ComplexityMetrics{LinesOfCode: 10, DecisionCount: 2, MaxNestingDepth: 5}
-	if got := breakdownFlags(deep); !reflect.DeepEqual(got, []string{"deep branches (depth >=4)"}) {
+	if got := breakdownFlags(deep, defaultThresholds); !reflect.DeepEqual(got, []string{"deep branches (depth >=4)"}) {
 		t.Errorf("breakdownFlags(deep) = %v", got)
 	}
 
-	// Right under each threshold: nothing fires. Three levels of branching and ten decisions are still within the norm.
-	under := ComplexityMetrics{LinesOfCode: 100, DecisionCount: 10, MaxNestingDepth: 3, MaxLoopNestingDepth: 1}
-	if got := breakdownFlags(under); len(got) != 0 {
+	// Right under each threshold: nothing fires. Three levels of branching, ten decisions and a loop in a loop (two deep)
+	// are still within the norm; the loop flag starts at three deep.
+	under := ComplexityMetrics{LinesOfCode: 100, DecisionCount: 10, MaxNestingDepth: 3, MaxLoopNestingDepth: 2}
+	if got := breakdownFlags(under, defaultThresholds); len(got) != 0 {
 		t.Errorf("breakdownFlags(under) = %v, want none", got)
 	}
 
 	small := ComplexityMetrics{LinesOfCode: 10, DecisionCount: 2, MaxNestingDepth: 1}
-	if got := breakdownFlags(small); len(got) != 0 {
+	if got := breakdownFlags(small, defaultThresholds); len(got) != 0 {
 		t.Errorf("breakdownFlags(small) = %v, want none", got)
+	}
+}
+
+// The limits come from the command line: a user or a model can raise one to stop seeing its flag, or set it to 0 to
+// turn the flag off. Here the long-function limit is raised past the function, and every limit is 0.
+func TestBreakdownThresholdsFromFlags(t *testing.T) {
+	big := ComplexityMetrics{LinesOfCode: 943, DecisionCount: 185, MaxNestingDepth: 4, MaxLoopNestingDepth: 3}
+
+	raised := breakdownThresholds{Lines: 1000, Decisions: 10, Depth: 4, Loops: 3}
+	want := []string{"many decisions (>10)", "deep branches (depth >=4)", "nested loops (depth >=3)"}
+	if got := breakdownFlags(big, raised); !reflect.DeepEqual(got, want) {
+		t.Errorf("breakdownFlags with -len 1000 = %v, want %v", got, want)
+	}
+
+	off := breakdownThresholds{Lines: 0, Decisions: 0, Depth: 0, Loops: 0}
+	if got := breakdownFlags(big, off); len(got) != 0 {
+		t.Errorf("breakdownFlags with every limit 0 = %v, want none", got)
 	}
 }

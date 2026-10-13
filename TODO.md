@@ -408,7 +408,7 @@ fix sequence (safe → risky). Checkboxes track progress.
   rune-length invariance, code preservation, block/line comment and multiline
   docstring handling across multibyte runes).
 - **Unicode identifiers** (NEW, found during smoke test) — DONE across all 15
-  languages. funcfinder, findstruct, callgraph and stat now detect
+  languages. funcfinder, findstruct, callgraph and funcstats now detect
   function/type/call names with non-ASCII letters (`func Привет()`, `type Café`).
   - [x] **Single source of truth** — `internal/identifiers.go` defines
     `identClass` (`[\p{L}\p{Nd}_]`, Unicode equivalent of `\w`) and `identStart`
@@ -424,7 +424,7 @@ fix sequence (safe → risky). Checkboxes track progress.
   - [x] **callgraph** — hardcoded ASCII `callIdentRe` (ASCII-only `\b`) replaced
     with one built from `identStart`/`identClass`, no `\b`. Resolves
     `Привет → Старт`.
-  - [x] **stat** — picks it up for free via each language's `call_pattern`.
+  - [x] **funcstats** — picks it up for free via each language's `call_pattern`.
   - Out-of-the-box, no flag: ASCII output unchanged (regression-guarded in
     `finder_unicode_test.go`). Cost: Unicode RE2 classes ~28% slower on the
     affected patterns (microseconds/line), dwarfed by the 2.5x sanitizer speed-up

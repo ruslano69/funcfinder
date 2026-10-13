@@ -1,6 +1,27 @@
 # Changelog
 
-## Unreleased
+## v2.0.0 - 2026-10-13
+
+### funcstats
+
+- `--uncalled` lists the functions that no code line of a directory names: candidates to check before deleting. A
+  name counts as used when it appears as an identifier in code, so a comment or a string is not a use. Test files,
+  `main`/`init` and the Go interface methods are not candidates. On funcfinder, 8 of 385 functions qualify once the
+  fixtures are excluded. The rules and the limits are in `docs/FUNCSTATS.md`.
+- `--exclude GLOB` (repeatable) leaves out files in dir mode, the same way as `complexity --exclude`.
+- Dir mode detects the language by walking the tree, as `complexity` does. Before, only the top level of the directory
+  was looked at, so a project with its sources in subfolders failed.
+- `docs/FUNCSTATS.md` lists every flag.
+
+### Breaking: `stat` is now `funcstats`
+
+- The call counter is `funcstats`. The name `stat` collided with the system command: where this binary came first on
+  `PATH`, `stat file` ran funcfinder instead of the system tool. Rename your binary, and remove the old `stat` from your
+  `PATH` (the Makefile used to install it in `/usr/local/bin`). The flags are unchanged.
+- The release notes name what the tool reports: file statistics (LOC, comments, imports) and function call counts with
+  hotspots.
+- The `examples/swe-agent/` scripts used `stat --inp FILE --source LANG`, which the tool never accepted. They use
+  `funcstats FILE -l LANG` and `--dir` now.
 
 ### Doc comments (`--doc`)
 
@@ -13,13 +34,35 @@
 - `--breakdown` prints the figures behind each score: size in lines, the number of decisions (if, elif, match, switch,
   for, while, loop, wherever they sit on the line), branch depth, loop depth, and the lines that combine conditions with
   && / || or and / or. It then names the thresholds a function passes: more than 100 lines, more than 10 decisions,
-  branch depth 4 or more, nested loops. The thresholds sit at the common warning levels (McCabe's 10 for decisions,
-  about 100 lines, 3 to 4 levels of nesting), so a flag fires early. The score itself is unchanged, and the same figures are in the JSON output
+  branch depth 4 or more, loops nested three deep. The thresholds sit at the common warning levels (McCabe's 10 for decisions,
+  about 100 lines, 3 to 4 levels of nesting), so a flag fires early. `--breakdown` does not change the score, and the same figures are in the JSON output
   (`decision_count`, `boolean_lines`).
-- The score counts a Rust decision only when its keyword starts the line, so an `if` or `match` inside an expression
-  (`let v = if a { … }`) is not in the score. `--breakdown` shows the count of keywords, so the two can differ; on
-  `canvas_view` in photocraft the score sees 126 decisions and the code has 185. Changing the Rust pattern would change
-  the scores of Rust functions, so it is a separate decision.
+- The `--breakdown` limits are flags: `-len N` (lines), `-if N` (decisions), `-deep N` (branch depth) and `-loop N`
+  (loop depth). Each flag fires at the limit it sets, and 0 turns it off. The defaults are the limits named above.
+  The nested-loops flag now names its depth in the text.
+- The breakdown flags are a probe for where to read first, not a verdict, and the limits are tuned per codebase. The new
+  `docs/COMPLEXITY.md` describes the score, the flags and how to probe with them. It fills the `COMPLEXITY.md` link in
+  `docs/WINDOWS.md`, which pointed to a missing file.
+- Without `-l`, `complexity` detects the language by walking the tree: the language with the most source files,
+  recursive and `.gitignore`-aware. A project with its sources in subfolders works, and a single file is taken by its
+  extension. Before, only the top level of a directory was looked at, a file failed with `No supported files found`,
+  and the first language in map order was taken, which could differ from run to run.
+- The JSON output has `triggered_flags`: the breakdown limits a function passes (`len`, `if`, `deep`, `loop`), with the
+  limits in effect, so scripts need not repeat the thresholds.
+- `-bool N` flags a line with more than N boolean operators (`&&`, `||`, `and`, `or`), default 2. It reads the busiest
+  line, which `boolean_lines` (a count of lines) does not show, and the JSON gets `max_bool_operators` and the key
+  `bool`. On funcfinder the default flags 27 functions, 10 of them only for this limit.
+- `-exclude GLOB` (repeatable) leaves out files by base name, or by path under the analysed directory. On funcfinder,
+  `-exclude "*_test.go"` takes out 474 of 877 functions: more than half of the code is in test files.
+- `-summary` prints counts instead of the function list: the limits in effect, the functions at each level, the
+  functions each limit flags, and the total score. It is for tracking a goal over time, and it cannot be combined
+  with `-j`.
+- The score counts a Rust decision wherever its keyword sits on the line, so an `if` or `match` inside an expression
+  (`let v = match a { … }`) and a labelled loop (`'outer: loop`) now nest like their statement forms. Before, only a
+  keyword at the start of the line counted: `canvas_view` in photocraft scored 290 and now scores 405. A `for` counts
+  only as a loop (`for pat in expr`), so `impl Trait for Type` is not a decision. On photocraft 4,042 of 24,335 Rust
+  functions score higher and none lower; functions at CRITICAL go from 695 to 955. `--breakdown` still counts `impl … for`
+  headers as decisions (299 in photocraft), so its decision count is higher than the score's on those lines.
 
 ### Rust
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-User-facing documentation: CI/CD integration guide (`CI_CD.md`) and Windows setup guide (`WINDOWS.md`).
+User-facing documentation: CI/CD integration guide (`CI_CD.md`), Windows setup guide (`WINDOWS.md`), the complexity guide (`COMPLEXITY.md`) and the funcstats guide (`FUNCSTATS.md`).
 
 ## Ownership
 

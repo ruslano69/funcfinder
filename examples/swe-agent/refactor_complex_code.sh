@@ -58,8 +58,8 @@ echo
 # Step 4: Check usage frequency
 echo "Step 4: Check how often this function is called"
 DIR=$(dirname "$FUNC_FILE")
-echo "Command: stat --inp $DIR --source $LANG --json"
-STATS=$(stat --inp "$DIR" --source "$LANG" --json 2>/dev/null || echo "{}")
+echo "Command: funcstats --dir $DIR -l $LANG --json"
+STATS=$(funcstats --dir "$DIR" -l "$LANG" --json 2>/dev/null || echo "{}")
 CALLS=$(echo "$STATS" | jq ".\"$FUNC_NAME\" // 0")
 echo "Called $CALLS times in $DIR"
 echo

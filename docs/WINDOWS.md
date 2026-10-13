@@ -19,7 +19,7 @@ Open PowerShell in the project directory and run:
 
 This builds all four utilities:
 - `funcfinder.exe` - Main function finder
-- `stat.exe` - Function call counter
+- `funcstats.exe` - Function call counter
 - `deps.exe` - Dependency analyzer
 - `complexity.exe` - Cognitive complexity analyzer
 
@@ -31,8 +31,8 @@ This builds all four utilities:
 # Build only funcfinder
 go build -o funcfinder.exe main.go config.go sanitizer.go finder.go formatter.go tree.go decorator.go python_finder.go finder_factory.go lines.go errors.go
 
-# Build only stat
-go build -o stat.exe stat.go config.go errors.go
+# Build only funcstats
+go build -o funcstats.exe ./cmd/funcstats
 
 # Build only deps
 go build -o deps.exe deps.go config.go errors.go
@@ -70,11 +70,11 @@ go build -o funcfinder.exe main.go config.go sanitizer.go ...
 .\funcfinder.exe --inp .\myfile.go --lines 100:200
 ```
 
-### stat
+### funcstats
 
 ```powershell
 # Analyze function calls
-.\stat.exe .\myfile.go -l go -n 10
+.\funcstats.exe .\myfile.go -l go -n 10
 ```
 
 ### deps

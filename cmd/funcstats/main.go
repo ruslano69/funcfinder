@@ -1,4 +1,4 @@
-// stat.go - Unified function call counter for multiple languages
+// funcstats - Unified function call counter for multiple languages
 // Counts function calls in source files using shared configuration
 package main
 
@@ -102,7 +102,7 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 	// complexity and callgraph already use) — a call-site scan must not
 	// count a function's own signature line as a call to itself. Best
 	// effort: an error here just means no self-definition line is skipped,
-	// same as stat's behavior before this existed.
+	// same as funcstats' behavior before this existed.
 	definedNames := make(map[string]bool)
 	if fr, ferr := internal.CreateFinder(config, "", "map", false, false).FindFunctions(filename); ferr == nil {
 		for _, fn := range fr.Functions {
@@ -316,17 +316,21 @@ func main() {
 	langFlag := ""
 	topN := 0
 	jsonOut := false
+	uncalledMode := false
+	var excludes []string
 
 	for i := 1; i < len(os.Args); i++ {
 		arg := os.Args[i]
 		if arg == "-h" || arg == "--help" {
-			fmt.Println("Usage: stat [OPTIONS] <source_file>")
-			fmt.Println("       stat [OPTIONS] --dir <directory>")
+			fmt.Println("Usage: funcstats [OPTIONS] <source_file>")
+			fmt.Println("       funcstats [OPTIONS] --dir <directory>")
 			fmt.Println("  --version      Show version and exit")
 			fmt.Println("  --dir <path>   Analyze all source files in directory recursively")
 			fmt.Println("  -l <lang>      Force language (c, cpp, cs, d, go, java, js, kotlin, php, py, ruby, rust, scala, swift, ts)")
 			fmt.Println("  -n <num>       Show top N functions")
 			fmt.Println("  -j, --json     Output JSON")
+			fmt.Println("  --uncalled     Dir mode: list functions no code line names (candidates to delete)")
+			fmt.Println("  --exclude GLOB Dir mode: leave out files whose name or path under <dir> matches (repeatable)")
 			return
 		} else if arg == "--version" {
 			showVersion = true
@@ -339,6 +343,11 @@ func main() {
 		} else if arg == "-n" && i+1 < len(os.Args) {
 			fmt.Sscanf(os.Args[i+1], "%d", &topN)
 			i++
+		} else if arg == "--exclude" && i+1 < len(os.Args) {
+			excludes = append(excludes, os.Args[i+1])
+			i++
+		} else if arg == "--uncalled" {
+			uncalledMode = true
 		} else if arg == "-j" || arg == "--json" {
 			jsonOut = true
 		} else if !strings.HasPrefix(arg, "-") {
@@ -347,11 +356,14 @@ func main() {
 	}
 
 	if showVersion {
-		internal.PrintVersion("stat")
+		internal.PrintVersion("funcstats")
 	}
 
+	if uncalledMode && dirMode == "" {
+		internal.FatalError("--uncalled needs --dir: one file cannot show what is unused elsewhere")
+	}
 	if dirMode == "" && filename == "" {
-		internal.FatalError("source file or --dir is required\nUsage: stat [OPTIONS] <source_file>\n       stat [OPTIONS] --dir <directory>")
+		internal.FatalError("source file or --dir is required\nUsage: funcstats [OPTIONS] <source_file>\n       funcstats [OPTIONS] --dir <directory>")
 	}
 
 	// Load shared configuration
@@ -369,18 +381,10 @@ func main() {
 				internal.FatalError("%v\nSupported languages: %s", err, strings.Join(config.GetSupportedLanguages(), ", "))
 			}
 		} else {
-			// Auto-detect by finding files with supported extensions in the dir.
-			for _, lc := range config {
-				for _, ext := range lc.Extensions {
-					files, _ := filepath.Glob(filepath.Join(dirMode, "*"+ext))
-					if len(files) > 0 {
-						langConfig = lc
-						break
-					}
-				}
-				if langConfig != nil {
-					break
-				}
+			// The language of the tree: the one with the most source files under it, found recursively.
+			langConfig, _, err = internal.DetectLanguage(config, dirMode)
+			if err != nil {
+				internal.FatalError("detecting language: %v", err)
 			}
 		}
 		if langConfig == nil {
@@ -403,6 +407,18 @@ func main() {
 		dirFiles, walkErr := internal.CollectSourceFiles(dirMode, langConfig, true)
 		if walkErr != nil {
 			internal.FatalError("walking directory: %v", walkErr)
+		}
+		dirFiles, err = internal.FilterExcluded(dirFiles, dirMode, excludes)
+		if err != nil {
+			internal.FatalError("%v", err)
+		}
+		if uncalledMode {
+			report, err := internal.FindUncalled(langConfig, dirMode, dirFiles)
+			if err != nil {
+				internal.FatalError("finding uncalled functions: %v", err)
+			}
+			printUncalled(report, jsonOut)
+			return
 		}
 		for _, path := range dirFiles {
 			counts, m := analyzeFile(path, langConfig)

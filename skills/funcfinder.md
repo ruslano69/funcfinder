@@ -152,12 +152,16 @@ the actual project root. A shard graph that comes back all-leaves (no
 
 ```bash
 # Which functions are called most often (hotspots)
-stat internal/finder.go -l go
+funcstats internal/finder.go -l go
+# Candidates to delete: functions no code line in the tree names (fixtures excluded)
+funcstats --dir . --uncalled --exclude "test_examples/*"
 
 # Cognitive complexity — find the hard functions
 complexity internal/dirprocessor.go -l go --nosimple
-# Figures behind each score: size, decisions, branch depth, loop depth, boolean lines, and which thresholds it passes
+# Figures behind each score and the flags it passes: a probe for where to read first, not a verdict
 complexity internal/dirprocessor.go -l go --breakdown
+# Set a limit or turn its flag off (0): -len lines, -if decisions, -deep branch depth, -loop loop depth
+complexity internal/dirprocessor.go -l go --breakdown -len 200 -loop 0
 
 # Import graph for one file
 deps internal/finder.go -l go --json

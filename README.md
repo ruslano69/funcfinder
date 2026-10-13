@@ -26,7 +26,7 @@ git clone https://github.com/ruslano69/funcfinder.git
 cd funcfinder && ./build.sh
 ```
 
-Produces 5 binaries: `funcfinder`, `stat`, `deps`, `callgraph`, `complexity`.
+Produces 5 binaries: `funcfinder`, `funcstats`, `deps`, `callgraph`, `complexity`.
 
 ## Tools
 
@@ -35,7 +35,7 @@ Produces 5 binaries: `funcfinder`, `stat`, `deps`, `callgraph`, `complexity`.
 | `funcfinder` | Map functions & types, extract bodies, shard large codebases |
 | `callgraph` | Forward/reverse call graph |
 | `deps` | Import dependencies + inter-shard graph |
-| `stat` | Call frequency & hotspots |
+| `funcstats` | File statistics (LOC, comments, imports), call frequency & hotspots |
 | `complexity` | Cognitive complexity per function |
 
 ## Languages

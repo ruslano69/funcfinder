@@ -11,7 +11,7 @@ Shell script usage examples and swe-agent integration workflows showing end-to-e
 
 ## Local Contracts
 
-- Scripts must reference binaries by their short names (`./funcfinder`, `./stat`, etc.) and assume `build.sh` has been run.
+- Scripts must reference binaries by their short names (`./funcfinder`, `./funcstats`, etc.) and assume `build.sh` has been run.
 - `swe-agent/miniswe-config.yaml` configures the mini-SWE-agent integration; update it when the funcfinder CLI interface changes.
 
 ## Work Guidance

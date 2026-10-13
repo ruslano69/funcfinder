@@ -1,5 +1,5 @@
 # Build script for funcfinder toolkit (PowerShell)
-# Builds: funcfinder, stat, deps, complexity, callgraph
+# Builds: funcfinder, funcstats, deps, complexity, callgraph
 # Usage: .\build.ps1
 
 $ErrorActionPreference = "Stop"
@@ -13,7 +13,7 @@ Write-Host ""
 
 $Binaries = @(
     @{ Name = "funcfinder"; Cmd = ".\cmd\funcfinder" },
-    @{ Name = "stat";       Cmd = ".\cmd\stat" },
+    @{ Name = "funcstats";       Cmd = ".\cmd\funcstats" },
     @{ Name = "deps";       Cmd = ".\cmd\deps" },
     @{ Name = "complexity"; Cmd = ".\cmd\complexity" },
     @{ Name = "callgraph";  Cmd = ".\cmd\callgraph" }
@@ -35,7 +35,7 @@ Write-Host "All binaries built successfully!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Usage:" -ForegroundColor Cyan
 Write-Host "  .\funcfinder.exe --inp file.go --source go --map"
-Write-Host "  .\stat.exe file.go -l go -n 10"
+Write-Host "  .\funcstats.exe file.go -l go -n 10"
 Write-Host "  .\deps.exe . -l go -j"
 Write-Host "  .\complexity.exe file.go -l go"
 Write-Host "  .\callgraph.exe --dir . -l go"

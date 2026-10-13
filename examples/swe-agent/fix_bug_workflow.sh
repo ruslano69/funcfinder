@@ -47,8 +47,8 @@ echo
 
 # Step 5: Check how often this function is called
 echo "Step 5: Check call frequency (for impact analysis)"
-echo "Command: stat --inp auth/ --source go --json"
-STATS=$(stat --inp auth/ --source go --json)
+echo "Command: funcstats --dir auth/ -l go --json"
+STATS=$(funcstats --dir auth/ -l go --json)
 CALLS=$(echo "$STATS" | jq ".\"$BUG_FUNCTION\" // 0")
 echo "Function '$BUG_FUNCTION' is called $CALLS times"
 echo

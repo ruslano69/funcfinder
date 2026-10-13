@@ -31,7 +31,7 @@ func callCountsOf(t *testing.T, lang, filename, src string) map[string]int {
 	return calls
 }
 
-// TestAnalyzeFile_NeverCalledFunctionCountsZero pins the core bug: stat used
+// TestAnalyzeFile_NeverCalledFunctionCountsZero pins the core bug: funcstats used
 // to count every function's own "name(" signature token as a call to
 // itself, so a function that is never called anywhere still showed count=1
 // — making it indistinguishable from a function genuinely called once.
@@ -65,7 +65,7 @@ func main() {
 }
 
 // TestAnalyzeFile_RecursiveCallStillCounted documents the intended
-// difference from callgraph's broader (whole-body) self-match skip: stat
+// difference from callgraph's broader (whole-body) self-match skip: funcstats
 // must only exclude the exact signature-line occurrence of a function's
 // name, not every occurrence of that name inside its own body — a real
 // recursive call still counts.

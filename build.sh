@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build script for funcfinder toolkit
-# Builds: funcfinder, stat, deps, complexity, callgraph
+# Builds: funcfinder, funcstats, deps, complexity, callgraph
 
 set -e
 
@@ -16,10 +16,10 @@ echo "→ Building funcfinder..."
 go build -ldflags "${LDFLAGS}" -o funcfinder ./cmd/funcfinder
 echo "  ✓ funcfinder"
 
-# Build stat
-echo "→ Building stat..."
-go build -ldflags "${LDFLAGS}" -o stat ./cmd/stat
-echo "  ✓ stat"
+# Build funcstats
+echo "→ Building funcstats..."
+go build -ldflags "${LDFLAGS}" -o funcstats ./cmd/funcstats
+echo "  ✓ funcstats"
 
 # Build deps
 echo "→ Building deps..."
@@ -41,7 +41,7 @@ echo "✅ All binaries built successfully!"
 echo ""
 echo "Usage:"
 echo "  ./funcfinder --inp file.go --source go --map"
-echo "  ./stat file.go -l go -n 10"
+echo "  ./funcstats file.go -l go -n 10"
 echo "  ./deps . -l go -j"
 echo "  ./complexity file.go -l go"
 echo "  ./callgraph --dir . -l go"

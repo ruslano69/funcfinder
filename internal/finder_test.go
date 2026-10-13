@@ -645,7 +645,7 @@ func another() {
 
 // TestExtractFuncName covers the shared name-extraction helper directly —
 // promoted from three separate inline/duplicated copies (here, callgraph.go,
-// cmd/stat/main.go) into one, so it's tested once instead of three times.
+// cmd/funcstats/main.go) into one, so it's tested once instead of three times.
 func TestExtractFuncName(t *testing.T) {
 	tests := []struct {
 		name    string
