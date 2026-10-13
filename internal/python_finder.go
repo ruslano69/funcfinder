@@ -38,7 +38,7 @@ func (pf *PythonFinder) FindFunctions(filename string) (*FindResult, error) {
 	}
 
 	lines := strings.Split(string(content), "\n")
-	logical := pythonLogicalLines(lines)
+	logical := pythonLogicalLines(lines, pf.config)
 	functions := make([]FunctionBounds, 0)
 
 	regex := pf.config.FuncRegex()
@@ -127,14 +127,16 @@ type pythonLogicalLine struct {
 	statementStart bool
 }
 
-func pythonLogicalLines(lines []string) []pythonLogicalLine {
+func pythonLogicalLines(lines []string, lc *LanguageConfig) []pythonLogicalLine {
+	// The code of a line is the sanitizer's cleaned text: strings and comments are blank, and the start state tells
+	// whether the line begins inside a literal.
+	facts := NewSanitizer(lc, false).CleanLinesFacts(lines)
 	result := make([]pythonLogicalLine, len(lines))
-	state := pythonStringState{}
 	depth := 0
 	continued := false
 	for i, line := range lines {
-		inString := state.quote != 0
-		code := state.cleanLine(line)
+		inString := facts[i].StartState != StateNormal
+		code := facts[i].Cleaned
 		result[i] = pythonLogicalLine{
 			code:           code,
 			statementStart: depth == 0 && !continued && !inString && !IsEmptyOrComment(line, "#"),
@@ -152,59 +154,6 @@ func pythonLogicalLines(lines []string) []pythonLogicalLine {
 		continued = strings.HasSuffix(strings.TrimSpace(code), `\`)
 	}
 	return result
-}
-
-// Python triple strings close only with their own three-quote delimiter.
-// Backslash escapes protect quotes even in raw strings. Keep scanning after a
-// close, since a SQL string can be followed by arguments and closing brackets.
-type pythonStringState struct {
-	quote  rune
-	triple bool
-}
-
-func (s *pythonStringState) cleanLine(line string) string {
-	runes := []rune(line)
-	code := make([]rune, len(runes))
-	for i := range code {
-		code[i] = ' '
-	}
-	for i := 0; i < len(runes); {
-		ch := runes[i]
-		if s.quote != 0 {
-			if ch == '\\' {
-				i += 2
-				continue
-			}
-			if ch == s.quote && (!s.triple || (i+2 < len(runes) && runes[i+1] == ch && runes[i+2] == ch)) {
-				if s.triple {
-					i += 3
-				} else {
-					i++
-				}
-				s.quote = 0
-				s.triple = false
-				continue
-			}
-			i++
-			continue
-		}
-		if ch == '#' {
-			break
-		}
-		if ch == '\'' || ch == '"' {
-			s.quote = ch
-			s.triple = i+2 < len(runes) && runes[i+1] == ch && runes[i+2] == ch
-			if s.triple {
-				i += 3
-			} else {
-				i++
-			}
-			continue
-		}
-		code[i] = ch
-		i++
-	}
-	return string(code)
 }
 
 // Find the suite colon outside parameter/type brackets. A trailing comment

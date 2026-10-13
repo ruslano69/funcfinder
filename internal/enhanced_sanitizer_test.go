@@ -326,7 +326,8 @@ func TestEnhancedSanitizer_PythonDocStrings(t *testing.T) {
 			name:          "docstring end",
 			input:         `""" end of docstring`,
 			initialState:  StateMultiLineString,
-			expectedClean: ``,
+			// the closing quotes are blank, and the rest of the line is code again
+			expectedClean: `    end of docstring`,
 			expectedState: StateNormal,
 		},
 	}

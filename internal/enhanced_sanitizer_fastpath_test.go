@@ -34,15 +34,17 @@ func TestCleanLineFastPathMatchesSlowPath(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		s := NewSanitizer(lc, false)
-		state := StateNormal
+		// Two sanitizers run the same file in step: each keeps its own delimiter state, so a call on one does not
+		// change what the other sees.
+		fastS, slowS := NewSanitizer(lc, false), NewSanitizer(lc, false)
+		fastState, slowState := StateNormal, StateNormal
 		for i, line := range lines {
-			fast, fastState := s.CleanLine(line, state)
-			slow, slowState := s.cleanLineSlow(line, state)
+			var fast, slow string
+			fast, fastState = fastS.CleanLine(line, fastState)
+			slow, slowState = slowS.cleanLineSlow(line, slowState)
 			if fast != slow || fastState != slowState {
 				t.Fatalf("%s:%d: fast %q/%v, slow %q/%v (line %q)", path, i+1, fast, fastState, slow, slowState, line)
 			}
-			state = slowState
 			checked++
 		}
 		return nil
