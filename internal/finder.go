@@ -846,14 +846,15 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 	funcRegex := f.config.FuncRegex()
 	// The whole file, sanitized the same way line by line: a declaration's value may span lines.
 	// The state each line starts in comes from the same pass, so a line is cleaned once.
-	cleanedLines, startStates := f.sanitizer.CleanLinesStart(lines)
+	facts := f.sanitizer.CleanLinesFacts(lines)
+	cleanedLines := cleanedTexts(facts)
 	// typeDepth: the type-literal braces (`query<{`) still open from earlier lines; they are not code braces.
 	typeDepth := 0
 
 	for lineNum, line := range lines {
 		// Очищаем строку от комментариев и литералов
-		inComment := startStates[lineNum] == StateBlockComment // the line starts inside a block comment
-		startsNormal := startStates[lineNum] == StateNormal    // the line starts outside any string or comment
+		inComment := facts[lineNum].StartState == StateBlockComment // the line starts inside a block comment
+		startsNormal := facts[lineNum].StartState == StateNormal    // the line starts outside any string or comment
 		cleaned := cleanedLines[lineNum]
 
 		var braceDelta int
@@ -928,7 +929,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			}
 			if events[i] != sigOpen {
 				ctx.sig = nil
-			} else if t := strings.TrimSpace(cleaned); (t != "" || (!inComment && hasCodeText(line))) && !(atTop && strings.HasPrefix(t, "}")) && !(atTop && declStart.MatchString(t)) {
+			} else if t := strings.TrimSpace(cleaned); (t != "" || (!inComment && facts[lineNum].CodeText)) && !(atTop && strings.HasPrefix(t, "}")) && !(atTop && declStart.MatchString(t)) {
 				ctx.sigLast = lineNum + 1 + lineOffset
 			}
 		}

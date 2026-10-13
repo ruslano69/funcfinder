@@ -706,19 +706,38 @@ func (s *Sanitizer) CleanLines(lines []string) []string {
 	return result
 }
 
-// CleanLinesStart is CleanLines that also returns the state each line starts in, so a caller that
-// needs both the cleaned text and the state at the start of a line does not clean the file twice.
-func (s *Sanitizer) CleanLinesStart(lines []string) ([]string, []ParserState) {
-	result := make([]string, len(lines))
-	starts := make([]ParserState, len(lines))
+// LineFacts is what the sanitizer gives a finder about one source line, computed in one pass over the file.
+// Decisions read these fields. The raw line is kept for the output, and for the few facts the sanitizer cannot
+// give (heredoc terminators, quoted method names).
+type LineFacts struct {
+	Cleaned    string      // the line with comments and literals blanked
+	StartState ParserState // the state the line starts in
+	Indent     int         // indentation of the raw line (GetIndentLevel)
+	CodeText   bool        // the raw line holds text outside comments (hasCodeText); a literal-only line has it with a blank Cleaned
+}
+
+// CleanLinesFacts cleans a file line by line and returns the facts of each line.
+func (s *Sanitizer) CleanLinesFacts(lines []string) []LineFacts {
+	facts := make([]LineFacts, len(lines))
 	state := StateNormal
-
 	for i, line := range lines {
-		starts[i] = state
-		result[i], state = s.CleanLine(line, state)
+		facts[i] = LineFacts{
+			StartState: state,
+			Indent:     GetIndentLevel(line),
+			CodeText:   hasCodeText(line),
+		}
+		facts[i].Cleaned, state = s.CleanLine(line, state)
 	}
+	return facts
+}
 
-	return result, starts
+// cleanedTexts returns the cleaned text of each line, for the helpers that look across lines.
+func cleanedTexts(facts []LineFacts) []string {
+	texts := make([]string, len(facts))
+	for i := range facts {
+		texts[i] = facts[i].Cleaned
+	}
+	return texts
 }
 
 func (s *Sanitizer) CleanCode(code string) string {
