@@ -63,6 +63,23 @@
 - A later declarator of a `const|let|var` list on one line is a function when its value is an arrow or a
   parenthesized header (`const id = f(), notification = (x) => ...`). The list's keyword applies to it.
 
+### Determinism and speed
+
+- A `.h` file is read with the C++ configuration on every run. `--dir` used to pick the C or the C++ configuration
+  at random for `.h` (both claim it), so the functions of a header changed from run to run: on the repository the
+  total ranged from 17.3k to 19.8k functions across runs of the same binary.
+- Nested-path languages (TypeScript, JavaScript, Go, and others) clean each line once instead of twice. The output
+  is unchanged; the repository benchmark takes about 5% less time and 12% fewer allocations.
+- A file is read once per job: the finders and the Go alias pass share its lines (it used to be read up to three
+  times). The four copies of the open-and-scan code are one helper.
+- Language configurations compile their regular expressions on first use, not at startup: a run pays only for the
+  languages of its files. A single-file run starts about 20 ms faster.
+- A line in the normal state that holds no string, comment, or literal start is returned as it is, without the
+  rune conversion. The output is unchanged; a test compares the fast and the slow path on every fixture line.
+- A line that matches two struct patterns (Go `type X struct{ Y int }` matches `struct` and `named`) takes its kind
+  from the patterns in sorted order, not map order. The names and spans did not change.
+- Corpus of 725 files, full run: about 1.75 s before, 1.53 s after (median of 5). The output is byte-identical.
+
 ### Go type aliases
 
 - A Go type alias (`type A = S`, or a line `A = S` of a `type ( ... )` group) is a name for an existing type, not a

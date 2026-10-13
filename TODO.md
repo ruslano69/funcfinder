@@ -227,6 +227,40 @@ TS/JS `class_pattern` (the `--struct` pattern already accepted it). Fixed on 202
 its abstract classes (`ZodType`, `Metabench`), lodash and hr_gemini are unchanged. Abstract methods without a body are listed too (zod: `run`, `_parse`). The truth-based numbers for the 2026-10-13 TypeScript fixes are in the table above.
 The fixtures in `test_examples/` and `test_files/` show no change outside C++.
 
+### Profile and duplicates (2026-10-13)
+
+Measured with a temporary `BenchmarkProfileRepo` (whole repository, `all` mode; 124 tracked files, 29.7k lines):
+about 95 ms and 39 MB per run, 335k allocations. `LoadConfig` costs about 17 ms per CLI run. Profile reports:
+`build/profile-cpu-top.txt`, `build/profile-cpu-cum.txt`, `build/profile-mem-top.txt` (ignored by git).
+
+Open speed items, by share of the cumulative CPU profile:
+- `Sanitizer.CleanLine` about 36%: every line is converted to `[]rune` and back. A byte path for ASCII lines is the largest single gain.
+- Struct finder second pass about 19% (`FindStructures`): the whole file is scanned again for types the class pattern has already found in `all` mode.
+- Regex execution about 21%: function patterns run on every line; a cheap pre-check could skip most lines.
+- Repeated file reads: finder, struct finder and the Go alias pass each open the file (`os.Open` about 4.5%); the alias pass also sanitizes the file again (about 5% on Go files).
+- `LoadConfig` compiles every language's patterns on each run; a lazy compile per language would remove most of its 17 ms.
+
+Duplicates in production code:
+- Open and scan into `[]string`, four copies (`finder.go`, `python_struct_finder.go`, `struct_finder_factory.go`, `structfinder.go`); `readAllLines` already exists.
+- The type-scan loop is copied between `structfinder.go` and the hybrid finder in `struct_finder_factory.go`: the largest duplicate.
+- The shard-key choice (`splitBy == "file"`) is repeated three times in `dirprocessor.go`.
+- Rune-slice cleaning is repeated in `d_lines.go`, `python_finder.go` and `scala_lines.go`.
+
+Done in the same pass (2026-10-13), each checked against the reference output on a fixed corpus (725 files, byte
+identical in four output modes): each file is read once; regex patterns compile on first use; `CleanLine` has a fast
+path for lines with no literal or comment start (checked against the slow path); the four open-and-scan copies are
+one helper; the struct-pattern kind is fixed by sorted order. Corpus full run 1.75 s to 1.53 s; a single-file run
+150 ms to 129 ms (the process itself is about 70 ms of that).
+
+Left, and why:
+- Merging `HybridStructFinder` into `StructFinder` changes TypeScript and JavaScript output: the hybrid closes a
+  class or interface header that has no brace on its line, the generic finder waits for the brace. That needs a
+  decision on which behaviour is wanted before the merge.
+- The `all` mode still scans each file a second time for types (`FindStructures`, about 19% of CPU before these
+  changes); the classes of the first pass could be reused if the dedupe rule is kept.
+- The shard-key choice in `dirprocessor.go` (three copies) and the rune-slice cleaning in `d_lines.go`,
+  `python_finder.go` and `scala_lines.go` are duplicates that are not yet merged.
+
 ### Harness
 
 - [ ] **Move the evaluators into the repo** (`tools/eval/`): `lang_eval.py` (all languages but
