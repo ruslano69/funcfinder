@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### C++ parsing
+
+- Functions are found in more shapes: signatures with nested parentheses or a
+  body on the header line, signatures that continue on later lines, constructors
+  and destructors (in a class and out of it), operator overloads, bodyless
+  declarations, and class headers with a template prefix or an export macro.
+- In a constructor's member-initializer list, a braced `member{...}` is an
+  initialization, not the body.
+- A conversion operator (`operator bool() const`) is no longer reported as a
+  function named after its type.
+- On fmt, recall of the real-project measurement rose from 49.9% to 97.5% and
+  false functions fell from 21 to 9 (`benchmarks/cpp_tree_eval.py`).
+
+### Class bounds (all languages)
+
+- A class whose body opens and closes on its header line (`struct A : B {};`)
+  no longer keeps the next class open, so the next class's members are found
+  under their own class. This changes class lookup for every language with
+  classes; see `TODO.md` for what was re-measured.
+
 ## v1.12.2 - 2026-10-12
 
 Function discovery and boundaries are more accurate across the supported

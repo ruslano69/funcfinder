@@ -96,6 +96,18 @@ func continuesExpression(lines []string, i int) bool {
 // the function simply covers the lines up to it.
 type sigScanner struct {
 	brackets int
+	// braceInits is set for a language whose constructors have a member-initializer list (C++).
+	// After a top-level ':' the list's `member{...}` is a braced initialization, not the body: a
+	// body brace follows ')' or a space. bodyAt is the position of the body's brace.
+	braceInits bool
+	initList   bool
+	initBraces int
+	bodyAt     int
+}
+
+// initPrefix reports whether a brace right after c opens a braced initialization (`member{`).
+func initPrefix(c byte) bool {
+	return c == '_' || c == '>' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
 // feed reads one cleaned line of a pending signature.
@@ -108,9 +120,22 @@ func (s *sigScanner) feed(cleaned string) sigEvent {
 			if s.brackets > 0 {
 				s.brackets--
 			}
+		case ':':
+			if s.braceInits && s.brackets == 0 && !s.initList && !strings.HasPrefix(cleaned[i:], "::") && (i == 0 || cleaned[i-1] != ':') {
+				s.initList = true
+			}
 		case '{':
 			if s.brackets == 0 {
+				if s.initBraces > 0 || (s.initList && i > 0 && initPrefix(cleaned[i-1])) {
+					s.initBraces++
+					continue
+				}
+				s.bodyAt = i
 				return sigBody
+			}
+		case '}':
+			if s.brackets == 0 && s.initBraces > 0 {
+				s.initBraces--
 			}
 		case ';':
 			if s.brackets == 0 {
@@ -365,6 +390,9 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 				currentFunc.Lines = append(currentFunc.Lines, line)
 			}
 
+			// counted is the part of the line that the body's braces count in: a C++ signature's
+			// initializer list may hold braces before the body's opening brace.
+			counted := cleaned
 			if sig != nil {
 				atTop := sig.brackets == 0
 				ev := sig.feed(cleaned)
@@ -379,6 +407,9 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 					sig = nil
 					continue
 				case sigBody:
+					if sig.braceInits {
+						counted = cleaned[sig.bodyAt:]
+					}
 					sig = nil
 				}
 			}
@@ -390,8 +421,8 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			}
 
 			prevDepth := depth
-			hasBrace := strings.Contains(cleaned, "{")
-			depth += CountBraces(cleaned)
+			hasBrace := strings.Contains(counted, "{")
+			depth += CountBraces(counted)
 
 			// Функция заканчивается если мы ВЫХОДИМ из тела функции
 			// (prevDepth > 0 && depth == 0) — а не просто depth == 0, что
@@ -436,6 +467,30 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 			if matches == nil && f.config.ClassMethodOpenRegex() != nil && f.config.HasClasses() && f.findClassForLine(classes, lineNum+lineOffset) != "" {
 				matches = f.config.ClassMethodOpenRegex().FindStringSubmatch(cleaned)
 			}
+			// C++ headers the main pattern cannot take: a signature that continues on the next lines,
+			// a constructor (no return type, named as its class), and a bodyless declaration. A line
+			// that starts with a statement word (return, throw) is a statement, never one of them.
+			hasHeaderPatterns := f.config.HeaderOpenRegex() != nil || f.config.ConstructorRegex() != nil || f.config.DeclarationRegex() != nil
+			if matches == nil && hasHeaderPatterns && !startsWithReservedWord(cleaned, f.config.StatementWords) {
+				if f.config.HeaderOpenRegex() != nil && openParens(cleaned) > 0 {
+					matches = f.config.HeaderOpenRegex().FindStringSubmatch(cleaned)
+				}
+				if cls := f.findClassForLine(classes, lineNum+lineOffset); matches == nil && cls != "" && f.config.ConstructorRegex() != nil {
+					if m := f.config.ConstructorRegex().FindStringSubmatch(cleaned); m != nil {
+						if name := ExtractFuncName(m); name == cls || name == "~"+cls {
+							matches = m
+						}
+					}
+				}
+				if matches == nil && f.config.DeclarationRegex() != nil {
+					matches = f.config.DeclarationRegex().FindStringSubmatch(cleaned)
+				}
+			}
+			// A conversion operator's name is a type the compiler spells in its own canonical form, so its
+			// header is not taken as a function (it would be named after the type's last word).
+			if matches != nil && f.config.ConversionOperatorRegex() != nil && f.config.ConversionOperatorRegex().MatchString(cleaned) {
+				matches = nil
+			}
 			if matches != nil {
 				funcName := ExtractFuncName(matches)
 
@@ -473,13 +528,19 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 						// прототип, '=> x;'), либо скобки закрыты и тело открыто и закрыто
 						// тут же (однострочная функция). Скобка '{' внутри открытых круглых
 						// скобок — значение по умолчанию (remember { x }), часть сигнатуры.
-						sig = &sigScanner{}
+						sig = &sigScanner{braceInits: f.config.InitializerLists}
 						sigLast = lineNum + 1 + lineOffset
 						ev := sig.feed(cleaned)
 						// A header that ends in '=' starts an expression body on the next line: it is
 						// not complete here, even when its braces balance.
 						endsWithEq := strings.HasSuffix(strings.TrimSpace(cleaned), "=")
-						if ev == sigEnd || (hasBrace && sig.brackets == 0 && !endsWithEq) {
+						closes := ev == sigEnd || (hasBrace && sig.brackets == 0 && !endsWithEq)
+						if sig.braceInits {
+							// A brace inside the parentheses (a default value `= {}`) or a braced initialization
+							// (`: a{1}`) is not the body: the header closes here only when its own body does.
+							closes = ev == sigEnd || (ev == sigBody && CountBraces(cleaned[sig.bodyAt:]) == 0 && !endsWithEq)
+						}
+						if closes {
 							currentFunc.End = lineNum + 1 + lineOffset
 							result.Functions = append(result.Functions, *currentFunc)
 							currentFunc = nil
@@ -516,6 +577,31 @@ func (f *Finder) findFunctionsSimple(lines []string, lineOffset int, classes []C
 	}
 
 	return result, nil
+}
+
+// leadingWord matches the first identifier of a line.
+var leadingWord = regexp.MustCompile(`^\s*([A-Za-z_]\w*)`)
+
+// templatePrefix matches a `template <...>` prefix; the shortest match ends at the first '>'.
+var templatePrefix = regexp.MustCompile(`^\s*template\s*<.*?>\s*`)
+
+// startsWithReservedWord reports whether a line begins with one of the language's statement words
+// (return, throw, ...): such a line is a statement, whatever its parentheses look like. A complete
+// line may begin with a template prefix (`template <class T> void f(T);`), which is read past first.
+func startsWithReservedWord(line string, words []string) bool {
+	if openParens(line) == 0 {
+		line = templatePrefix.ReplaceAllString(line, "")
+	}
+	m := leadingWord.FindStringSubmatch(line)
+	if m == nil {
+		return false
+	}
+	for _, w := range words {
+		if w == m[1] {
+			return true
+		}
+	}
+	return false
 }
 
 // isKeywordName reports whether a match names a reserved word of the language, which
@@ -980,16 +1066,22 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 			matches := classRegex.FindStringSubmatch(cleaned)
 			if matches != nil && len(matches) >= 2 {
 				className := matches[1]
-				// Проверяем, есть ли открывающая скобка на этой строке
-				braceCount := strings.Count(cleaned, "{")
-				if braceCount > 0 {
-					classDepth = braceCount
-				} else {
-					classDepth = 0 // Ждём скобку на следующей строке
-				}
 				currentClass = &ClassBounds{
 					Name:  className,
 					Start: lineNum + 1 + lineOffset,
+				}
+				classDepth = 0 // Ждём скобку на следующей строке
+				// Проверяем, есть ли открывающая скобка на этой строке. The depth is net: a body that
+				// opens and closes on this line (`struct A : B {};`) ends with the line, and must not
+				// hold the class open over the code that follows.
+				if strings.Contains(cleaned, "{") {
+					classDepth = CountBraces(cleaned)
+					if classDepth <= 0 {
+						currentClass.End = lineNum + 1 + lineOffset
+						classes = append(classes, *currentClass)
+						currentClass = nil
+						classDepth = 0
+					}
 				}
 			}
 		}

@@ -40,6 +40,23 @@ type LanguageConfig struct {
 	// ClassMethodOpen matches a class member's first line when its signature continues
 	// on the next lines; it is read only at the top of a class body.
 	ClassMethodOpen string `json:"class_method_open,omitempty"`
+	// HeaderOpenPattern matches the first line of a signature that continues on the next lines
+	// while its parenthesis is still open (`auto f(int a,`). It is read when FuncPattern does not
+	// match and the line leaves a parenthesis open, at any scope (C++).
+	HeaderOpenPattern string `json:"header_open_pattern,omitempty"`
+	// ConstructorPattern matches a constructor or destructor header, which has no return type.
+	// It is read only inside a class body, and only when the name is that class's name or ~ it (C++).
+	ConstructorPattern string `json:"constructor_pattern,omitempty"`
+	// DeclarationPattern matches a bodyless declaration that ends in ';' (`void f(int);`) at any
+	// scope. A line that starts with a reserved word (return, throw) is a statement, not one (C++).
+	DeclarationPattern string `json:"declaration_pattern,omitempty"`
+	// InitializerLists: a constructor's member-initializer list (`: a{1}, b(2) {`) may hold braced
+	// initializations, which are not the body. Set for C++ only.
+	InitializerLists bool `json:"initializer_lists,omitempty"`
+	// ConversionOperatorPattern matches a conversion operator's header (`operator bool() const`).
+	// Its name is a type that the compilers spell canonically, so the finder does not name it;
+	// the header is not taken as a function. C++ only.
+	ConversionOperatorPattern string `json:"conversion_operator_pattern,omitempty"`
 	// QuotedMethodPattern matches a method whose name is a string literal ("=== X"() {). It is
 	// read from the raw line, because the sanitizer blanks string literals in the cleaned one.
 	QuotedMethodPattern string `json:"quoted_method_pattern,omitempty"`
@@ -111,6 +128,10 @@ type LanguageConfig struct {
 	// Compiled regex cache
 	funcRegex         *regexp.Regexp
 	classMethodOpenRe *regexp.Regexp
+	headerOpenRe      *regexp.Regexp
+	constructorRe     *regexp.Regexp
+	declarationRe     *regexp.Regexp
+	conversionRe      *regexp.Regexp
 	quotedMethodRe    *regexp.Regexp
 	classRegex        *regexp.Regexp
 	structPatterns    map[string]*regexp.Regexp
@@ -184,6 +205,21 @@ func LoadConfig() (Config, error) {
 				return nil, fmt.Errorf("invalid class method regex for %s: %w", lang, err)
 			}
 			conf.classMethodOpenRe = cmRe
+		}
+
+		// Compile the C++ header patterns if specified
+		for _, p := range []struct {
+			src string
+			dst **regexp.Regexp
+		}{{conf.HeaderOpenPattern, &conf.headerOpenRe}, {conf.ConstructorPattern, &conf.constructorRe}, {conf.DeclarationPattern, &conf.declarationRe}, {conf.ConversionOperatorPattern, &conf.conversionRe}} {
+			if p.src == "" {
+				continue
+			}
+			re, err := regexp.Compile(expandIdentPlaceholder(p.src))
+			if err != nil {
+				return nil, fmt.Errorf("invalid header pattern for %s (%s): %w", lang, p.src, err)
+			}
+			*p.dst = re
 		}
 
 		// Compile the quoted method name if specified
@@ -324,6 +360,28 @@ func (lc *LanguageConfig) FuncRegex() *regexp.Regexp {
 // spans lines (it ends at the opening parenthesis); nil if the language has none.
 func (lc *LanguageConfig) ClassMethodOpenRegex() *regexp.Regexp {
 	return lc.classMethodOpenRe
+}
+
+// HeaderOpenRegex matches the first line of a signature that continues on the next lines; nil if
+// the language has none.
+func (lc *LanguageConfig) HeaderOpenRegex() *regexp.Regexp {
+	return lc.headerOpenRe
+}
+
+// ConstructorRegex matches a constructor or destructor header inside a class body; nil if the
+// language has none.
+func (lc *LanguageConfig) ConstructorRegex() *regexp.Regexp {
+	return lc.constructorRe
+}
+
+// DeclarationRegex matches a bodyless declaration; nil if the language has none.
+func (lc *LanguageConfig) DeclarationRegex() *regexp.Regexp {
+	return lc.declarationRe
+}
+
+// ConversionOperatorRegex matches a conversion operator's header; nil if the language has none.
+func (lc *LanguageConfig) ConversionOperatorRegex() *regexp.Regexp {
+	return lc.conversionRe
 }
 
 // QuotedMethodRegex matches a method named by a string literal, on the raw line; nil if the

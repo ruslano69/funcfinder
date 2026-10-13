@@ -160,6 +160,38 @@ candidate. Results describe the selected compiler/configuration; other condition
 variants need separate runs. On Windows the evaluator adds the GCC binary directory
 to its child process PATH so the compiler subprocesses can load their dependencies.
 
+### C++ functions and declarations
+
+`cpp_tree_eval.py` scans tracked `.cc`, `.cpp`, `.cxx`, `.hpp` and `.h` files with
+libclang, the front end the compilers use, so macros such as `FMT_CONSTEXPR` are
+expanded as the compiler sees them. Truth includes constructors, destructors and
+bodyless declarations; a declaration's end is the `;` after its trailing return type.
+Active lines come from `g++ -E` with the same standard, so candidates inside disabled
+`#if` branches are recorded separately. Files clang cannot parse are explicit exclusions.
+
+```bash
+python -m pip install libclang
+python benchmarks/cpp_tree_eval.py --root <fmt-checkout> --label fmt \
+  --binary ./funcfinder.exe --gxx <g++-executable> \
+  --include-dir <fmt-checkout>/include \
+  --system-include <gcc-lib>/include/c++ --system-include <gcc-lib>/include \
+  --system-include <gcc-lib>/include-fixed --system-include <sysroot>/include \
+  --pathspec include --pathspec src --output build/fmt.cpp-eval.json
+```
+
+The recorded fmt profile uses `b4ffa39b9994c961418406f47358791d89a5aa48`, C++17,
+the `x86_64-w64-mingw32` target, MinGW-Builds GCC 15.2.0 and libclang 18.1.1. The
+evaluator measures `include/` and `src/` only: the tests need a vendored gtest that
+is not on the include path. `src/fmt.cc` (a C++20 module unit) and `src/os.cc` (an
+x86 builtin this target does not provide) are excluded, so 18 files are scored.
+
+Output retains the project and finder SHAs, dirty states, libclang and compiler
+versions and hashes, the standard, target, system include directories and every
+mismatch. The remaining misses are conversion operators (named by their canonical
+type, which funcfinder does not reproduce), macro-generated declarations and
+template specializations on their own line; the remaining false positives are
+explicit instantiations (`extern template`, `template FMT_API`).
+
 ### Go symbol maps
 
 | Project | Commit | Lang | Recall | Precision | Token savings | Notes |
