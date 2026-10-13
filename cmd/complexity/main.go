@@ -272,8 +272,13 @@ func main() {
 		internal.FatalError("%v", err)
 	}
 	th := breakdownThresholds{Lines: *lenFlag, Decisions: *ifFlag, Bool: *boolFlag, Depth: *deepFlag, Loops: *loopFlag}
-	for _, path := range dirFiles {
-		fileComplexity := analyzeFileComplexity(path, langConfig)
+	// Files are analysed in parallel, each into its own slot, and collected in the order of dirFiles, so the output is
+	// the same as a sequential run.
+	analysed := make([]FileComplexity, len(dirFiles))
+	internal.ForEachParallel(len(dirFiles), func(i int) {
+		analysed[i] = analyzeFileComplexity(dirFiles[i], langConfig)
+	})
+	for _, fileComplexity := range analysed {
 		for i := range fileComplexity.Functions {
 			fileComplexity.Functions[i].TriggeredFlags = triggeredFlags(fileComplexity.Functions[i], th)
 		}
@@ -460,7 +465,7 @@ func analyzeFileComplexity(filename string, langConfig *internal.LanguageConfig)
 
 	// Use finder to get function bounds (auto-selects PythonFinder for Python)
 	finder := internal.CreateFinder(langConfig, "", "map", false, false)
-	result, err := finder.FindFunctions(filename)
+	result, err := internal.FindFunctionsInFile(finder, filename, lines)
 	if err != nil {
 		return FileComplexity{Filename: filename}
 	}

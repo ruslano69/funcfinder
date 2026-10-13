@@ -13,6 +13,9 @@ The output is a probe for where to read first, not a verdict on the code.
   `printBreakdown`.
 - Language patterns (`nesting_pattern`, `flat_pattern`, `loop_pattern`) live in `internal/languages.json`, not here.
 - Language detection without `-l` is `internal.DetectLanguage` (`internal/detect.go`). Do not reimplement it here.
+- Files are analysed in parallel with `internal.ForEachParallel` and collected in input order; `analyzeFileComplexity`
+  must not write shared state. The later sort by `MaxComplexity` is not stable, so the input order is what keeps the
+  output the same from run to run.
 - `-exclude` is `internal.FilterExcluded` (`internal/exclude.go`); the flag type is `stringList` in `exclude.go`.
 - `-summary` counts are in `summary.go` (`summarize`, `printSummary`). They are for tracking a goal, so the limits line is
   printed with them and stays first in the output.
