@@ -19,11 +19,11 @@ type ShardDep struct {
 }
 
 // ShardGraphStats reports how many imports *looked* like they should resolve
-// to an in-project shard (relative imports, or imports under modulePrefix or
-// a path alias) versus how many actually did. A low resolution rate is the
-// signal that a --shards run was rooted wrong: alias/relative resolution
-// depends on rootDir lining up with where tsconfig.json (or go.mod) actually
-// lives, and a misrooted run fails *silently* otherwise — every shard comes
+// to an in-project shard (relative imports, or imports under modulePrefix, a
+// path alias, or a Rust crate) versus how many actually did. A low resolution
+// rate is the signal that a --shards run was rooted wrong: alias/relative
+// resolution depends on rootDir lining up with where tsconfig.json, go.mod or
+// Cargo.toml actually lives, and a misrooted run fails *silently* otherwise — every shard comes
 // back as a leaf with no edges, indistinguishable from "this project truly
 // has no internal deps" without this count.
 type ShardGraphStats struct {
@@ -55,9 +55,9 @@ func (s ShardGraphStats) Warning() string {
 	return fmt.Sprintf(
 		"only %d/%d (%.0f%%) intra-project imports resolved to a shard — "+
 			"the graph below may be wrong, not just sparse. This usually means "+
-			"the directory is rooted below (or beside) tsconfig.json/go.mod, so "+
-			"path aliases or module-relative imports can't be matched. Re-run "+
-			"--shards from the actual project root.",
+			"the directory is rooted below (or beside) tsconfig.json, go.mod or "+
+			"Cargo.toml, so path aliases, module-relative or crate imports can't be "+
+			"matched. Re-run --shards from the actual project root.",
 		s.Resolved, s.Resolvable, rate*100)
 }
 
@@ -78,11 +78,27 @@ func BuildShardGraph(
 	fileImports map[string][]string, // absFilePath → []importedModule
 	aliases ...map[string]string,
 ) (ShardGraph, ShardGraphStats) {
-	var aliasMap map[string]string
+	ctx := ResolveContext{ModulePrefix: modulePrefix}
 	if len(aliases) > 0 {
-		aliasMap = aliases[0]
+		ctx.Aliases = aliases[0]
 	}
+	return BuildShardGraphFor(rootDir, splitBy, fileImports, ctx)
+}
 
+// ResolveContext is what a language needs to map an import to a project path, besides the imports themselves.
+type ResolveContext struct {
+	ModulePrefix string            // Go: the module path that absolute imports start with
+	Aliases      map[string]string // TS/JS: import prefix → directory relative to the root
+	RustCrates   []RustCrate       // Rust: the crates of the tree, from DetectRustCrates
+}
+
+// BuildShardGraphFor is BuildShardGraph with the language context given explicitly.
+func BuildShardGraphFor(
+	rootDir string,
+	splitBy string,
+	fileImports map[string][]string, // absFilePath → []importedModule
+	ctx ResolveContext,
+) (ShardGraph, ShardGraphStats) {
 	graph := make(ShardGraph)
 	var stats ShardGraphStats
 
@@ -107,7 +123,7 @@ func BuildShardGraph(
 		}
 
 		for _, imp := range imports {
-			dstShard, resolvable := resolveImportToShard(imp, absPath, rootDir, modulePrefix, aliasMap, relToShard)
+			dstShard, resolvable := resolveImportToShard(imp, absPath, rootDir, ctx, relToShard)
 			if resolvable {
 				stats.Resolvable++
 				if dstShard != "" {
@@ -130,20 +146,20 @@ func BuildShardGraph(
 // of whether resolution actually succeeded, false for anything that was
 // never a candidate (an external package import, for instance).
 func resolveImportToShard(
-	imp, srcFile, rootDir, modulePrefix string,
-	aliasMap map[string]string,
+	imp, srcFile, rootDir string,
+	ctx ResolveContext,
 	relToShard map[string]string,
 ) (string, bool) {
 	// --- Go-style: strip module prefix ---
-	if modulePrefix != "" && strings.HasPrefix(imp, modulePrefix) {
-		rel := strings.TrimPrefix(imp, modulePrefix)
+	if ctx.ModulePrefix != "" && strings.HasPrefix(imp, ctx.ModulePrefix) {
+		rel := strings.TrimPrefix(imp, ctx.ModulePrefix)
 		rel = strings.TrimPrefix(rel, "/")
 		return shardForDir(rel, relToShard), true
 	}
 
 	// --- Path alias (e.g. @/ → src/) ---
-	if aliasMap != nil {
-		for prefix, target := range aliasMap {
+	if ctx.Aliases != nil {
+		for prefix, target := range ctx.Aliases {
 			if strings.HasPrefix(imp, prefix) {
 				rel := filepath.ToSlash(target) + strings.TrimPrefix(imp, prefix)
 				rel = strings.TrimSuffix(rel, "/")
@@ -157,6 +173,13 @@ func resolveImportToShard(
 				}
 				return shardForDir(rel, relToShard), true
 			}
+		}
+	}
+
+	// --- Rust crate path: crate_name::module (or crate::module inside the file's own crate) ---
+	if len(ctx.RustCrates) > 0 {
+		if shard, ok := resolveRustImport(imp, srcFile, rootDir, ctx.RustCrates, relToShard); ok {
+			return shard, true
 		}
 	}
 

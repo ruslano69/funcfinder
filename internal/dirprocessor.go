@@ -785,6 +785,25 @@ type Manifest struct {
 	TotalFiles     int         `json:"total_files"`
 	TotalFunctions int         `json:"total_functions"`
 	TotalClasses   int         `json:"total_classes"`
+	// EmptyShards maps the name of each shard whose files hold no declaration to its checksum. Such a shard has no shard
+	// file and no entry in Shards; the checksum lets an incremental run see it as unchanged.
+	EmptyShards map[string]string `json:"empty_shards,omitempty"`
+}
+
+// emptyShardChecksums returns the checksum of each shard in allShardPaths that has no shard file: the shards that
+// written does not name.
+func emptyShardChecksums(allShardPaths map[string][]string, written map[string]bool) map[string]string {
+	var empty map[string]string
+	for name, paths := range allShardPaths {
+		if written[name] {
+			continue
+		}
+		if empty == nil {
+			empty = make(map[string]string)
+		}
+		empty[name] = computeShardChecksum(paths)
+	}
+	return empty
 }
 
 // pathToShardName is an alias for the exported PathToShardName in shardutil.go.
@@ -868,6 +887,13 @@ func WriteSplitOutput(results []DirResult, outDir, rootDir, splitBy string) (str
 		manifest.TotalClasses += totalClasses
 	}
 
+	// Shards of files with no declaration have no shard file: their checksum goes into the manifest instead.
+	written := make(map[string]bool, len(shards))
+	for shardKey := range shards {
+		written[pathToShardName(shardKey)] = true
+	}
+	manifest.EmptyShards = emptyShardChecksums(allShardPaths, written)
+
 	// Write manifest.json
 	manifestJSON := formatManifestJSON(&manifest)
 	manifestPath := filepath.Join(outDir, "manifest.json")
@@ -914,6 +940,9 @@ func (dp *DirProcessor) ProcessDirectoryIncremental(rootPath, outDir, splitBy st
 	if oldManifest != nil {
 		for _, s := range oldManifest.Shards {
 			oldChecksums[s.Path] = s.Checksum
+		}
+		for name, sum := range oldManifest.EmptyShards {
+			oldChecksums[name] = sum
 		}
 	}
 
@@ -1026,13 +1055,16 @@ func WriteSplitOutputIncremental(results []DirResult, outDir, rootDir, splitBy s
 	manifest.RootDir = rootDir
 	manifest.SplitBy = splitBy
 
-	updatedShardNames := make(map[string]bool)
+	// Every re-processed shard is updated: rewritten if it still holds a declaration, kept as a checksum otherwise.
+	updatedShardNames := make(map[string]bool, len(allShardPaths))
+	for name := range allShardPaths {
+		updatedShardNames[name] = true
+	}
 
 	// Write updated shards
 	for shardKey, shardResults := range newShards {
 		shardName := pathToShardName(shardKey)
 		shardPath := filepath.Join(outDir, shardName)
-		updatedShardNames[shardName] = true
 
 		content := formatDirResultsJSON(shardResults)
 		if err := os.WriteFile(shardPath, []byte(content), 0644); err != nil {
@@ -1058,6 +1090,32 @@ func WriteSplitOutputIncremental(results []DirResult, outDir, rootDir, splitBy s
 		manifest.TotalFiles += len(shardResults)
 		manifest.TotalFunctions += totalFuncs
 		manifest.TotalClasses += totalClasses
+	}
+
+	// A re-processed shard that no longer holds a declaration loses its shard file from an earlier run.
+	written := make(map[string]bool, len(newShards))
+	for shardKey := range newShards {
+		written[pathToShardName(shardKey)] = true
+	}
+	if oldManifest != nil {
+		for _, oldShard := range oldManifest.Shards {
+			if updatedShardNames[oldShard.Path] && !written[oldShard.Path] {
+				if err := os.Remove(filepath.Join(outDir, oldShard.Path)); err != nil && !os.IsNotExist(err) {
+					return "", fmt.Errorf("removing shard %s: %w", oldShard.Path, err)
+				}
+			}
+		}
+	}
+	manifest.EmptyShards = emptyShardChecksums(allShardPaths, written)
+	if oldManifest != nil {
+		for name, sum := range oldManifest.EmptyShards {
+			if !updatedShardNames[name] {
+				if manifest.EmptyShards == nil {
+					manifest.EmptyShards = make(map[string]string)
+				}
+				manifest.EmptyShards[name] = sum
+			}
+		}
 	}
 
 	// Copy unchanged shards from old manifest
