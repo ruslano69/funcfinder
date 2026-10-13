@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### `complexity` and `funcstats --dir`
+
+- Files are analysed in parallel, on all cores. Both tools used one core: a profile of `complexity` on OmniRoute put 95%
+  of one core and 67% of the time in finding functions, which `funcfinder --dir` already does in parallel. Each file is
+  also read once now; the finder used to read it again. The output is the same: `complexity` byte for byte, and
+  `funcstats` the same content. Median: `complexity` on OmniRoute 10.9 → 2.2 s, on arsd 7.8 → 1.9 s; `funcstats --dir`
+  on OmniRoute 12.9 → 2.3 s, on arsd 8.1 → 2.0 s.
+
 ### Output
 
 - `--dir --map` (the default directory output) and `--dir --tree` write into one buffer. The map grew a string line by
