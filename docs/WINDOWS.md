@@ -124,7 +124,7 @@ Alternatively, copy the `.exe` files to a directory already in your PATH (e.g., 
 ## Performance on Windows
 
 funcfinder performance on Windows is comparable to Linux/macOS:
-- **~280,000 lines/sec** parsing throughput
+- **~1.85 million lines/sec** for `funcfinder --dir --all --json` on a 1.57M-line TypeScript project (v1.15.0, measured on Windows, 16 cores)
 - **O(n) linear** complexity
 - **Zero dependencies** - static binaries
 
