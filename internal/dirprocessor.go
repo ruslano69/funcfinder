@@ -39,7 +39,8 @@ type DirProcessor struct {
 	workers      int
 	recursive    bool
 	useGitignore bool
-	workMode     string // "functions", "structs", or "all"
+	workMode     string         // "functions", "structs", or "all"
+	skipped      map[string]int // extensions of the files the last walk skipped: no language is configured for them
 }
 
 // TreeNode represents a node in the directory tree for tree output
@@ -71,6 +72,7 @@ func (dp *DirProcessor) ProcessDirectory(rootPath string) ([]DirResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	reportSkipped(dp.skipped)
 
 	if len(files) == 0 {
 		return []DirResult{}, nil
@@ -84,6 +86,7 @@ func (dp *DirProcessor) ProcessDirectory(rootPath string) ([]DirResult, error) {
 func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 	var jobs []Job
 	var mu sync.Mutex
+	dp.skipped = make(map[string]int)
 
 	// Load gitignore patterns if enabled
 	var ignoreMatcher *IgnoreMatcher
@@ -133,6 +136,7 @@ func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 		// Check if file extension is supported
 		langConfig := dp.config.GetLanguageByExtension(path)
 		if langConfig == nil {
+			dp.skipped[strings.ToLower(filepath.Ext(path))]++
 			return nil
 		}
 
@@ -152,6 +156,52 @@ func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 	}
 
 	return jobs, nil
+}
+
+// skippedNotice names the files a walk skipped because no language is configured for their extension: the most files
+// first, at most six kinds. It returns "" when nothing was skipped.
+func skippedNotice(skipped map[string]int) string {
+	if len(skipped) == 0 {
+		return ""
+	}
+	type kind struct {
+		ext string
+		n   int
+	}
+	var kinds []kind
+	total := 0
+	for ext, n := range skipped {
+		kinds = append(kinds, kind{ext, n})
+		total += n
+	}
+	sort.Slice(kinds, func(i, j int) bool {
+		if kinds[i].n != kinds[j].n {
+			return kinds[i].n > kinds[j].n
+		}
+		return kinds[i].ext < kinds[j].ext
+	})
+
+	const maxKinds = 6
+	var parts []string
+	for i, k := range kinds {
+		if i == maxKinds {
+			parts = append(parts, "...")
+			break
+		}
+		name := k.ext
+		if name == "" {
+			name = "(no extension)"
+		}
+		parts = append(parts, fmt.Sprintf("%s %d", name, k.n))
+	}
+	return fmt.Sprintf("skipped %d files with no language for their extension: %s", total, strings.Join(parts, ", "))
+}
+
+// reportSkipped prints skippedNotice to stderr, as an INFO line, when a walk skipped anything.
+func reportSkipped(skipped map[string]int) {
+	if msg := skippedNotice(skipped); msg != "" {
+		InfoMessage("%s", msg)
+	}
 }
 
 // processFilesParallel processes files using a worker pool
@@ -872,6 +922,7 @@ func (dp *DirProcessor) ProcessDirectoryIncremental(rootPath, outDir, splitBy st
 	if err != nil {
 		return nil, err
 	}
+	reportSkipped(dp.skipped)
 
 	if len(files) == 0 {
 		return []DirResult{}, nil
