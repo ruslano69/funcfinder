@@ -168,6 +168,9 @@ func classifyDep(dep, langKey string, localPkgs map[string]bool) string {
 	if langKey == "rust" {
 		return classifyRustDep(dep, localPkgs)
 	}
+	if langKey == "go" && underModule(dep, localPkgs) {
+		return "int"
+	}
 	if strings.Contains(dep, "internal/") || strings.Contains(dep, "vendor/") {
 		return "int"
 	}
@@ -464,6 +467,11 @@ func main() {
 		localPkgs = detectPythonLocalPackages(dir)
 	case "rust":
 		localPkgs = detectRustLocalPackages(dir)
+	case "go":
+		// The module of go.mod: its imports are the project's own packages.
+		if mod := findGoModulePath(dir); mod != "" {
+			localPkgs = map[string]bool{mod: true}
+		}
 	}
 
 	var deps []DepInfo
