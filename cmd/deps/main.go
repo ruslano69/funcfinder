@@ -392,15 +392,16 @@ func main() {
 			fileImports[abs] = collectFileImports(path, langConfig, excludeREs)
 		}
 
-		// Auto-detect module prefix / aliases per language
-		modulePrefix := ""
-		var aliases map[string]string
+		// Auto-detect what each language needs to map its imports to project paths
+		ctx := internal.ResolveContext{}
 		switch langConfig.LangKey {
 		case "go":
-			modulePrefix = internal.DetectModulePrefix(absDir)
+			ctx.ModulePrefix = internal.DetectModulePrefix(absDir)
+		case "rust":
+			ctx.RustCrates = internal.DetectRustCrates(absDir)
 		case "ts", "js":
-			aliases = internal.DetectTSAliases(absDir)
-			if len(aliases) == 0 {
+			ctx.Aliases = internal.DetectTSAliases(absDir)
+			if len(ctx.Aliases) == 0 {
 				if tscPath := internal.DetectTSConfigAbove(absDir); tscPath != "" {
 					fmt.Fprintf(os.Stderr,
 						"WARNING: found %s above %s, but --shards only looks in the analyzed "+
@@ -410,7 +411,7 @@ func main() {
 			}
 		}
 
-		graph, stats := internal.BuildShardGraph(absDir, splitBy, modulePrefix, fileImports, aliases)
+		graph, stats := internal.BuildShardGraphFor(absDir, splitBy, fileImports, ctx)
 		list := internal.ShardGraphToList(graph)
 
 		if warning := stats.Warning(); warning != "" {
