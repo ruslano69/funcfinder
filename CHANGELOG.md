@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Shard graph (`deps --shards`)
+
+- Rust: the inter-shard graph of a workspace had no edges. `use core_lib::f` matched no resolution rule, so the import
+  was neither resolved nor counted, and the trust check stayed silent. Crate names now come from each `Cargo.toml`
+  (`[lib] name`, else the `[package]` name with `-` read as `_`). A path into a crate walks its `src/` directories as far
+  as the tree has files and takes the deepest shard reached. `std` and external crates are not counted. An unresolved
+  crate import now produces the warning. On the gridcraft workspace the graph went from 0 to 69 edges. Go, TS/JS and
+  Python resolution is unchanged.
+
 ## v1.13.0 - 2026-10-13
 
 Two new listings for working with names: `--names` lists the kind, name and location of every declaration, and
