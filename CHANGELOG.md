@@ -1,55 +1,45 @@
 # Changelog
 
-## Unreleased
+## v1.15.0 - 2026-10-13
 
-### Directory walk (`.gitignore`)
+A performance release. Each tool was profiled on two large real projects, OmniRoute (6,843 TypeScript/JavaScript
+files, 1.57 million lines) and arsd (118 D files, 11 MB), and the profiles found work done twice, loops that used one
+core, string building that copied the whole output per line, and costly patterns run on lines that cannot match.
+Output is unchanged, byte for byte, except two ordering fixes: `callgraph` reports files in path order, and
+`funcstats` lists names with equal counts by name; both outputs used to vary from run to run.
+
+Median wall time on a 16-core/32-thread Windows machine, 1.14.0 → 1.15.0:
+
+| Command | OmniRoute | arsd |
+|---|---|---|
+| `funcfinder --dir --all --json` | 1.87 → 0.85 s | 1.85 → 0.40 s |
+| `funcfinder --dir --map` | 10.9 → 0.70 s | 4.5 → 0.39 s |
+| `callgraph --dir --json` | 20.7 → 1.07 s | 10.6 → 0.49 s |
+| `complexity -j` | 11.1 → 0.82 s | 7.8 → 0.44 s |
+| `funcstats --dir -j` | 13.4 → 1.25 s | 8.1 → 0.52 s |
+
+`funcfinder --dir --all --json` reads 1.85 million lines per second on OmniRoute end to end. On this repository the
+directory job (walk, parse, JSON) runs at 2.16 million lines per second in process, against 1.11 million for 1.12.2 on
+the same machine; a whole run there is half process start-up, since the tree is only 34k lines.
+
+Known limits:
+
+- D is still the slowest language: 0.71 million lines per second on arsd, where its function pattern dominates.
+- `.gitignore` globs: `patternToRegex` leaves `*` as a regex quantifier and drops every line with `**` (they do not
+  compile). The walk keeps that behaviour; fixing it changes which files the tools read and is tracked in `TODO.md`.
+- Above the number of physical cores, more threads add CPU time without lowering wall time.
+- The timings come from one machine. A machine with fewer cores gains less from the changes that add parallelism.
+
+### Directory runs
 
 - Each `.gitignore` pattern is checked against a path only when the path holds the pattern's literal part. Every
   pattern's regex ran on every path of the walk, and the walk runs before any file is processed: on OmniRoute (164
   patterns) matching took 0.89 s of a 1.9 s `funcfinder --dir` run, now 16 ms. The files read are unchanged.
   `funcfinder --dir --all --json`, median: OmniRoute 1.88 → 1.03 s, tdtp-framework 153 → 107 ms. `complexity`,
   `funcstats` and `callgraph` walk the same way and gain the same time.
-
-### TypeScript
-
-- The bodyless-declaration pattern runs only on lines that can hold one: a line with a `func_requires` character that
-  ends with `;`. It ran on every top-level line, and a profile of `funcfinder --dir` on OmniRoute put it at 6.2 of
-  21 s of CPU, three times the function pattern itself. Over OmniRoute's 1.6 million lines the pattern now takes 0.43 s
-  instead of 4.35 s, with the same 4216 matches. The output is unchanged. CPU time of `funcfinder --dir --all --json`
-  on OmniRoute 18 → 13 s; single-threaded `complexity` 10.9 → 8.4 s.
-
-### `callgraph --dir`
-
-- Import aliases are read in parallel, and only for the files the graph scans (files with functions); the walk that
-  lists them runs while the directory job finds the functions. Reading them one file at a time was the largest
-  sequential step of a run: 660 ms of 1.7 s on OmniRoute. The output is unchanged.
-
-### `complexity` and `funcstats --dir`
-
-- Files are analysed in parallel, on all cores. Both tools used one core: a profile of `complexity` on OmniRoute put 95%
-  of one core and 67% of the time in finding functions, which `funcfinder --dir` already does in parallel. Each file is
-  also read once now; the finder used to read it again. The output is the same: `complexity` byte for byte, and
-  `funcstats` the same content. Median: `complexity` on OmniRoute 10.9 → 2.2 s, on arsd 7.8 → 1.9 s; `funcstats --dir`
-  on OmniRoute 12.9 → 2.3 s, on arsd 8.1 → 2.0 s.
-
-### Output
-
 - `--dir --map` (the default directory output) and `--dir --tree` write into one buffer. The map grew a string line by
   line, copying the whole output each time, so a large tree spent most of its run building the text. The output is
   byte-identical. `--dir --map`, median: OmniRoute 10.9 → 1.7 s, arsd 4.5 → 1.8 s, tdtp-framework 282 → 128 ms.
-
-### funcstats
-
-- Names with the same call count are listed by name. They came in random order, so two runs of the same input could
-  differ, and with `-n` so could which of the tied names made the cut. The counts are unchanged.
-
-### D
-
-- The D function pattern runs only on lines that hold a `(` (`func_requires`), in the D preparation pass and in the
-  finder; the attribute pattern skips blank lines. Most D lines have no `(`, and the lines that the lexer blanks
-  (comments) are long runs of spaces, where the patterns backtracked for nothing. The output is unchanged. On arsd
-  (11 MB of D): `funcfinder --dir --all --json` 1.8 → 0.4 s, `complexity` 7.9 → 3.1 s, `funcstats` 8.1 → 3.3 s,
-  `callgraph` 10.7 → 4.3 s.
 
 ### Call graph (`callgraph`)
 
@@ -63,6 +53,9 @@
 - The call scan no longer copies the set of all the run's functions into a map for every file; it looks names up in
   the file's functions and then in that set. On OmniRoute (43k functions, 6.8k files) the copies were about 290
   million map inserts: CPU time 47 → 23 s, wall time 4.5 → 3.7 s. The output is unchanged.
+- Import aliases are read in parallel, and only for the files the graph scans (files with functions); the walk that
+  lists them runs while the directory job finds the functions. Reading them one file at a time was the largest
+  sequential step of a run: 660 ms of 1.7 s on OmniRoute. The output is unchanged.
 
 ### Complexity (`complexity`)
 
@@ -70,6 +63,35 @@
   regular expressions. In 1.14.0 they took about half of the analysis time and made `complexity` 10-50% slower than
   1.12.2; it is now 7-37% faster than 1.12.2 (`-j`, median: tdtp-framework 470 → 302 ms, OmniRoute 11.7 → 8.5 s).
   The output is byte-identical, and a test compares the scanner with the old patterns on every fixture line.
+
+### `complexity` and `funcstats --dir`
+
+- Files are analysed in parallel, on all cores. Both tools used one core: a profile of `complexity` on OmniRoute put 95%
+  of one core and 67% of the time in finding functions, which `funcfinder --dir` already does in parallel. Each file is
+  also read once now; the finder used to read it again. The output is the same: `complexity` byte for byte, and
+  `funcstats` the same content. Median: `complexity` on OmniRoute 10.9 → 2.2 s, on arsd 7.8 → 1.9 s; `funcstats --dir`
+  on OmniRoute 12.9 → 2.3 s, on arsd 8.1 → 2.0 s.
+
+### funcstats
+
+- Names with the same call count are listed by name. They came in random order, so two runs of the same input could
+  differ, and with `-n` so could which of the tied names made the cut. The counts are unchanged.
+
+### TypeScript
+
+- The bodyless-declaration pattern runs only on lines that can hold one: a line with a `func_requires` character that
+  ends with `;`. It ran on every top-level line, and a profile of `funcfinder --dir` on OmniRoute put it at 6.2 of
+  21 s of CPU, three times the function pattern itself. Over OmniRoute's 1.6 million lines the pattern now takes 0.43 s
+  instead of 4.35 s, with the same 4216 matches. The output is unchanged. CPU time of `funcfinder --dir --all --json`
+  on OmniRoute 18 → 13 s; single-threaded `complexity` 10.9 → 8.4 s.
+
+### D
+
+- The D function pattern runs only on lines that hold a `(` (`func_requires`), in the D preparation pass and in the
+  finder; the attribute pattern skips blank lines. Most D lines have no `(`, and the lines that the lexer blanks
+  (comments) are long runs of spaces, where the patterns backtracked for nothing. The output is unchanged. On arsd
+  (11 MB of D): `funcfinder --dir --all --json` 1.8 → 0.4 s, `complexity` 7.9 → 3.1 s, `funcstats` 8.1 → 3.3 s,
+  `callgraph` 10.7 → 4.3 s.
 
 ## v1.14.0 - 2026-10-13
 
