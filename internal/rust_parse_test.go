@@ -67,3 +67,23 @@ func TestRustVisibilityForms(t *testing.T) {
 		t.Errorf("functions = %v, want %v", got, want)
 	}
 }
+
+// A raw string with more hashes (r##"..."##) can span lines and hold quotes and a double slash. Before, r## was not a
+// raw opener at all: its quote opened an ordinary string, and the next quote on a later line closed that string, so the
+// rest of the file was read as text. A plain r"..." is a raw string too, where a backslash does not escape the quote.
+func TestRustRawStringsWithMoreHashes(t *testing.T) {
+	src := "fn a() {\n" +
+		"    let s = r##\"<svg\n" +
+		"      <image href=\"http://x.y/z\"/>\n" +
+		"    </svg>\"##;\n" +
+		"}\n\n" +
+		"pub fn b() {}\n\n" +
+		"fn c() {\n" +
+		"    let p = r\"\\\";\n" +
+		"}\n" +
+		"fn d() {}\n"
+	got := rustFunctionNames(t, src)
+	if want := []string{"a", "b", "c", "d"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("functions = %v, want %v", got, want)
+	}
+}
