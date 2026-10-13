@@ -165,7 +165,7 @@ func (f *HybridStructFinder) findAllTypes(lines []string, lineOffset int) []Type
 				types = append(types, *currentType)
 				currentType = nil
 			}
-		} else {
+		} else if f.config.MayStartType(cleaned) {
 			// Look for new type definition
 			for _, typeKind := range patternKinds {
 				pattern := structPatterns[typeKind]

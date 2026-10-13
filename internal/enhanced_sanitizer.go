@@ -81,6 +81,10 @@ type Sanitizer struct {
 	// stringDelim is the delimiter that opened the current StateString: only
 	// the same delimiter closes it ("it's" is one string, not two).
 	stringDelim string
+	// runeBuf and resultBuf are reused from line to line by cleanLineSlow. A Sanitizer belongs to one finder
+	// at a time (it already keeps stringDelim), so the buffers are not shared between goroutines.
+	runeBuf   []rune
+	resultBuf []rune
 }
 
 func NewSanitizer(config *LanguageConfig, useRaw bool) *Sanitizer {
@@ -598,8 +602,17 @@ func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserSta
 func (s *Sanitizer) cleanLineSlow(line string, state ParserState) (string, ParserState) {
 	// Size the buffer by rune count, not byte count: a byte-sized buffer would
 	// leave (bytes-runes) trailing spaces on lines containing multibyte runes.
-	runes := []rune(line)
-	result := make([]rune, len(runes))
+	// The rune buffers are the sanitizer's own, reused from line to line. Ranging over the string yields the same
+	// runes as []rune(line), including U+FFFD for each invalid byte.
+	runes := s.runeBuf[:0]
+	for _, r := range line {
+		runes = append(runes, r)
+	}
+	s.runeBuf = runes
+	if cap(s.resultBuf) < len(runes) {
+		s.resultBuf = make([]rune, len(runes))
+	}
+	result := s.resultBuf[:len(runes)]
 	for i := range result {
 		result[i] = ' '
 	}

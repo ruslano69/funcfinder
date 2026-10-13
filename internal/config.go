@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -28,8 +29,15 @@ type LanguageConfig struct {
 	Extensions []string `json:"extensions"`
 
 	// Function/Class patterns (for funcfinder)
-	FuncPattern  string `json:"func_pattern"`
-	ClassPattern string `json:"class_pattern"`
+	FuncPattern string `json:"func_pattern"`
+	// FuncRequires lists characters of which a function header holds at least one: the function pattern cannot match
+	// a cleaned line without them, so such a line is not run through it. Set where every alternative of the pattern
+	// needs one of them. Empty means no line is skipped.
+	FuncRequires []string `json:"func_requires,omitempty"`
+	// TypeKeywords lists words of which a type header holds at least one: every class or struct pattern needs one
+	// of them, so a cleaned line without any is not run through those patterns. Empty means no line is skipped.
+	TypeKeywords []string `json:"type_keywords,omitempty"`
+	ClassPattern string   `json:"class_pattern"`
 
 	// Struct/type patterns (for findstruct) - stored as map for flexible access
 	StructTypePatterns []StructTypePattern `json:"struct_type_patterns,omitempty"`
@@ -440,6 +448,31 @@ func (lc *LanguageConfig) MemberDeclarationRegex() *regexp.Regexp {
 func (lc *LanguageConfig) OpenTypeHeaderRegex() *regexp.Regexp {
 	lc.ensure()
 	return lc.openTypeHeaderRe
+}
+
+// MayStartFunction reports whether a cleaned line can hold a function header: it holds one of the
+// func_requires characters. Without func_requires every line may.
+func (lc *LanguageConfig) MayStartFunction(cleaned string) bool {
+	return containsAnyOf(cleaned, lc.FuncRequires)
+}
+
+// MayStartType reports whether a cleaned line can hold a class or struct header: it holds one of the type_keywords.
+// Without type_keywords every line may.
+func (lc *LanguageConfig) MayStartType(cleaned string) bool {
+	return containsAnyOf(cleaned, lc.TypeKeywords)
+}
+
+// containsAnyOf reports whether s holds one of words. An empty list means no line is skipped.
+func containsAnyOf(s string, words []string) bool {
+	if len(words) == 0 {
+		return true
+	}
+	for _, w := range words {
+		if strings.Contains(s, w) {
+			return true
+		}
+	}
+	return false
 }
 
 // DeclaratorRegex matches a later declarator of a const list after its ','; nil if the language has none.

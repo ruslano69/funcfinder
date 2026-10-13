@@ -138,7 +138,7 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 			// Look for new type definition using struct patterns
 			found := false
 
-			if hasStructPatterns {
+			if hasStructPatterns && f.config.MayStartType(cleaned) {
 				// Use new struct patterns for type detection
 				for _, typeKind := range patternKinds {
 					pattern := structPatterns[typeKind]
@@ -205,7 +205,10 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 			if !found && !hasStructPatterns {
 				// Fall back to classRegex for backward compatibility
 				classRegex := f.config.ClassRegex()
-				matches := classRegex.FindStringSubmatch(cleaned)
+				var matches []string
+				if f.config.MayStartType(cleaned) {
+					matches = classRegex.FindStringSubmatch(cleaned)
+				}
 				if matches != nil {
 					// Extract type name (last non-empty group)
 					typeName := ""

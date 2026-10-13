@@ -5,6 +5,8 @@
       ".go"
     ],
     "func_pattern": "^\\s*func\\s+(\\([^)]*\\)\\s+)?({IDENT}+)(?:\\[[^\\]]*\\])?\\s*\\(",
+    "type_keywords": ["type"],
+    "func_requires": ["("],
     "class_pattern": "^\\s*type\\s+({IDENT}+)\\s+(struct|interface)\\s*\\{",
     "struct_type_patterns": {
       "struct": "^\\s*type\\s+({IDENT}+)\\s+struct\\s*\\{",
@@ -51,6 +53,7 @@
       ".h"
     ],
     "func_pattern": "^\\w[\\w\\s\\*]*[\\s\\*]+(?:\\(\\s*({IDENT}+)\\s*\\)|({IDENT}+))\\s*\\(\\s*(?:[^*\\s]|$)",
+    "type_keywords": ["struct", "union"],
     "class_pattern": "^\\s*(?:typedef\\s+)?struct\\s+(?:\\w+\\s*)?\\{",
     "struct_type_patterns": {
       "struct": "^\\s*(?:typedef\\s+)?(?:struct|union)\\s+(?:({IDENT}+)\\s*)?\\{",
@@ -102,6 +105,7 @@
       ".h"
     ],
     "func_pattern": "^\\s*(?:template\\s*<.*?>\\s*)?(?:(?:[@\\w<\\[~*&][@\\w<>\\[\\],.?*&:~]*\\s+)+?(?:[\\w~]+::)*|(?:[\\w~]+(?:<[^()]*>)?::)+)(~?{IDENT}+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))(?:<[^()]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:(?:override|final)\\s*)*(?:->\\s*[^{;]*?)?(?:\\s*:[^{;]*)?\\s*(?:\\{.*)?$",
+    "type_keywords": ["class", "struct", "enum", "union"],
     "header_open_pattern": "^\\s*(?:[@\\w<\\[~*&][@\\w<>\\[\\],.?*&:~]*\\s+)+?(?:[\\w~]+::)*(~?{IDENT}+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))\\s*\\(",
     "constructor_pattern": "^\\s*(?:(?:explicit|inline|constexpr|virtual|FMT_[A-Z0-9_]+)\\s+)*(~?{IDENT}+)\\s*\\(",
     "declaration_pattern": "^\\s*(?:template\\s*<.*?>\\s*)?(?:(?:[@\\w<\\[~*&][@\\w<>\\[\\],.?*&:~]*\\s+)+?(?:[\\w~]+::)*)(~?{IDENT}+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))(?:<[^()]*>)?\\s*\\((?:\\s*\\)|(?:(?:\\s*(?:void|int|char|bool|float|double|long|short|unsigned|signed|size_t|auto)\\b|\\s*[A-Za-z_][\\w:]*(?:<[^()]*>)?(?:\\s+[*&]*|[*&]+)\\s*[A-Za-z_]|\\s*\\.\\.\\.))(?:[^()]|\\([^()]*\\))*\\)|\\s*[A-Za-z_][\\w:]*(?:<[^()]*>)?[*&]+\\s*(?:\\)|,(?:[^()]|\\([^()]*\\))*\\)))\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:(?:override|final)\\s*)*(?:->\\s*[^{;]+?)?\\s*(?:=\\s*(?:0|default|delete)\\s*)?;\\s*$",
@@ -190,6 +194,7 @@
       ".csx"
     ],
     "func_pattern": "^\\s*[\\w\\s\\*<>,\\[\\]]+\\s+({IDENT}+)\\s*\\([^)]*\\)\\s*(?:=>|\\{)?\\s*$",
+    "type_keywords": ["class", "interface", "struct", "enum", "record"],
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|interface|struct|enum)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial)\\s+)*(?:class|record)\\s+({IDENT}+)",
@@ -246,6 +251,7 @@
       ".java"
     ],
     "func_pattern": "^\\s*(?:[@\\w<>\\[\\],.?*]+\\s+)+({IDENT}+)\\s*\\(",
+    "type_keywords": ["class", "interface", "enum", "record"],
     "class_method_open": "^\\s*(?:[@\\w<>\\[\\],.?*]+\\s+)*({IDENT}+)\\s*\\(\\s*$",
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|interface|enum)\\s+({IDENT}+)",
     "struct_type_patterns": {
@@ -299,6 +305,7 @@
       ".d"
     ],
     "func_pattern": "^\\s*(?:(?:@{IDENT}+(?:\\((?:[^()]|\\([^()]*\\))*\\))?|public|private|protected|package|export|static|final|override|abstract|synchronized|pure|nothrow|scope|ref|const|immutable|shared|inout|auto)\\s+)*(?:(~?this|new)|(?:(?:const|immutable|shared|inout|typeof)\\s*\\((?:[^()]|\\([^()]*\\))*\\)|\\.?{IDENT}+(?:\\.{IDENT}+)*(?:!(?:\\((?:[^()]|\\([^()]*\\))*\\)|{IDENT}+))?)(?:\\s*\\*|\\[[^\\]]*\\])*(?:(?:\\s*\\*)+\\s*|\\s+)(?:(?:delegate|function)\\((?:[^()]|\\([^()]*\\))*\\)(?:\\s+(?:@{IDENT}+|pure|nothrow))*\\s+)?({IDENT}+))\\s*\\(|^\\s*(?:(?:@{IDENT}+(?:\\((?:[^()]|\\([^()]*\\))*\\))?|public|private|protected|package|export|static|final|override|abstract|synchronized|pure|nothrow|scope|ref|const|immutable|shared|inout|auto)\\s+)*@property\\s+({IDENT}+)\\s*\\(",
+    "type_keywords": ["class", "struct", "interface", "enum", "union"],
     "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|struct|interface|enum)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:(?:public|private|protected|static|const|immutable|shared)\\s+)*class\\s+({IDENT}+)",
@@ -398,6 +405,8 @@
       ".mjs"
     ],
     "func_pattern": "^\\s*(?:(export\\s+)?(?:default\\s+)?(async\\s+)?function\\s*\\*?\\s+({IDENT}+)\\s*\\(|(?:export\\s+)?(const|let|var)\\s+({IDENT}+)\\s*=\\s*(async\\s+)?\\(|(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{)",
+    "type_keywords": ["class", "interface", "const", "type"],
+    "func_requires": ["(", "<"],
     "quoted_method_pattern": "^\\s*((?:\"[^\"]*\"|'[^']*'))\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{",
     "class_method_open": "^\\s*(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\(\\s*$",
     "class_pattern": "^\\s*(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?class\\s+({IDENT}+)",
@@ -465,6 +474,8 @@
       ".tsx"
     ],
     "func_pattern": "^\\s*(?:(export\\s+)?(?:default\\s+)?(async\\s+)?function\\s*\\*?\\s+({IDENT}+)\\s*[<(]|(?:export\\s+)?(const|let|var)\\s+({IDENT}+)\\s*(?::\\s*(?:[^=]|=>)+?)?=\\s*(async\\s*)?[<(]|(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{)",
+    "type_keywords": ["class", "interface", "enum", "type"],
+    "func_requires": ["(", "<"],
     "quoted_method_pattern": "^\\s*((?:\"[^\"]*\"|'[^']*'))\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{",
     "class_method_open": "^\\s*(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\(\\s*$",
     "class_pattern": "^\\s*(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?(?:class|interface)\\s+({IDENT}+)",
@@ -535,6 +546,8 @@
       ".pyw"
     ],
     "func_pattern": "^\\s*(async\\s+)?def\\s+({IDENT}+)\\s*\\(",
+    "type_keywords": ["class"],
+    "func_requires": ["("],
     "class_pattern": "^\\s*class\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*class\\s+({IDENT}+)",
@@ -607,6 +620,8 @@
       ".rs"
     ],
     "func_pattern": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?(?:async\\s+)?(?:unsafe\\s+)?(?:const\\s+)?(?:extern\\s+(?:\"C\"\\s+)?)?fn\\s+({IDENT}+)\\s*(?:<[^>]*>)?\\s*\\(",
+    "type_keywords": ["struct", "enum", "trait", "impl", "union"],
+    "func_requires": ["("],
     "class_pattern": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?(?:struct|trait|enum|impl)(?:\\s*<[^>]*>)?\\s+(?:[^{;]*?\\s+for\\s+)?({IDENT}+)",
     "struct_type_patterns": {
       "struct": "^\\s*(?:pub\\s+)?(?:pub\\(crate\\)\\s+)?struct\\s+({IDENT}+)",
@@ -666,6 +681,7 @@
       ".swift"
     ],
     "func_pattern": "^\\s*(?:@\\w+(?:\\([^)]*\\))?\\s+)*(?:(?:public|private|internal|fileprivate|open|static|class|override|final|mutating|nonmutating|convenience|required|dynamic|lazy)\\s+)*func\\s+({IDENT}+)\\s*[<(]",
+    "type_keywords": ["class", "struct", "enum", "protocol"],
     "class_pattern": "^\\s*(?:public\\s+)?(?:class|struct|enum|protocol)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:public\\s+)?(?:open\\s+)?(?:public\\s+)?(?:final\\s+)?class\\s+({IDENT}+)",
@@ -724,6 +740,7 @@
       ".kts"
     ],
     "func_pattern": "^\\s*(?:@[\\w.]+(?:\\([^)]*\\))?\\s+)*(?:(?:public|private|protected|internal|override|open|abstract|final|suspend|inline|infix|operator|tailrec|external|actual|expect|const|lateinit)\\s+)*fun\\s+(?:<[^>]+>\\s+)?(?:[\\w.<>?]+\\.)?({IDENT}+)\\s*\\(",
+    "type_keywords": ["class", "interface", "object"],
     "class_pattern": "^\\s*(?:(?:public|private|protected|internal)\\s+)?(?:data\\s+|sealed\\s+|enum\\s+|abstract\\s+)?(?:class|interface|object)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:(?:public|private|protected|internal)\\s+)?(?:open\\s+)?(?:abstract\\s+)?(?:data\\s+)?(?:sealed\\s+)?class\\s+({IDENT}+)",
@@ -784,6 +801,8 @@
       ".php"
     ],
     "func_pattern": "^\\s*(?:(?:public|private|protected|static|abstract|final)\\s+)*function\\s+&?\\s*({IDENT}+)\\s*\\(",
+    "type_keywords": ["class", "interface", "trait"],
+    "func_requires": ["("],
     "class_pattern": "^\\s*(?:(?:abstract|final)\\s+)?(?:class|interface|trait)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:abstract\\s+|final\\s+)*(?:public\\s+|private\\s+|protected\\s+)*class\\s+({IDENT}+)",
@@ -839,6 +858,7 @@
       ".rake"
     ],
     "func_pattern": "^\\s*(?:(?:private|protected|public)\\s+)?def\\s+(?:self\\.)?(\\[\\]=?|<=>|===?|=\\x7e|!=|!|<<|>>|[<>]=?|\\*\\*|[+\\-*/%&|^\\x7e]@?|{IDENT}+[?!=]?)",
+    "type_keywords": ["class", "module", "Struct", "Data"],
     "class_pattern": "^\\s*(?:class|module)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*class\\s+({IDENT}+)",
@@ -892,6 +912,7 @@
       ".scala"
     ],
     "func_pattern": "^\\s*(?:(?:@[\\p{L}\\p{Nd}_.]+(?:\\((?:[^()]|\\([^()]*\\))*\\))?|private(?:\\[[^\\]]+\\])?|protected(?:\\[[^\\]]+\\])?|public|override|final|abstract|implicit|inline|transparent|infix)\\s+)*def\\s+(?:\\x60([^\\x60]+)\\x60|({IDENT}+(?:[!#%&*+/<=>?@\\\\^|~-]+)?|[!#%&*+/:<=>?@\\\\^|~-]+))\\s*(?:[\\[(=:]|$)",
+    "type_keywords": ["class", "object", "trait", "enum"],
     "class_pattern": "^\\s*(?:(?:private|protected|public)\\s+)?(?:case\\s+)?(?:class|object|trait)\\s+({IDENT}+)",
     "struct_type_patterns": {
       "class": "^\\s*(?:(?:private|protected|public)\\s+)?(?:final\\s+)?(?:sealed\\s+)?(?:abstract\\s+)?class\\s+({IDENT}+)",

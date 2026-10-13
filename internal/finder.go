@@ -863,7 +863,11 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 		// открыть тело или закончиться ';'. Если здесь начинается следующая функция,
 		// сигнатура без тела и без ';' (Kotlin, Swift) кончилась на своей последней
 		// строке. Решение принимается до обновления глубин (шаг 2).
-		matches := funcRegex.FindStringSubmatch(cleaned)
+		// A line that cannot hold a header is not run through the pattern (see func_requires).
+		var matches []string
+		if f.config.MayStartFunction(cleaned) {
+			matches = funcRegex.FindStringSubmatch(cleaned)
+		}
 		// A method named by a string literal is read from the raw line: the sanitizer blanks
 		// the literal, so the cleaned line has no name.
 		if matches == nil && startsNormal && f.config.QuotedMethodRegex() != nil {
@@ -940,7 +944,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 
 		// The functions that start after a separator on this line (TypeScript and JavaScript).
 		var inlineStarts []inlineStart
-		if f.config.InlineHeaders && !headerOpen {
+		if f.config.InlineHeaders && !headerOpen && f.config.MayStartFunction(cleaned) {
 			inlineStarts = inlineHeaderStarts(cleaned, funcRegex, f.config.DeclaratorRegex())
 		}
 
@@ -1429,7 +1433,10 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 			}
 		} else {
 			// Ищем начало нового класса
-			matches := classRegex.FindStringSubmatch(cleaned)
+			var matches []string
+			if f.config.MayStartType(cleaned) {
+				matches = classRegex.FindStringSubmatch(cleaned)
+			}
 			if matches != nil && len(matches) >= 2 {
 				// `class A;` is a forward declaration: it has no body, so it opens no class.
 				if !strings.Contains(cleaned, "{") && strings.Contains(cleaned, ";") {
