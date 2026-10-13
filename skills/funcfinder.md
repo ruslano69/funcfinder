@@ -134,10 +134,15 @@ For TypeScript/Next.js projects (auto-detects @/ alias from tsconfig.json):
 deps frontend -l ts --shards --update-manifest .codemap/manifest.json
 ```
 
+For Rust workspaces (crate names come from each `Cargo.toml`), run from the workspace root:
+```bash
+deps . -l rust --shards --update-manifest .codemap/manifest.json
+```
+
 **Trust check** — if `deps --shards` prints `WARNING: only N/M (X%) intra-project
 imports resolved` (or flags a `tsconfig.json` found *above* the analyzed root),
 the graph is likely wrong, not just sparse: the directory was rooted below
-`go.mod`/`tsconfig.json`, so relative/alias imports can't resolve. Re-run from
+`go.mod`, `tsconfig.json` or `Cargo.toml`, so relative, alias or crate imports can't resolve. Re-run from
 the actual project root. A shard graph that comes back all-leaves (no
 `depends_on`) with no warning means the project genuinely has no internal deps.
 
