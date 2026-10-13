@@ -256,3 +256,18 @@ func TestCpp_MemberDeclarationWithSingleNameParameter(t *testing.T) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}
 }
+
+// A forward declaration (`class Fwd;`) has no body and opens no class: the next class keeps its members.
+func TestCpp_ForwardDeclarationOpensNoClass(t *testing.T) {
+	src := `class Fwd;
+class Real {
+ public:
+  Real(int x) : m(x) {}
+};
+`
+	got := spans(mapFunctions(t, "cpp", src))
+	want := []string{"Real:4-4"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}

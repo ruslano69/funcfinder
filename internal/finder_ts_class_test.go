@@ -34,3 +34,27 @@ func TestDeclarations_TSClassHeaderModifiers(t *testing.T) {
 		}
 	}
 }
+
+// A class header may span lines before its body opens: the class must not end on a header line.
+func TestDeclarations_TSClassHeaderSpansLines(t *testing.T) {
+	src := `export class Box<
+  T
+> extends Base<T> {
+  extend(
+    a: number
+  ): Box<T> {
+    return this;
+  }
+}
+`
+	fns := mapFunctions(t, "ts", src)
+	var got string
+	for _, f := range fns {
+		if f.Name == "extend" {
+			got = f.ClassName
+		}
+	}
+	if got != "Box" {
+		t.Errorf("extend's class = %q, want %q", got, "Box")
+	}
+}

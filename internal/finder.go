@@ -202,14 +202,67 @@ func isCompleteValueAssignment(matches []string, cleaned string) bool {
 	if len(matches) <= 5 || (matches[4] != "const" && matches[4] != "let" && matches[4] != "var") {
 		return false
 	}
-	if strings.Contains(cleaned, "=>") || strings.Contains(cleaned, "function") {
+	if strings.Contains(cleaned, "function") {
 		return false
 	}
-	// A value that awaits (const rows=(await db.query(...)) is not an arrow function.
+	closed, arrow := assignedParen(cleaned)
+	if closed {
+		// The parenthesis after the '=' closes here: it is a parameter list only when an arrow or a return type
+		// follows it. Otherwise the line assigns a value (const x = (a).b(), const x = (1 + 2) * 3).
+		return !arrow
+	}
+	// The parenthesis continues on the next lines: an awaited value (const rows = (await db.query() is not an
+	// arrow function, and neither is a statement that ends in ';' without an arrow.
 	if strings.Contains(cleaned, "await") {
 		return true
 	}
-	return strings.HasSuffix(strings.TrimSpace(cleaned), ";")
+	return !strings.Contains(cleaned, "=>") && strings.HasSuffix(strings.TrimSpace(cleaned), ";")
+}
+
+// assignedParen looks at the parenthesis right after the '=' of a declaration. closed reports whether it
+// closes on this line; arrow reports whether an arrow or a return type follows it. The arrow inside a value
+// (`.map((r) => r.id)`) is not this parenthesis's.
+func assignedParen(cleaned string) (closed, arrow bool) {
+	eq := -1
+	for i := 0; i < len(cleaned); i++ {
+		if cleaned[i] != '=' {
+			continue
+		}
+		var prev, next byte
+		if i > 0 {
+			prev = cleaned[i-1]
+		}
+		if i+1 < len(cleaned) {
+			next = cleaned[i+1]
+		}
+		if next == '>' || next == '=' || prev == '=' || prev == '!' || prev == '<' || prev == '>' {
+			continue
+		}
+		eq = i
+		break
+	}
+	if eq < 0 {
+		return false, false
+	}
+	rest := strings.TrimLeft(cleaned[eq+1:], " \t")
+	rest = strings.TrimLeft(strings.TrimPrefix(rest, "async"), " \t")
+	if !strings.HasPrefix(rest, "(") {
+		return false, false
+	}
+	depth := 0
+	for i := 0; i < len(rest); i++ {
+		switch rest[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				after := strings.TrimSpace(rest[i+1:])
+				return true, strings.HasPrefix(after, "=>") || strings.HasPrefix(after, ":")
+			}
+		}
+	}
+	return false, false
 }
 
 // NewFinder создает новый искатель функций
@@ -1070,6 +1123,9 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 
 	state := StateNormal
 	classDepth := 0
+	// classOpened: the body's '{' has been seen. A header may span lines (`export class X<` ... `> {`),
+	// and the class must not end on a header line, where the depth is still zero.
+	classOpened := false
 
 	for lineNum, line := range lines {
 		cleaned, newState := f.sanitizer.CleanLine(line, state)
@@ -1077,20 +1133,27 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 
 		if currentClass != nil {
 			// Отслеживаем баланс скобок
-			braceDelta := CountBraces(cleaned)
-			classDepth += braceDelta
+			if strings.Contains(cleaned, "{") {
+				classOpened = true
+			}
+			classDepth += CountBraces(cleaned)
 
-			// Если глубина стала 0, класс завершён
-			if classDepth <= 0 {
+			// Если тело открылось и глубина стала 0, класс завершён
+			if classOpened && classDepth <= 0 {
 				currentClass.End = lineNum + 1 + lineOffset
 				classes = append(classes, *currentClass)
 				currentClass = nil
 				classDepth = 0
+				classOpened = false
 			}
 		} else {
 			// Ищем начало нового класса
 			matches := classRegex.FindStringSubmatch(cleaned)
 			if matches != nil && len(matches) >= 2 {
+				// `class A;` is a forward declaration: it has no body, so it opens no class.
+				if !strings.Contains(cleaned, "{") && strings.Contains(cleaned, ";") {
+					continue
+				}
 				className := matches[1]
 				currentClass = &ClassBounds{
 					Name:  className,
@@ -1101,13 +1164,22 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 				// opens and closes on this line (`struct A : B {};`) ends with the line, and must not
 				// hold the class open over the code that follows.
 				if strings.Contains(cleaned, "{") {
+					classOpened = true
 					classDepth = CountBraces(cleaned)
 					if classDepth <= 0 {
 						currentClass.End = lineNum + 1 + lineOffset
 						classes = append(classes, *currentClass)
 						currentClass = nil
 						classDepth = 0
+						classOpened = false
 					}
+				} else if !classHeaderContinues(lines, lineNum, cleaned) {
+					// A complete header without a body (`case class Success(v: T) extends Result`) is a class of
+					// one line: the next code must not be taken for its body.
+					currentClass.End = lineNum + 1 + lineOffset
+					classes = append(classes, *currentClass)
+					currentClass = nil
+					classDepth = 0
 				}
 			}
 		}
@@ -1120,6 +1192,20 @@ func (f *Finder) findClassesWithOffset(lines []string, lineOffset int) []ClassBo
 	}
 
 	return classes
+}
+
+// classHeaderContinues reports whether a class header with no '{' goes on: an unclosed generic list or
+// parenthesis (`export class X<`, `case class X(`), or a body that starts on the next line (`class X` `{`).
+func classHeaderContinues(lines []string, i int, cleaned string) bool {
+	if strings.Count(cleaned, "<") > strings.Count(cleaned, ">") || openParens(cleaned) > 0 {
+		return true
+	}
+	for j := i + 1; j < len(lines); j++ {
+		if t := strings.TrimSpace(lines[j]); t != "" {
+			return strings.HasPrefix(t, "{")
+		}
+	}
+	return false
 }
 
 // findClassForLine находит класс, которому принадлежит строка
