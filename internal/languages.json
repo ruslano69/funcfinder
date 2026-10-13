@@ -470,6 +470,7 @@
     "class_pattern": "^\\s*(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?(?:class|interface)\\s+({IDENT}+)",
     "declaration_pattern": "^(?:\\s*(?:(?:export|default|declare|public|protected|private|static|readonly|override|async|function)\\s+)*({IDENT}+)\\??\\s*(?:<[^()]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*:.+;\\s*$|\\s*(?:(?:export|default|declare|public|protected|private|static|readonly|override|async)\\s+)*abstract\\s+(?:async\\s+)?({IDENT}+)\\??\\s*(?:<[^()]*>)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)(?:\\s*:.+)?;\\s*$)",
     "header_open_pattern": "^\\s*(?:(?:export|default|declare|public|protected|private|static|readonly|override|async)\\s+)*({IDENT}+)\\??\\s*(?:<[^()]*>)?\\s*\\(",
+    "open_type_header_pattern": "^\\s*(?:(?:export|default|declare|public|protected|private|static|readonly|override|abstract|async)\\s+)*(?:(?:(?:const|let|var)\\s+)({IDENT}+)\\??\\s*(?::[^=]*)|({IDENT}+)\\??\\s*\\([^()]*\\)\\s*:[^=]*)<[^<>=]*$",
     "struct_type_patterns": {
       "class": "^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+({IDENT}+)",
       "interface": "^\\s*(?:export\\s+)?interface\\s+({IDENT}+)",

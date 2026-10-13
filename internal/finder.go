@@ -43,6 +43,10 @@ type FunctionContext struct {
 	sigLast int
 	// afterBlock: the body closed, but the expression goes on (see continuesExpression).
 	afterBlock bool
+	// bodyStarted: the signature opened its body on the current line; bodyDelta is the brace balance from
+	// that brace on. The braces before it (a type argument's) are not the body's.
+	bodyStarted bool
+	bodyDelta   int
 }
 
 // sigEvent is what a line means to a signature that has not opened its body.
@@ -230,12 +234,23 @@ func isCompleteValueAssignment(matches []string, cleaned string) bool {
 	return !strings.Contains(cleaned, "=>") && strings.HasSuffix(strings.TrimSpace(cleaned), ";")
 }
 
-// declParenIndex returns the index of the parenthesis after the '=' of a declaration (after an optional
-// `async`), or -1 when the text after the '=' does not open a parenthesis.
+// declParenIndex returns the index of the parenthesis after the '=' of a declaration, after an optional
+// `async` and an optional type-parameter list (`async <T>(`), or -1 when the text after the '=' does not
+// open a parenthesis. The '=' of a default type argument (`<T = any>`) is not the declaration's.
 func declParenIndex(cleaned string) int {
 	eq := -1
+	angles := 0
 	for i := 0; i < len(cleaned); i++ {
-		if cleaned[i] != '=' {
+		c := cleaned[i]
+		if c == '<' {
+			angles++
+			continue
+		}
+		if c == '>' && angles > 0 && !(i > 0 && cleaned[i-1] == '=') {
+			angles--
+			continue
+		}
+		if c != '=' || angles > 0 {
 			continue
 		}
 		var prev, next byte
@@ -254,20 +269,95 @@ func declParenIndex(cleaned string) int {
 	if eq < 0 {
 		return -1
 	}
-	j := eq + 1
-	for j < len(cleaned) && (cleaned[j] == ' ' || cleaned[j] == '\t') {
-		j++
-	}
+	j := skipBlanks(cleaned, eq+1)
 	if strings.HasPrefix(cleaned[j:], "async") {
-		j += len("async")
-		for j < len(cleaned) && (cleaned[j] == ' ' || cleaned[j] == '\t') {
-			j++
+		j = skipBlanks(cleaned, j+len("async"))
+	}
+	if j < len(cleaned) && cleaned[j] == '<' {
+		depth := 0
+		for ; j < len(cleaned); j++ {
+			if cleaned[j] == '<' {
+				depth++
+			} else if cleaned[j] == '>' && !(j > 0 && cleaned[j-1] == '=') {
+				depth--
+				if depth == 0 {
+					j++
+					break
+				}
+			}
 		}
+		j = skipBlanks(cleaned, j)
 	}
 	if j < len(cleaned) && cleaned[j] == '(' {
 		return j
 	}
 	return -1
+}
+
+// skipBlanks returns the index of the first byte at or after i that is neither a space nor a tab.
+func skipBlanks(s string, i int) int {
+	for i < len(s) && (s[i] == ' ' || s[i] == '\t') {
+		i++
+	}
+	return i
+}
+
+// openAngles counts the type arguments a line leaves open: '<' that no later '>' on the line closes.
+func openAngles(cleaned string) int {
+	n := 0
+	for i := 0; i < len(cleaned); i++ {
+		switch cleaned[i] {
+		case '<':
+			n++
+		case '>':
+			if !(i > 0 && cleaned[i-1] == '=') && n > 0 {
+				n--
+			}
+		}
+	}
+	return n
+}
+
+// typedHeaderIsFunction reports whether a declaration or a member whose type-argument list runs over lines is a
+// function: the list closes, and then a body '{', a signature ';', or an arrow (`= (`, `= async`, `= <`) follows.
+// `const items: Item<{...}> = [...]` is a value, not a function.
+func typedHeaderIsFunction(cleanedLines []string, i int) bool {
+	depth := openAngles(cleanedLines[i])
+	for j := i + 1; j < len(cleanedLines) && j < i+200; j++ {
+		text := cleanedLines[j]
+		for k := 0; k < len(text); k++ {
+			switch text[k] {
+			case '<':
+				depth++
+			case '>':
+				if k > 0 && text[k-1] == '=' {
+					continue
+				}
+				depth--
+				if depth == 0 {
+					return closedTypeIsFunction(text[k+1:], cleanedLines, j+1)
+				}
+			}
+		}
+	}
+	return false
+}
+
+// closedTypeIsFunction looks at what follows a closed type-argument list: the rest of its line, or the next
+// non-blank line when the rest is blank.
+func closedTypeIsFunction(rest string, cleanedLines []string, next int) bool {
+	t := strings.TrimSpace(rest)
+	for j := next; t == "" && j < len(cleanedLines); j++ {
+		t = strings.TrimSpace(cleanedLines[j])
+	}
+	if strings.HasPrefix(t, "{") || strings.HasPrefix(t, ";") {
+		return true
+	}
+	if strings.HasPrefix(t, "=") && !strings.HasPrefix(t, "=>") {
+		rhs := strings.TrimSpace(t[1:])
+		return strings.HasPrefix(rhs, "(") || strings.HasPrefix(rhs, "async") || strings.HasPrefix(rhs, "<")
+	}
+	return false
 }
 
 // assignedParen looks at the parenthesis right after the '=' of a declaration. closed reports whether it
@@ -812,6 +902,16 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 				matches = f.config.HeaderOpenRegex().FindStringSubmatch(cleaned)
 			}
 		}
+		// A declaration or a member whose type-argument list runs over lines (`const X: React.FC<{` ... `}> = (`,
+		// `async list(): Promise<` ... `> {`): its header is a function when the list closes into a body, a
+		// signature or an arrow. Its braces are type braces, so it is read by the signature scanner.
+		typedOpen := false
+		if matches == nil && len(funcStack) == 0 && f.config.OpenTypeHeaderRegex() != nil && openAngles(cleaned) > 0 {
+			if m := f.config.OpenTypeHeaderRegex().FindStringSubmatch(cleaned); m != nil && typedHeaderIsFunction(cleanedLines, lineNum) {
+				matches = m
+				typedOpen = true
+			}
+		}
 		// A bodyless declaration at the top of a scope (TypeScript's `abstract run(): void;`): a
 		// method without a body ends with ';' on its own line, and is listed as a function.
 		if matches == nil && len(funcStack) == 0 && f.config.DeclarationRegex() != nil {
@@ -831,6 +931,10 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			}
 			atTop := ctx.sig.brackets == 0
 			events[i] = ctx.sig.feed(cleaned)
+			if events[i] == sigBody {
+				ctx.bodyStarted = true
+				ctx.bodyDelta = CountBraces(cleaned[ctx.sig.bodyAt:])
+			}
 			if events[i] != sigOpen {
 				ctx.sig = nil
 			} else if t := strings.TrimSpace(cleaned); (t != "" || (!inComment && hasCodeText(line))) && !(atTop && strings.HasPrefix(t, "}")) && !(atTop && declStart.MatchString(t)) {
@@ -867,7 +971,12 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 			// A pending signature's braces sit inside its parentheses (a default value such
 			// as context: {} ): they are not the body, so they do not change the depth.
 			if ctx.sig == nil {
-				ctx.Depth += braceDelta
+				if ctx.bodyStarted {
+					ctx.Depth += ctx.bodyDelta
+					ctx.bodyStarted = false
+				} else {
+					ctx.Depth += braceDelta
+				}
 			}
 		}
 
@@ -901,7 +1010,11 @@ func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classe
 				// A header that ends in '=' starts an expression body on the next line: it is not
 				// complete here, even when its braces balance (as on the simple path).
 				endsWithEq := strings.HasSuffix(strings.TrimSpace(cleaned), "=") || strings.HasSuffix(strings.TrimSpace(cleaned), "=>")
-				if braceDelta == 0 && strings.Contains(cleaned, "{") && openParens(cleaned) == 0 && !endsWithEq {
+				if typedOpen {
+					sig := &sigScanner{}
+					sig.feed(cleaned)
+					funcStack = append(funcStack, &FunctionContext{Func: newFunc, sig: sig, sigLast: lineNum + 1 + lineOffset})
+				} else if braceDelta == 0 && strings.Contains(cleaned, "{") && openParens(cleaned) == 0 && !endsWithEq {
 					newFunc.End = lineNum + 1 + lineOffset
 					result.Functions = append(result.Functions, *newFunc)
 				} else if braceDelta == 0 {

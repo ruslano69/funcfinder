@@ -56,6 +56,10 @@ type LanguageConfig struct {
 	// InitializerLists: a constructor's member-initializer list (`: a{1}, b(2) {`) may hold braced
 	// initializations, which are not the body. Set for C++ only.
 	InitializerLists bool `json:"initializer_lists,omitempty"`
+	// OpenTypeHeaderPattern matches a declaration or member whose type-argument list is still open at the end of
+	// its line (`const X: React.FC<{`, `async list(): Promise<`). It is read only when the list runs over lines,
+	// and the lines after it decide whether it is a function. TypeScript only.
+	OpenTypeHeaderPattern string `json:"open_type_header_pattern,omitempty"`
 	// ConversionOperatorPattern matches a conversion operator's header (`operator bool() const`).
 	// Its name is a type that the compilers spell canonically, so the finder does not name it;
 	// the header is not taken as a function. C++ only.
@@ -135,6 +139,7 @@ type LanguageConfig struct {
 	constructorRe     *regexp.Regexp
 	declarationRe     *regexp.Regexp
 	memberDeclRe      *regexp.Regexp
+	openTypeHeaderRe  *regexp.Regexp
 	conversionRe      *regexp.Regexp
 	quotedMethodRe    *regexp.Regexp
 	classRegex        *regexp.Regexp
@@ -215,7 +220,7 @@ func LoadConfig() (Config, error) {
 		for _, p := range []struct {
 			src string
 			dst **regexp.Regexp
-		}{{conf.HeaderOpenPattern, &conf.headerOpenRe}, {conf.ConstructorPattern, &conf.constructorRe}, {conf.DeclarationPattern, &conf.declarationRe}, {conf.MemberDeclarationPattern, &conf.memberDeclRe}, {conf.ConversionOperatorPattern, &conf.conversionRe}} {
+		}{{conf.HeaderOpenPattern, &conf.headerOpenRe}, {conf.ConstructorPattern, &conf.constructorRe}, {conf.DeclarationPattern, &conf.declarationRe}, {conf.MemberDeclarationPattern, &conf.memberDeclRe}, {conf.ConversionOperatorPattern, &conf.conversionRe}, {conf.OpenTypeHeaderPattern, &conf.openTypeHeaderRe}} {
 			if p.src == "" {
 				continue
 			}
@@ -386,6 +391,12 @@ func (lc *LanguageConfig) DeclarationRegex() *regexp.Regexp {
 // MemberDeclarationRegex matches a bodyless declaration inside a class body; nil if the language has none.
 func (lc *LanguageConfig) MemberDeclarationRegex() *regexp.Regexp {
 	return lc.memberDeclRe
+}
+
+// OpenTypeHeaderRegex matches a declaration or member whose type-argument list is open at the end of the line;
+// nil if the language has none.
+func (lc *LanguageConfig) OpenTypeHeaderRegex() *regexp.Regexp {
+	return lc.openTypeHeaderRe
 }
 
 // ConversionOperatorRegex matches a conversion operator's header; nil if the language has none.
