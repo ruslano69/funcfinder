@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Output
+
+- A directory run names the files it skipped because no language is configured for their extension: one INFO line on
+  stderr, with the total and the most frequent kinds (at most six). Before, the skipped files were not mentioned, so a
+  repository with Shell, PowerShell or HTML files looked analysed in full. stdout is unchanged.
+
 ### Dependencies (`deps`)
 
 - In the plain listing, a Go import under the module of `go.mod` is internal. Before, every import with a `/` was
