@@ -96,12 +96,16 @@ jobs:
 
           #### Linux / macOS
           ```bash
-          tar xzf funcfinder-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
-          sudo mv funcfinder-* stat-* deps-* complexity-* callgraph-* /usr/local/bin/
+          P=linux-amd64   # or linux-arm64, darwin-amd64, darwin-arm64
+          tar xzf funcfinder-${{ steps.get_version.outputs.VERSION }}-$P.tar.gz
+          for t in funcfinder funcstats deps complexity callgraph; do sudo install -m 755 "$t-$P" "/usr/local/bin/$t"; done
           ```
 
           #### Windows
-          Download `funcfinder-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip` and extract to a directory in your PATH.
+          Download `funcfinder-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip`, extract it to a directory in your PATH, and drop the platform suffix from the names:
+          ```powershell
+          Get-ChildItem *-windows-amd64.exe | Rename-Item -NewName { $_.Name -replace '-windows-amd64', '' }
+          ```
 
           ### Verify Checksums
           ```bash
