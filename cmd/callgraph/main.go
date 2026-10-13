@@ -2,7 +2,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -303,11 +302,11 @@ func printCallTree(cg *internal.CallGraphResult, root string) {
 func collectImports(path string, langConfig *internal.LanguageConfig) map[string]string {
 	aliases := make(map[string]string)
 
-	f, err := os.Open(path)
+	lines, err := internal.ReadLines(path)
 	if err != nil {
+		internal.WarnError("%s: %v", path, err)
 		return aliases
 	}
-	defer f.Close()
 
 	importRe := langConfig.ImportRegex()
 	if importRe == nil {
@@ -317,9 +316,7 @@ func collectImports(path string, langConfig *internal.LanguageConfig) map[string
 	blockImportRe := regexp.MustCompile(`^\s*(?:(\w+)\s+)?"([^"]+)"`)
 	inBlock := false
 
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := sc.Text()
+	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
 		if langConfig.MultiLineBlock != "" && strings.HasPrefix(trimmed, langConfig.MultiLineBlock) {

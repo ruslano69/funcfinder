@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -81,14 +80,13 @@ func cleanLine(line string, sanitizer *internal.Sanitizer, state *internal.Parse
 
 // analyzeFile analyzes a source file and returns function calls and metrics
 func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]int, *FileMetrics) {
-	file, err := os.Open(filename)
+	lines, err := internal.ReadLines(filename)
 	if err != nil {
-		internal.FatalError("opening file: %v", err)
+		internal.FatalError("reading file: %v", err)
 	}
-	defer file.Close()
 
 	// Get file size
-	fileInfo, _ := file.Stat()
+	fileInfo, _ := os.Stat(filename)
 	metrics := &FileMetrics{
 		FileSize:   fileInfo.Size(),
 		Imports:    []string{},
@@ -132,9 +130,7 @@ func analyzeFile(filename string, config *internal.LanguageConfig) (map[string]i
 	sanitizer := internal.NewSanitizer(config, false)
 	state := internal.StateNormal
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range lines {
 		metrics.TotalLines++
 
 		trimmed := strings.TrimSpace(line)

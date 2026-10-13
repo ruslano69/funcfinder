@@ -4,6 +4,7 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -185,8 +186,19 @@ func (dp *DirProcessor) processFilesParallel(jobs []Job) ([]DirResult, error) {
 	for result := range resultsChan {
 		results = append(results, result)
 	}
+	reportFileErrors(os.Stderr, results)
 
 	return results, nil
+}
+
+// reportFileErrors prints one warning per file that could not be processed. The other files' results are kept:
+// a file that fails must not disappear without a word.
+func reportFileErrors(w io.Writer, results []DirResult) {
+	for _, r := range results {
+		if r.Error != nil {
+			fmt.Fprintf(w, "Warning: %s: %v\n", r.Path, r.Error)
+		}
+	}
 }
 
 // worker processes jobs from the channel
