@@ -2,8 +2,10 @@ package internal
 
 import (
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // CallEdge represents a directed call from one function to another.
@@ -65,9 +67,22 @@ func BuildFileCallGraph(
 		return nil, err
 	}
 
+	return buildFileCallGraph(path, lines, fr.Functions, langConfig, knownFuncs, importAliases), nil
+}
+
+// buildFileCallGraph scans the lines of one file for calls, given the file's function bounds. BuildFileCallGraph
+// finds the bounds itself; BuildDirCallGraph passes the ones the directory job already found.
+func buildFileCallGraph(
+	path string,
+	lines []string,
+	funcs []FunctionBounds,
+	langConfig *LanguageConfig,
+	knownFuncs map[string]bool,
+	importAliases map[string]string,
+) *FileCallGraph {
 	// Build a combined known set: file-local functions + provided knownFuncs
-	localFuncs := make(map[string]bool, len(fr.Functions)+len(knownFuncs))
-	for _, f := range fr.Functions {
+	localFuncs := make(map[string]bool, len(funcs)+len(knownFuncs))
+	for _, f := range funcs {
 		localFuncs[f.Name] = true
 	}
 	for k := range knownFuncs {
@@ -81,7 +96,7 @@ func BuildFileCallGraph(
 		end   int
 	}
 	var ranges []funcRange
-	for _, f := range fr.Functions {
+	for _, f := range funcs {
 		ranges = append(ranges, funcRange{f.Name, f.Start, f.End})
 	}
 	sort.Slice(ranges, func(i, j int) bool { return ranges[i].start < ranges[j].start })
@@ -118,8 +133,10 @@ func BuildFileCallGraph(
 		// place — rather than trusting FunctionBounds.Start: a decorated
 		// Python function's Start points at its first decorator, not at
 		// "def name(", so comparing line numbers would miss it.
+		// The name the pattern captures is a part of the line, so a line without the caller's name cannot be its
+		// signature, and the costly pattern is not run on it.
 		isOwnSignatureLine := false
-		if funcRegex != nil {
+		if funcRegex != nil && strings.Contains(clean, caller) {
 			if m := funcRegex.FindStringSubmatch(clean); m != nil {
 				if ExtractFuncName(m) == caller {
 					isOwnSignatureLine = true
@@ -176,7 +193,7 @@ func BuildFileCallGraph(
 		return cgFile.Calls[i].Callee < cgFile.Calls[j].Callee
 	})
 
-	return cgFile, nil
+	return cgFile
 }
 
 // BuildDirCallGraph processes all files in results and builds the call graph.
@@ -197,7 +214,14 @@ func BuildDirCallGraph(
 	cg := &CallGraphResult{}
 	cg.TotalFunctions = len(globalFuncs)
 
-	for _, r := range results {
+	// Files are scanned in parallel, each into its own slot, and reported in path order: results come in the order the
+	// directory workers finished, and the output must not depend on that. The maps are only read by the workers.
+	results = append([]DirResult(nil), results...)
+	sort.SliceStable(results, func(i, j int) bool { return results[i].Path < results[j].Path })
+	files := make([]*FileCallGraph, len(results))
+	sem := make(chan struct{}, runtime.NumCPU())
+	var wg sync.WaitGroup
+	for i, r := range results {
 		if len(r.Functions) == 0 {
 			continue
 		}
@@ -205,15 +229,44 @@ func BuildDirCallGraph(
 		if langConfig == nil {
 			continue
 		}
-		aliases := importsByFile[r.Path]
-		fcg, err := BuildFileCallGraph(r.Path, langConfig, globalFuncs, aliases)
-		if err != nil || len(fcg.Calls) == 0 {
+		wg.Add(1)
+		go func(i int, r DirResult, langConfig *LanguageConfig) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			files[i] = dirFileCallGraph(r, langConfig, globalFuncs, importsByFile[r.Path])
+		}(i, r, langConfig)
+	}
+	wg.Wait()
+
+	for _, fcg := range files {
+		if fcg == nil || len(fcg.Calls) == 0 {
 			continue
 		}
 		cg.Files = append(cg.Files, *fcg)
 		cg.TotalCalls += len(fcg.Calls)
 	}
 	return cg
+}
+
+// dirFileCallGraph builds the call graph of one file of a directory job. It reuses the function bounds the job found
+// when the job read the file with the same language that scans it for calls; finding them again was most of the time
+// of a callgraph run. The two differ when -l restricts the job to a language whose extension the full config gives to
+// another one (a .h file under -l c is scanned as cpp): then the bounds are found again with the scanning language, as
+// before. It returns nil when the file cannot be read.
+func dirFileCallGraph(r DirResult, langConfig *LanguageConfig, globalFuncs map[string]bool, aliases map[string]string) *FileCallGraph {
+	if r.LangKey != langConfig.LangKey {
+		fcg, err := BuildFileCallGraph(r.Path, langConfig, globalFuncs, aliases)
+		if err != nil {
+			return nil
+		}
+		return fcg
+	}
+	lines, err := readAllLines(r.Path)
+	if err != nil {
+		return nil
+	}
+	return buildFileCallGraph(r.Path, lines, r.Functions, langConfig, globalFuncs, aliases)
 }
 
 // ReverseCallGraph returns a map callee → []callers across all files.
