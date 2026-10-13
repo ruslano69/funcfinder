@@ -17,9 +17,7 @@ func DocLines(lines []string, start int, lang *LanguageConfig) []string {
 	if i >= len(lines) {
 		i = len(lines) - 1
 	}
-	for i >= 0 && strings.HasPrefix(strings.TrimSpace(lines[i]), "@") {
-		i--
-	}
+	i = skipAnnotations(lines, i, lang)
 
 	for i >= 0 {
 		trimmed := strings.TrimSpace(lines[i])
@@ -50,6 +48,33 @@ func DocLines(lines []string, start int, lang *LanguageConfig) []string {
 		}
 	}
 	return reverseLines(bottomUp)
+}
+
+// skipAnnotations moves i up past the decorators and attributes directly above a declaration: an `@name` line (Python,
+// Java, TypeScript), and in Rust a `#[...]` attribute, which may run over several lines. A multi-line attribute is
+// read from its closing `)]` or `]` line up to its `#[` opener, within 20 lines. Anything else stops the walk.
+func skipAnnotations(lines []string, i int, lang *LanguageConfig) int {
+	for i >= 0 {
+		trimmed := strings.TrimSpace(lines[i])
+		switch {
+		case strings.HasPrefix(trimmed, "@"):
+			i--
+		case lang.LangKey == "rust" && strings.HasPrefix(trimmed, "#["):
+			i--
+		case lang.LangKey == "rust" && (strings.HasPrefix(trimmed, ")]") || strings.HasPrefix(trimmed, "]")):
+			j := i - 1
+			for j >= 0 && i-j <= 20 && !strings.HasPrefix(strings.TrimSpace(lines[j]), "#[") {
+				j--
+			}
+			if j < 0 || i-j > 20 {
+				return i
+			}
+			i = j - 1
+		default:
+			return i
+		}
+	}
+	return i
 }
 
 // reverseLines reverses s in place and returns it.

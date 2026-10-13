@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Doc comments (`--doc`)
+
+- In Rust, the `#[...]` attributes between a doc comment and its item are skipped, one line or several: the comment
+  above the attributes is the doc. Before, the walk stopped at the attribute, so `#[derive]` or `#[inline]` hid the doc.
+  Outside Rust, `#[` is an ordinary comment and is unchanged.
+
 ### Complexity (`complexity`)
 
 - `--breakdown` prints the figures behind each score: size in lines, the number of decisions (if, elif, match, switch,
