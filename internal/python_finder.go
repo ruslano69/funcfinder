@@ -8,14 +8,14 @@ import (
 
 // PythonFinder - парсер для Python с поддержкой отступов и декораторов
 type PythonFinder struct {
-	config    LanguageConfig
+	config    *LanguageConfig
 	funcNames map[string]bool
 	mode      string
 	extract   bool
 }
 
 // NewPythonFinder создает новый парсер для Python
-func NewPythonFinder(config LanguageConfig, funcNames string, mode string, extract bool) *PythonFinder {
+func NewPythonFinder(config *LanguageConfig, funcNames string, mode string, extract bool) *PythonFinder {
 	parsedNames := ParseFuncNames(funcNames)
 	nameMap := make(map[string]bool)
 	for _, name := range parsedNames {

@@ -3,23 +3,20 @@
 package internal
 
 import (
-	"bufio"
-	"fmt"
-	"os"
 	"regexp"
 	"strings"
 )
 
 // PythonStructFinder finds data types in Python source code
 type PythonStructFinder struct {
-	config      LanguageConfig
+	config      *LanguageConfig
 	typeNames   map[string]bool
 	mapMode     bool
 	extractMode bool
 }
 
 // NewPythonStructFinder creates a new Python struct finder
-func NewPythonStructFinder(config LanguageConfig, typeNamesStr string, mapMode, extractMode bool) *PythonStructFinder {
+func NewPythonStructFinder(config *LanguageConfig, typeNamesStr string, mapMode, extractMode bool) *PythonStructFinder {
 	nameMap := make(map[string]bool)
 	for _, name := range ParseFuncNames(typeNamesStr) {
 		nameMap[name] = true
@@ -35,21 +32,10 @@ func NewPythonStructFinder(config LanguageConfig, typeNamesStr string, mapMode, 
 
 // FindStructures finds all types in Python file
 func (f *PythonStructFinder) FindStructures(filename string) (*StructFindResult, error) {
-	file, err := os.Open(filename)
+	lines, err := readFileLines(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, err
 	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
 	return f.FindStructuresInLines(lines, 1, filename)
 }
 

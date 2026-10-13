@@ -325,6 +325,7 @@ func TestHybridStructFinder_NilFieldPatternReturnsEmpty(t *testing.T) {
 	// findFieldsForType must short-circuit to an empty slice rather than
 	// dereference a nil regex when a language has no field_pattern compiled.
 	tsConfig := *getTSConfig(t) // shallow copy
+	tsConfig.ensure()           // compile first: otherwise the first accessor call would put the compiled regex back over this nil
 	tsConfig.fieldRegex = nil
 
 	factory := NewStructFinderFactory()

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"sync"
 )
 
 //go:embed languages.json
@@ -157,6 +158,12 @@ type LanguageConfig struct {
 	nestingRe         *regexp.Regexp
 	flatRe            *regexp.Regexp
 	loopRe            *regexp.Regexp
+
+	// Set by LoadConfig. The regular expressions above are compiled on first use (see ensure),
+	// so a run pays only for the languages it reads.
+	lang              string
+	rawStructPatterns map[string]string
+	compileOnce       sync.Once
 }
 
 // Config is a map of language keys to their configurations
@@ -185,151 +192,168 @@ func LoadConfig() (Config, error) {
 	// Convert to final Config
 	config := make(Config)
 	for lang, langConf := range rawConfig {
-		// Convert LanguageConfigWithMap to LanguageConfig
-		conf := langConf.LanguageConfig
-
-		// Convert struct_type_patterns map to compiled regexes
-		conf.structPatterns = make(map[string]*regexp.Regexp)
-		for typeKind, pattern := range langConf.StructTypePatternsMap {
-			re, err := regexp.Compile(expandIdentPlaceholder(pattern))
-			if err != nil {
-				return nil, fmt.Errorf("invalid struct pattern for %s (%s): %w", lang, typeKind, err)
-			}
-			conf.structPatterns[typeKind] = re
-		}
+		conf := &langConf.LanguageConfig
+		conf.lang = lang
+		conf.rawStructPatterns = langConf.StructTypePatternsMap
 
 		// Set LangKey if not provided
 		if conf.LangKey == "" {
 			conf.LangKey = lang
 		}
 
-		// Compile function regex
-		if conf.FuncPattern != "" {
-			re, err := regexp.Compile(expandIdentPlaceholder(conf.FuncPattern))
-			if err != nil {
-				return nil, fmt.Errorf("invalid func regex for %s: %w", lang, err)
-			}
-			conf.funcRegex = re
-		}
-
-		// Compile the class method opening if specified
-		if conf.ClassMethodOpen != "" {
-			cmRe, err := regexp.Compile(expandIdentPlaceholder(conf.ClassMethodOpen))
-			if err != nil {
-				return nil, fmt.Errorf("invalid class method regex for %s: %w", lang, err)
-			}
-			conf.classMethodOpenRe = cmRe
-		}
-
-		// Compile the C++ header patterns if specified
-		for _, p := range []struct {
-			src string
-			dst **regexp.Regexp
-		}{{conf.HeaderOpenPattern, &conf.headerOpenRe}, {conf.ConstructorPattern, &conf.constructorRe}, {conf.DeclarationPattern, &conf.declarationRe}, {conf.MemberDeclarationPattern, &conf.memberDeclRe}, {conf.ConversionOperatorPattern, &conf.conversionRe}, {conf.OpenTypeHeaderPattern, &conf.openTypeHeaderRe}, {conf.DeclaratorPattern, &conf.declaratorRe}} {
-			if p.src == "" {
-				continue
-			}
-			re, err := regexp.Compile(expandIdentPlaceholder(p.src))
-			if err != nil {
-				return nil, fmt.Errorf("invalid header pattern for %s (%s): %w", lang, p.src, err)
-			}
-			*p.dst = re
-		}
-
-		// Compile the quoted method name if specified
-		if conf.QuotedMethodPattern != "" {
-			qmRe, err := regexp.Compile(conf.QuotedMethodPattern)
-			if err != nil {
-				return nil, fmt.Errorf("invalid quoted method regex for %s: %w", lang, err)
-			}
-			conf.quotedMethodRe = qmRe
-		}
-
-		// Compile class regex if specified
-		if conf.ClassPattern != "" {
-			classRe, err := regexp.Compile(expandIdentPlaceholder(conf.ClassPattern))
-			if err != nil {
-				return nil, fmt.Errorf("invalid class regex for %s: %w", lang, err)
-			}
-			conf.classRegex = classRe
-		}
-
-		// Compile field pattern if specified
-		if conf.FieldPattern != "" {
-			fieldRe, err := regexp.Compile(expandIdentPlaceholder(conf.FieldPattern))
-			if err != nil {
-				return nil, fmt.Errorf("invalid field pattern for %s: %w", lang, err)
-			}
-			conf.fieldRegex = fieldRe
-		}
-
-		// Compile call regex if specified
-		if conf.CallPattern != "" {
-			callRe, err := regexp.Compile(expandIdentPlaceholder(conf.CallPattern))
-			if err != nil {
-				return nil, fmt.Errorf("invalid call regex for %s: %w", lang, err)
-			}
-			conf.callRegex = callRe
-		}
-
-		// Compile nesting/flat regex if specified
-		if conf.NestingPattern != "" {
-			nestingRe, err := regexp.Compile(conf.NestingPattern)
-			if err != nil {
-				return nil, fmt.Errorf("invalid nesting regex for %s: %w", lang, err)
-			}
-			conf.nestingRe = nestingRe
-		}
-		if conf.FlatPattern != "" {
-			flatRe, err := regexp.Compile(conf.FlatPattern)
-			if err != nil {
-				return nil, fmt.Errorf("invalid flat regex for %s: %w", lang, err)
-			}
-			conf.flatRe = flatRe
-		}
-		if conf.LoopPattern != "" {
-			loopRe, err := regexp.Compile(conf.LoopPattern)
-			if err != nil {
-				return nil, fmt.Errorf("invalid loop regex for %s: %w", lang, err)
-			}
-			conf.loopRe = loopRe
-		}
-
-		// Compile import regex if specified
-		if conf.ImportPattern != "" {
-			importRe, err := regexp.Compile(conf.ImportPattern)
-			if err != nil {
-				return nil, fmt.Errorf("invalid import regex for %s: %w", lang, err)
-			}
-			conf.importRegex = importRe
-		}
-
-		// Compile decorator regex if specified
-		if conf.DecoratorPattern != "" {
-			decoratorRe, err := regexp.Compile(conf.DecoratorPattern)
-			if err != nil {
-				return nil, fmt.Errorf("invalid decorator regex for %s: %w", lang, err)
-			}
-			conf.decoratorRe = decoratorRe
-		}
-
-		// Compile block comment regex if specified
-		if conf.BlockCommentStart != "" && conf.BlockCommentEnd != "" {
-			// Use regexp.QuoteMeta to escape special regex characters like /* and */
-			start := regexp.QuoteMeta(conf.BlockCommentStart)
-			end := regexp.QuoteMeta(conf.BlockCommentEnd)
-			pattern := fmt.Sprintf(`%s[\s\S]*?%s`, start, end)
-			blockRe, err := regexp.Compile(pattern)
-			if err != nil {
-				return nil, fmt.Errorf("invalid block comment regex for %s: %w", lang, err)
-			}
-			conf.blockCommentRe = blockRe
-		}
-
-		config[lang] = &conf
+		config[lang] = conf
 	}
 
 	return config, nil
+}
+
+// compileRegexes compiles a language's regular expressions. It runs once, on first use (see ensure).
+func (conf *LanguageConfig) compileRegexes() error {
+	lang := conf.lang
+	// Convert struct_type_patterns map to compiled regexes
+	conf.structPatterns = make(map[string]*regexp.Regexp)
+	for typeKind, pattern := range conf.rawStructPatterns {
+		re, err := regexp.Compile(expandIdentPlaceholder(pattern))
+		if err != nil {
+			return fmt.Errorf("invalid struct pattern for %s (%s): %w", lang, typeKind, err)
+		}
+		conf.structPatterns[typeKind] = re
+	}
+
+	// Compile function regex
+	if conf.FuncPattern != "" {
+		re, err := regexp.Compile(expandIdentPlaceholder(conf.FuncPattern))
+		if err != nil {
+			return fmt.Errorf("invalid func regex for %s: %w", lang, err)
+		}
+		conf.funcRegex = re
+	}
+
+	// Compile the class method opening if specified
+	if conf.ClassMethodOpen != "" {
+		cmRe, err := regexp.Compile(expandIdentPlaceholder(conf.ClassMethodOpen))
+		if err != nil {
+			return fmt.Errorf("invalid class method regex for %s: %w", lang, err)
+		}
+		conf.classMethodOpenRe = cmRe
+	}
+
+	// Compile the C++ header patterns if specified
+	for _, p := range []struct {
+		src string
+		dst **regexp.Regexp
+	}{{conf.HeaderOpenPattern, &conf.headerOpenRe}, {conf.ConstructorPattern, &conf.constructorRe}, {conf.DeclarationPattern, &conf.declarationRe}, {conf.MemberDeclarationPattern, &conf.memberDeclRe}, {conf.ConversionOperatorPattern, &conf.conversionRe}, {conf.OpenTypeHeaderPattern, &conf.openTypeHeaderRe}, {conf.DeclaratorPattern, &conf.declaratorRe}} {
+		if p.src == "" {
+			continue
+		}
+		re, err := regexp.Compile(expandIdentPlaceholder(p.src))
+		if err != nil {
+			return fmt.Errorf("invalid header pattern for %s (%s): %w", lang, p.src, err)
+		}
+		*p.dst = re
+	}
+
+	// Compile the quoted method name if specified
+	if conf.QuotedMethodPattern != "" {
+		qmRe, err := regexp.Compile(conf.QuotedMethodPattern)
+		if err != nil {
+			return fmt.Errorf("invalid quoted method regex for %s: %w", lang, err)
+		}
+		conf.quotedMethodRe = qmRe
+	}
+
+	// Compile class regex if specified
+	if conf.ClassPattern != "" {
+		classRe, err := regexp.Compile(expandIdentPlaceholder(conf.ClassPattern))
+		if err != nil {
+			return fmt.Errorf("invalid class regex for %s: %w", lang, err)
+		}
+		conf.classRegex = classRe
+	}
+
+	// Compile field pattern if specified
+	if conf.FieldPattern != "" {
+		fieldRe, err := regexp.Compile(expandIdentPlaceholder(conf.FieldPattern))
+		if err != nil {
+			return fmt.Errorf("invalid field pattern for %s: %w", lang, err)
+		}
+		conf.fieldRegex = fieldRe
+	}
+
+	// Compile call regex if specified
+	if conf.CallPattern != "" {
+		callRe, err := regexp.Compile(expandIdentPlaceholder(conf.CallPattern))
+		if err != nil {
+			return fmt.Errorf("invalid call regex for %s: %w", lang, err)
+		}
+		conf.callRegex = callRe
+	}
+
+	// Compile nesting/flat regex if specified
+	if conf.NestingPattern != "" {
+		nestingRe, err := regexp.Compile(conf.NestingPattern)
+		if err != nil {
+			return fmt.Errorf("invalid nesting regex for %s: %w", lang, err)
+		}
+		conf.nestingRe = nestingRe
+	}
+	if conf.FlatPattern != "" {
+		flatRe, err := regexp.Compile(conf.FlatPattern)
+		if err != nil {
+			return fmt.Errorf("invalid flat regex for %s: %w", lang, err)
+		}
+		conf.flatRe = flatRe
+	}
+	if conf.LoopPattern != "" {
+		loopRe, err := regexp.Compile(conf.LoopPattern)
+		if err != nil {
+			return fmt.Errorf("invalid loop regex for %s: %w", lang, err)
+		}
+		conf.loopRe = loopRe
+	}
+
+	// Compile import regex if specified
+	if conf.ImportPattern != "" {
+		importRe, err := regexp.Compile(conf.ImportPattern)
+		if err != nil {
+			return fmt.Errorf("invalid import regex for %s: %w", lang, err)
+		}
+		conf.importRegex = importRe
+	}
+
+	// Compile decorator regex if specified
+	if conf.DecoratorPattern != "" {
+		decoratorRe, err := regexp.Compile(conf.DecoratorPattern)
+		if err != nil {
+			return fmt.Errorf("invalid decorator regex for %s: %w", lang, err)
+		}
+		conf.decoratorRe = decoratorRe
+	}
+
+	// Compile block comment regex if specified
+	if conf.BlockCommentStart != "" && conf.BlockCommentEnd != "" {
+		// Use regexp.QuoteMeta to escape special regex characters like /* and */
+		start := regexp.QuoteMeta(conf.BlockCommentStart)
+		end := regexp.QuoteMeta(conf.BlockCommentEnd)
+		pattern := fmt.Sprintf(`%s[\s\S]*?%s`, start, end)
+		blockRe, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("invalid block comment regex for %s: %w", lang, err)
+		}
+		conf.blockCommentRe = blockRe
+	}
+	return nil
+}
+
+// ensure compiles the regular expressions on first use. LoadConfig leaves them uncompiled: a run reads only the
+// languages of its files, and compiling every language cost about 17 ms on each run. languages.json is embedded,
+// so a pattern that does not compile is a programming error: it panics, and TestEveryLanguageCompiles checks all.
+func (conf *LanguageConfig) ensure() {
+	conf.compileOnce.Do(func() {
+		if err := conf.compileRegexes(); err != nil {
+			panic(err)
+		}
+	})
 }
 
 // GetLanguageConfig returns the configuration for the specified language
@@ -341,17 +365,24 @@ func (c Config) GetLanguageConfig(lang string) (*LanguageConfig, error) {
 	return conf, nil
 }
 
-// GetLanguageByExtension returns the configuration based on file extension
+// GetLanguageByExtension returns the configuration based on file extension. Only `.h` is claimed by two
+// languages (C and C++); the C++ configuration is chosen for it. The languages are visited in sorted order,
+// not in map order, so the same file gets the same configuration on every run.
 func (c Config) GetLanguageByExtension(filename string) *LanguageConfig {
 	ext := filepath.Ext(filename)
-	for _, langConf := range c {
+	var found *LanguageConfig
+	for _, lang := range c.GetSupportedLanguages() {
+		langConf := c[lang]
 		for _, e := range langConf.Extensions {
 			if ext == e {
-				return langConf
+				if found == nil || lang == "cpp" {
+					found = langConf
+				}
+				break
 			}
 		}
 	}
-	return nil
+	return found
 }
 
 // GetSupportedLanguages returns a sorted list of all supported language keys
@@ -367,60 +398,71 @@ func (c Config) GetSupportedLanguages() []string {
 
 // Regex getters for funcfinder
 func (lc *LanguageConfig) FuncRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.funcRegex
 }
 
 // ClassMethodOpenRegex matches the first line of a class method whose signature
 // spans lines (it ends at the opening parenthesis); nil if the language has none.
 func (lc *LanguageConfig) ClassMethodOpenRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.classMethodOpenRe
 }
 
 // HeaderOpenRegex matches the first line of a signature that continues on the next lines; nil if
 // the language has none.
 func (lc *LanguageConfig) HeaderOpenRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.headerOpenRe
 }
 
 // ConstructorRegex matches a constructor or destructor header inside a class body; nil if the
 // language has none.
 func (lc *LanguageConfig) ConstructorRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.constructorRe
 }
 
 // DeclarationRegex matches a bodyless declaration; nil if the language has none.
 func (lc *LanguageConfig) DeclarationRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.declarationRe
 }
 
 // MemberDeclarationRegex matches a bodyless declaration inside a class body; nil if the language has none.
 func (lc *LanguageConfig) MemberDeclarationRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.memberDeclRe
 }
 
 // OpenTypeHeaderRegex matches a declaration or member whose type-argument list is open at the end of the line;
 // nil if the language has none.
 func (lc *LanguageConfig) OpenTypeHeaderRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.openTypeHeaderRe
 }
 
 // DeclaratorRegex matches a later declarator of a const list after its ','; nil if the language has none.
 func (lc *LanguageConfig) DeclaratorRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.declaratorRe
 }
 
 // ConversionOperatorRegex matches a conversion operator's header; nil if the language has none.
 func (lc *LanguageConfig) ConversionOperatorRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.conversionRe
 }
 
 // QuotedMethodRegex matches a method named by a string literal, on the raw line; nil if the
 // language has none.
 func (lc *LanguageConfig) QuotedMethodRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.quotedMethodRe
 }
 
 func (lc *LanguageConfig) ClassRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.classRegex
 }
 
@@ -433,6 +475,7 @@ func (lc *LanguageConfig) GetExtraPattern(key string) string {
 }
 
 func (lc *LanguageConfig) HasClasses() bool {
+	lc.ensure()
 	return lc.ClassPattern != ""
 }
 
@@ -440,11 +483,13 @@ func (lc *LanguageConfig) HasClasses() bool {
 
 // GetStructPatterns returns all compiled struct type patterns
 func (lc *LanguageConfig) GetStructPatterns() map[string]*regexp.Regexp {
+	lc.ensure()
 	return lc.structPatterns
 }
 
 // GetStructPattern returns a compiled pattern for a specific struct type
 func (lc *LanguageConfig) GetStructPattern(typeKind string) *regexp.Regexp {
+	lc.ensure()
 	if lc.structPatterns != nil {
 		return lc.structPatterns[typeKind]
 	}
@@ -453,41 +498,50 @@ func (lc *LanguageConfig) GetStructPattern(typeKind string) *regexp.Regexp {
 
 // GetFieldPattern returns the compiled field pattern regex
 func (lc *LanguageConfig) GetFieldPattern() *regexp.Regexp {
+	lc.ensure()
 	return lc.fieldRegex
 }
 
 // HasStructSupport returns true if the language has struct type patterns configured
 func (lc *LanguageConfig) HasStructSupport() bool {
+	lc.ensure()
 	return len(lc.structPatterns) > 0
 }
 
 // Regex getters for stat.go
 func (lc *LanguageConfig) CallRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.callRegex
 }
 
 func (lc *LanguageConfig) DecoratorRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.decoratorRe
 }
 
 // Regex getters for deps.go
 func (lc *LanguageConfig) ImportRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.importRegex
 }
 
 func (lc *LanguageConfig) BlockCommentRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.blockCommentRe
 }
 
 // Regex getters for complexity.go
 func (lc *LanguageConfig) NestingRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.nestingRe
 }
 
 func (lc *LanguageConfig) FlatRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.flatRe
 }
 
 func (lc *LanguageConfig) LoopRegex() *regexp.Regexp {
+	lc.ensure()
 	return lc.loopRe
 }

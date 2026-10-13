@@ -66,7 +66,7 @@ func TestPythonBounds_LogicalStatements(t *testing.T) {
 			content := strings.Join(tt.lines, "\n") + "\n"
 			path := createTempFile(t, content, "python_bounds_*.py")
 			t.Cleanup(func() { os.Remove(path) })
-			finder := NewPythonFinder(*getPyConfig(t), "", "map", true)
+			finder := NewPythonFinder(getPyConfig(t), "", "map", true)
 			result, err := finder.FindFunctions(path)
 			if err != nil {
 				t.Fatal(err)
@@ -125,7 +125,7 @@ func TestPythonScopes_NestedParentsAndDocstrings(t *testing.T) {
 			t.Errorf("%s end = %d, want %d", scopes[i].Name, scopes[i].EndLine, end)
 		}
 	}
-	finder := NewPythonFinder(*getPyConfig(t), "", "map", false)
+	finder := NewPythonFinder(getPyConfig(t), "", "map", false)
 	result, err := finder.FindFunctions(path)
 	if err != nil {
 		t.Fatal(err)

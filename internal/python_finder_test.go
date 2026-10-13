@@ -55,7 +55,7 @@ func TestNewPythonFinder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			finder := NewPythonFinder(*config, tt.funcNames, tt.mode, tt.extract)
+			finder := NewPythonFinder(config, tt.funcNames, tt.mode, tt.extract)
 
 			if finder == nil {
 				t.Fatal("NewPythonFinder() returned nil")
@@ -97,7 +97,7 @@ def multiline_body():
 	tmpfile := createTempFile(t, content, "test_simple_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	result, err := finder.FindFunctions(tmpfile)
 
 	if err != nil {
@@ -153,7 +153,7 @@ def decorated_with_params():
 	tmpfile := createTempFile(t, content, "test_decorators_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	result, err := finder.FindFunctions(tmpfile)
 
 	if err != nil {
@@ -212,7 +212,7 @@ func TestPythonFinder_ClassMethods(t *testing.T) {
 	tmpfile := createTempFile(t, content, "test_class_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	result, err := finder.FindFunctions(tmpfile)
 
 	if err != nil {
@@ -269,7 +269,7 @@ def top_level_func():
 	tmpfile := createTempFile(t, content, "test_classname_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	result, err := finder.FindFunctions(tmpfile)
 	if err != nil {
 		t.Fatalf("FindFunctions() error = %v", err)
@@ -322,7 +322,7 @@ class EmptyQuerySet(metaclass=InstanceCheckMeta):
 	tmpfile := createTempFile(t, content, "test_metaclass_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	result, err := finder.FindFunctions(tmpfile)
 	if err != nil {
 		t.Fatalf("FindFunctions() error = %v", err)
@@ -357,7 +357,7 @@ async def async_with_params(x, y):
 	tmpfile := createTempFile(t, content, "test_async_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	result, err := finder.FindFunctions(tmpfile)
 
 	if err != nil {
@@ -397,7 +397,7 @@ def another_multiline(
 	tmpfile := createTempFile(t, content, "test_multiline_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	result, err := finder.FindFunctions(tmpfile)
 
 	if err != nil {
@@ -429,7 +429,7 @@ def decorated_func(x):
 	tmpfile := createTempFile(t, content, "test_extract_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", true)
+	finder := NewPythonFinder(config, "", "map", true)
 	result, err := finder.FindFunctions(tmpfile)
 
 	if err != nil {
@@ -477,7 +477,7 @@ def func_three():
 	defer os.Remove(tmpfile)
 
 	// Test filtering for specific functions
-	finder := NewPythonFinder(*config, "func_one,func_three", "search", false)
+	finder := NewPythonFinder(config, "func_one,func_three", "search", false)
 	result, err := finder.FindFunctions(tmpfile)
 
 	if err != nil {
@@ -515,7 +515,7 @@ def another_func():
 	tmpfile := createTempFile(t, content, "test_comments_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	result, err := finder.FindFunctions(tmpfile)
 
 	if err != nil {
@@ -535,7 +535,7 @@ func TestPythonFinder_EmptyFile(t *testing.T) {
 	tmpfile := createTempFile(t, content, "test_empty_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	result, err := finder.FindFunctions(tmpfile)
 
 	if err != nil {
@@ -550,7 +550,7 @@ func TestPythonFinder_EmptyFile(t *testing.T) {
 func TestPythonFinder_InvalidFile(t *testing.T) {
 	config := getPyConfig(t)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	_, err := finder.FindFunctions("/nonexistent/file.py")
 
 	if err == nil {
@@ -570,7 +570,7 @@ func TestPythonFinder_NestedFunctions(t *testing.T) {
 	tmpfile := createTempFile(t, content, "test_nested_*.py")
 	defer os.Remove(tmpfile)
 
-	finder := NewPythonFinder(*config, "", "map", false)
+	finder := NewPythonFinder(config, "", "map", false)
 	result, err := finder.FindFunctions(tmpfile)
 
 	if err != nil {

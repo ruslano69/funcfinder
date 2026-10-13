@@ -209,11 +209,14 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 		return result
 	}
 
+	// The file is read at most once per job: the finders that take lines and the struct finder share it.
+	fileLines := lazyLines(job.Path)
+
 	switch dp.workMode {
 	case "functions":
 		// Find only functions
 		finder := CreateFinder(langConfig, "", "map", false, false)
-		findResult, err := finder.FindFunctions(job.Path)
+		findResult, err := findFunctionsOf(finder, job.Path, fileLines)
 		if err != nil {
 			result.Error = err
 			return result
@@ -229,7 +232,7 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 		}
 		factory := NewStructFinderFactory()
 		structFinder := factory.CreateStructFinder(langConfig, "", true, false)
-		structResult, err := structFinder.FindStructures(job.Path)
+		structResult, err := findStructuresOf(structFinder, job.Path, fileLines)
 		if err != nil {
 			result.Error = err
 			return result
@@ -246,7 +249,7 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 	case "all":
 		// Find both functions and structs
 		finder := CreateFinder(langConfig, "", "map", false, false)
-		findResult, err := finder.FindFunctions(job.Path)
+		findResult, err := findFunctionsOf(finder, job.Path, fileLines)
 		if err != nil {
 			result.Error = err
 			return result
@@ -258,7 +261,7 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 		if langConfig.HasStructSupport() {
 			factory := NewStructFinderFactory()
 			structFinder := factory.CreateStructFinder(langConfig, "", true, false)
-			structResult, err := structFinder.FindStructures(job.Path)
+			structResult, err := findStructuresOf(structFinder, job.Path, fileLines)
 			if err == nil {
 				// Dedup: only add types not already in Classes (from class_pattern)
 				seen := make(map[string]bool, len(result.Classes))
@@ -281,7 +284,7 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 
 	// Go type aliases are names for existing types: they are listed apart from the types.
 	if job.LangKey == "go" && dp.workMode != "functions" {
-		lines, err := readAllLines(job.Path)
+		lines, err := fileLines()
 		if err != nil {
 			result.Error = err
 			return result
@@ -292,6 +295,48 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 	}
 
 	return result
+}
+
+// lazyLines returns a reader of the file's lines: the file is read on the first call, and the result is kept.
+func lazyLines(path string) func() ([]string, error) {
+	var lines []string
+	var err error
+	loaded := false
+	return func() ([]string, error) {
+		if !loaded {
+			lines, err = readFileLines(path)
+			loaded = true
+		}
+		return lines, err
+	}
+}
+
+// linesFinder is a finder that can run on lines the caller has already read.
+type linesFinder interface {
+	FindFunctionsInLines(lines []string, startLine int, filename string) (*FindResult, error)
+}
+
+// findFunctionsOf runs a function finder on a file. A finder that takes lines gets the shared lines; the others
+// (Python) read the file themselves, as before.
+func findFunctionsOf(finder LanguageFinder, path string, fileLines func() ([]string, error)) (*FindResult, error) {
+	lf, ok := finder.(linesFinder)
+	if !ok {
+		return finder.FindFunctions(path)
+	}
+	lines, err := fileLines()
+	if err != nil {
+		return nil, err
+	}
+	return lf.FindFunctionsInLines(lines, 1, path)
+}
+
+// findStructuresOf runs a struct finder on the shared lines of a file.
+func findStructuresOf(sf StructFinderInterface, path string, fileLines func() ([]string, error)) (*StructFindResult, error) {
+	lines, err := fileLines()
+	if err != nil {
+		return nil, err
+	}
+	return sf.FindStructuresInLines(lines, 1, path)
 }
 
 // AggregateDirResults aggregates results from multiple files

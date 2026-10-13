@@ -3,9 +3,8 @@
 package internal
 
 import (
-	"bufio"
-	"fmt"
-	"os"
+	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -59,21 +58,10 @@ func NewStructFinder(config *LanguageConfig, typeNamesStr string, mapMode bool) 
 
 // FindStructures finds all types in the file
 func (f *StructFinder) FindStructures(filename string) (*StructFindResult, error) {
-	file, err := os.Open(filename)
+	lines, err := readFileLines(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, err
 	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
 	return f.FindStructuresInLines(lines, 1, filename)
 }
 
@@ -109,6 +97,7 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 
 	// Use struct patterns from config if available, otherwise fall back to classRegex
 	structPatterns := f.config.GetStructPatterns()
+	patternKinds := structPatternOrder(structPatterns)
 	hasStructPatterns := len(structPatterns) > 0
 
 	for lineNum, line := range lines {
@@ -151,17 +140,12 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 
 			if hasStructPatterns {
 				// Use new struct patterns for type detection
-				for typeKind, pattern := range structPatterns {
+				for _, typeKind := range patternKinds {
+					pattern := structPatterns[typeKind]
 					matches := pattern.FindStringSubmatch(cleaned)
 					if matches != nil {
 						// Extract type name (last non-empty group)
-						typeName := ""
-						for i := len(matches) - 1; i >= 1; i-- {
-							if matches[i] != "" {
-								typeName = matches[i]
-								break
-							}
-						}
+						typeName := lastNonEmptyGroup(matches)
 
 						if typeName != "" && (f.mapMode || f.typeNames[typeName]) {
 							// Determine opening brace position
@@ -297,6 +281,27 @@ func (f *StructFinder) findAllTypes(lines []string, lineOffset int) []TypeBounds
 }
 
 // determineTypeKind determines the type kind from the matched pattern
+// lastNonEmptyGroup returns the last non-empty capture group of a struct pattern's match: the type's name.
+func lastNonEmptyGroup(matches []string) string {
+	for i := len(matches) - 1; i >= 1; i-- {
+		if matches[i] != "" {
+			return matches[i]
+		}
+	}
+	return ""
+}
+
+// structPatternOrder returns the pattern kinds in sorted order. When two patterns match the same line, the first
+// kind in this order names the type, so the kind does not depend on map iteration.
+func structPatternOrder(patterns map[string]*regexp.Regexp) []string {
+	kinds := make([]string, 0, len(patterns))
+	for kind := range patterns {
+		kinds = append(kinds, kind)
+	}
+	sort.Strings(kinds)
+	return kinds
+}
+
 func determineTypeKind(pattern string) string {
 	patternLower := strings.ToLower(pattern)
 	if strings.Contains(patternLower, "class") {

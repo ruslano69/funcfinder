@@ -2,6 +2,7 @@ package internal
 
 import (
 	"strings"
+	"unicode/utf8"
 )
 
 type ParserState int
@@ -553,11 +554,48 @@ func (s *Sanitizer) tryHandleBlockComment(line string, runes []rune, result []ru
 	}
 }
 
+// noLiteralStarts reports whether no string, character, comment, or percent or regex literal can start anywhere on
+// the line. Every handler in CleanLine fires only where one of the configured markers occurs, so when none occurs,
+// a line in the normal state cleans to itself. An empty marker matches everywhere: it disables the check.
+func (s *Sanitizer) noLiteralStarts(line string) bool {
+	c := s.config
+	for _, list := range [][]string{c.CharDelimiters, c.StringChars, c.RawStringChars, c.DocStringMarkers} {
+		for _, marker := range list {
+			if marker == "" || strings.Contains(line, marker) {
+				return false
+			}
+		}
+	}
+	for _, marker := range []string{c.LineComment, c.BlockCommentStart} {
+		if marker != "" && strings.Contains(line, marker) {
+			return false
+		}
+	}
+	if c.PercentLiterals && strings.Contains(line, "%") {
+		return false
+	}
+	if c.RegexLiterals && strings.Contains(line, "/") {
+		return false
+	}
+	return true
+}
+
 func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserState) {
 	if len(line) == 0 {
 		return line, state
 	}
 
+	// Fast path: nothing in a valid line in the normal state can start a literal or a comment, so the line is its own
+	// cleaned form and the rune conversion below is not needed.
+	if state == StateNormal && utf8.ValidString(line) && s.noLiteralStarts(line) {
+		return line, state
+	}
+
+	return s.cleanLineSlow(line, state)
+}
+
+// cleanLineSlow is the rune-by-rune cleaner that CleanLine's fast path must agree with.
+func (s *Sanitizer) cleanLineSlow(line string, state ParserState) (string, ParserState) {
 	// Size the buffer by rune count, not byte count: a byte-sized buffer would
 	// leave (bytes-runes) trailing spaces on lines containing multibyte runes.
 	runes := []rune(line)
@@ -653,6 +691,21 @@ func (s *Sanitizer) CleanLines(lines []string) []string {
 	}
 
 	return result
+}
+
+// CleanLinesStart is CleanLines that also returns the state each line starts in, so a caller that
+// needs both the cleaned text and the state at the start of a line does not clean the file twice.
+func (s *Sanitizer) CleanLinesStart(lines []string) ([]string, []ParserState) {
+	result := make([]string, len(lines))
+	starts := make([]ParserState, len(lines))
+	state := StateNormal
+
+	for i, line := range lines {
+		starts[i] = state
+		result[i], state = s.CleanLine(line, state)
+	}
+
+	return result, starts
 }
 
 func (s *Sanitizer) CleanCode(code string) string {

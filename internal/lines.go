@@ -8,6 +8,26 @@ import (
 	"strings"
 )
 
+// readFileLines reads every line of a file. Its errors name the step that failed; the finders
+// that open a file themselves report the same messages.
+func readFileLines(filename string) ([]string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+	return lines, nil
+}
+
 // LineRange represents a range of lines to extract
 type LineRange struct {
 	Start int // 1-based, inclusive

@@ -3,9 +3,6 @@
 package internal
 
 import (
-	"bufio"
-	"fmt"
-	"os"
 	"strings"
 )
 
@@ -37,7 +34,7 @@ func (f *StructFinderFactory) CreateStructFinder(config *LanguageConfig, typeNam
 	switch finderType {
 	case FinderTypeIndent:
 		// For indent-based languages (Python, Ruby), use special finder
-		return NewPythonStructFinder(*config, typeNamesStr, mapMode, extractMode)
+		return NewPythonStructFinder(config, typeNamesStr, mapMode, extractMode)
 
 	case FinderTypeHybrid:
 		// For hybrid languages (JavaScript, TypeScript with type aliases), use hybrid finder
@@ -66,8 +63,8 @@ func (f *StructFinderFactory) determineFinderType(config *LanguageConfig) Finder
 	// Check if language has struct patterns configured
 	if config.HasStructSupport() {
 		// Check for hybrid language patterns (type aliases, interfaces in JS/TS)
-		_, hasTypeAlias := config.structPatterns["type_alias"]
-		_, hasInterface := config.structPatterns["interface"]
+		hasTypeAlias := config.GetStructPattern("type_alias") != nil
+		hasInterface := config.GetStructPattern("interface") != nil
 
 		// JavaScript and TypeScript have both classes and type aliases
 		if hasTypeAlias || hasInterface {
@@ -114,21 +111,10 @@ func NewHybridStructFinder(config *LanguageConfig, typeNamesStr string, mapMode,
 
 // FindStructures finds all types in the file
 func (f *HybridStructFinder) FindStructures(filename string) (*StructFindResult, error) {
-	file, err := os.Open(filename)
+	lines, err := readFileLines(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, err
 	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
 	return f.FindStructuresInLines(lines, 1, filename)
 }
 
@@ -164,6 +150,8 @@ func (f *HybridStructFinder) findAllTypes(lines []string, lineOffset int) []Type
 
 	structPatterns := f.config.GetStructPatterns()
 
+	patternKinds := structPatternOrder(structPatterns)
+
 	for lineNum, line := range lines {
 		cleaned, newState := f.sanitizer.CleanLine(line, state)
 		state = newState
@@ -179,16 +167,11 @@ func (f *HybridStructFinder) findAllTypes(lines []string, lineOffset int) []Type
 			}
 		} else {
 			// Look for new type definition
-			for typeKind, pattern := range structPatterns {
+			for _, typeKind := range patternKinds {
+				pattern := structPatterns[typeKind]
 				matches := pattern.FindStringSubmatch(cleaned)
 				if matches != nil {
-					typeName := ""
-					for i := len(matches) - 1; i >= 1; i-- {
-						if matches[i] != "" {
-							typeName = matches[i]
-							break
-						}
-					}
+					typeName := lastNonEmptyGroup(matches)
 
 					if typeName != "" && (f.mapMode || f.typeNames[typeName]) {
 						braceCount := CountBraces(cleaned)

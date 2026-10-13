@@ -1,9 +1,6 @@
 package internal
 
 import (
-	"bufio"
-	"fmt"
-	"os"
 	"regexp"
 	"strings"
 )
@@ -451,22 +448,10 @@ func NewFinder(config *LanguageConfig, funcNames []string, mapMode, extractMode,
 
 // FindFunctions ищет функции в файле
 func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
-	file, err := os.Open(filename)
+	lines, err := readFileLines(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return nil, err
 	}
-	defer file.Close()
-
-	// Читаем файл построчно
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
 	return f.FindFunctionsInLines(lines, 1, filename)
 }
 
@@ -857,20 +842,19 @@ func (f *Finder) isKeywordName(name string) bool {
 
 // findFunctionsWithNesting - новая логика для языков с вложенными функциями
 func (f *Finder) findFunctionsWithNesting(lines []string, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
-	state := StateNormal
 	funcStack := []*FunctionContext{} // Стек активных функций
 	funcRegex := f.config.FuncRegex()
 	// The whole file, sanitized the same way line by line: a declaration's value may span lines.
-	cleanedLines := f.sanitizer.CleanLines(lines)
+	// The state each line starts in comes from the same pass, so a line is cleaned once.
+	cleanedLines, startStates := f.sanitizer.CleanLinesStart(lines)
 	// typeDepth: the type-literal braces (`query<{`) still open from earlier lines; they are not code braces.
 	typeDepth := 0
 
 	for lineNum, line := range lines {
 		// Очищаем строку от комментариев и литералов
-		inComment := state == StateBlockComment // the line starts inside a block comment
-		startsNormal := state == StateNormal    // the line starts outside any string or comment
-		cleaned, newState := f.sanitizer.CleanLine(line, state)
-		state = newState
+		inComment := startStates[lineNum] == StateBlockComment // the line starts inside a block comment
+		startsNormal := startStates[lineNum] == StateNormal    // the line starts outside any string or comment
+		cleaned := cleanedLines[lineNum]
 
 		var braceDelta int
 		braceDelta, typeDepth = braceDeltaSkippingTypeLiterals(cleaned, typeDepth)
