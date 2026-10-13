@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### D
+
+- The D function pattern runs only on lines that hold a `(` (`func_requires`), in the D preparation pass and in the
+  finder; the attribute pattern skips blank lines. Most D lines have no `(`, and the lines that the lexer blanks
+  (comments) are long runs of spaces, where the patterns backtracked for nothing. The output is unchanged. On arsd
+  (11 MB of D): `funcfinder --dir --all --json` 1.8 → 0.4 s, `complexity` 7.9 → 3.1 s, `funcstats` 8.1 → 3.3 s,
+  `callgraph` 10.7 → 4.3 s.
+
 ### Call graph (`callgraph`)
 
 - A directory run no longer finds every file's functions twice. The directory job finds them in parallel, and the call
