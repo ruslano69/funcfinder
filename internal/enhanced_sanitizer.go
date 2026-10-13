@@ -452,11 +452,36 @@ func (s *Sanitizer) tryHandleCharDelimiter(runes []rune, result []rune, idx int)
 	}
 	for _, char := range s.config.CharDelimiters {
 		if char != "" && s.matchesAt(runes, idx, char) {
+			if s.config.CharLiteralLookahead {
+				// A quote that does not close on this line is not a char literal (a Rust lifetime): it is code.
+				end := charLiteralEnd(runes, idx)
+				if end < 0 {
+					return idx, StateNormal, false
+				}
+				return end, StateNormal, true
+			}
 			replaceCharWithSpace(result, idx)
 			return idx + runeLen(char), StateCharLiteral, true
 		}
 	}
 	return idx, StateNormal, false
+}
+
+// charLiteralEnd returns the index just past the char literal that starts with the quote at idx, or -1 when the
+// quote does not start one. A literal is one character ('x', 'À') or an escape ('\n', '\'', '\u{a0}'),
+// closed on the same line. The result cells of a literal stay blank, as the sanitizer leaves them.
+func charLiteralEnd(runes []rune, idx int) int {
+	if idx+2 < len(runes) && runes[idx+1] != '\\' && runes[idx+2] == '\'' {
+		return idx + 3
+	}
+	if idx+3 < len(runes) && runes[idx+1] == '\\' {
+		for j := idx + 3; j < len(runes) && j < idx+12; j++ {
+			if runes[j] == '\'' {
+				return j + 1
+			}
+		}
+	}
+	return -1
 }
 
 func (s *Sanitizer) tryHandleLineComment(runes []rune, idx int) (int, bool) {
