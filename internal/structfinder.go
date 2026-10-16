@@ -96,6 +96,7 @@ func (f *StructFinder) findAllTypes(facts []LineFacts, lineOffset int) []TypeBou
 	var types []TypeBounds
 	var currentType *TypeBounds
 	depth := 0
+	inGoTypeGroup := false
 
 	// Use struct patterns from config if available, otherwise fall back to classRegex
 	structPatterns := f.config.GetStructPatterns()
@@ -138,11 +139,19 @@ func (f *StructFinder) findAllTypes(facts []LineFacts, lineOffset int) []TypeBou
 			// Look for new type definition using struct patterns
 			found := false
 
-			if hasStructPatterns && f.config.MayStartType(cleaned) {
+			// Go `type ( ... )` group members carry no `type` keyword of their own: read them with a
+			// virtual `type ` prefix so the same patterns match them. Alias members (`A = S`) match no
+			// struct pattern and stay aliases; the group open/close lines match nothing either.
+			scanLine := cleaned
+			if f.config.LangKey == "go" {
+				scanLine = goGroupMemberLine(cleaned, &inGoTypeGroup)
+			}
+
+			if hasStructPatterns && f.config.MayStartType(scanLine) {
 				// Use new struct patterns for type detection
 				for _, typeKind := range patternKinds {
 					pattern := structPatterns[typeKind]
-					matches := pattern.FindStringSubmatch(cleaned)
+					matches := pattern.FindStringSubmatch(scanLine)
 					if matches != nil {
 						// Extract type name (last non-empty group)
 						typeName := lastNonEmptyGroup(matches)

@@ -17,6 +17,24 @@ var (
 	goGroupCloseRe    = regexp.MustCompile(`^\s*\)\s*$`)
 )
 
+// goGroupMemberLine tracks a Go `type ( ... )` group across cleaned lines: inside a group it returns the member
+// line with a virtual `type ` prefix, so the struct patterns match it as a declaration; otherwise it returns the
+// line unchanged and only updates the group state. Alias members (`A = S`) match no struct pattern, so they stay
+// aliases; the group open/close lines match nothing either.
+func goGroupMemberLine(cleaned string, inGroup *bool) string {
+	if *inGroup {
+		if goGroupCloseRe.MatchString(cleaned) {
+			*inGroup = false
+			return cleaned
+		}
+		return "type " + cleaned
+	}
+	if goTypeGroupOpenRe.MatchString(cleaned) {
+		*inGroup = true
+	}
+	return cleaned
+}
+
 // findGoAliases returns the type aliases of a Go file: single-line `type A = S` declarations and the `A = S` lines
 // of `type ( ... )` groups. An assignment outside a type group is not an alias.
 func findGoAliases(lines []string) []AliasBounds {

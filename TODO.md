@@ -13,7 +13,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 
 | Language | Project (truth functions) | Correct | Wrong end | Missing | State |
 |---|---|---|---|---|---|
-| Go | gin (1342), funcfinder itself (603) | 100% | 0 | 0 | done |
+| Go | gin (1342), funcfinder itself (603) | 100% | 0 | 0 | done; re-measured on gin HEAD `0f09c3a` (1554 truth): 4 misses — one-line `struct{}` members of `type (...)` groups and multi-line `[]struct{...}` composites — fixed, now 1554/1554, 100%/100% |
 | Rust | kanzi-rs (490) | 100% | 0 | 0 | done |
 | Swift | Alamofire (1890), Kingfisher (109) | 99.6%, 100% | 2, 0 | 6, 0 | good |
 | Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |

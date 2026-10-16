@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Go: `type ( ... )` groups and multi-line composite types.** Group members
+  (`formBinding struct{}` inside `type ( ... )`) carry no `type` keyword of
+  their own and were invisible; they are now read with a virtual `type `
+  prefix (alias members `A = S` still match nothing and stay aliases). The
+  `named` pattern also accepts a trailing `{`, so `type testRequests []struct {`
+  spans its braces instead of being missed. On gin HEAD this closes the last 4
+  misses (recall 99.7% → 100.0%, precision 100.0%, 1554/1554 symbols vs
+  `go/ast`); self-host stays 100.0%/100.0%.
+
 ## v1.15.0 - 2026-10-13
 
 A performance release. Each tool was profiled on two large real projects, OmniRoute (6,843 TypeScript/JavaScript
