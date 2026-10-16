@@ -7,13 +7,17 @@ import (
 
 // FunctionBounds содержит информацию о границах функции
 type FunctionBounds struct {
-	Name       string
-	Start      int      // Номер строки начала (1-based)
-	End        int      // Номер строки конца (1-based)
-	Lines      []string // Тело функции (если extractMode)
-	Decorators []string // Декораторы функции (для Python, TypeScript, Java)
-	ClassName  string   // Имя класса, к которому принадлежит функция
-	Scope      string   // Scope функции (для совместимости)
+	// SignatureLine identifies the name/parameter-list line when a language's
+	// finder has that information. Zero retains regex-based signature detection.
+	SignatureLine int    `json:"-"`
+	SignatureName string `json:"-"` // declaration token, which differs for destructors/conversions
+	Name          string
+	Start         int      // Номер строки начала (1-based)
+	End           int      // Номер строки конца (1-based)
+	Lines         []string // Тело функции (если extractMode)
+	Decorators    []string // Декораторы функции (для Python, TypeScript, Java)
+	ClassName     string   // Имя класса, к которому принадлежит функция
+	Scope         string   // Scope функции (для совместимости)
 }
 
 // ClassBounds содержит информацию о границах класса
@@ -463,6 +467,8 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 	var dHeaderEnds map[int]int
 	var preparedFacts []LineFacts
 	switch f.config.LangKey {
+	case "cs":
+		return f.findCSharpFunctions(lines, startLine, filename)
 	case "php":
 		prepared = maskPHPHeredocs(lines, f.config)
 		preparedFacts = f.sanitizer.CleanLinesFacts(prepared)

@@ -13,6 +13,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 - `c_tree_eval.py` compares C definitions/prototypes after GCC preprocessing, mapped back to original source lines.
 - `ts_tree_eval.py` compares TypeScript functions, methods, signatures and variable-bound functions with tree-sitter-typescript.
 - `cpp_tree_eval.py` compares C++ functions, constructors, destructors and bodyless declarations with libclang, keeping only the active lines of `g++ -E`.
+- `csharp_roslyn_eval.py` builds `csharp_oracle.cs` against the installed SDK's Roslyn assemblies and compares C# named methods, constructors/destructors, local functions and operators, including bodyless declarations.
 - `README.md` owns evaluator usage and measurement limitations.
 - `searchserver/` contains the existing search-server load harness.
 
@@ -25,6 +26,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 - Scala/D evaluation excludes tree extras and trailing trivia from reference ends, reports excluded parse-error files and records grammar versions. D additionally records the downloaded grammar DLL hash and every audited grammar rejection (`oracle_rejected`): `final switch` statements and constructor-delegation calls mislabeled as declarations. Local class constructors remain in truth. Parser downloads belong in an explicitly configured build cache.
 - C++ evaluation uses libclang as the reference (not tree-sitter: its C++ grammar cannot parse fmt's headers). It records the libclang, compiler and system include directories, lists the scored `--pathspec`, and reports unparseable files explicitly. A function template's end is read from its tokens, because libclang's extent stops before a trailing return type.
 - Generated maps, clones and reports belong in ignored `build/`, not tracked source directories.
+- C# reference parsing uses Preview syntax with `FileBasedProgram` enabled and explicit `--define` symbols (empty by default). Report parse failures and candidates in disabled text separately. Record SDK/Roslyn versions, feature flags and the compiled oracle hash. The oracle needs no project dependencies or semantic compilation; anonymous lambdas, implicit primary constructors and property/event accessors are outside named-function truth. Conversion type names use compact syntax tokens.
 - C measurements record the compiler version/hash and exact C99 defines/include configuration. Score active source candidates; report inactive candidates and preprocessing/parse failures separately. Mask only GCC va_arg/offsetof expressions for grammar compatibility, preserving byte/newline coordinates; function-pointer variables and typedefs are not reference functions.
 
 ## Work Guidance
@@ -40,6 +42,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 - Run `python benchmarks/c_tree_eval.py --help` after changing its interface.
 - Run `python benchmarks/cpp_tree_eval.py --help` after changing its interface.
 - Run `python benchmarks/ts_tree_eval.py --help` after changing its interface.
+- Run `python benchmarks/csharp_roslyn_eval.py --help` after changing its interface.
 - Re-run the evaluator on the affected pinned reference projects after a measurement change.
 
 ## Child DOX Index

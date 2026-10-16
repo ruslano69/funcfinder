@@ -4,10 +4,10 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
-## Language coverage on real projects: status and next steps (2026-10-12)
+## Language coverage on real projects: status and next steps (2026-10-16)
 
 Earlier measurements used `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
-language); subsequent runs and their revisions are recorded below. Python, PHP, Scala/D, C and C++ evaluators now live in `benchmarks/`. Truth
+language); subsequent runs and their revisions are recorded below. Python, PHP, Scala/D, C, C++, TypeScript and C# evaluators now live in `benchmarks/`. Truth
 includes declarations without a body (interface, abstract, prototype members): the design lists
 them with their own span, so a missing C# or Java declaration counts as missing.
 
@@ -21,7 +21,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | TypeScript | hr_gemini (2988), zod (2072) | 100%, 99.3% | 0, 1 | 0, 14 | hr_gemini measured 2026-10-13 after the declarator fix (tree-sitter TypeScript reference, 0 false functions); zod measured before it, 3 false functions |
 | JavaScript | lodash (1918, minified) | 81.0% | 7 | 357 | open |
 | Java | gson (3480) | 89.5% | 0 | 364 | open |
-| C# | Polly (5070) | 74.9% | 3 | 1272 | open |
+| C# | Polly (5116), Dapper (1592) | 100%, 100% | 0, 0 | 0, 0 | measured 2026-10-16 with Roslyn; no false functions; 801/801 and 157/157 files; default symbols |
 | C++ | fmt (1450 truth) | 97.5% | 0 | 36 (19 conversion operators, 11 macro-generated) | measured 2026-10-13; 7 false functions (explicit instantiations) |
 | C++ | tinyxml2 (627 truth) | 99.8% | 0 | 1 | measured 2026-10-13; 0 false functions; `8224e427b655b83dae5e2298f1e6919523a78737` |
 | C | Lua (1568, including 391 prototypes) | 100% | 0 | 0 | local fix verified; no false functions; one GCC configuration |
@@ -29,6 +29,24 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | PHP | Monolog (1602), Symfony Routing (1125) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
 | Scala | scopt (380), os-lib (643) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
 | D | D-YAML (539), arsd (11705) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions; oracle accepts 34/35 and 120/125 files |
+
+C# was re-measured on 2026-10-16 on a working-tree fix based on `bf62c23`, using
+Python 3.14.6, .NET SDK 9.0.308 / Roslyn 4.14.0.0, Preview syntax and the
+`FileBasedProgram` feature. No preprocessor symbols were supplied. All 958 tracked
+`.cs` files parse successfully; 20 Polly and 113 Dapper candidates in disabled text
+are recorded outside scoring. Truth includes named methods, constructors,
+destructors, local functions and operators, including 175/29 bodyless declarations;
+anonymous lambdas, implicit primary constructors and property/event accessors are
+excluded. Conversion type names are compact syntax tokens. All 6708 measured
+declarations have correct names/header locations and exact end lines, with zero
+missing or false functions. On the same oracle, the `bf62c23` baseline had 1322/629
+missing, 80/14 false functions and 3/1 wrong ends. The finder keeps source ranges
+through the last branch of a conditional expression without evaluating symbols;
+these results describe the recorded default-symbol profile, not every build variant.
+Pins: Polly `ea41f708cfc33ba5ae01738ee8c5a1cf211fb9e9`,
+Dapper `eb47546a408bbf6c178bda4f04dc205bc51ffbfe`. Evaluator:
+`benchmarks/csharp_roslyn_eval.py` with `csharp_oracle.cs`; raw before/after JSON
+and executable/oracle hashes are in ignored `build/csharp-eval-20261016/`.
 
 Python was measured separately on 2026-10-12 on a working-tree fix based on `7b9131e`, built with `build.ps1`, against
 Python 3.14 `ast`. All tracked `.py` files were included (83/37/60 files, no parse errors).
@@ -146,11 +164,14 @@ exclusions. Truth is 1450 functions and declarations, 138 of them bodyless. On `
   `createStandardJSONSchemaMethod`, `registries.add<` over lines, `async "array-objects"`, and
   `loadPriorTriage` (return type with braces). zod false functions: the methods named `async` and `new`.
   zod wrong end: `validate-abort-sweep.ts` `deepInput` (truth 78-81): funcfinder ends it at 80.
-- [ ] **C#, Polly: 1272 missing.** Two causes. Multi-line signatures, and about 172 declarations
-  without a body (`void Foo();` in interfaces), which funcfinder does not list at all. A `;` at the
-  end of the header pattern was tried and rejected: +76 correct, but +211 false functions and 35
-  wrong ends, because calls inside bodies (`throw new X(a);`) match. A rule has to tell a
-  declaration from a statement call; the statement context is not visible to the pattern.
+- [x] **C#, Polly/Dapper: declaration context and function ends fixed locally.**
+  The C# token scan uses shared cleaned facts and distinguishes typed declarations from calls,
+  control statements, properties/indexers/events, primary type headers and object patterns.
+  It finds multiline/generic and explicit-interface methods, constructors/destructors, local
+  functions, operators and bodyless declarations, retaining original extraction and offsets.
+  `callgraph` and `funcstats` exclude declaration tokens using finder metadata; real recursion
+  remains, and C# local callers use the innermost scope. All 5116/1592 reference functions match
+  exactly in the documented profile. Tests: `internal/csharp_finder_test.go` and funcstats tests.
 - [x] **C++, fmt: 727 missing, now 36.** Fixed with header patterns and a few engine rules:
   nested parentheses in parameters, bodies on the header line, signatures that continue on later
   lines, constructors and destructors (in-class and out-of-class), operator symbols, template

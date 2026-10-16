@@ -216,6 +216,36 @@ python benchmarks/ts_tree_eval.py --root <zod-checkout> --label zod \
 The recorded zod profile uses `b500a2ee95134f81d74da7911d7378dd2853d042` and the
 hr_gemini profile `5b69a1eb`; both are measured on 2026-10-13 with tree-sitter-typescript 0.23.2.
 
+### C# named-function spans
+
+`csharp_roslyn_eval.py` compiles `csharp_oracle.cs` against Roslyn assemblies in
+the installed .NET SDK. It needs no NuGet packages or project compilation. The
+generated project, build output and CLI home stay under `--work-dir` in `build/`.
+
+```bash
+python benchmarks/csharp_roslyn_eval.py --root <polly-checkout> --label polly \
+  --binary ./funcfinder.exe --work-dir build/csharp-eval/oracle \
+  --output build/csharp-eval/polly.json
+```
+
+The reference includes methods, explicit constructors/destructors, local
+functions and operators, including bodyless declarations. It excludes anonymous
+lambdas, implicit primary constructors and property/event accessors. Conversion
+types are named by compact syntax tokens. Locations match one-to-one from the
+declaration's first attribute through its name; end lines match Roslyn exactly.
+
+The recorded run uses Python 3.14.6, SDK 9.0.308 and Roslyn 4.14.0.0 with Preview
+syntax and `FileBasedProgram` enabled (for Polly's `cake.cs`). Repeat `--define`
+to supply preprocessor symbols; the default is empty. Syntax errors exclude a
+file explicitly; candidates starting in disabled text are recorded separately.
+The finder retains all source branches and spans a conditional expression
+through its last branch, so other symbol profiles require separate measurements.
+
+Output records project/finder SHAs, dirty states, SDK/Roslyn versions, features,
+symbols and oracle/executable SHA-256 hashes. Exact project pins and results are
+in root `TODO.md`; these are syntax/location measurements, not semantic binding
+or a claim that every call-graph edge is type resolved.
+
 ### Go symbol maps
 
 | Project | Commit | Lang | Recall | Precision | Token savings | Notes |

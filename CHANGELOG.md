@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **C#: declaration context and function bounds.** Recognize multiline/generic
+  methods, constructors/destructors, local functions, operators, explicit
+  interface members and bodyless declarations. Calls, control statements,
+  properties and primary type headers no longer become functions. Expression
+  bodies retain nested lambdas and object initializers. `callgraph` and
+  `funcstats` use declaration coordinates to exclude signature tokens while
+  preserving recursion. Against SDK Roslyn, all 5116 Polly and 1592 Dapper
+  functions match on 958 tracked files in the recorded default-symbol profile;
+  disabled branches are reported separately. See `benchmarks/README.md`.
+
 - **Go: `type ( ... )` groups and multi-line composite types.** Group members
   (`formBinding struct{}` inside `type ( ... )`) carry no `type` keyword of
   their own and were invisible; they are now read with a virtual `type `

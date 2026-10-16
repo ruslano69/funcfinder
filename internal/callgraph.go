@@ -84,8 +84,19 @@ func buildFileCallGraph(
 	// turn, not merged: knownFuncs is every function of a directory run, and copying it once per file was most of
 	// the time of a callgraph run on a large tree.
 	fileFuncs := make(map[string]bool, len(funcs))
+	signatures := make(map[int]map[string]string)
 	for _, f := range funcs {
 		fileFuncs[f.Name] = true
+		if f.SignatureLine > 0 {
+			if signatures[f.SignatureLine] == nil {
+				signatures[f.SignatureLine] = make(map[string]string)
+			}
+			name := f.SignatureName
+			if name == "" {
+				name = f.Name
+			}
+			signatures[f.SignatureLine][f.Name] = name
+		}
 	}
 
 	// Build line → caller name index
@@ -101,6 +112,14 @@ func buildFileCallGraph(
 	sort.Slice(ranges, func(i, j int) bool { return ranges[i].start < ranges[j].start })
 
 	callerAt := func(lineNo int) string {
+		if langConfig.LangKey == "cs" {
+			for i := len(ranges) - 1; i >= 0; i-- {
+				if ranges[i].start <= lineNo && ranges[i].end >= lineNo {
+					return ranges[i].name
+				}
+			}
+			return ""
+		}
 		for _, r := range ranges {
 			if lineNo >= r.start && lineNo <= r.end {
 				return r.name
@@ -127,15 +146,11 @@ func buildFileCallGraph(
 			continue // outside any known function
 		}
 
-		// Is this the caller's own signature line? Re-check with FuncRegex
-		// — the same regex that decided this is a function in the first
-		// place — rather than trusting FunctionBounds.Start: a decorated
-		// Python function's Start points at its first decorator, not at
-		// "def name(", so comparing line numbers would miss it.
-		// The name the pattern captures is a part of the line, so a line without the caller's name cannot be its
-		// signature, and the costly pattern is not run on it.
-		isOwnSignatureLine := false
-		if funcRegex != nil && strings.Contains(clean, caller) {
+		// C# supplies the declaration token and its line, including split
+		// headers, destructors and conversions. Other finders retain the regex
+		// fallback: a decorated declaration may start before its name line.
+		signatureName, isOwnSignatureLine := signatures[lineNo][caller]
+		if langConfig.LangKey != "cs" && funcRegex != nil && strings.Contains(clean, caller) {
 			if m := funcRegex.FindStringSubmatch(clean); m != nil {
 				if ExtractFuncName(m) == caller {
 					isOwnSignatureLine = true
@@ -144,6 +159,7 @@ func buildFileCallGraph(
 		}
 
 		matches := callIdentRe.FindAllStringSubmatch(clean, -1)
+		skippedOwnSignature := false
 		for _, m := range matches {
 			var callee string
 			if m[1] != "" && m[2] != "" {
@@ -166,10 +182,14 @@ func buildFileCallGraph(
 			if callee == "" {
 				continue
 			}
-			if callee == caller && isOwnSignatureLine {
-				// The signature's own "name(" token, not a call — but a
-				// genuine recursive call elsewhere in the same function's
-				// body (isOwnSignatureLine false on that line) still counts.
+			ownName := callee == caller
+			if langConfig.LangKey == "cs" {
+				ownName = m[2] == signatureName || m[3] == signatureName
+			}
+			if ownName && isOwnSignatureLine && !skippedOwnSignature {
+				skippedOwnSignature = true
+				// Skip the declaration token once. A recursive call later on
+				// this same line, or elsewhere in the body, still counts.
 				continue
 			}
 			key := caller + "→" + callee
