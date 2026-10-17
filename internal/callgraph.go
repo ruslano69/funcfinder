@@ -112,7 +112,7 @@ func buildFileCallGraph(
 	sort.Slice(ranges, func(i, j int) bool { return ranges[i].start < ranges[j].start })
 
 	callerAt := func(lineNo int) string {
-		if langConfig.LangKey == "cs" {
+		if langConfig.LangKey == "cs" || langConfig.LangKey == "java" {
 			for i := len(ranges) - 1; i >= 0; i-- {
 				if ranges[i].start <= lineNo && ranges[i].end >= lineNo {
 					return ranges[i].name
@@ -146,11 +146,11 @@ func buildFileCallGraph(
 			continue // outside any known function
 		}
 
-		// C# supplies the declaration token and its line, including split
-		// headers, destructors and conversions. Other finders retain the regex
+		// C# and Java supply declaration coordinates, including split headers.
+		// C# also names destructors/conversions. Other finders retain the regex
 		// fallback: a decorated declaration may start before its name line.
 		signatureName, isOwnSignatureLine := signatures[lineNo][caller]
-		if langConfig.LangKey != "cs" && funcRegex != nil && strings.Contains(clean, caller) {
+		if langConfig.LangKey != "cs" && langConfig.LangKey != "java" && funcRegex != nil && strings.Contains(clean, caller) {
 			if m := funcRegex.FindStringSubmatch(clean); m != nil {
 				if ExtractFuncName(m) == caller {
 					isOwnSignatureLine = true
@@ -183,7 +183,7 @@ func buildFileCallGraph(
 				continue
 			}
 			ownName := callee == caller
-			if langConfig.LangKey == "cs" {
+			if langConfig.LangKey == "cs" || langConfig.LangKey == "java" {
 				ownName = m[2] == signatureName || m[3] == signatureName
 			}
 			if ownName && isOwnSignatureLine && !skippedOwnSignature {

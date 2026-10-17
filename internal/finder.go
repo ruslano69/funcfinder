@@ -469,6 +469,8 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 	switch f.config.LangKey {
 	case "cs":
 		return f.findCSharpFunctions(lines, startLine, filename)
+	case "java":
+		return f.findJavaFunctions(lines, startLine, filename)
 	case "php":
 		prepared = maskPHPHeredocs(lines, f.config)
 		preparedFacts = f.sanitizer.CleanLinesFacts(prepared)

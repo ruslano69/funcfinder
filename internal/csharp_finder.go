@@ -42,6 +42,12 @@ func csIdentifier(text string) bool {
 }
 
 func csTokens(facts []LineFacts) ([]csToken, []int) {
+	return braceTokens(facts, false)
+}
+
+// Java additionally permits dollar signs in identifiers. Keep the C# token
+// rules unchanged while sharing bracket pairing and source coordinates.
+func braceTokens(facts []LineFacts, java bool) ([]csToken, []int) {
 	var tokens []csToken
 	var pairs []int
 	stacks := map[string][]int{"(": {}, "[": {}, "{": {}}
@@ -56,8 +62,8 @@ func csTokens(facts []LineFacts) ([]csToken, []int) {
 				continue
 			}
 			end := i + 1
-			if unicode.IsLetter(chars[i]) || chars[i] == '_' || chars[i] == '@' {
-				for end < len(chars) && (unicode.IsLetter(chars[end]) || unicode.IsDigit(chars[end]) || chars[end] == '_') {
+			if unicode.IsLetter(chars[i]) || chars[i] == '_' || chars[i] == '@' || java && chars[i] == '$' {
+				for end < len(chars) && (unicode.IsLetter(chars[end]) || unicode.IsDigit(chars[end]) || chars[end] == '_' || java && chars[end] == '$') {
 					end++
 				}
 			}

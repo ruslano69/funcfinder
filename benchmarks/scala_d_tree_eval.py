@@ -1,4 +1,4 @@
-"""Score tracked Scala/D named functions and declarations against tree-sitter."""
+"""Score tracked Scala/D/Java named functions and declarations against tree-sitter."""
 import argparse
 import bisect
 import collections
@@ -24,6 +24,9 @@ def symbols(tree, source, language, rejected=None):
         if language == 'scala' and node.type in {'function_definition', 'function_declaration'}:
             name = node.child_by_field_name('name')
             bodyless = node.type == 'function_declaration'
+        elif language == 'java' and node.type in {'method_declaration', 'constructor_declaration', 'compact_constructor_declaration', 'annotation_type_element_declaration'}:
+            name = node.child_by_field_name('name')
+            bodyless = node.child_by_field_name('body') is None
         elif language == 'd' and node.type in {'function_declaration', 'constructor', 'destructor', 'postblit'}:
             if node.type == 'function_declaration':
                 name = next((c for c in node.named_children if c.type == 'identifier'), None)
@@ -77,11 +80,15 @@ def significant_end(node):
 
 def evaluate(args):
     sys.path.insert(0, str(pathlib.Path(args.module_dir).resolve()))
-    if args.language == 'scala':
+    if args.language in {'scala', 'java'}:
         from tree_sitter import Language, Parser
-        import tree_sitter_scala
-        parser = Parser(Language(tree_sitter_scala.language()))
-        grammar = {'grammar_package': 'tree-sitter-scala', 'grammar_version': importlib.metadata.version('tree-sitter-scala')}
+        if args.language == 'scala':
+            import tree_sitter_scala as syntax
+        else:
+            import tree_sitter_java as syntax
+        parser = Parser(Language(syntax.language()))
+        package = 'tree-sitter-' + args.language
+        grammar = {'grammar_package': package, 'grammar_version': importlib.metadata.version(package)}
     else:
         import tree_sitter_language_pack as pack
         cache = pathlib.Path(args.grammar_cache).resolve()
@@ -94,7 +101,7 @@ def evaluate(args):
     binary = pathlib.Path(args.binary).resolve()
     repo = pathlib.Path(__file__).resolve().parent.parent
     git = ['git', '-c', f'safe.directory={root.as_posix()}', '-C', str(root)]
-    suffix = '.scala' if args.language == 'scala' else '.d'
+    suffix = {'scala': '.scala', 'd': '.d', 'java': '.java'}[args.language]
     paths = [root / p for p in subprocess.check_output(git + ['ls-files', '-z'], text=True).split('\0') if p.endswith(suffix)]
     counts = collections.Counter({k: 0 for k in ['files', 'unparseable', 'oracle_rejected', 'truth', 'bodyless_truth', 'candidate', 'found', 'missing', 'false_positive', 'correct_end', 'wrong_end']})
     findings, artifacts = [], []
@@ -156,7 +163,7 @@ def evaluate(args):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--language', required=True, choices=['scala', 'd'])
+    ap.add_argument('--language', required=True, choices=['scala', 'd', 'java'])
     ap.add_argument('--root', required=True)
     ap.add_argument('--label', required=True)
     ap.add_argument('--binary', required=True)

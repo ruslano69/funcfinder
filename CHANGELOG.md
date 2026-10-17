@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## v1.15.1 - 2026-10-17
+
+- **Java: declaration context and function bounds.** Find methods of anonymous
+  and local classes, constructors, annotated/generic multiline signatures,
+  compact record constructors and bodyless members, including annotation
+  defaults. Calls no longer become functions. Retain original extraction and
+  declaration coordinates for `callgraph`/`funcstats`; nested method callers
+  and genuine recursion remain visible. On Gson `e2292f9`, all 3492 reference
+  functions match, with zero missing/false functions or wrong ends (previously
+  367 missing and 55 false). All 767 named types match by name/header location;
+  exact type ends are not scored. This is one syntax profile, not general Java
+  coverage. Complete CLI parsing is slower than the old incomplete parser;
+  timing ranges and reproduction are in `benchmarks/JAVA_FIX.md`.
+
 - **C#: declaration context and function bounds.** Recognize multiline/generic
   methods, constructors/destructors, local functions, operators, explicit
   interface members and bodyless declarations. Calls, control statements,

@@ -246,6 +246,152 @@ symbols and oracle/executable SHA-256 hashes. Exact project pins and results are
 in root `TODO.md`; these are syntax/location measurements, not semantic binding
 or a claim that every call-graph edge is type resolved.
 
+### C# linear versus recursive scope traversal
+
+`csharp_traversal_compare.py` compares the production scanner with the prototype
+in `internal/csharp_recursive_test.go`. Only brace-scope traversal changes;
+sanitizing, tokenization, declaration recognition and endpoint rules are shared.
+This measures explicit scope state versus recursive calls, not a complete C#
+grammar parser or AST construction. The prototype stays out of production builds.
+A Go overlay builds it as the CLI finder and runs the existing tests unchanged.
+
+```bash
+python benchmarks/csharp_traversal_compare.py \
+  --root build/csharp-eval-20261016/repos/polly \
+  --root build/csharp-eval-20261016/repos/dapper \
+  --work-dir build/csharp-traversal-20261016
+```
+
+Use the Python runtime and local SDK required by the C# evaluator. Defaults are
+10 in-process samples per variant (five per traversal order, one-second target,
+one Go CPU), then 20 paired CLI samples per variant after two warmups. In-process
+runs preload tracked `.cs` files and include finder construction, sanitizing,
+tokenization and traversal. CLI runs use `--dir --all --json --no-gitignore`,
+default workers and warm filesystem caches; they include process startup, disk
+reads, type discovery and captured JSON output. Entire CLI outputs must agree.
+Both builds are also scored independently by the Roslyn evaluator.
+
+`comparison.json` retains samples, versions, project pins, source/executable
+hashes, flags, memory allocations and Roslyn summaries. `in-process.txt` contains
+the raw Go benchmark output. Size counts cover LF-normalized UTF-8 source for
+the full effective finder and its traversal separately, excluding tests/harness;
+binary sizes use identical Go build flags. Complete-result parity (including
+class scope, signature metadata and extracted text) runs through
+`TestCSharpTraversalParity` with the same roots, in three modes and with a
+1024-block nested example. [The recorded comparison](CSHARP_TRAVERSAL_COMPARISON.md)
+contains results and limitations; root `TODO.md` records the status.
+
+### Shared recursive pilot: C#, Java and D
+
+[BRACE_PILOT.md](BRACE_PILOT.md) describes the event-based walker and its language
+adapters. The implementation is test-only; `brace_pilot_build.py` builds/tests a
+CLI overlay without changing production dispatch. Python and Ruby are excluded.
+The previous C# traversal timings apply to its standalone prototype, not this
+new shared implementation.
+
+```bash
+python benchmarks/brace_pilot_build.py --work-dir build/brace-pilot-20261016 \
+  --cs-root build/csharp-eval-20261016/repos/polly \
+  --cs-root build/csharp-eval-20261016/repos/dapper
+```
+
+Use `csharp_roslyn_eval.py` for C# and the existing `scala_d_tree_eval.py` for D.
+That evaluator now also accepts `--language java` with `tree-sitter-java`:
+
+```bash
+python -m pip install --target build/eval-runtime --no-deps tree-sitter-java==0.23.5
+python benchmarks/scala_d_tree_eval.py --language java --root <gson-checkout> \
+  --label gson --binary build/brace-pilot-20261016/funcfinder-pilot.exe \
+  --module-dir build/eval-runtime --output build/brace-pilot-20261016/gson.pilot.json
+```
+
+Java truth covers methods, explicit/compact constructors and annotation-type
+elements, including methods of anonymous/local classes and bodyless members.
+It excludes implicit record constructors and lambdas. The recorded Gson pin is
+`e2292f9c9f2e07a4791827e8eea34aa7d80545d6`, with tree-sitter 0.26.0 and
+tree-sitter-java 0.23.5; all 264 tracked files parse.
+
+### D speed: production versus shared pilot
+
+After `brace_pilot_build.py`, measure the verified binaries and the two complete
+D finder paths with:
+
+```bash
+python benchmarks/d_traversal_compare.py \
+  --root build/language-eval-20261012/repos/arsd \
+  --root build/language-eval-20261012/repos/d-yaml \
+  --build-dir build/brace-pilot-20261016 --work-dir build/d-traversal-20261016
+```
+
+The default run takes ten serial parser samples per variant (five per order,
+one-second target, one Go CPU) on preloaded tracked `.d` files, including all
+six files excluded by the reference grammar. Parsing includes D preparation,
+class discovery and function discovery. It compares the complete production
+implementation with the shared pilot and its adapter; it does not isolate the
+cost of recursive calls.
+
+Twenty paired CLI samples per variant follow two warmups. Commands use the
+original clones with `--dir --all --json --no-gitignore`, default workers and
+warm file caches. Arsd also has one PHP source that is unchanged between builds.
+CLI time includes startup, walking, reads, type discovery and captured output.
+Output must be stable within a variant; both initial maps, their hashes/counts
+and equality are recorded without assuming equivalent raw output on unscored
+files or identical declaration starts/class scopes.
+
+`comparison.json` retains all samples, versions, pins, build/source hashes and
+allocation metrics; `in-process.txt` holds the raw Go benchmark output. Allocated
+bytes are total allocations rather than peak RAM. Results are recorded in
+`BRACE_PILOT.md` and root `TODO.md`.
+
+### Production Java fix
+
+The default Java parser uses a linear token walk with an explicit scope stack.
+On Gson `e2292f9`, it matches all 3492 named reference functions with correct
+ends and no missing/false functions, and all 767 named types by header location.
+Type ends are not independently scored. The previous production path missed
+367 functions and reported 55 false functions. See [JAVA_FIX.md](JAVA_FIX.md)
+for reproduction, complete timing ranges and corpus limits. The recursive
+pilot measurements above describe the earlier baseline and remain separate.
+
+`java_finder_compare.py` accepts `--before`, `--after`, optional `--pilot`,
+`--root` and `--work-dir`; defaults are twenty shuffled samples and two warmups
+for one/CPU-count file workers. It retains maps and hashes and requires stable
+output within each variant. It does not assume before/after map equality or
+measure parser-only time.
+
+### Optional scope-parallel pilot
+
+After building the shared serial pilot, compare bounded parallel scope bodies
+against the verified serial and production binaries:
+
+```bash
+python benchmarks/brace_parallel_compare.py \
+  --root build/language-eval-20261012/repos/arsd \
+  --root build/language-eval-20261012/repos/d-yaml \
+  --serial-build-dir build/brace-pilot-20261016 \
+  --work-dir build/brace-parallel-20261016 \
+  --parity-project cs=build/csharp-eval-20261016/repos/polly \
+  --parity-project cs=build/csharp-eval-20261016/repos/dapper \
+  --parity-project java=build/brace-pilot-20261016/repos/gson
+```
+
+The runner builds/tests/vets a third overlay, requires exact serial-pilot parity
+on supplied corpora and all timed CLI output, then measures file workers 1/CPU
+count and scope budgets 4/16/32 (clamped to CPU count). Defaults: 2048-token
+threshold, one warmup, three shuffled sample rounds. `GOMAXPROCS` uses all
+logical CPUs. Windows process CPU time supplies average whole-run utilization;
+other platforms retain wall timings without this CPU reading. The scheduler
+uses one global extra-task budget across file workers. It leaves preparation
+and tokenization sequential within each file. See [BRACE_PARALLEL.md](BRACE_PARALLEL.md)
+for the negative scaling result, complete matrix, verification and limits.
+
+For Java/Gson, use `--language java --root build/brace-pilot-20261016/repos/gson`
+and a separate work directory. The recorded Java run used ten samples and two
+warmups (`--samples 10 --warmups 2`) with
+`--work-dir build/brace-parallel-java-20261016`; omit the D
+roots and optional extra parity projects from the command above. `--language`
+defaults to `d` and accepts `cs`, `java` and `d`.
+
 ### Go symbol maps
 
 | Project | Commit | Lang | Recall | Precision | Token savings | Notes |
