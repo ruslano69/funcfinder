@@ -8,6 +8,40 @@ import (
 	"github.com/ruslano69/funcfinder/internal"
 )
 
+func TestCallCounts_JavaSplitAndInlineSignatures(t *testing.T) {
+	counts := callCountsOf(t, "java", "sample.java", `class C {
+    @Deprecated
+    public <T> T
+    unused(T value) { return value; }
+    int
+    recurse(int n) { return n > 0 ? recurse(n - 1) : 0; }
+    void inline() { inline(); }
+    @interface Tag { String[] names() default {"a", "b"}; }
+}`)
+	for name, want := range map[string]int{"unused": 0, "recurse": 1, "inline": 1, "names": 0} {
+		if counts[name] != want {
+			t.Errorf("%s count = %d, want %d; all counts: %v", name, counts[name], want, counts)
+		}
+	}
+}
+
+func TestCallCounts_CSharpSignaturesAndRealRecursion(t *testing.T) {
+	counts := callCountsOf(t, "cs", "sample.cs", `class C {
+    C() { }
+    int Recurse(int n) {
+        return n > 0 ? Recurse(n - 1) : 0;
+    }
+    void Inline() => Inline();
+    ~C() { }
+    public static implicit operator C(int n) => new C();
+}`)
+	for name, want := range map[string]int{"Recurse": 1, "Inline": 1, "C": 1} {
+		if counts[name] != want {
+			t.Errorf("%s count = %d, want %d; all counts: %v", name, counts[name], want, counts)
+		}
+	}
+}
+
 // callCountsOf writes src to a temp file and runs analyzeFile against it,
 // mirroring cmd/complexity/nesting_test.go's depthOf helper style.
 func callCountsOf(t *testing.T, lang, filename, src string) map[string]int {

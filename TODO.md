@@ -4,10 +4,10 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
-## Language coverage on real projects: status and next steps (2026-10-12)
+## Language coverage on real projects: status and next steps (2026-10-17)
 
 Earlier measurements used `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
-language); subsequent runs and their revisions are recorded below. Python, PHP, Scala/D, C and C++ evaluators now live in `benchmarks/`. Truth
+language); subsequent runs and their revisions are recorded below. Python, PHP, Scala/D, C, C++, TypeScript and C# evaluators now live in `benchmarks/`. Truth
 includes declarations without a body (interface, abstract, prototype members): the design lists
 them with their own span, so a missing C# or Java declaration counts as missing.
 
@@ -20,8 +20,8 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
 | TypeScript | hr_gemini (2988), zod (2072) | 100%, 99.3% | 0, 1 | 0, 14 | hr_gemini measured 2026-10-13 after the declarator fix (tree-sitter TypeScript reference, 0 false functions); zod measured before it, 3 false functions |
 | JavaScript | lodash (1918, minified) | 81.0% | 7 | 357 | open |
-| Java | gson (3480) | 89.5% | 0 | 364 | open |
-| C# | Polly (5070) | 74.9% | 3 | 1272 | open |
+| Java | gson (3492) | 100% | 0 | 0 | production linear-token fix verified on `e2292f9`; 264/264 files, 0 false functions; 767/767 named types match header locations; recursive pilot remains separate |
+| C# | Polly (5116), Dapper (1592) | 100%, 100% | 0, 0 | 0, 0 | measured 2026-10-16 with Roslyn; no false functions; 801/801 and 157/157 files; default symbols |
 | C++ | fmt (1450 truth) | 97.5% | 0 | 36 (19 conversion operators, 11 macro-generated) | measured 2026-10-13; 7 false functions (explicit instantiations) |
 | C++ | tinyxml2 (627 truth) | 99.8% | 0 | 1 | measured 2026-10-13; 0 false functions; `8224e427b655b83dae5e2298f1e6919523a78737` |
 | C | Lua (1568, including 391 prototypes) | 100% | 0 | 0 | local fix verified; no false functions; one GCC configuration |
@@ -29,6 +29,98 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | PHP | Monolog (1602), Symfony Routing (1125) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
 | Scala | scopt (380), os-lib (643) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions |
 | D | D-YAML (539), arsd (11705) | 100%, 100% | 0, 0 | 0, 0 | local fix verified; no false functions; oracle accepts 34/35 and 120/125 files |
+
+C# was re-measured on 2026-10-16 on a working-tree fix based on `bf62c23`, using
+Python 3.14.6, .NET SDK 9.0.308 / Roslyn 4.14.0.0, Preview syntax and the
+`FileBasedProgram` feature. No preprocessor symbols were supplied. All 958 tracked
+`.cs` files parse successfully; 20 Polly and 113 Dapper candidates in disabled text
+are recorded outside scoring. Truth includes named methods, constructors,
+destructors, local functions and operators, including 175/29 bodyless declarations;
+anonymous lambdas, implicit primary constructors and property/event accessors are
+excluded. Conversion type names are compact syntax tokens. All 6708 measured
+declarations have correct names/header locations and exact end lines, with zero
+missing or false functions. On the same oracle, the `bf62c23` baseline had 1322/629
+missing, 80/14 false functions and 3/1 wrong ends. The finder keeps source ranges
+through the last branch of a conditional expression without evaluating symbols;
+these results describe the recorded default-symbol profile, not every build variant.
+Pins: Polly `ea41f708cfc33ba5ae01738ee8c5a1cf211fb9e9`,
+Dapper `eb47546a408bbf6c178bda4f04dc205bc51ffbfe`. Evaluator:
+`benchmarks/csharp_roslyn_eval.py` with `csharp_oracle.cs`; raw before/after JSON
+and executable/oracle hashes are in ignored `build/csharp-eval-20261016/`.
+
+C# scope traversal was compared on the same pins against the test-only recursive
+prototype on 2026-10-16 (base `8e5cf67`, Go 1.25.7, Windows/Ryzen 9 5950X).
+Ten serial in-process samples per variant give median parser times 125.152 →
+123.609 ms for Polly and 38.101 → 37.240 ms for Dapper, with 0.75%/1.50% fewer
+allocated bytes. Twenty paired CLI samples per variant are effectively equal:
+146.369/146.373 ms and 70.226/70.254 ms. Traversal is 83 → 69 lines; the whole
+effective finder is 447 → 433 lines. Both independently retain 6708/6708 correct
+Roslyn functions and complete-result parity in map/extraction/offset/selection
+modes. Default production traversal is unchanged. Shared tokenization/signature
+rules are identical; this does not compare full grammar parsers. See
+`benchmarks/CSHARP_TRAVERSAL_COMPARISON.md`; raw samples and hashes are in
+ignored `build/csharp-traversal-20261016/`.
+
+The shared recursive pilot now covers C#, Java and D, with Python and Ruby
+excluded. On the same C# and D pins plus Gson `e2292f9`, independent references
+find all 22444 measured declarations with correct ends and no false functions:
+C# 6708, Java 3492, D 12244. D retains the six existing parse-error exclusions
+(120/125 arsd and 34/35 D-YAML files); C# retains its default-symbol profile.
+The walker owns nesting/context/extraction; adapters own signature, block and
+preparation rules. Default production dispatch is unchanged. See
+`benchmarks/BRACE_PILOT.md`; artifacts are in `build/brace-pilot-20261016/`.
+
+D speed of the shared pilot was measured separately on all tracked D files
+(125 arsd, 35 D-YAML), including the six reference exclusions. Ten serial parser
+samples and twenty paired CLI samples per variant: arsd 2238.230 → 4888.042 ms
+parser (2.18x slower), 441.851 → 1957.523 ms complete CLI (4.43x slower), allocated
+bytes 231.212 → 1434.969 decimal MB (6.21x). D-YAML 267.529 → 279.766 ms parser;
+113.920 → 110.128 ms CLI (overlapping ranges), allocations 12.306 → 23.220 MB.
+The current D pilot must not replace production yet. Profiling points to repeated
+header reconstruction/normalization and regex matching in the adapter. CLI type
+maps also differ (arsd 4451/2857, D-YAML 90/74 entries), outside the named-function
+oracle; establish type-map parity before promotion. Raw samples/profiles and
+maps: `build/d-traversal-20261016/`; method/results: `benchmarks/BRACE_PILOT.md`.
+
+After the user stopped background work, identical binaries/inputs/settings were
+remeasured in `build/d-traversal-20261016-quiet/`: arsd 2234.783/4808.390 ms
+serial parsing (2.15x) and 396.890/1809.914 ms CLI (4.56x). D-YAML
+263.803/233.988 ms parsing, 89.293/89.196 ms CLI. Arsd's regression persists;
+allocation totals are unchanged. Parser benchmarks deliberately use one Go CPU;
+directory CLI uses file-level parallelism with the default CPU-count workers.
+
+A bounded within-file scope scheduler was tried separately on the same pins
+(`benchmarks/BRACE_PARALLEL.md`). With 32 file workers, adding up to 31 scope
+tasks changes arsd CLI median 1804.244 → 1828.307 ms and D-YAML 86.579 →
+86.739 ms (three samples/case). Arsd mean total CPU utilization rises only
+12.4% → 13.5%. One file worker gives 4965.057 → 4884.765 ms on arsd, too
+small a change to establish a gain in this exploratory run. Exact ordered
+serial-pilot parity holds on all 1382 tracked C#/Java/D files; scheduler race
+checks pass. Keep it test-only: serial preparation and parent-side header
+recognition remain, and production type-map parity is still unresolved.
+
+Java/Gson was then measured with the same scope scheduler (ten samples/case,
+two warmups; `build/brace-parallel-java-20261016/`). With 32 file workers:
+production 47.165 ms, serial pilot 68.369 ms, parallel pilot with scope budget
+32: 69.646 ms. With one file worker: 146.582 / 158.297 / 156.413 ms.
+Scope parallelism again gives no useful scaling; ordered results on all 264
+Java files and timed CLI text match the serial pilot exactly. Tests/vet pass.
+The pre-fix production/pilot timing gap includes different recognition: the unchanged
+pilot matches all 3492 reference declarations; the old production has 367 misses and
+55 false functions. This is not an isolated recursion-cost comparison.
+
+The production Java path is now fixed independently of the recursive pilot:
+`java_finder.go` uses a linear token walk and explicit scope stack. All 3492
+Gson reference functions have correct ends, zero misses and zero false names;
+all 767 named types match names/header locations without duplicates. The type
+audit does not score end boundaries. Shared bracket pairing retains C# output
+byte-for-byte on Polly/Dapper. Unit tests, complete tests, vet, race checks and
+all five tool builds pass. Raw artifacts: `build/java-fix-20261016/`;
+method, final timing ranges and limits: `benchmarks/JAVA_FIX.md`. The final
+20-sample CLI run is noisy (an old-parser outlier reaches 2.27 s); its medians
+are 70.501 → 113.450 ms at 32 file workers and 179.799 → 181.555 ms at one.
+The correct parser is slower than the old incomplete path; no precise speed
+ratio is established under this load.
 
 Python was measured separately on 2026-10-12 on a working-tree fix based on `7b9131e`, built with `build.ps1`, against
 Python 3.14 `ast`. All tracked `.py` files were included (83/37/60 files, no parse errors).
@@ -146,11 +238,14 @@ exclusions. Truth is 1450 functions and declarations, 138 of them bodyless. On `
   `createStandardJSONSchemaMethod`, `registries.add<` over lines, `async "array-objects"`, and
   `loadPriorTriage` (return type with braces). zod false functions: the methods named `async` and `new`.
   zod wrong end: `validate-abort-sweep.ts` `deepInput` (truth 78-81): funcfinder ends it at 80.
-- [ ] **C#, Polly: 1272 missing.** Two causes. Multi-line signatures, and about 172 declarations
-  without a body (`void Foo();` in interfaces), which funcfinder does not list at all. A `;` at the
-  end of the header pattern was tried and rejected: +76 correct, but +211 false functions and 35
-  wrong ends, because calls inside bodies (`throw new X(a);`) match. A rule has to tell a
-  declaration from a statement call; the statement context is not visible to the pattern.
+- [x] **C#, Polly/Dapper: declaration context and function ends fixed locally.**
+  The C# token scan uses shared cleaned facts and distinguishes typed declarations from calls,
+  control statements, properties/indexers/events, primary type headers and object patterns.
+  It finds multiline/generic and explicit-interface methods, constructors/destructors, local
+  functions, operators and bodyless declarations, retaining original extraction and offsets.
+  `callgraph` and `funcstats` exclude declaration tokens using finder metadata; real recursion
+  remains, and C# local callers use the innermost scope. All 5116/1592 reference functions match
+  exactly in the documented profile. Tests: `internal/csharp_finder_test.go` and funcstats tests.
 - [x] **C++, fmt: 727 missing, now 36.** Fixed with header patterns and a few engine rules:
   nested parentheses in parameters, bodies on the header line, signatures that continue on later
   lines, constructors and destructors (in-class and out-of-class), operator symbols, template
@@ -160,8 +255,12 @@ exclusions. Truth is 1450 functions and declarations, 138 of them bodyless. On `
   `FMT_*` macros (11), template specializations and `template <...>` headers that do not fit
   one line (6), and the 7 false functions in the table. The C++20 module unit and the x86 builtin
   file are not measured.
-- [ ] **Java, gson: 364 missing (10.5%).** Not analysed yet. Suspects: methods of nested classes and
-  constructors. Measure before changing anything.
+- [ ] **Promote the shared C#/Java/D recursive pilot after performance and wider-corpus validation.**
+  On Gson `e2292f9`, the pilot and the independent production Java fix both retain
+  3492 correct functions, including annotation elements. C# and measured D quality are retained.
+  The recursive implementation is still test-only. First remove the measured D regression (arsd 2.18x slower
+  serial parsing, 4.43x slower CLI, 6.21x allocated bytes) and establish type-map parity;
+  optimize repeated header construction/normalization and matching in the D adapter.
 - [ ] **Kotlin, NekoBox `ServiceButton.kt`: `counters` ends late.** A local expression body is
   followed by an `if` block, and the `if` is read as the body. It was missing before PR #76, so this
   is not a regression, but it is a wrong span now. A rule for a statement keyword that cannot
@@ -429,7 +528,7 @@ fix sequence (safe → risky). Checkboxes track progress.
     `finder_unicode_test.go`). Cost: Unicode RE2 classes ~28% slower on the
     affected patterns (microseconds/line), dwarfed by the 2.5x sanitizer speed-up
     and negligible end-to-end. Benchmarks in `identifiers_bench_test.go`.
-  - Note (left as-is, minor): return-type matchers in C/C++/C#/Java/D
+  - Note (left as-is, minor): regex return-type matchers in C/C++/D
     (`[\w\s\*]+`) and decorator/annotation patterns stay ASCII — a Unicode-named
     *return type* or attribute won't match, though the *name* will.
 - [x] **`finder.go` dead branch** (`findFunctionsSimple`) — REMOVED. Confirmed

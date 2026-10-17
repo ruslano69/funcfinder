@@ -108,9 +108,20 @@ func analyzeLines(filename string, lines []string, config *internal.LanguageConf
 	// effort: an error here just means no self-definition line is skipped,
 	// same as funcstats' behavior before this existed.
 	definedNames := make(map[string]bool)
+	signatures := make(map[int]map[string]bool)
 	if fr, ferr := internal.FindFunctionsInFile(internal.CreateFinder(config, "", "map", false, false), filename, lines); ferr == nil {
 		for _, fn := range fr.Functions {
 			definedNames[fn.Name] = true
+			if fn.SignatureLine > 0 {
+				if signatures[fn.SignatureLine] == nil {
+					signatures[fn.SignatureLine] = make(map[string]bool)
+				}
+				name := fn.SignatureName
+				if name == "" {
+					name = fn.Name
+				}
+				signatures[fn.SignatureLine][name] = true
+			}
 		}
 	}
 	funcRegex := config.FuncRegex()
@@ -134,7 +145,7 @@ func analyzeLines(filename string, lines []string, config *internal.LanguageConf
 	sanitizer := internal.NewSanitizer(config, false)
 	state := internal.StateNormal
 
-	for _, line := range lines {
+	for lineIndex, line := range lines {
 		metrics.TotalLines++
 
 		trimmed := strings.TrimSpace(line)
@@ -187,14 +198,11 @@ func analyzeLines(filename string, lines []string, config *internal.LanguageConf
 			continue
 		}
 
-		// If this line is itself a function/method signature (per the same
-		// FuncRegex that decided it's a function), note its name so the
-		// matching call-site match below — its own "name(" token — is
-		// skipped instead of counted as a call to itself. A genuine call to
-		// that name elsewhere, including a recursive call later in the same
-		// function's body, is on a different line and unaffected.
+		// Prefer C#/Java declaration coordinates from the finder. Other languages
+		// identify signature lines through their configured function pattern.
+		// Skip only the declaration token, retaining real recursive calls.
 		selfDefName := ""
-		if funcRegex != nil {
+		if config.LangKey != "cs" && config.LangKey != "java" && funcRegex != nil {
 			if m := funcRegex.FindStringSubmatch(cleanedLine); m != nil {
 				if name := internal.ExtractFuncName(m); name != "" && definedNames[name] {
 					selfDefName = name
@@ -204,9 +212,17 @@ func analyzeLines(filename string, lines []string, config *internal.LanguageConf
 
 		matches := callRegex.FindAllStringSubmatch(cleanedLine, -1)
 		skippedSelfDef := false
+		var skippedSignatures map[string]bool
+		if len(signatures[lineIndex+1]) > 0 {
+			skippedSignatures = make(map[string]bool)
+		}
 		for _, match := range matches {
 			if len(match) >= 2 {
 				funcName := match[1]
+				if (config.LangKey == "cs" || config.LangKey == "java") && signatures[lineIndex+1][funcName] && !skippedSignatures[funcName] {
+					skippedSignatures[funcName] = true
+					continue
+				}
 
 				if funcName == selfDefName && !skippedSelfDef {
 					skippedSelfDef = true
