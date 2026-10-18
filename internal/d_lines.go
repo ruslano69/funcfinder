@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 var dAttributeLine = regexp.MustCompile(`^\s*(?:(?:@[\p{L}\p{Nd}_]+|public|private|protected|export|pure|nothrow|const|immutable|shared|inout|ref|scope)\s*)+$`)
@@ -229,6 +230,48 @@ func dFuncHeader(line string, config *LanguageConfig) bool {
 // Conditional declarations and parameterized attributes prefix a declaration,
 // but are not its return type. Preserve prefixes that introduce a brace block.
 func normalizeDPrefix(line string) string {
+	// The full path rebuilds the line from runes, which turns invalid UTF-8 into U+FFFD; only a valid line can be
+	// returned as it is.
+	if dPlainPrefix(line) && utf8.ValidString(line) {
+		return line
+	}
+	return normalizeDPrefixSlow(line)
+}
+
+// dPlainPrefix reports whether normalizeDPrefix leaves a line unchanged because its first word is an ordinary one:
+// the loop below then stops at that word without touching the line. It reads ASCII only; a line with another byte
+// before the end of its first word is left to the full path. TestDLexerFastPathsMatchSlow compares the two on every
+// D fixture line.
+func dPlainPrefix(line string) bool {
+	i := 0
+	for i < len(line) && (line[i] == ' ' || line[i] == '\t' || line[i] == '\n' || line[i] == '\v' || line[i] == '\f' || line[i] == '\r') {
+		i++
+	}
+	if i == len(line) {
+		return true // blank: the loop ends without a change
+	}
+	if line[i] >= 0x80 || line[i] == '@' {
+		return false
+	}
+	start := i
+	for i < len(line) && (line[i] == '_' || line[i] == '.' || '0' <= line[i] && line[i] <= '9' || 'a' <= line[i] && line[i] <= 'z' || 'A' <= line[i] && line[i] <= 'Z') {
+		i++
+	}
+	if i < len(line) && line[i] >= 0x80 {
+		return false // the word may continue with a non-ASCII letter
+	}
+	if start == i {
+		return true // no word: the loop stops at once
+	}
+	switch word := line[start:i]; word {
+	case "static", "version", "debug", "pragma", "extern", "deprecated", "package", "final", "override", "abstract", "auto":
+		return false
+	default:
+		return !dAttributeLineMatch(word)
+	}
+}
+
+func normalizeDPrefixSlow(line string) string {
 	code := []rune(line)
 	for i := 0; i < len(code); {
 		if unicode.IsSpace(code[i]) {
@@ -336,6 +379,28 @@ type dLineLexer struct {
 }
 
 func (s *dLineLexer) cleanLine(line string) string {
+	if s.commentDepth == 0 && s.qEnd == "" && s.qDepth == 0 && s.quote == 0 && s.tokens == 0 && dPlainCode(line) {
+		return line
+	}
+	return s.cleanLineSlow(line)
+}
+
+// dPlainCode reports whether a line, read in the normal state, is code throughout: ASCII, with no comment, string,
+// character or token-string start (slash, double or single quote, backtick, "q{"). cleanLineSlow then copies every character and changes
+// no state, so the line is its own cleaned text. The rune round trip on such lines was most of the lexer's time.
+func dPlainCode(line string) bool {
+	for i := 0; i < len(line); i++ {
+		switch b := line[i]; {
+		case b >= 0x80, b == '/', b == '"', b == '\'', b == '`':
+			return false
+		case b == 'q' && i+1 < len(line) && line[i+1] == '{':
+			return false
+		}
+	}
+	return true
+}
+
+func (s *dLineLexer) cleanLineSlow(line string) string {
 	runes := []rune(line)
 	code := make([]rune, len(runes))
 	for i := range code {
