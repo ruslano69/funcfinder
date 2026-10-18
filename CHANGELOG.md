@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v1.15.4 - 2026-10-18
+
+A correctness release for directory walks: `.gitignore` patterns now mean what they mean to git, so the set of files
+the tools read can change. Projects whose `.gitignore` uses `**`, middle-slash patterns, or (on Windows) any pattern
+with a `/` are affected; parsing and output formats are unchanged.
+
+Known limits: `!` negation, nested `.gitignore` files and `.git/info/exclude` are not read, and a tracked file that a
+pattern matches is skipped, since the walk does not read git's index.
 
 - **`.gitignore` follows git's glob rules.** This changes which files every tool reads. `*` and `?` match within one
   path segment, `**/`, `/**` and `a/**/b` work, and a pattern with a `/` at the start or in the middle is relative to
