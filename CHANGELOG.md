@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **TypeScript: function headers are read by a scanner instead of the regular expression.** As for D in 1.15.7, the TS
+  function pattern (a fifth of a TypeScript run) is replaced by `tsHeaderSubmatch`, which returns exactly the pattern's
+  result, every group included, while `languages.json` holds the pattern unchanged. It was compared with the pattern on
+  32.7 million lines and line suffixes of OmniRoute's 8,852 TS files and on 3 million generated header-shaped lines: no
+  difference. The nested scan, the inline-header search, `callgraph` and `funcstats` use it.
+- **TypeScript, JavaScript: the quoted-method pattern runs only on lines that start with a quote** (5% of a TypeScript
+  run before).
+- Output is byte-identical on OmniRoute, the fixtures, arsd and tdtp-framework for `funcfinder`, `callgraph`,
+  `complexity` and `funcstats`. Median on OmniRoute: `funcfinder --dir --all --json` 757 → 636 ms, `funcstats`
+  1201 → 898 ms, `callgraph` 1008 → 888 ms, `complexity` 790 → 682 ms; serial TS parsing 4.60 → 3.28 s.
+
 ## v1.15.7 - 2026-10-18
 
 A performance release for D. Output is unchanged, byte for byte. `funcfinder --dir --all --json` on arsd (11 MB of D)
