@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v1.15.6 - 2026-10-18
+
+A performance release for D. Output is unchanged, byte for byte. `funcfinder --dir --all --json` on arsd (11 MB of D)
+reads 1.64 million lines per second, up from 1.50 million in 1.15.5.
+
+Known limits: the D function pattern still runs in the preparation pass and the multiline-header join (about a
+quarter of a D run); timings come from one 16-core Windows machine.
 
 - **D: the lexer and the prefix pass skip plain lines.** A line of plain ASCII code is its own cleaned text, and a line
   whose first word is ordinary is not changed by the declaration-prefix pass; both now return such lines as they are
