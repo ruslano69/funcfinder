@@ -180,6 +180,9 @@ type Finder struct {
 	funcNames   map[string]bool
 	mapMode     bool
 	extractMode bool
+	// dFuncHint holds, while a D file is scanned, prepareDLinesHinted's per-line result of the function pattern;
+	// the nested scan skips the pattern on lines known not to match. Nil otherwise.
+	dFuncHint []int8
 }
 
 // ExtractFuncName pulls the function/method name out of a FuncRegex match.
@@ -477,7 +480,8 @@ func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename st
 		prepared = maskPHPHeredocs(lines, f.config)
 		preparedFacts = f.sanitizer.CleanLinesFacts(prepared)
 	case "d":
-		prepared, dHeaderEnds = prepareDLines(lines, f.config)
+		prepared, dHeaderEnds, f.dFuncHint = prepareDLinesHinted(lines, f.config)
+		defer func() { f.dFuncHint = nil }()
 		preparedFacts = lexerFacts(prepared, lines)
 	case "scala":
 		cleaned := cleanScalaLines(lines)
@@ -875,8 +879,9 @@ func (f *Finder) findFunctionsWithNesting(lines []string, facts []LineFacts, lin
 		// сигнатура без тела и без ';' (Kotlin, Swift) кончилась на своей последней
 		// строке. Решение принимается до обновления глубин (шаг 2).
 		// A line that cannot hold a header is not run through the pattern (see func_requires).
+		// D: the preparation pass already ran the pattern on this exact text when its hint is not unknown.
 		var matches []string
-		if f.config.MayStartFunction(cleaned) {
+		if f.config.MayStartFunction(cleaned) && !(f.dFuncHint != nil && f.dFuncHint[lineNum] == dHintNoMatch) {
 			matches = funcRegex.FindStringSubmatch(cleaned)
 		}
 		// A method named by a string literal is read from the raw line: the sanitizer blanks

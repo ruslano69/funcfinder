@@ -13,6 +13,22 @@ var dStatementHeader = regexp.MustCompile(`^\s*(?:(?:static|final)\s+)*(?:return
 // D has nested /+ comments and token strings. Keep their text out of the
 // generic finder; retain positions and restore raw source during extraction.
 func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]int) {
+	result, headerEnds, _ := prepareDLinesHinted(lines, config)
+	return result, headerEnds
+}
+
+// Values of the per-line function-pattern hint returned by prepareDLinesHinted.
+const (
+	dHintUnknown int8 = 0  // the pattern was not run on the final line text
+	dHintMatch   int8 = 1  // the final line text matches the function pattern
+	dHintNoMatch int8 = -1 // it does not, so the finder need not run the pattern again
+)
+
+// prepareDLinesHinted is prepareDLines plus, for each prepared line, what the function pattern gave on its final
+// text. The preparation pass already runs the pattern on most lines, and the finder ran it again on the same text: a
+// sixth of a D run. A hint is recorded only when the text the pattern saw is the line's final text; contract masking
+// can change a line after the check, and such a line stays unknown.
+func prepareDLinesHinted(lines []string, config *LanguageConfig) ([]string, map[int]int, []int8) {
 	lexer := dLineLexer{}
 	result := make([]string, len(lines))
 	headerEnds := make(map[int]int)
@@ -26,7 +42,7 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 	// Every check leads to the same `continue`, so they run cheapest first and the function pattern last: most
 	// lines with a "(" also hold one of ";{}=" or start a statement.
 	for i := 0; i+1 < len(result); i++ {
-		if strings.TrimSpace(result[i]) == "" || strings.ContainsAny(result[i], ";{}=") || dStatementHeader.MatchString(result[i]) || dTypeHeader.MatchString(result[i]) || dAttributeLine.MatchString(result[i]) || dFuncHeader(result[i], config) {
+		if strings.TrimSpace(result[i]) == "" || strings.ContainsAny(result[i], ";{}=") || dStatementHeader.MatchString(result[i]) || dTypeHeader.MatchString(result[i]) || dAttributeLineMatch(result[i]) || dFuncHeader(result[i], config) {
 			continue
 		}
 		for j := i + 1; j < len(result) && j <= i+4; j++ {
@@ -51,16 +67,22 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 	contractParens := 0
 	outSelector := false
 	outExpression := false
+	hints := make([]int8, len(result))
 	for i, line := range result {
+		// The line is converted to runes once and back to a string only after a change: the conversions took a
+		// fifth of a D run when every check rebuilt string(code).
 		code := []rune(line)
-		text := strings.TrimSpace(string(code))
+		text := strings.TrimSpace(line)
 		statement := false
+		modified := false
 		if dTypeHeader.MatchString(text) {
 			for j, ch := range code {
 				if ch == '(' {
 					code[j] = '['
+					modified = true
 				} else if ch == ')' {
 					code[j] = ']'
+					modified = true
 				}
 			}
 		} else if dStatementHeader.MatchString(text) {
@@ -68,20 +90,33 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 			for j, ch := range code {
 				if !unicode.IsSpace(ch) {
 					code[j] = '?'
+					modified = true
 					break
 				}
 			}
 		}
+		checked := line
+		if modified {
+			checked = string(code)
+		}
 		// An attribute line holds at least one attribute word, so a blank line is not one and skips the pattern.
-		if text != "" && dAttributeLine.MatchString(string(code)) {
+		if text != "" && dAttributeLineMatch(checked) {
 			result[i] = strings.Repeat(" ", len(code))
 			continue
 		}
 		// A statement line now starts with '?', which no function header can start with, so the pattern is not
 		// run on it (TestDStatementLinesNeverMatchFuncHeader checks every D fixture line).
-		if contractDepth == 0 && !statement && dFuncHeader(string(code), config) {
-			pending, parens, contract = true, 0, false
+		hint := dHintUnknown
+		if statement {
+			hint = dHintNoMatch
+		} else if contractDepth == 0 {
+			hint = dHintNoMatch
+			if dFuncHeader(checked, config) {
+				hint = dHintMatch
+				pending, parens, contract = true, 0, false
+			}
 		}
+		changed := false
 		for j := 0; j < len(code); j++ {
 			ch := code[j]
 			if contractParens > 0 {
@@ -96,6 +131,7 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 					outExpression = true
 				}
 				code[j] = ' '
+				changed = true
 				continue
 			}
 			if contractDepth > 0 {
@@ -105,6 +141,7 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 					contractDepth--
 				}
 				code[j] = ' '
+				changed = true
 				continue
 			}
 			if !pending {
@@ -121,10 +158,12 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 					outSelector, outExpression = word == "out", false
 					for k := j; k < end; k++ {
 						code[k] = ' '
+						changed = true
 					}
 				} else if word == "do" || word == "body" {
 					for k := j; k < end; k++ {
 						code[k] = ' '
+						changed = true
 					}
 				}
 				j = end - 1
@@ -135,6 +174,7 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 				if contract && ch == '(' {
 					contractParens, contract = 1, false
 					code[j] = ' '
+					changed = true
 				} else {
 					parens++
 				}
@@ -145,6 +185,7 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 					if contract {
 						contractDepth, contract = 1, false
 						code[j] = ' '
+						changed = true
 					} else {
 						pending = false
 					}
@@ -155,9 +196,28 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 				}
 			}
 		}
-		result[i] = string(code)
+		if changed {
+			result[i] = string(code)
+		} else {
+			result[i] = checked
+		}
+		if result[i] == checked {
+			hints[i] = hint
+		}
 	}
-	return result, headerEnds
+	return result, headerEnds, hints
+}
+
+// dAttributeLineMatch reports whether a line is only D attributes (dAttributeLine). That pattern needs the first
+// character after leading \s to be '@' or the first letter of one of its words (public private protected export pure
+// nothrow const immutable shared inout ref scope), so other lines skip it; TestDAttributeGateNeverHidesAMatch checks
+// the gate on every D fixture line.
+func dAttributeLineMatch(s string) bool {
+	t := strings.TrimLeft(s, " \t\n\f\r")
+	if t == "" || strings.IndexByte("@pencisr", t[0]) < 0 {
+		return false
+	}
+	return dAttributeLine.MatchString(s)
 }
 
 // dFuncHeader reports whether a prepared D line matches the function pattern. A line without a func_requires
@@ -224,7 +284,7 @@ func normalizeDPrefix(line string) string {
 			}
 			continue
 		}
-		if start == i || !dAttributeLine.MatchString(word) && word != "static" && word != "final" && word != "override" && word != "abstract" && word != "auto" {
+		if start == i || !dAttributeLineMatch(word) && word != "static" && word != "final" && word != "override" && word != "abstract" && word != "auto" {
 			break
 		}
 	}
