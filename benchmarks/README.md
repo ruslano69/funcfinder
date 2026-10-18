@@ -199,6 +199,32 @@ type, which funcfinder does not reproduce), macro-generated declarations and
 template specializations on their own line; the remaining false positives are
 explicit instantiations (`extern template`, `template FMT_API`).
 
+### JavaScript named functions
+
+`js_tree_eval.py` scans tracked `.js`, `.jsx`, `.mjs` and `.cjs` files with
+tree-sitter-javascript. Truth includes named declarations/expressions,
+generators, literal method names and anonymous function/arrow values directly
+bound to identifier variables. Named expressions keep their internal name.
+Anonymous callbacks, anonymous assignment/property values and computed methods
+are outside this profile. Duplicate names are retained; names/header lines
+match one-to-one and end lines are checked independently. Parse errors are
+reported as exclusions. These line-based scores do not establish byte/column
+extraction accuracy on minified files.
+
+```bash
+python -m pip install --target build/js-eval-runtime tree-sitter==0.26.0 tree-sitter-javascript==0.25.0
+PYTHONPATH=build/js-eval-runtime python benchmarks/js_tree_eval.py \
+  --root <checkout> --label lodash --binary ./funcfinder.exe \
+  --output build/lodash.js-eval.json
+```
+
+On PowerShell set `$env:PYTHONPATH` to the absolute runtime directory before
+running Python. `--pathspec` restricts tracked paths and may be repeated. Full
+before/after scores, pins, limitations and CLI timings are in
+[JAVASCRIPT_FIX.md](JAVASCRIPT_FIX.md). The expanded lodash profile includes
+vendor code and four minified bundles; it supersedes the historical
+1918-function measurement rather than pretending to replay its old scope.
+
 ### TypeScript functions and declarations
 
 `ts_tree_eval.py` scans tracked `.ts` and `.tsx` files with tree-sitter-typescript. Truth

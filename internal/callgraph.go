@@ -42,6 +42,8 @@ type CallGraphResult struct {
 var ident = identStart + identClass + `*`
 var callIdentRe = regexp.MustCompile(`(` + ident + `)\.(` + ident + `)\s*\(|` +
 	`(` + ident + `)\s*\(`)
+var jsCallIdentOnce sync.Once
+var jsCallIdentRe *regexp.Regexp
 
 // BuildFileCallGraph extracts the call graph from a single file.
 //
@@ -112,7 +114,7 @@ func buildFileCallGraph(
 	sort.Slice(ranges, func(i, j int) bool { return ranges[i].start < ranges[j].start })
 
 	callerAt := func(lineNo int) string {
-		if langConfig.LangKey == "cs" || langConfig.LangKey == "java" {
+		if langConfig.LangKey == "cs" || langConfig.LangKey == "java" || langConfig.LangKey == "js" {
 			for i := len(ranges) - 1; i >= 0; i-- {
 				if ranges[i].start <= lineNo && ranges[i].end >= lineNo {
 					return ranges[i].name
@@ -132,6 +134,14 @@ func buildFileCallGraph(
 	sanitizer := NewSanitizer(langConfig, false)
 	state := StateNormal
 	funcRegex := langConfig.FuncRegex()
+	callPattern := callIdentRe
+	if langConfig.LangKey == "js" {
+		jsCallIdentOnce.Do(func() {
+			jsCallIdentRe = regexp.MustCompile(`(` + jsIdentPattern + `)\.(` + jsIdentPattern + `)\s*\(|` +
+				`(` + jsIdentPattern + `)\s*\(`)
+		})
+		callPattern = jsCallIdentRe
+	}
 
 	cgFile := &FileCallGraph{Path: path}
 	seen := make(map[string]bool)
@@ -146,11 +156,11 @@ func buildFileCallGraph(
 			continue // outside any known function
 		}
 
-		// C# and Java supply declaration coordinates, including split headers.
+		// C#, Java and JavaScript supply declaration coordinates, including split headers.
 		// C# also names destructors/conversions. Other finders retain the regex
 		// fallback: a decorated declaration may start before its name line.
 		signatureName, isOwnSignatureLine := signatures[lineNo][caller]
-		if langConfig.LangKey != "cs" && langConfig.LangKey != "java" && funcRegex != nil && strings.Contains(clean, caller) {
+		if langConfig.LangKey != "cs" && langConfig.LangKey != "java" && langConfig.LangKey != "js" && funcRegex != nil && strings.Contains(clean, caller) {
 			if m := funcRegex.FindStringSubmatch(clean); m != nil {
 				if ExtractFuncName(m) == caller {
 					isOwnSignatureLine = true
@@ -158,7 +168,7 @@ func buildFileCallGraph(
 			}
 		}
 
-		matches := callIdentRe.FindAllStringSubmatch(clean, -1)
+		matches := callPattern.FindAllStringSubmatch(clean, -1)
 		skippedOwnSignature := false
 		for _, m := range matches {
 			var callee string
@@ -183,7 +193,7 @@ func buildFileCallGraph(
 				continue
 			}
 			ownName := callee == caller
-			if langConfig.LangKey == "cs" || langConfig.LangKey == "java" {
+			if langConfig.LangKey == "cs" || langConfig.LangKey == "java" || langConfig.LangKey == "js" {
 				ownName = m[2] == signatureName || m[3] == signatureName
 			}
 			if ownName && isOwnSignatureLine && !skippedOwnSignature {

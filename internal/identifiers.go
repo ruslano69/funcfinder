@@ -27,9 +27,14 @@ const identClass = `[\p{L}\p{Nd}_]`
 // `{IDENT}+` directly, matching the old `\w+` behaviour.
 const identStart = `[\p{L}_]`
 
+// JavaScript additionally allows dollar signs, combining marks, joiners and
+// private method names. Share this rule between call statistics and callgraph.
+const jsIdentPattern = `[\p{L}_$#][\p{L}\p{Nd}\p{M}_$\x{200c}\x{200d}]*`
+
 // expandIdentPlaceholder substitutes the `{IDENT}` token in a raw pattern with
 // identClass. It is a no-op for patterns that don't use the token, so it is
 // safe to apply to every pattern before compilation.
 func expandIdentPlaceholder(pattern string) string {
-	return strings.ReplaceAll(pattern, "{IDENT}", identClass)
+	pattern = strings.ReplaceAll(pattern, "{IDENT}", identClass)
+	return strings.ReplaceAll(pattern, "{JS_IDENT}", jsIdentPattern)
 }

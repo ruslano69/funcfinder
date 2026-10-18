@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.15.2 - 2026-10-18
+
+- **JavaScript: discover expression functions and correct minified boundaries.**
+  A JS token walk finds named expressions, direct variable function/arrow
+  values, generators and object/class methods, including dollar/private names
+  and continued declarators. Match each body to its closing brace, so adjacent
+  functions on one line do not share the next body's end. Calls, literal text,
+  anonymous callbacks and IIFE result bindings are not named functions. Keep
+  original extraction, offsets and duplicate names; callgraph/funcstats retain
+  real recursion and use declaration coordinates. Add `.cjs` discovery. On the
+  recorded named-function profile, all 2458 lodash and 218 Express functions
+  match header/end lines with zero missing/false functions; TypeScript output
+  on pinned zod is unchanged. See `benchmarks/JAVASCRIPT_FIX.md` for scope,
+  grammar versions and timing limits.
+
 ## v1.15.1 - 2026-10-17
 
 - **Java: declaration context and function bounds.** Find methods of anonymous
