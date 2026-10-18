@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -56,7 +57,7 @@ func tsCandidateFile(lines []string, facts []LineFacts, known map[tsCandidateKey
 			text = strings.TrimSpace(text[end:])
 		}
 		end := tsNameEnd(text, 0)
-		if end == 0 && strings.HasPrefix(text, "(") && strings.ContainsAny(lines[i], "\"'") {
+		if end == 0 && strings.HasPrefix(text, "(") && tsQuotedNameFirst(lines[i]) {
 			return true
 		}
 		if end == 0 || end > len(text) {
@@ -76,7 +77,13 @@ func tsCandidateFile(lines []string, facts []LineFacts, known map[tsCandidateKey
 					if next == "" {
 						continue
 					}
-					if strings.HasPrefix(next, "(") || strings.HasPrefix(next, "<") || strings.HasPrefix(next, "async") || strings.HasPrefix(next, "function") {
+					if strings.HasPrefix(next, "(") {
+						if tsParenValue(tsJoinedText(facts, j, next)) {
+							return true
+						}
+						break
+					}
+					if strings.HasPrefix(next, "<") || strings.HasPrefix(next, "async") || strings.HasPrefix(next, "function") {
 						return true
 					}
 					break
@@ -97,7 +104,7 @@ func tsCandidateFile(lines []string, facts []LineFacts, known map[tsCandidateKey
 			}
 			continue
 		}
-		if (strings.HasPrefix(rest, "<") && tsCandidateGeneric(rest)) || (name == "catch" && strings.HasPrefix(rest, "(")) {
+		if (strings.HasPrefix(rest, "<") && tsCandidateGeneric(tsJoinedText(facts, i, rest))) || (name == "catch" && strings.HasPrefix(rest, "(")) {
 			return true
 		}
 		if strings.HasPrefix(rest, "(") && strings.HasSuffix(strings.TrimSpace(fact.Cleaned), "(") {
@@ -115,6 +122,64 @@ func tsCandidateFile(lines []string, facts []LineFacts, known map[tsCandidateKey
 		}
 	}
 	return false
+}
+
+// tsQuotedNameFirst reports whether a raw line, after its modifier words and any leading block comments, starts with a
+// quote: the shape of a quoted method name ("name"(...)), which cleaning blanks so that the cleaned line starts with
+// "(". A line that starts with "(" for any other reason (a call's continued arguments) is not a candidate.
+func tsQuotedNameFirst(raw string) bool {
+	text := strings.TrimSpace(raw)
+	for {
+		if strings.HasPrefix(text, "/*") {
+			end := strings.Index(text[2:], "*/")
+			if end < 0 {
+				return false
+			}
+			text = strings.TrimSpace(text[end+4:])
+			continue
+		}
+		end := tsNameEnd(text, 0)
+		if end == 0 || end == len(text) || (text[end] != ' ' && text[end] != '\t') || !slices.Contains(tsRecoveryModifiers, text[:end]) {
+			break
+		}
+		text = strings.TrimSpace(text[end:])
+	}
+	return text != "" && (text[0] == '"' || text[0] == '\'')
+}
+
+// tsJoinLines is how many following lines the gate reads to see how a header that continues over lines goes on.
+const tsJoinLines = 64
+
+// tsJoinedText returns first (the rest of cleaned line i) followed by the cleaned text of the next tsJoinLines lines.
+// The gate reads a parenthesis or a type argument list that does not close on its line through it: a call whose
+// arguments continue over lines is not a header, which the line alone could not tell.
+func tsJoinedText(facts []LineFacts, i int, first string) string {
+	var b strings.Builder
+	b.WriteString(first)
+	for j := i + 1; j < len(facts) && j <= i+tsJoinLines; j++ {
+		b.WriteByte(' ')
+		b.WriteString(strings.TrimSpace(facts[j].Cleaned))
+	}
+	return b.String()
+}
+
+// tsParenValue reports whether s, which starts with "(", can start an arrow function value: the parenthesis closes and
+// "=>" or a return type (":") follows it. A parenthesis that does not close within s is still a candidate.
+func tsParenValue(s string) bool {
+	depth := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				tail := strings.TrimSpace(s[i+1:])
+				return strings.HasPrefix(tail, "=>") || strings.HasPrefix(tail, ":")
+			}
+		}
+	}
+	return true
 }
 
 func tsCandidateGeneric(s string) bool {

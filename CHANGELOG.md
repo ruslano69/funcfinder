@@ -12,10 +12,17 @@
   functions and loses 4 false ones (code snippets inside template strings) and 2 false types; zod gains 29 and loses a
   false `async`; output for Express, lodash and all other languages is unchanged, byte for byte. A template now starts
   with an empty frame stack whatever its delimiter, so a template left open by an earlier text cannot change the next
-  one (`TestCleanLinesFactsIgnoresEarlierFiles`). The recovery costs time: median OmniRoute
-  `funcfinder --dir --all --json` 456 → 575 ms, `callgraph` 783 → 917 ms, `complexity` 608 → 715 ms; zod
-  `--all` 45 → 55 ms. Its file gate passes 997 of OmniRoute's 8,852 TS files to a full token pass, of which 16 gain a
-  function; narrowing it is the next step.
+  one (`TestCleanLinesFactsIgnoresEarlierFiles`).
+- **TypeScript: the recovery runs only on files with a header shape it can read.** Its file gate passed 997 of
+  OmniRoute's 8,852 TS files to a whole-file token pass, and 16 of them gained a function: a line starting with `(`
+  in a file with any quote, a `const x =` followed by any parenthesized value, and generic calls whose arguments
+  continue over lines all passed it. Now a `(` line must start with a quoted name in the raw text, and a split value
+  or a generic argument list is followed over the next lines to see whether `=>`/`:` (or `:`/`{`) comes after its
+  parenthesis. The gate passes 114 files of the OmniRoute, zod and fixture trees instead of about 1,040, with the
+  same results: output is byte-identical to the unnarrowed gate on all twelve corpora. Median against 1.15.8,
+  including the recovery's real work: OmniRoute `funcfinder --dir --all --json` 467 → 489 ms (it took 590 ms with the
+  wide gate), `callgraph` 793 → 824 ms, `complexity` 617 → 633 ms; zod `--all` 46 → 56 ms, where the large schema files
+  hold the recovered functions.
 
 ## v1.15.8 - 2026-10-18
 
