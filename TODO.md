@@ -20,6 +20,108 @@ Five paired parser samples quantify the recovery cost: OmniRoute TS Go
 +35.8%, D +19.4%. Optimize this supplemental pass without hiding headers again.
 No complete-process speed claim is made for this correctness change.
 
+JS D-port tokenization follow-up: direct ASCII character checks and immutable
+UTF-8 token slices remove the JS slowdown while preserving the full Go map.
+Seven paired shuffled rounds compare Go/previous-D/current-D: Express
+29.009/23.534/12.552 ms, lodash 145.039/150.737/75.185 ms, OmniRoute JS
+108.048/127.191/61.358 ms. Complete OmniRoute JS probe time falls
+156.578 -> 91.776 ms (Go 143.798 ms). All 10,009 JS/TS file results and independent
+grammar findings remain unchanged; this is performance work, not a quality fix.
+Separate bounds/token/header audits, 100,000 TS vectors, all Unicode scalar
+word-classifier checks and malformed UTF-8 direct API cases pass.
+New D binary: 1,272,832 bytes. Unicode slices can retain joined source storage
+through returned names. See `benchmarks/JS_TS_D_PORT.md`; raw paired results and
+source snapshots: `build/js-ts-d-port-20261018-js-opt/`. This performance stage
+precedes the missing-function fix above; full CLI/file parallelism remains open.
+
+D implementation pilot (2026-10-18): `benchmarks/dlang_port.d` ports the D
+finder API to LDC 1.43.0, compared with frozen Go `v1.15.3`. Both runtime-regex
+and ctRegex D builds exactly match ordered function/class bounds and scopes on
+all 160 tracked D files; the independent accepted profile retains all 12244
+functions with zero misses/false entries/wrong ends and six grammar exclusions.
+Ten shuffled serial-parser samples: D-YAML Go/runtime-D/ctRegex-D
+168.246/260.410/207.502 ms, arsd 1285.069/2982.511/2013.926 ms. Probe sizes are
+2.737/1.206/1.562 decimal MB; the Go probe retains generic finder machinery,
+while D implements only D. No file parallelism or complete toolkit/CLI parity
+is claimed. The initial direct port was slower than Go; follow-up measurements
+and optimization results are recorded below. See
+`benchmarks/DLANG_PORT.md`; artifacts: `build/dlang-port-20261018-final/`.
+
+Follow-up: Go 1.15.5's negative function hints, fewer rune/string conversions
+and attribute gate are now ported to D. Ten shuffled paired samples retain
+all previous quality and ordered-map parity. D ctRegex parser time falls
+207.342 -> 144.242 ms on D-YAML and 2006.095 -> 1385.388 ms on arsd (about 31%);
+Go in the same series falls 171.265 -> 114.027 and 1272.144 -> 824.552 ms.
+D binaries keep their sizes; D ctRegex still takes 1.27x/1.68x optimized Go's
+time. `AuditHints` verifies every cached result and attribute gate on all
+160 files. Go reference: `4ef44059a45aec74502dcf908bb5ece31314767b`;
+artifacts: `build/dlang-port-20261018-optimized/`.
+Separate D ctRegex phase diagnostics locate the remaining reserve in preparation
+(about 92% of arsd time): roughly 580 MB cumulative managed allocations for
+9.53 MB input, while actual GC collection takes 11 ms of 1407 ms. The complete
+nesting scan takes about 5%.
+
+The next D optimization implements Go `08f3531`'s plain-line lexer/prefix paths,
+growing per-file rune buffers with lazy decoding, direct contract-token
+comparisons, reusable scan contexts/events and type/statement matcher gates.
+All 160 ordered maps and the independent accepted profile remain unchanged.
+Bounds-checked `AuditHints`/`AuditFastPaths` builds additionally agree on the
+corpora, three fixtures and generated Unicode/128 KiB-line/64-level nesting
+stress input (1066 functions). Separate diagnostics reduce cumulative parser
+allocations from 579.690 to 42.526 MB on arsd and 31.176 to 3.339 MB on D-YAML.
+These are allocation traffic counters, not peak RAM. Ten contemporaneous
+shuffled samples reduce D ctRegex parser time 145.608 -> 103.986 ms on D-YAML
+and 1397.629 -> 726.832 ms on arsd (28.59%/48.00%). Current Go is
+106.000/723.677 ms: approximately equal parser performance, with overlapping
+sample ranges. Complete probe processes are Go/Dct 116.551/130.782 ms on
+D-YAML and 773.386/776.825 ms on arsd. Current Go/runtime-D/ctRegex-D probe
+sizes are 2.742/1.211/1.567 MB; specialization limits still apply. Artifacts:
+`build/dlang-port-20261018-buffers/`; remaining measured targets are multiline
+header joining and contract/hint preparation. No production Go dispatch or
+release is changed by this experimental D work.
+
+After the D function-header scanner was ported, a fresh profile against Go
+`b744fa0` found contracts/hints at about 40%, cleaning at 32% and header joins
+at 12% of arsd diagnostic parser time. The D pilot now reads ordinary attribute,
+type and statement prefixes directly, retaining rare Unicode regex fallbacks,
+and builds a header-join candidate incrementally only after `(` appears.
+328051 differential predicate cases and the full audit/fixture/stress checks
+pass; all 160 maps and independent accepted quality remain unchanged. In ten
+paired shuffled rounds, D ctRegex parser time falls 27.555 -> 16.181 ms on
+D-YAML and 398.570 -> 253.035 ms on arsd (41.28%/36.51%); current Go is
+35.004/384.121 ms. Complete new probe times are Go/Dct 46.074/26.764 ms and
+432.862/294.618 ms. Sizes are Go/runtime-D/ctRegex-D 2.768/1.224/1.436 MB,
+with the same specialization and serial-API limits. Diagnostic allocation
+traffic falls 42.428 -> 37.500 MB on arsd; cleaning/normalization is now the
+largest measured phase. Artifacts: `build/dlang-port-20261018-predicates/`;
+baseline/profile: `build/dlang-port-20261018-postscanner-baseline/`.
+
+The D cleaner now reads ASCII directly through the same templated state
+machine, with the rune fallback and checked state parity retained. Ten paired
+rounds reduce ctRegex D parser time another 16.6%/22.7% on D-YAML/arsd:
+16.414 -> 13.682 ms and 253.640 -> 195.963 ms. Current Go is 35.131/382.914 ms.
+The arsd diagnostic cleaning/normalization phase falls 114.249 -> 57.962 ms;
+total allocation traffic falls 37.500 -> 27.178 MB. All previous D quality,
+audit and long-line/stress checks pass. Artifacts:
+`build/dlang-clean-js-ts-20261018/d-clean/`.
+
+The experimental D backend now also implements complete serial JS/TS named-
+function/class discovery and cleanup facts, including JS signature metadata,
+TS multiline/inline signatures and the direct header scanner. Exact Go parity
+holds on Express, lodash, zod and both OmniRoute languages: 10009 files,
+36702 functions, 4159 raw class entries. Checked builds, raw cleanup, malformed
+UTF-8, 128 KiB lines and 100000 TS group-vector cases pass. Seven paired rounds
+show cleanup 3.29–5.50x faster. Full finder medians Go/D: OmniRoute TS
+1743.758/1639.100 ms, OmniRoute JS 110.373/132.488 ms; Express D is faster,
+zod approximately equal and lodash D slightly slower. The diagnostic full-
+facts JSON process is slower in D, so cleanup speed is not an end-to-end claim.
+Probe sizes Go/D: 2.777/1.270 MB, with generic-Go versus JS/TS-only limits.
+Independent grammar findings retain the same Go limitations (including 14
+zod misses, 20 OmniRoute TS misses and 37 OmniRoute JS misses); see
+`benchmarks/JS_TS_D_PORT.md` for false entries, wrong ends, exclusions and the
+dirty OmniRoute input snapshot. Artifacts: `build/js-ts-d-port-20261018/`.
+Production Go dispatch and releases remain unchanged by these prototypes.
+
 Earlier measurements used `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
 language); subsequent runs and their revisions are recorded below. Python, PHP, Scala/D, C, C++, TypeScript and C# evaluators now live in `benchmarks/`. Truth
 includes declarations without a body (interface, abstract, prototype members): the design lists

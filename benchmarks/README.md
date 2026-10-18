@@ -498,3 +498,98 @@ precisely here: it stops us from hand-waving "the rest needs AST" and makes us
 look. The genuine parser-tier cases are the ones that survive *after* the cheap
 fixes are exhausted — and on tdtp there are none left to point at. The next
 honest test is a project that still has residuals here.
+
+## D implementation experiment
+
+`dlang_port.d` ports the D finder path to D; it is a standalone measurement
+probe, outside production dispatch. `dlang_port_compare.py` freezes a Go
+revision, builds both probes, checks ordered function/class results including
+duplicate names and scopes, and scores the accepted D tree-sitter profile
+before repeated serial timing. It builds runtime-regex and ctRegex D variants.
+
+On Windows, initialize the user's LDC/MSVC environment with
+`F:\D\ldcvars64.bat`. Then use Python 3.14 with the existing D grammar runtime:
+
+```powershell
+python benchmarks/dlang_port_compare.py --help
+python benchmarks/dlang_port_compare.py `
+  --revision b744fa0130db40816e3528e1ca36ceb868d7481a `
+  --root build/language-eval-20261012/repos/d-yaml `
+  --root build/language-eval-20261012/repos/arsd `
+  --work-dir build/dlang-port-20261018-predicates `
+  --baseline-report build/dlang-port-20261018-postscanner-baseline/report.json `
+  --samples 10 --repeats 2
+```
+
+The baseline report is optional: it reuses hash-verified primary old Go/D binaries
+in the same shuffled rounds and requires identical pattern configuration. Older
+baseline variants nested in that report are not imported again. `--samples 0`
+builds and verifies parity/independent quality without running timing samples.
+Omit it for a fresh comparison of the current D source against the selected
+Go revision. The saved original binaries/source hashes describe the initial
+pilot; current source includes Go's plain-line fast paths, reusable per-file
+buffers, lazy rune decoding and additional matcher gates. `AuditHints` checks
+cached matches and attribute/type/statement gates against their bare patterns;
+`AuditFastPaths` compares the lexer/prefix shortcuts with their slow paths.
+Both are excluded from timed release builds. Build them separately with
+assertions enabled and `-boundscheck=on`; the corpus/fixture/stress checks and
+phase/allocation diagnostics are recorded in `DLANG_PORT.md`.
+
+The current D pilot also reads function headers and ordinary attribute/type/
+statement prefixes with scanners. `AuditScanner` checks every header against
+its function regex; `AuditPredicates` checks the three prefix predicates against
+their previous gated regexes. Rare Unicode whitespace/word boundaries retain
+the old regex path. Build all audit versions together for corpus verification.
+The differential predicate checker also exercises generated inputs:
+
+```powershell
+ldc2 -O2 -boundscheck=on -d-version=PredicateCheck -I=benchmarks `
+  -of=build/dlang-port-20261018-predicates/predicate-check.exe `
+  benchmarks/dlang_port.d benchmarks/dlang_predicate_check.d
+build/dlang-port-20261018-predicates/predicate-check.exe `
+  build/dlang-port-20261018-predicates/config.json
+```
+
+That output directory and config are created by the comparison harness. Baseline
+reports describe preserved binaries, not the current source: retain a baseline
+source snapshot and run with `--samples 0` before editing the candidate. Choose
+a new work directory for a different Go revision. The current baseline uses the
+header scanner but predates the predicate/join changes.
+
+The probe covers finder API bounds. It does not implement the five-tool CLI,
+directory discovery, file parallelism, selection/offset/extraction, structural
+field analysis or call graphs. The Go probe retains generic finder machinery;
+its size difference from D includes specialization. Read `DLANG_PORT.md` before
+using the results to decide on a rewrite. Reports and generated sources stay
+under ignored `build/`.
+
+## JS/TS finder API experiment in D
+
+`JS_TS_D_PORT.md` describes the complete experimental JS/TS finder path and
+shared cleaner, the frozen Go comparison, independent grammar limits and audit
+checks. This is a separate serial probe; the production CLI remains Go.
+
+```powershell
+python benchmarks/js_ts_port_compare.py --help
+python benchmarks/js_ts_port_compare.py `
+  --revision b744fa0130db40816e3528e1ca36ceb868d7481a `
+  --project js=build/javascript-eval-20261018/repos/express `
+  --project js=build/javascript-eval-20261018/repos/lodash `
+  --project ts=build/javascript-eval-20261018/repos/zod `
+  --project ts=G:/DEV/OmniRoute --project js=G:/DEV/OmniRoute `
+  --work-dir build/js-ts-d-port-current --samples 7 --repeats 1
+```
+
+The harness checks exact cleanup facts and full ordered function/class/signature
+arrays before timing, then reports the existing JS/TS independent profiles.
+`--samples 0` skips measurements. Use the installed LDC/MSVC environment and
+Python grammar runtimes described in the report. Build a separate
+`-O2 -boundscheck=on -d-version=AuditTSHeader -d-version=AuditJSTokens` probe, then run
+`python benchmarks/js_ts_port_checks.py --work-dir build/js-ts-d-port-current`;
+see the report for the full command.
+
+To compare an optimization with preserved D binaries, choose a new work directory
+and add `--baseline-report build/js-ts-d-port-20261018/report.json`. The harness
+verifies reference/binary/config identity, checks all three maps and times old D,
+new D and Go in the same shuffled rounds. Per-file input hashes are recorded and
+rechecked after each corpus. Keep phase diagnostics separate from release timing.
