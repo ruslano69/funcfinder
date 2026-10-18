@@ -586,7 +586,11 @@ func (f *Finder) findFunctionsInPreparedLines(lines []string, facts []LineFacts,
 	}
 
 	if f.config.SupportsNested {
-		return f.findFunctionsWithNesting(lines, facts, lineOffset, classes, result)
+		result, err := f.findFunctionsWithNesting(lines, facts, lineOffset, classes, result)
+		if err == nil && tsUsesHeaderScanner(f.config) {
+			result.Functions = f.recoverTSFunctions(lines, facts, lineOffset, classes, result.Functions)
+		}
+		return result, err
 	}
 
 	// Старая логика для языков без вложенных функций

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- **JavaScript/TypeScript: functions missed after complex literals and headers are found.** Template interpolation
+  keeps regexes, comments, nested templates and escaped backticks balanced across lines (`javascript_template.go`, one
+  frame stack for line cleaning and token recovery). JS/TS block comments close at the first `*/`; bracketed JSX text
+  is not read as a regex with invalid flags. TypeScript additionally recovers nested/multiline generics, split and
+  curried arrows, dollar names, keyword/quoted methods and multiline object methods (`typescript_candidates.go`). The
+  accepted independent Express/lodash/zod/OmniRoute profiles have no missing named function left (35,999 functions);
+  false entries, wrong ends and parse-error exclusions remain listed in `TODO.md`. Against 1.15.8: OmniRoute gains 57
+  functions and loses 4 false ones (code snippets inside template strings) and 2 false types; zod gains 29 and loses a
+  false `async`; output for Express, lodash and all other languages is unchanged, byte for byte. A template now starts
+  with an empty frame stack whatever its delimiter, so a template left open by an earlier text cannot change the next
+  one (`TestCleanLinesFactsIgnoresEarlierFiles`). The recovery costs time: median OmniRoute
+  `funcfinder --dir --all --json` 456 → 575 ms, `callgraph` 783 → 917 ms, `complexity` 608 → 715 ms; zod
+  `--all` 45 → 55 ms. Its file gate passes 997 of OmniRoute's 8,852 TS files to a full token pass, of which 16 gain a
+  function; narrowing it is the next step.
+
 ## v1.15.8 - 2026-10-18
 
 A performance release for TypeScript and for every directory run. Output is unchanged, byte for byte (`deps -j` has the
