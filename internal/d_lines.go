@@ -224,7 +224,13 @@ func dAttributeLineMatch(s string) bool {
 // dFuncHeader reports whether a prepared D line matches the function pattern. A line without a func_requires
 // character cannot, so the pattern is not run on it.
 func dFuncHeader(line string, config *LanguageConfig) bool {
-	return config.MayStartFunction(line) && config.FuncRegex().MatchString(line)
+	if !config.MayStartFunction(line) {
+		return false
+	}
+	if dUsesHeaderScanner(config) {
+		return dHeaderSubmatch(line) != nil
+	}
+	return config.FuncRegex().MatchString(line)
 }
 
 // Conditional declarations and parameterized attributes prefix a declaration,

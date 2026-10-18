@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **D: function headers are read by a scanner instead of the regular expression.** The D function pattern, a large
+  alternation that backtracks, took about a quarter of a D run. `dHeaderSubmatch` walks the same structure and returns
+  exactly the pattern's result: whether a line matches and which name it captures. It stands in for the pattern only
+  while `languages.json` holds it unchanged. It was compared with the pattern on 1.8 million real lines of arsd and
+  d-yaml (all lines, prepared lines and header joins) and 3 million generated header-shaped lines: no difference. The
+  parser, `callgraph` and `funcstats` use it. Output is byte-identical on arsd, d-yaml, the fixtures, OmniRoute,
+  tdtp-framework and lua for `funcfinder` (`--all --json`, `--map`, `--names`), `callgraph`, `complexity` and
+  `funcstats` (including `--uncalled`). Median: arsd `funcfinder --dir --all --json` 175 → 133 ms, `funcstats`
+  285 → 181 ms, `complexity` 240 → 186 ms; d-yaml `funcfinder` 70 → 26 ms; `markdown.d` alone 107 → 33 ms.
+
 ## v1.15.6 - 2026-10-18
 
 A performance release for D. Output is unchanged, byte for byte. `funcfinder --dir --all --json` on arsd (11 MB of D)

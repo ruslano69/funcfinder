@@ -860,6 +860,7 @@ func (f *Finder) isKeywordName(name string) bool {
 func (f *Finder) findFunctionsWithNesting(lines []string, facts []LineFacts, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
 	funcStack := []*FunctionContext{} // Стек активных функций
 	funcRegex := f.config.FuncRegex()
+	dHeaders := dUsesHeaderScanner(f.config) // D: the header scanner stands for funcRegex
 	// The whole file, cleaned line by line: a declaration's value may span lines. The facts come from the caller.
 	cleanedLines := cleanedTexts(facts)
 	// typeDepth: the type-literal braces (`query<{`) still open from earlier lines; they are not code braces.
@@ -882,7 +883,11 @@ func (f *Finder) findFunctionsWithNesting(lines []string, facts []LineFacts, lin
 		// D: the preparation pass already ran the pattern on this exact text when its hint is not unknown.
 		var matches []string
 		if f.config.MayStartFunction(cleaned) && !(f.dFuncHint != nil && f.dFuncHint[lineNum] == dHintNoMatch) {
-			matches = funcRegex.FindStringSubmatch(cleaned)
+			if dHeaders {
+				matches = dHeaderSubmatch(cleaned) // the D pattern's result, without running it (d_header.go)
+			} else {
+				matches = funcRegex.FindStringSubmatch(cleaned)
+			}
 		}
 		// A method named by a string literal is read from the raw line: the sanitizer blanks
 		// the literal, so the cleaned line has no name.

@@ -203,7 +203,7 @@ func analyzeLines(filename string, lines []string, config *internal.LanguageConf
 		// Skip only the declaration token, retaining real recursive calls.
 		selfDefName := ""
 		if config.LangKey != "cs" && config.LangKey != "java" && config.LangKey != "js" && funcRegex != nil {
-			if m := funcRegex.FindStringSubmatch(cleanedLine); m != nil {
+			if m := config.FuncSubmatch(cleanedLine); m != nil {
 				if name := internal.ExtractFuncName(m); name != "" && definedNames[name] {
 					selfDefName = name
 				}
