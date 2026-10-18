@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Directory runs: the finders of a file share its cleaned lines, struct fields are no longer collected, and the walk
+  and the file reads cost less.** In `--all` the function finder and the struct finder (and, for Go, the alias reader)
+  each cleaned the whole file again; cleaning is a third of a TypeScript run. A per-job cache (`factsCache`) now keeps
+  the first finder's facts for the others. The struct finder of a directory job no longer collects each type's fields,
+  which a directory result never held. The walk reads directory entries (`filepath.WalkDir`) instead of one system
+  call per entry, and reads a size only for source files: on a tree with build artifacts (kanzi's Rust `target/`,
+  2800 files) it was a third of a run. A file is read whole and split into lines, instead of through a buffered reader
+  line by line. Output is byte-identical for `funcfinder` (`--all --json`, `--json`, `--struct --json`, `--names
+  --all`, `--tree`), `callgraph`, `funcstats` and `complexity` on OmniRoute, arsd, funcfinder, tdtp-framework, kanzi,
+  flask, symfony-routing, lua and the fixtures; `deps` gives the same content (its order of equal counts already varied
+  from run to run). Median `funcfinder --dir --all --json`: OmniRoute 770 → 579 ms, tdtp-framework 82 → 60 ms, kanzi
+  68 → 42 ms, arsd 135 → 125 ms; `--struct --json` on OmniRoute 535 → 405 ms; `callgraph` on OmniRoute 1006 → 916 ms.
+
 - **TypeScript: function headers are read by a scanner instead of the regular expression.** As for D in 1.15.7, the TS
   function pattern (a fifth of a TypeScript run) is replaced by `tsHeaderSubmatch`, which returns exactly the pattern's
   result, every group included, while `languages.json` holds the pattern unchanged. It was compared with the pattern on

@@ -96,7 +96,7 @@ func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 		ignoreMatcher = NewIgnoreMatcher(rootPath)
 	}
 
-	err := filepath.Walk(rootPath, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.WalkDir(rootPath, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			// Skip files/directories that can't be accessed
 			return nil
@@ -108,9 +108,9 @@ func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 		}
 
 		// Check if path matches gitignore patterns
-		if ignoreMatcher != nil && ignoreMatcher.Matches(relPath, info.IsDir()) {
+		if ignoreMatcher != nil && ignoreMatcher.Matches(relPath, entry.IsDir()) {
 			// If it's a directory and we should skip it entirely
-			if info.IsDir() {
+			if entry.IsDir() {
 				return filepath.SkipDir
 			}
 			// Skip the file
@@ -121,14 +121,14 @@ func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 		// except for .gitignore itself and the root path itself
 		base := filepath.Base(path)
 		if len(base) > 0 && base[0] == '.' && base != ".gitignore" && path != rootPath {
-			if info.IsDir() {
+			if entry.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
 		// Skip directories if not recursive
-		if info.IsDir() {
+		if entry.IsDir() {
 			if !dp.recursive && path != rootPath {
 				return filepath.SkipDir
 			}
@@ -139,6 +139,12 @@ func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 		langConfig := dp.config.GetLanguageByExtension(path)
 		if langConfig == nil {
 			dp.skipped[strings.ToLower(filepath.Ext(path))]++
+			return nil
+		}
+
+		// Only a source file's size is read (for the dispatch order): Walk read every entry's, one system call each.
+		info, err := entry.Info()
+		if err != nil {
 			return nil
 		}
 
@@ -282,11 +288,14 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 
 	// The file is read at most once per job: the finders that take lines and the struct finder share it.
 	fileLines := lazyLines(job.Path)
+	// The finders share the cleaned lines too: the first one to clean the file keeps them for the others.
+	facts := &factsCache{}
 
 	switch dp.workMode {
 	case "functions":
 		// Find only functions
 		finder := CreateFinder(langConfig, "", "map", false, false)
+		prepareDirJob(finder, facts)
 		findResult, err := findFunctionsOf(finder, job.Path, fileLines)
 		if err != nil {
 			result.Error = err
@@ -303,6 +312,7 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 		}
 		factory := NewStructFinderFactory()
 		structFinder := factory.CreateStructFinder(langConfig, "", true, false)
+		prepareDirJob(structFinder, facts)
 		structResult, err := findStructuresOf(structFinder, job.Path, fileLines)
 		if err != nil {
 			result.Error = err
@@ -321,6 +331,7 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 	case "all":
 		// Find both functions and structs
 		finder := CreateFinder(langConfig, "", "map", false, false)
+		prepareDirJob(finder, facts)
 		findResult, err := findFunctionsOf(finder, job.Path, fileLines)
 		if err != nil {
 			result.Error = err
@@ -333,6 +344,7 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 		if langConfig.HasStructSupport() {
 			factory := NewStructFinderFactory()
 			structFinder := factory.CreateStructFinder(langConfig, "", true, false)
+			prepareDirJob(structFinder, facts)
 			structResult, err := findStructuresOf(structFinder, job.Path, fileLines)
 			if err == nil {
 				// Dedup: a type already in Classes (from class_pattern) keeps its entry and takes the struct finder's kind
@@ -365,8 +377,9 @@ func (dp *DirProcessor) processFile(job Job) DirResult {
 			return result
 		}
 		// Cleaned first: a line inside a string or a comment is not a declaration.
-		cleaned := NewSanitizer(langConfig, false).CleanLines(lines)
-		result.Aliases = findGoAliases(cleaned)
+		sanitizer := NewSanitizer(langConfig, false)
+		prepareDirJob(sanitizer, facts)
+		result.Aliases = findGoAliases(cleanedTexts(sanitizer.CleanLinesFacts(lines)))
 	}
 
 	return result
@@ -767,7 +780,7 @@ func CollectSourceFiles(rootPath string, langConfig *LanguageConfig, recursive b
 	}
 
 	var files []string
-	err := filepath.Walk(rootPath, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.WalkDir(rootPath, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -777,8 +790,8 @@ func CollectSourceFiles(rootPath string, langConfig *LanguageConfig, recursive b
 			return nil
 		}
 
-		if ignoreMatcher != nil && ignoreMatcher.Matches(relPath, info.IsDir()) {
-			if info.IsDir() {
+		if ignoreMatcher != nil && ignoreMatcher.Matches(relPath, entry.IsDir()) {
+			if entry.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
@@ -786,13 +799,13 @@ func CollectSourceFiles(rootPath string, langConfig *LanguageConfig, recursive b
 
 		base := filepath.Base(path)
 		if len(base) > 0 && base[0] == '.' && base != ".gitignore" && path != rootPath {
-			if info.IsDir() {
+			if entry.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		if info.IsDir() {
+		if entry.IsDir() {
 			if !recursive && path != rootPath {
 				return filepath.SkipDir
 			}

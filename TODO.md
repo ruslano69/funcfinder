@@ -617,7 +617,46 @@ enterprise/Pro correctness story.
 
 ---
 
+## New uses of the cleaner and finders (plan, 2026-10-18)
+
+The cleaner knows, per line and for every language, which characters are code, comment or string literal (raw
+strings, docstrings, template literals, nested comments included); the finders know function and type bounds; the
+other tools add calls, imports and complexity. These are line-based heuristics, not grammars: no expressions, types or
+name resolution. Order is by value for agents against cost.
+
+- [ ] **1. Changed functions from a diff.** `--diff <rev>` / `--changed`: map `git diff` hunks to the functions and
+  types whose bounds they touch; with `callgraph --reverse`, list affected callers (test selection, review risk,
+  changelog draft, "read only these functions" for agents). Everything needed exists; a deleted function needs the
+  old revision's map.
+- [ ] **2. Code-aware grep.** Search only code, only comments or only string literals, reporting the enclosing
+  function: dangerous calls without hits in strings/comments, hard-coded secrets/URLs in strings, i18n string
+  extraction, TODO/FIXME per function, comment spell-check. Needs the comment/string ranges the cleaner computes but
+  currently discards (it blanks them).
+- [ ] **3. Structural lint for CI.** Thresholds with a non-zero exit code: function length, nesting depth, cognitive
+  complexity (`complexity` already computes it; add `--max-*`), parameter count, missing doc comment on exported
+  functions (`--doc` finds them), commented-out code, duplicate functions (hash of the cleaned, whitespace-normalized
+  body), never-called functions (reverse call graph, heuristic). A multi-language baseline, not a replacement for
+  language linters.
+- [ ] **4. Function-bounded chunks for RAG/embeddings** (direction of `internal/knowledge`).
+- [ ] **5. Editor data without grammars:** document symbols and folding ranges (functions, comments, strings).
+- [ ] **6. Per-function history metrics:** churn, owners and age from `git log`/`git blame` mapped onto bounds;
+  combined with complexity, a hot-spot map.
+- [ ] **7. Literal-safe whitespace fixes:** trailing whitespace, tabs/spaces and CRLF outside multi-line, raw and
+  template strings. This is the only formatter-like use that fits: a real formatter needs a full token stream and
+  grammar.
+
+Out of scope: type, null-safety or unused-variable checks, macro/preprocessor evaluation, refactorings that rewrite
+expressions.
+
+---
+
 ## Bugs
+
+### `deps -j` lists equal counts and their files in a different order on every run (2026-10-18)
+
+- [ ] **Open.** Two runs of the same binary on the same tree give different JSON: `cmd/deps/main.go` sorts
+  dependencies by `Count` only (`sort.Slice`, ties in map order) and builds each dependency's file list from a map.
+  Sort ties by module name and the file lists by path, so the output can be compared between runs and versions.
 
 ### `--dir --tree-full` prints the same as `--dir --tree` (2026-10-18)
 
