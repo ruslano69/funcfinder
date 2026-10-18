@@ -619,6 +619,22 @@ enterprise/Pro correctness story.
 
 ## Bugs
 
+### `--dir --tree-full` prints the same as `--dir --tree` (2026-10-18)
+
+- [ ] **Open.** In directory mode `--tree-full` gives byte-identical output to `--tree`, with no signatures: checked
+  on `internal/`, arsd, OmniRoute and tdtp-framework (v1.15.3). `AggregateDirResults` passes `treeFull` to
+  `formatDirResultsTree`, but `writeTreeNode` (`internal/dirprocessor.go`) prints only `def name (line N)` and never
+  reads it; `DirResult` holds no signature text to print. Single-file `--inp ... --tree-full` is a separate path.
+  Either carry signatures into `DirResult` and print them, or reject/document the flag in `--dir` mode.
+
+### `callgraph --dir` walks the tree twice (2026-10-18)
+
+- [ ] **Open.** `runDirMode` (`cmd/callgraph/main.go`) lists files with `internal.CollectSourceFiles` only to read
+  import aliases, while `DirProcessor.collectFiles` walks the same tree with its own walker. Since #107 the second walk
+  runs alongside the directory job, so it costs ~100 ms on OmniRoute rather than ~160 ms of wall time. Dropping it
+  means reading imports for the directory job's results directly, which is safe only after showing that both walkers
+  select the same files (hidden files, extensions, `.gitignore`, `-l` scoping); otherwise a file's aliases change.
+
 ### `.gitignore` globs: `*` is a regex quantifier, `**` lines are dropped (2026-10-13)
 
 - [ ] **Open.** `IgnoreMatcher.patternToRegex` (`internal/dirprocessor.go`) escapes regex characters with a class that
