@@ -4,7 +4,7 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
-## Language coverage on real projects: status and next steps (2026-10-17)
+## Language coverage on real projects: status and next steps (2026-10-18)
 
 Earlier measurements used `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
 language); subsequent runs and their revisions are recorded below. Python, PHP, Scala/D, C, C++, TypeScript and C# evaluators now live in `benchmarks/`. Truth
@@ -19,7 +19,7 @@ them with their own span, so a missing C# or Java declaration counts as missing.
 | Kotlin | NekoBoxForAndroid (1166), Seal (781) | 99.7%, 99.2% | 1, 0 | 3, 6 | good |
 | Ruby | huginn (1865), maybe (2284) | 99.0%, 99.9% | 0, 3 | 19, 0 | good |
 | TypeScript | hr_gemini (2988), zod (2072) | 100%, 99.3% | 0, 1 | 0, 14 | hr_gemini measured 2026-10-13 after the declarator fix (tree-sitter TypeScript reference, 0 false functions); zod measured before it, 3 false functions |
-| JavaScript | lodash (1918, minified) | 81.0% | 7 | 357 | open |
+| JavaScript | lodash (2458), Express (218) | 100%, 100% | 0, 0 | 0, 0 | local JS token fix verified 2026-10-18; 55/55 and 141/141 tracked files, 0 false functions; expanded named-function profile including vendor sources and 4 minified bundles, not a replay of the old 1918-function profile |
 | Java | gson (3492) | 100% | 0 | 0 | production linear-token fix verified on `e2292f9`; 264/264 files, 0 false functions; 767/767 named types match header locations; recursive pilot remains separate |
 | C# | Polly (5116), Dapper (1592) | 100%, 100% | 0, 0 | 0, 0 | measured 2026-10-16 with Roslyn; no false functions; 801/801 and 157/157 files; default symbols |
 | C++ | fmt (1450 truth) | 97.5% | 0 | 36 (19 conversion operators, 11 macro-generated) | measured 2026-10-13; 7 false functions (explicit instantiations) |
@@ -272,10 +272,20 @@ exclusions. Truth is 1450 functions and declarations, 138 of them bodyless. On `
   and `_links` in `lib/feedjira_extension.rb` (inside `self.included`). The block-end finder does not
   nest. Also a few in `spec/`. Ruby `maybe`: 3 wrong ends, not analysed.
 - [ ] **Swift: Alamofire 2 wrong ends, 6 missing.** Not analysed. Project `Ice` is not measured.
-- [ ] **JavaScript, lodash: 357 missing (19%), 7 wrong ends.** Minified bundles: several functions
-  per line, and the wrong ends are in the same bundles (`lodash.min.js`, `lodash.fp.min.js`). A
-  non-minified JavaScript project is needed to measure the rest of the language. Decide whether
-  minified code is in scope.
+- [x] **JavaScript: expression discovery and minified endpoints fixed locally.**
+  The historical 1918-function lodash profile is superseded by a reproducible
+  JS evaluator with explicit named-expression/direct-variable binding rules.
+  On lodash `2b5e6f7` (55 tracked files, including vendor and four minified
+  bundles), the same-profile baseline has 403 misses, 4 false functions and
+  4 wrong ends; now all 2458 functions match exactly. Express `0dee2c5`
+  (141 files): 78 misses become zero, all 218 match; zero false functions or
+  wrong ends. The shared TS line scanner is unchanged; pinned zod's 338 TS
+  files with symbols are identical, while `.cjs` discovery adds one JS file
+  whose 7 functions independently match. Tests, vet, race and all five builds
+  pass. Methods, dollar/private names, statement context, original extraction,
+  selected names and offsets have dedicated regressions. See
+  `benchmarks/JAVASCRIPT_FIX.md`; raw scores/maps/timings are in ignored
+  `build/javascript-eval-20261018/`.
 - [x] **Python: wrong spans and docstring false positives fixed locally.** Logical statements
   now account for strings, bracket continuations, explicit backslashes and multiline decorators.
   Function indentation comes from the `def` line; suite colons are read outside brackets, with

@@ -198,11 +198,11 @@ func analyzeLines(filename string, lines []string, config *internal.LanguageConf
 			continue
 		}
 
-		// Prefer C#/Java declaration coordinates from the finder. Other languages
+		// Prefer C#/Java/JavaScript declaration coordinates from the finder. Other languages
 		// identify signature lines through their configured function pattern.
 		// Skip only the declaration token, retaining real recursive calls.
 		selfDefName := ""
-		if config.LangKey != "cs" && config.LangKey != "java" && funcRegex != nil {
+		if config.LangKey != "cs" && config.LangKey != "java" && config.LangKey != "js" && funcRegex != nil {
 			if m := funcRegex.FindStringSubmatch(cleanedLine); m != nil {
 				if name := internal.ExtractFuncName(m); name != "" && definedNames[name] {
 					selfDefName = name
@@ -219,7 +219,7 @@ func analyzeLines(filename string, lines []string, config *internal.LanguageConf
 		for _, match := range matches {
 			if len(match) >= 2 {
 				funcName := match[1]
-				if (config.LangKey == "cs" || config.LangKey == "java") && signatures[lineIndex+1][funcName] && !skippedSignatures[funcName] {
+				if (config.LangKey == "cs" || config.LangKey == "java" || config.LangKey == "js") && signatures[lineIndex+1][funcName] && !skippedSignatures[funcName] {
 					skippedSignatures[funcName] = true
 					continue
 				}

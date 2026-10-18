@@ -42,6 +42,20 @@ func TestCallCounts_CSharpSignaturesAndRealRecursion(t *testing.T) {
 	}
 }
 
+func TestCallCounts_JavaScriptExpressionsAndDollarRecursion(t *testing.T) {
+	counts := callCountsOf(t, "js", "sample.cjs", `function $cash(n) { return n ? $cash(n-1) : 0; }
+const arrow = n => arrow(n);
+const alias = function inner(n) { return n ? inner(n-1) : 0; };
+function
+split() { return 1; }
+`)
+	for name, want := range map[string]int{"$cash": 1, "arrow": 1, "inner": 1, "split": 0} {
+		if counts[name] != want {
+			t.Errorf("%s count = %d, want %d; all counts: %v", name, counts[name], want, counts)
+		}
+	}
+}
+
 // callCountsOf writes src to a temp file and runs analyzeFile against it,
 // mirroring cmd/complexity/nesting_test.go's depthOf helper style.
 func callCountsOf(t *testing.T, lang, filename, src string) map[string]int {
