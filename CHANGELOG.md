@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **D: the function pattern runs once per line, not twice.** The D preparation pass now hands each line's result of
+  the function pattern to the finder, which ran the same pattern on the same text again (13% of a D run); a result is
+  passed on only when the line did not change after the check. The pass also converts each line to runes once instead
+  of rebuilding the string for every check, and the attribute-line pattern runs only on lines that start with `@` or
+  the first letter of an attribute word. Output is byte-identical on arsd, d-yaml, the fixtures, OmniRoute and
+  tdtp-framework for `funcfinder` (`--all --json`, `--map`), `callgraph`, `complexity` and `funcstats`. Median on arsd:
+  `funcfinder --dir --all --json` 242 → 191 ms, `callgraph` 328 → 277 ms, `complexity` 303 → 252 ms, `funcstats`
+  364 → 315 ms; `webview.d` alone 160 → 128 ms.
+
 ## v1.15.4 - 2026-10-18
 
 A correctness release for directory walks: `.gitignore` patterns now mean what they mean to git, so the set of files
