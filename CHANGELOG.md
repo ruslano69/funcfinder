@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v1.15.5 - 2026-10-18
+
+A performance release for D. Output is unchanged, byte for byte. `funcfinder --dir --all --json` on arsd (11 MB of D)
+reads 1.50 million lines per second, up from 1.19 million in 1.15.4.
+
+Known limits: the D function pattern still runs in the preparation pass and the multiline-header join, and the D
+lexer still works on runes; timings come from one 16-core Windows machine.
 
 - **D: the function pattern runs once per line, not twice.** The D preparation pass now hands each line's result of
   the function pattern to the finder, which ran the same pattern on the same text again (13% of a D run); a result is
