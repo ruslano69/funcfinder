@@ -327,12 +327,15 @@ func dNameAt(s string, h, group int) []string {
 	return m
 }
 
-// FuncSubmatch returns what FindStringSubmatch of the function pattern returns for s. For D it runs the header
+// FuncSubmatch returns what FindStringSubmatch of the function pattern returns for s. For D and TS it runs the header
 // scanner, which gives the same result; callers that test signature lines (callgraph, funcstats) use it so D does
 // not run the costly pattern there either.
 func (lc *LanguageConfig) FuncSubmatch(s string) []string {
 	if dUsesHeaderScanner(lc) {
 		return dHeaderSubmatch(s)
+	}
+	if tsUsesHeaderScanner(lc) {
+		return tsHeaderSubmatch(s)
 	}
 	if re := lc.FuncRegex(); re != nil {
 		return re.FindStringSubmatch(s)

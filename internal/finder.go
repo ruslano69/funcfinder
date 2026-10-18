@@ -860,7 +860,8 @@ func (f *Finder) isKeywordName(name string) bool {
 func (f *Finder) findFunctionsWithNesting(lines []string, facts []LineFacts, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
 	funcStack := []*FunctionContext{} // Стек активных функций
 	funcRegex := f.config.FuncRegex()
-	dHeaders := dUsesHeaderScanner(f.config) // D: the header scanner stands for funcRegex
+	dHeaders := dUsesHeaderScanner(f.config)   // D: the header scanner stands for funcRegex
+	tsHeaders := tsUsesHeaderScanner(f.config) // TS: likewise (ts_header.go)
 	// The whole file, cleaned line by line: a declaration's value may span lines. The facts come from the caller.
 	cleanedLines := cleanedTexts(facts)
 	// typeDepth: the type-literal braces (`query<{`) still open from earlier lines; they are not code braces.
@@ -885,13 +886,15 @@ func (f *Finder) findFunctionsWithNesting(lines []string, facts []LineFacts, lin
 		if f.config.MayStartFunction(cleaned) && !(f.dFuncHint != nil && f.dFuncHint[lineNum] == dHintNoMatch) {
 			if dHeaders {
 				matches = dHeaderSubmatch(cleaned) // the D pattern's result, without running it (d_header.go)
+			} else if tsHeaders {
+				matches = tsHeaderSubmatch(cleaned) // the TS pattern's result (ts_header.go)
 			} else {
 				matches = funcRegex.FindStringSubmatch(cleaned)
 			}
 		}
 		// A method named by a string literal is read from the raw line: the sanitizer blanks
 		// the literal, so the cleaned line has no name.
-		if matches == nil && startsNormal && f.config.QuotedMethodRegex() != nil {
+		if matches == nil && startsNormal && f.config.QuotedMethodRegex() != nil && f.config.MayQuoteMethod(line) {
 			matches = f.config.QuotedMethodRegex().FindStringSubmatch(line)
 		}
 		if matches != nil && isCompleteValueAssignment(matches, cleaned) {
@@ -966,7 +969,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, facts []LineFacts, lin
 		// The functions that start after a separator on this line (TypeScript and JavaScript).
 		var inlineStarts []inlineStart
 		if f.config.InlineHeaders && !headerOpen && f.config.MayStartFunction(cleaned) {
-			inlineStarts = inlineHeaderStarts(cleaned, funcRegex, f.config.DeclaratorRegex())
+			inlineStarts = inlineHeaderStarts(cleaned, funcRegex, f.config.DeclaratorRegex(), tsHeaders)
 		}
 
 		// 1. Сохраняем предыдущие глубины ДО обновления
@@ -1246,6 +1249,7 @@ type inlineStart struct {
 	at         int
 	re         *regexp.Regexp
 	declarator bool
+	tsScan     bool // the TS header scanner stands for re (ts_header.go)
 }
 
 // listDeclarationRe opens a declaration statement: the keyword that the declarators of its list follow.
@@ -1253,7 +1257,7 @@ var listDeclarationRe = regexp.MustCompile(`^(?:export\s+)?(?:const|let|var)\s`)
 
 // inlineHeaderStarts returns the headers that begin after a separator on a cleaned line, in order. The start of
 // the line is not among them: the caller reads it. A later declarator of a const|let|var list begins after its ','.
-func inlineHeaderStarts(cleaned string, funcRegex, declRegex *regexp.Regexp) []inlineStart {
+func inlineHeaderStarts(cleaned string, funcRegex, declRegex *regexp.Regexp, tsScan bool) []inlineStart {
 	var starts []inlineStart
 	for i := 0; i < len(cleaned); i++ {
 		if !strings.ContainsRune(inlineHeaderSeparators, rune(cleaned[i])) {
@@ -1266,8 +1270,8 @@ func inlineHeaderStarts(cleaned string, funcRegex, declRegex *regexp.Regexp) []i
 		if p >= len(cleaned) {
 			continue
 		}
-		if funcRegex.MatchString(cleaned[p:]) {
-			starts = append(starts, inlineStart{at: p, re: funcRegex})
+		if tsScan && tsHeaderSubmatch(cleaned[p:]) != nil || !tsScan && funcRegex.MatchString(cleaned[p:]) {
+			starts = append(starts, inlineStart{at: p, re: funcRegex, tsScan: tsScan})
 		} else if declRegex != nil && cleaned[i] == ',' && declRegex.MatchString(cleaned[p:]) && listDeclarationBefore(cleaned, i) {
 			starts = append(starts, inlineStart{at: p, re: declRegex, declarator: true})
 		}
@@ -1337,7 +1341,12 @@ func headerEnd(text string) (sigEvent, int) {
 // body or its signature goes on to the next lines.
 func (f *Finder) inlineFunction(cleaned, line string, s inlineStart, lineIdx int, classes []ClassBounds) (*FunctionBounds, *FunctionContext) {
 	p := s.at
-	matches := s.re.FindStringSubmatch(cleaned[p:])
+	var matches []string
+	if s.tsScan {
+		matches = tsHeaderSubmatch(cleaned[p:])
+	} else {
+		matches = s.re.FindStringSubmatch(cleaned[p:])
+	}
 	if matches == nil {
 		return nil, nil
 	}
