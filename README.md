@@ -68,7 +68,7 @@ internal/       Parser engine: finders, sanitizer, formatter, shard logic
 languages.json  15 language patterns (embedded)
 ```
 
-Parser uses a state-machine sanitizer (not regex) to correctly handle Go raw strings, Python docstrings, C# verbatim literals, nested comments — at 3.57 million lines/sec on a 1.63M-line TypeScript/JavaScript project (`funcfinder --dir --all --json`, whole run, v1.15.8, 16-core machine).
+Parser uses a state-machine sanitizer (not regex) to correctly handle Go raw strings, Python docstrings, C# verbatim literals, nested comments — at 3.4 million lines/sec on a 1.63M-line TypeScript/JavaScript project (`funcfinder --dir --all --json`, whole run, v1.15.9, 16-core machine).
 
 ## DOX — Agent Documentation
 

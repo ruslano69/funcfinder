@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased
+## v1.15.9 - 2026-10-18
+
+An accuracy release for JavaScript and TypeScript. Functions that template literals, comments, JSX text or complex
+headers used to hide are found: on the accepted independent Express/lodash/zod/OmniRoute profiles no named function
+is missing any more (35,999 functions). Against 1.15.8, OmniRoute gains 57 functions and loses 4 false functions and
+2 false types (code inside template strings); zod gains 29 functions and loses one false entry. Output for Express,
+lodash and every other language is unchanged, byte for byte (`deps -j` has the same content; its order of equal counts
+varies from run to run, as before).
+
+The TypeScript recovery costs a little time. Median 1.15.8 → 1.15.9: OmniRoute `funcfinder --dir --all --json`
+454 → 479 ms (3.4 million lines per second), `callgraph --json` 803 → 817 ms, `complexity -j` 610 → 628 ms; zod
+`--all` 46 → 55 ms; arsd and tdtp-framework unchanged.
+
+Known limits: the recovery runs only on TypeScript files with an unresolved header shape it can read (114 files of the
+OmniRoute, zod and fixture trees), and only while `languages.json` holds the TS function pattern unchanged; false
+entries, wrong ends and parse-error exclusions of the JS/TS profiles remain (see `TODO.md`); the D and JS/TS ports in
+`benchmarks/` are experiments, not part of the release; timings come from one 16-core Windows machine.
 
 - **JavaScript/TypeScript: functions missed after complex literals and headers are found.** Template interpolation
   keeps regexes, comments, nested templates and escaped backticks balanced across lines (`javascript_template.go`, one
