@@ -310,10 +310,10 @@ grep -i "functionname" map.json
 
 ## Performance
 
-- **Speed** (v1.15.0, 16-core/32-thread Windows machine, `funcfinder --dir --all --json`): 1.85M lines/sec end to end
-  on OmniRoute (6.8k TS/JS files, 1.57M lines); 2.16M lines/sec in process on this repository, where a whole run is
-  half process start-up (~25 ms). D: 2.16M lines/sec on arsd (v1.15.7). `CHANGELOG.md`
-  v1.15.0, v1.15.3 and v1.15.5–v1.15.7 have the per-tool timings.
+- **Speed** (v1.15.8, 16-core/32-thread Windows machine, `funcfinder --dir --all --json`): 3.57M lines/sec end to end
+  on OmniRoute (9.3k TS/JS files, 1.63M lines); on this repository a whole run is mostly process start-up (~25 ms).
+  D: 2.16M lines/sec on arsd (v1.15.7). `CHANGELOG.md` v1.15.0, v1.15.3 and v1.15.5–v1.15.8 have the per-tool
+  timings.
 - **Parallel**: Auto-uses all CPU cores
 - **Token savings**: 99%+ vs reading full files
 

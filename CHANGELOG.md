@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## v1.15.8 - 2026-10-18
+
+A performance release for TypeScript and for every directory run. Output is unchanged, byte for byte (`deps -j` has the
+same content; its order of equal counts varies from run to run, as before). `funcfinder --dir --all --json` on
+OmniRoute (9,300 TS/JS files, 1.63 million lines) takes 457 ms instead of 775 ms in 1.15.7: 3.57 million lines per
+second. Median 1.15.7 → 1.15.8 on OmniRoute: `funcstats --dir -j` 1216 → 832 ms, `callgraph --json` 1014 → 801 ms,
+`complexity -j` 801 → 608 ms, `funcfinder --struct --json` 545 → 403 ms; kanzi (Go with Rust build artifacts)
+`funcfinder --all` 68 → 44 ms; tdtp-framework 81 → 61 ms; arsd 136 → 128 ms.
+
+Known limits: the TypeScript scanner stands in for the function pattern only while `languages.json` holds it unchanged
+(the regular expression runs otherwise); the sanitizer's slow path is now the largest cost of a TypeScript run, and the
+TS declaration and the D type, statement and attribute patterns are still regular expressions; timings come from one
+16-core Windows machine.
 
 - **Directory runs: the finders of a file share its cleaned lines, struct fields are no longer collected, and the walk
   and the file reads cost less.** In `--all` the function finder and the struct finder (and, for Go, the alias reader)
