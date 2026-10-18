@@ -312,8 +312,8 @@ grep -i "functionname" map.json
 
 - **Speed** (v1.15.0, 16-core/32-thread Windows machine, `funcfinder --dir --all --json`): 1.85M lines/sec end to end
   on OmniRoute (6.8k TS/JS files, 1.57M lines); 2.16M lines/sec in process on this repository, where a whole run is
-  half process start-up (~25 ms). D is the slowest language: 1.64M lines/sec on arsd (v1.15.6). `CHANGELOG.md`
-  v1.15.0, v1.15.3, v1.15.5 and v1.15.6 have the per-tool timings.
+  half process start-up (~25 ms). D: 2.16M lines/sec on arsd (v1.15.7). `CHANGELOG.md`
+  v1.15.0, v1.15.3 and v1.15.5–v1.15.7 have the per-tool timings.
 - **Parallel**: Auto-uses all CPU cores
 - **Token savings**: 99%+ vs reading full files
 

@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v1.15.7 - 2026-10-18
+
+A performance release for D. Output is unchanged, byte for byte. `funcfinder --dir --all --json` on arsd (11 MB of D)
+reads 2.16 million lines per second, up from 1.64 million in 1.15.6; D is no longer the slowest language.
+
+Known limits: the scanner stands in for the D function pattern only while `languages.json` holds it unchanged (the
+regular expression runs otherwise); the class, attribute, type and statement patterns are still regular expressions;
+timings come from one 16-core Windows machine.
 
 - **D: function headers are read by a scanner instead of the regular expression.** The D function pattern, a large
   alternation that backtracks, took about a quarter of a D run. `dHeaderSubmatch` walks the same structure and returns
