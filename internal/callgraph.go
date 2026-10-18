@@ -161,7 +161,7 @@ func buildFileCallGraph(
 		// fallback: a decorated declaration may start before its name line.
 		signatureName, isOwnSignatureLine := signatures[lineNo][caller]
 		if langConfig.LangKey != "cs" && langConfig.LangKey != "java" && langConfig.LangKey != "js" && funcRegex != nil && strings.Contains(clean, caller) {
-			if m := funcRegex.FindStringSubmatch(clean); m != nil {
+			if m := langConfig.FuncSubmatch(clean); m != nil {
 				if ExtractFuncName(m) == caller {
 					isOwnSignatureLine = true
 				}
