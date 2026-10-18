@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Directory runs hand out the largest files first.** Workers took files in walk order, so a large file late in the
+  tree started last and the run waited for it alone (arsd's `webview.d`, 12% of its lines). Results are unchanged.
+- **D: fewer runs of the costly patterns.** The class pattern runs only on lines with a type keyword
+  (`type_keywords`); it backtracked on every line and took a third of `webview.d`'s time. The header-join check runs
+  its cheap tests before the function pattern, and statement lines skip the function pattern. The output is
+  byte-identical on arsd, d-yaml, OmniRoute, tdtp-framework and the fixtures for `funcfinder` (`--all --json`,
+  `--map`, `--tree`), `callgraph`, `complexity` and `funcstats`. Median on arsd: `funcfinder --dir --all --json`
+  410 → 263 ms, `complexity` 450 → 327 ms, `funcstats` 521 → 394 ms, `callgraph` 489 → 366 ms; `webview.d` alone
+  268 → 182 ms.
+
 ## v1.15.2 - 2026-10-18
 
 - **JavaScript: discover expression functions and correct minified boundaries.**
