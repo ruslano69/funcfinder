@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v1.15.3 - 2026-10-18
+
+A performance release for D and for projects with a few very large files. Output is unchanged, byte for byte.
+`funcfinder --dir --all --json` on arsd (11 MB of D) reads 1.09 million lines per second, up from 0.70 million.
+
+Known limits: on arsd the run is still bounded by its largest file (`webview.d`, 182 ms alone); `complexity` and
+`funcstats` do not use the largest-first order yet; timings come from one 16-core Windows machine.
 
 - **Directory runs hand out the largest files first.** Workers took files in walk order, so a large file late in the
   tree started last and the run waited for it alone (arsd's `webview.d`, 12% of its lines). Results are unchanged.
