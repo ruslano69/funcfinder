@@ -79,6 +79,8 @@ func (s ParserState) String() string {
 type Sanitizer struct {
 	config *LanguageConfig
 	useRaw bool
+	// shared, when set, holds the facts of the file for the other finders of a directory job (facts_cache.go).
+	shared *factsCache
 	// stringDelim is the delimiter that opened the current StateString: only
 	// the same delimiter closes it ("it's" is one string, not two).
 	stringDelim string
@@ -825,8 +827,16 @@ type LineFacts struct {
 	CodeText   bool        // the raw line holds text outside comments; a literal-only line has it with a blank Cleaned
 }
 
-// CleanLinesFacts cleans a file line by line and returns the facts of each line.
+// CleanLinesFacts cleans a file line by line and returns the facts of each line. The result may be shared with the
+// other finders of a directory job (factsCache): callers must not modify it.
 func (s *Sanitizer) CleanLinesFacts(lines []string) []LineFacts {
+	if s.shared != nil {
+		return s.shared.factsOf(s, lines)
+	}
+	return s.cleanLinesFacts(lines)
+}
+
+func (s *Sanitizer) cleanLinesFacts(lines []string) []LineFacts {
 	facts := make([]LineFacts, len(lines))
 	state := StateNormal
 	for i, line := range lines {

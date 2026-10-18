@@ -14,6 +14,8 @@ type PythonStructFinder struct {
 	typeNames   map[string]bool
 	mapMode     bool
 	extractMode bool
+	// noFields skips the fields of each type: a directory job reports only the types (prepareDirJob).
+	noFields bool
 }
 
 // NewPythonStructFinder creates a new Python struct finder
@@ -59,8 +61,9 @@ func (f *PythonStructFinder) FindStructuresInLines(lines []string, startLine int
 	// For each type, find its fields
 	for i := range types {
 		typeBounds := &types[i]
-		fields := f.findFieldsForType(facts, typeBounds, lineOffset)
-		typeBounds.Fields = fields
+		if !f.noFields {
+			typeBounds.Fields = f.findFieldsForType(facts, typeBounds, lineOffset)
+		}
 		result.Types = append(result.Types, *typeBounds)
 	}
 

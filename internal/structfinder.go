@@ -39,6 +39,8 @@ type StructFinder struct {
 	sanitizer *Sanitizer
 	typeNames map[string]bool
 	mapMode   bool
+	// noFields skips the fields of each type: a directory job reports only the types (prepareDirJob).
+	noFields bool
 }
 
 // NewStructFinder creates a new struct finder
@@ -83,8 +85,9 @@ func (f *StructFinder) FindStructuresInLines(lines []string, startLine int, file
 	// For each type, find its fields
 	for i := range types {
 		typeBounds := &types[i]
-		fields := f.findFieldsForType(facts, typeBounds, lineOffset)
-		typeBounds.Fields = fields
+		if !f.noFields {
+			typeBounds.Fields = f.findFieldsForType(facts, typeBounds, lineOffset)
+		}
 		result.Types = append(result.Types, *typeBounds)
 	}
 
