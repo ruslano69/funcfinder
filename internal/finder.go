@@ -891,7 +891,7 @@ func (f *Finder) findFunctionsWithNesting(lines []string, facts []LineFacts, lin
 		}
 		// A method named by a string literal is read from the raw line: the sanitizer blanks
 		// the literal, so the cleaned line has no name.
-		if matches == nil && startsNormal && f.config.QuotedMethodRegex() != nil {
+		if matches == nil && startsNormal && f.config.QuotedMethodRegex() != nil && f.config.MayQuoteMethod(line) {
 			matches = f.config.QuotedMethodRegex().FindStringSubmatch(line)
 		}
 		if matches != nil && isCompleteValueAssignment(matches, cleaned) {

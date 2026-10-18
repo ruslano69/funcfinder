@@ -461,6 +461,14 @@ func (lc *LanguageConfig) MayStartFunction(cleaned string) bool {
 	return containsAnyOf(cleaned, lc.FuncRequires)
 }
 
+// MayQuoteMethod reports whether a raw line can hold a method named by a string literal (quoted_method_pattern):
+// that pattern starts with `^\s*` and a quote, so the first character after leading \s must be '"' or '\''. The
+// pattern was run on nearly every line of a TypeScript file.
+func (lc *LanguageConfig) MayQuoteMethod(line string) bool {
+	t := strings.TrimLeft(line, " \t\n\f\r")
+	return t != "" && (t[0] == '"' || t[0] == '\'')
+}
+
 // MayDeclare reports whether a cleaned line can hold a bodyless declaration (declaration_pattern): it can hold a
 // function header, and it ends with ';' before any trailing whitespace, as every declaration pattern requires. The
 // pattern is costly, and most lines fail this check.

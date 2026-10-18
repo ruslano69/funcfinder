@@ -3,6 +3,7 @@ package internal
 import (
 	"io/fs"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -99,5 +100,72 @@ func TestMayDeclareNeverHidesADeclaration(t *testing.T) {
 	}
 	if skipped == 0 || checked == skipped {
 		t.Fatalf("checked %d lines, skipped %d: the test checks nothing", checked, skipped)
+	}
+}
+
+// TestMayQuoteMethodNeverHidesAMatch checks the quoted-method gate: every quoted_method_pattern starts with `^\s*` and
+// a quote, and on every fixture line of those languages (and generated lines) a line the gate rejects never matches.
+func TestMayQuoteMethodNeverHidesAMatch(t *testing.T) {
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var langs []*LanguageConfig
+	for _, lc := range cfg {
+		if lc.QuotedMethodRegex() == nil {
+			continue
+		}
+		if !strings.HasPrefix(lc.QuotedMethodPattern, `^\s*((?:"`) {
+			t.Fatalf("%s: quoted_method_pattern no longer starts with whitespace and a quote; update MayQuoteMethod", lc.LangKey)
+		}
+		langs = append(langs, lc)
+	}
+	if len(langs) == 0 {
+		t.Fatal("no language has a quoted_method_pattern")
+	}
+	var lines []string
+	err = filepath.WalkDir("..", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if name := d.Name(); name == "build" || name == "node_modules" || name == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		for _, lc := range langs {
+			if cfg.GetLanguageByExtension(path) == lc {
+				file, err := readFileLines(path)
+				if err != nil {
+					return err
+				}
+				lines = append(lines, file...)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{`"`, `'`, ` "`, "\t'", "\v\"", `x"`, ""} {
+		for _, rest := range []string{`a"() {`, `a'(x): T {`, `"() {`, `() {`, `b"(c) : {`} {
+			lines = append(lines, q+rest)
+		}
+	}
+	matched := 0
+	for _, lc := range langs {
+		for _, l := range lines {
+			want := lc.QuotedMethodRegex().MatchString(l)
+			if want {
+				matched++
+			}
+			if want && !lc.MayQuoteMethod(l) {
+				t.Errorf("%s: the gate rejects %q, which the quoted-method pattern matches", lc.LangKey, l)
+			}
+		}
+	}
+	if matched == 0 {
+		t.Fatal("no line matched a quoted-method pattern: the test checks nothing")
 	}
 }
