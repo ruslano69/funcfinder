@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **`.gitignore` follows git's glob rules.** This changes which files every tool reads. `*` and `?` match within one
+  path segment, `**/`, `/**` and `a/**/b` work, and a pattern with a `/` at the start or in the middle is relative to
+  the root. Before, `*` was left as a regex quantifier (`ab*c` matched `ac`), every line with `**` failed to compile
+  and was dropped, and a middle-slash pattern matched at any depth. On Windows no pattern containing a `/` matched,
+  since paths were compared with `\`. Only a line starting with `#` is a comment now. Checked against `git
+  check-ignore` and `git ls-files --exclude-standard`: OmniRoute no longer reads 129 git-ignored files under nested
+  `node_modules`; tdtp-framework skips `cmd/tdtpcli/commands/test.go`, which its `test.go` pattern matches although
+  the file is tracked (the walk does not read git's index). Not supported yet: `!` negation, nested `.gitignore`
+  files, `.git/info/exclude`.
+
 ## v1.15.3 - 2026-10-18
 
 A performance release for D and for projects with a few very large files. Output is unchanged, byte for byte.
