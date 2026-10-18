@@ -88,6 +88,7 @@ type Sanitizer struct {
 	// at a time (it already keeps stringDelim), so the buffers are not shared between goroutines.
 	runeBuf   []rune
 	resultBuf []rune
+	template  jsTemplateScanner
 }
 
 func NewSanitizer(config *LanguageConfig, useRaw bool) *Sanitizer {
@@ -274,26 +275,9 @@ func (s *Sanitizer) rawDelimiterLen(runes []rune, pos int) int {
 // text starts at i, just after its "${", or -1 when the expression does not close on this
 // line. The strings and nested template literals inside it are skipped whole.
 func templateExprEnd(runes []rune, i int) int {
-	depth := 0
-	for i < len(runes) {
-		switch runes[i] {
-		case '{':
-			depth++
-		case '}':
-			if depth == 0 {
-				return i + 1
-			}
-			depth--
-		case '\'', '"':
-			i = quotedEnd(runes, i)
-			continue
-		case '`':
-			if i = templateEnd(runes, i+1); i < 0 {
-				return -1
-			}
-			continue
-		}
-		i++
+	scanner := jsTemplateScanner{frames: []jsTemplateFrame{{kind: '{', operand: true}}}
+	if end, closed := scanner.feed(runes, i); closed {
+		return end
 	}
 	return -1
 }
@@ -301,22 +285,9 @@ func templateExprEnd(runes []rune, i int) int {
 // templateEnd returns the index just past the backtick that closes a template literal whose
 // text starts at i, or -1 when it does not close on this line.
 func templateEnd(runes []rune, i int) int {
-	for i < len(runes) {
-		switch runes[i] {
-		case '\\':
-			i += 2
-			continue
-		case '`':
-			return i + 1
-		case '$':
-			if i+1 < len(runes) && runes[i+1] == '{' {
-				if i = templateExprEnd(runes, i+2); i < 0 {
-					return -1
-				}
-				continue
-			}
-		}
-		i++
+	scanner := jsTemplateScanner{frames: []jsTemplateFrame{{kind: '`'}}}
+	if end, closed := scanner.feed(runes, i); closed {
+		return end
 	}
 	return -1
 }
@@ -337,19 +308,18 @@ func quotedEnd(runes []rune, i int) int {
 }
 
 func (s *Sanitizer) handleRawString(runes []rune, result []rune, idx int) (int, ParserState) {
-	// A template expression is code: a string or a nested template inside it does not end the
-	// template, and its braces are not text.
-	if s.config.TemplateExpressions && runes[idx] == '$' && idx+1 < len(runes) && runes[idx+1] == '{' {
-		if end := templateExprEnd(runes, idx+2); end > 0 {
-			for k := idx; k < end; k++ {
-				if s.useRaw {
-					result[k] = runes[k]
-				} else {
-					result[k] = ' '
-				}
-			}
-			return end, StateRawString
+	if s.config.TemplateExpressions {
+		if len(s.template.frames) == 0 {
+			s.template.frames = append(s.template.frames, jsTemplateFrame{kind: '`'})
 		}
+		end, closed := s.template.feed(runes, idx)
+		if s.useRaw {
+			copy(result[idx:end], runes[idx:end])
+		}
+		if closed {
+			return end, StateNormal
+		}
+		return end, StateRawString
 	}
 	// A raw string with its own closing delimiter (r", r#", @") closes only at that delimiter.
 	if s.stringDelim != "" {
@@ -470,7 +440,7 @@ func (s *Sanitizer) tryHandleCharDelimiter(runes []rune, result []rune, idx int)
 }
 
 // charLiteralEnd returns the index just past the char literal that starts with the quote at idx, or -1 when the
-// quote does not start one. A literal is one character ('x', 'À') or an escape ('\n', '\'', '\u{a0}'),
+// quote does not start one. A literal is one character ('x', 'À') or an escape ('\n', '\”, '\u{a0}'),
 // closed on the same line. The result cells of a literal stay blank, as the sanitizer leaves them.
 func charLiteralEnd(runes []rune, idx int) int {
 	if idx+2 < len(runes) && runes[idx+1] != '\\' && runes[idx+2] == '\'' {
@@ -545,6 +515,11 @@ func (s *Sanitizer) tryHandleRegularStrings(runes []rune, idx int) (ParserState,
 			return StateNormal, 1, false
 		}
 		s.stringDelim = rawClosing(opener)
+		if s.config.TemplateExpressions {
+			// Every template starts with an empty frame stack, whatever its closing delimiter: frames left by a template
+			// that an earlier text did not close must not carry over (TestCleanLinesFactsIgnoresEarlierFiles).
+			s.template.frames = s.template.frames[:0]
+		}
 		if s.stringDelim == "" {
 			return StateRawString, 1, true
 		}
@@ -635,7 +610,7 @@ func (s *Sanitizer) tryHandleBlockComment(line string, runes []rune, result []ru
 
 	for p < len(runes) {
 		// Check for nested comment start
-		if s.matchesAt(runes, p, s.config.BlockCommentStart) {
+		if !s.config.TemplateExpressions && s.matchesAt(runes, p, s.config.BlockCommentStart) {
 			depth++
 			p += startLen
 			continue
@@ -910,7 +885,7 @@ func (s *Sanitizer) GetConfig() *LanguageConfig {
 	return s.config
 }
 
-func (s *Sanitizer) Reset() { s.stringDelim = "" }
+func (s *Sanitizer) Reset() { s.stringDelim = ""; s.template.frames = s.template.frames[:0] }
 
 // Backward compatibility aliases for tests
 type EnhancedSanitizer = Sanitizer
@@ -1047,10 +1022,23 @@ func (s *Sanitizer) tryHandleRegexLiteral(runes []rune, result []rune, idx int) 
 	if !regexPositionAllowed(result, idx) {
 		return idx, false
 	}
+	end := regexLiteralEnd(runes, idx, s.config.TemplateExpressions)
+	if end < 0 {
+		return idx, false
+	}
+	fillWithSpaces(result, idx, end-idx)
+	return end, true
+}
+
+// A JS regex cannot consume a closing JSX tag as its delimiter and unknown
+// flags (for example the Text in `[/]filter</Text>`). Keep Ruby's flag policy.
+func regexLiteralEnd(runes []rune, idx int, strictFlags bool) int {
 	inClass := false
 	for j := idx + 1; j < len(runes); j++ {
 		c := runes[j]
 		switch {
+		case c == '\n' || c == '\r':
+			return -1
 		case c == '\\':
 			j++
 		case inClass:
@@ -1064,9 +1052,11 @@ func (s *Sanitizer) tryHandleRegexLiteral(runes []rune, result []rune, idx int) 
 			for end < len(runes) && isRegexFlag(runes[end]) {
 				end++
 			}
-			fillWithSpaces(result, idx, end-idx)
-			return end, true
+			if strictFlags && end < len(runes) && jsWord(runes[end]) {
+				return -1
+			}
+			return end
 		}
 	}
-	return idx, false
+	return -1
 }

@@ -6,6 +6,20 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ## Language coverage on real projects: status and next steps (2026-10-18)
 
+JS/TS missing-function fix: Go and the D prototype now recover all 71 previously
+missing named functions in the accepted profiles. Express/lodash remain clean;
+zod missing/false/wrong-end = 0/2/1 (was 14/3/1), OmniRoute JS = 0/2/0 (was
+37/2/0), OmniRoute TS = 0/45/38 (was 20/49/38). These are 35,999 accepted truth
+functions with the same 13 parse-error exclusions, not complete JS/TS accuracy.
+Incremental template handling and TS balanced-token recovery have regression
+tests for source extraction/selection/offsets. Both APIs/lexical facts agree on
+all 10,009 inputs; raw results and the frozen Go base-plus-overlay are under
+`build/js-ts-misses-20261018/`. Remaining quality work is false entries and ends.
+Five paired parser samples quantify the recovery cost: OmniRoute TS Go
+1710.505 -> 2158.723 ms (+26.2%), D 1593.788 -> 1919.023 ms (+20.4%); zod Go
++35.8%, D +19.4%. Optimize this supplemental pass without hiding headers again.
+No complete-process speed claim is made for this correctness change.
+
 Earlier measurements used `main` at `2022d5b` against syntax-tree ground truth (tree-sitter, one grammar per
 language); subsequent runs and their revisions are recorded below. Python, PHP, Scala/D, C, C++, TypeScript and C# evaluators now live in `benchmarks/`. Truth
 includes declarations without a body (interface, abstract, prototype members): the design lists

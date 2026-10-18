@@ -10,6 +10,7 @@ Multi-language source fixtures used by parser unit tests in `internal/`. Each fi
 - Stress-test fixtures (`test_stress_*.{cpp,java,py}`) exercise parser performance and correctness at scale.
 - Struct fixtures (`test_structs.*`) exercise struct/class/type extraction.
 - JS-specific fixtures (`test_generators_arrows.js`, `test_edge_cases.cpp`) cover tricky syntax edge cases.
+- `test_javascript_lexical.js` and `test_typescript_recovery.ts` cover the JS/TS lexical and missing-header regressions; the D-port fixture checker consumes them too.
 
 ## Local Contracts
 
