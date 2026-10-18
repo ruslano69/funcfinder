@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 )
 
 // Job represents a file to be processed
@@ -619,32 +620,16 @@ type ignorePattern struct {
 // regexes are unanchored at the start ((^|/)) and were run for every pattern on every path of a walk; checking the
 // piece first skips almost all of them (OmniRoute: 0.89 s of matching down to 16 ms).
 //
-// The piece follows what patternToRegex really builds, not glob syntax: it escapes every character but *, and ? is
-// read as any one character, so pieces end at ?; a * is left as a regex quantifier on the character before it
-// (`ab*c` matches "ac"), so a piece ends at * and loses that character.
+// It follows patternToRegex: pieces end at the wildcards * and ?, and a "**/" is a wildcard with its slash, since
+// `**/build` also matches "build" at the root.
 func globLiteral(glob string) string {
+	glob = strings.ReplaceAll(strings.TrimPrefix(glob, "/"), "**/", "*")
 	lit := ""
-	var piece []rune
-	flush := func() {
-		if len(piece) > len([]rune(lit)) {
-			lit = string(piece)
-		}
-		piece = piece[:0]
-	}
-	for _, r := range strings.TrimPrefix(glob, "/") {
-		switch r {
-		case '*':
-			if len(piece) > 0 {
-				piece = piece[:len(piece)-1]
-			}
-			flush()
-		case '?':
-			flush()
-		default:
-			piece = append(piece, r)
+	for _, piece := range strings.FieldsFunc(glob, func(r rune) bool { return r == '*' || r == '?' }) {
+		if len(piece) > len(lit) {
+			lit = piece
 		}
 	}
-	flush()
 	return lit
 }
 
@@ -669,9 +654,9 @@ func NewIgnoreMatcher(root string) *IgnoreMatcher {
 func (m *IgnoreMatcher) parsePatterns(content string) {
 	lines := regexp.MustCompile(`\r?\n`).Split(content, -1)
 	for _, line := range lines {
-		line = regexp.MustCompile(`#.*`).ReplaceAllString(line, "")
+		// A comment is a line that starts with '#', as in git; a '#' elsewhere is part of the pattern.
 		line = strings.TrimSpace(line)
-		if line == "" {
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 
@@ -709,30 +694,47 @@ func (m *IgnoreMatcher) parsePatterns(content string) {
 	}
 }
 
+// patternToRegex turns a gitignore glob (its trailing "/" already removed) into a regex on slash-separated paths
+// relative to the root, as git reads it:
+//   - `*` matches within one path segment and `?` one character of it; every other character is literal;
+//   - `**/` at the start or after a "/" matches any number of leading directories, `/**` at the end everything
+//     inside, and any other `**` anything;
+//   - a pattern with a "/" at the start or in the middle is relative to the root; without one it matches at any depth;
+//   - a match also covers the paths inside a matched directory.
 func (m *IgnoreMatcher) patternToRegex(pattern string) string {
-	// Escape regex special characters except * and ?
-	regex := regexp.MustCompile(`([.+?^${}()|[\]\\])`).ReplaceAllStringFunc(pattern, func(match string) string {
-		return "\\" + match
-	})
-
-	// Handle ** glob pattern
-	regex = strings.ReplaceAll(regex, `\*\*`, ".*")
-
-	// Handle single * glob pattern
-	regex = strings.ReplaceAll(regex, `\*`, "[^/]*")
-
-	// Handle ? glob pattern
-	regex = strings.ReplaceAll(regex, `\?`, ".")
-
-	// Match full path or as subdirectory
-	if strings.HasPrefix(pattern, "/") {
-		return "^" + strings.TrimPrefix(regex, "/") + "$"
+	anchored := strings.Contains(pattern, "/")
+	pattern = strings.TrimPrefix(pattern, "/")
+	var b strings.Builder
+	for i := 0; i < len(pattern); {
+		switch {
+		case strings.HasPrefix(pattern[i:], "**/") && (i == 0 || pattern[i-1] == '/'):
+			b.WriteString("(?:.*/)?")
+			i += 3
+		case strings.HasPrefix(pattern[i:], "**"):
+			b.WriteString(".*")
+			i += 2
+		case pattern[i] == '*':
+			b.WriteString("[^/]*")
+			i++
+		case pattern[i] == '?':
+			b.WriteString("[^/]")
+			i++
+		default:
+			r, size := utf8.DecodeRuneInString(pattern[i:])
+			b.WriteString(regexp.QuoteMeta(string(r)))
+			i += size
+		}
 	}
-
-	return "(^|/)" + regex + "($|/)"
+	if anchored {
+		return "^" + b.String() + "($|/)"
+	}
+	return "(^|/)" + b.String() + "($|/)"
 }
 
+// Matches reports whether a path relative to the root (either separator) is ignored. Paths are compared with "/",
+// as the patterns are written; filepath.Rel gives "\" on Windows, where no pattern with a "/" used to match.
 func (m *IgnoreMatcher) Matches(path string, isDir bool) bool {
+	path = filepath.ToSlash(path)
 	for _, p := range m.patterns {
 		if p.directory && !isDir {
 			continue

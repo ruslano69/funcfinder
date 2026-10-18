@@ -635,15 +635,12 @@ enterprise/Pro correctness story.
   means reading imports for the directory job's results directly, which is safe only after showing that both walkers
   select the same files (hidden files, extensions, `.gitignore`, `-l` scoping); otherwise a file's aliases change.
 
-### `.gitignore` globs: `*` is a regex quantifier, `**` lines are dropped (2026-10-13)
+### `.gitignore`: negation and nested files are not read (2026-10-18)
 
-- [ ] **Open.** `IgnoreMatcher.patternToRegex` (`internal/dirprocessor.go`) escapes regex characters with a class that
-  leaves out `*`, so its `\*` and `\*\*` replacements never fire. A `*` stays a regex quantifier on the character before
-  it: `*.log` becomes `(^|/)*\.log($|/)`, which works by accident, but `ab*c` matches `ac`, and `/_*` becomes `^_*$`,
-  which matches only paths made of underscores instead of every top-level name starting with `_`. A line with `**` (`.agents/**`, `**/build`, `foo/**/bar`) does not compile
-  and `parsePatterns` drops it without a word: OmniRoute's `.gitignore` has a dozen such lines that never apply.
-  Fixing it changes which files every tool reads, so it needs its own change, a re-measure, and a CHANGELOG entry.
-  `globLiteral` follows the current regexes and must change with them (`TestIgnoreMatcher_LiteralGateMatchesRegex`).
+- [ ] **Open.** Glob syntax, anchoring and Windows separators follow git (`TestIgnoreMatcher_GitSemantics`). Still
+  missing: `!` lines are dropped instead of re-including a path, only the
+  root `.gitignore` is read (no nested files, no `.git/info/exclude`), and a tracked file that a pattern matches is
+  skipped, since the walk does not read git's index.
 
 ### HybridStructFinder: brace-less `type_alias` swallows following types (TS/JS)
 
