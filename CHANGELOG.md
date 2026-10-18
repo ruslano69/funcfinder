@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **D: the lexer and the prefix pass skip plain lines.** A line of plain ASCII code is its own cleaned text, and a line
+  whose first word is ordinary is not changed by the declaration-prefix pass; both now return such lines as they are
+  instead of converting them to runes and back (64% and 93% of arsd's lines). Output is byte-identical on arsd, d-yaml,
+  the fixtures and OmniRoute for `funcfinder`, `callgraph`, `complexity` and `funcstats`. Median on arsd:
+  `funcfinder --dir --all --json` 192 → 175 ms, `funcstats` 312 → 284 ms; `webview.d` alone 126 → 115 ms.
+
 ## v1.15.5 - 2026-10-18
 
 A performance release for D. Output is unchanged, byte for byte. `funcfinder --dir --all --json` on arsd (11 MB of D)
