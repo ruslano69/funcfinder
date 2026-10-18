@@ -23,8 +23,10 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 	// header onto its first line, retaining blank lines for original coordinates.
 	// The function pattern runs only on text that can hold a header (func_requires, "("): on the other lines,
 	// many of them long runs of blanked comments, it backtracked for nothing and took most of the time.
+	// Every check leads to the same `continue`, so they run cheapest first and the function pattern last: most
+	// lines with a "(" also hold one of ";{}=" or start a statement.
 	for i := 0; i+1 < len(result); i++ {
-		if strings.TrimSpace(result[i]) == "" || dAttributeLine.MatchString(result[i]) || dFuncHeader(result[i], config) || dStatementHeader.MatchString(result[i]) || dTypeHeader.MatchString(result[i]) || strings.ContainsAny(result[i], ";{}=") {
+		if strings.TrimSpace(result[i]) == "" || strings.ContainsAny(result[i], ";{}=") || dStatementHeader.MatchString(result[i]) || dTypeHeader.MatchString(result[i]) || dAttributeLine.MatchString(result[i]) || dFuncHeader(result[i], config) {
 			continue
 		}
 		for j := i + 1; j < len(result) && j <= i+4; j++ {
@@ -52,6 +54,7 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 	for i, line := range result {
 		code := []rune(line)
 		text := strings.TrimSpace(string(code))
+		statement := false
 		if dTypeHeader.MatchString(text) {
 			for j, ch := range code {
 				if ch == '(' {
@@ -61,6 +64,7 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 				}
 			}
 		} else if dStatementHeader.MatchString(text) {
+			statement = true
 			for j, ch := range code {
 				if !unicode.IsSpace(ch) {
 					code[j] = '?'
@@ -73,7 +77,9 @@ func prepareDLines(lines []string, config *LanguageConfig) ([]string, map[int]in
 			result[i] = strings.Repeat(" ", len(code))
 			continue
 		}
-		if contractDepth == 0 && dFuncHeader(string(code), config) {
+		// A statement line now starts with '?', which no function header can start with, so the pattern is not
+		// run on it (TestDStatementLinesNeverMatchFuncHeader checks every D fixture line).
+		if contractDepth == 0 && !statement && dFuncHeader(string(code), config) {
 			pending, parens, contract = true, 0, false
 		}
 		for j := 0; j < len(code); j++ {
@@ -396,6 +402,11 @@ func dPrefixAt(runes []rune, pos int, text string) bool {
 func findDClasses(lines []string, offset int, config *LanguageConfig) []ClassBounds {
 	var classes []ClassBounds
 	for start, line := range lines {
+		// The class pattern needs one of the type_keywords; its (?:[\w\s]+\s+)? prefix backtracked on every other
+		// line (a third of the time of arsd's webview.d).
+		if !config.MayStartType(line) {
+			continue
+		}
 		matches := config.ClassRegex().FindStringSubmatch(line)
 		if matches == nil {
 			continue

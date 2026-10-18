@@ -21,6 +21,7 @@ type Job struct {
 	Path      string
 	Extension string
 	LangKey   string
+	Size      int64 // file size in bytes: processFilesParallel hands out the largest files first
 }
 
 // DirResult represents the outcome of processing a single file
@@ -145,6 +146,7 @@ func (dp *DirProcessor) collectFiles(rootPath string) ([]Job, error) {
 			Path:      path,
 			Extension: filepath.Ext(path),
 			LangKey:   langConfig.LangKey,
+			Size:      info.Size(),
 		})
 		mu.Unlock()
 
@@ -220,8 +222,12 @@ func (dp *DirProcessor) processFilesParallel(jobs []Job) ([]DirResult, error) {
 		}(i)
 	}
 
-	// Send all jobs
-	for _, job := range jobs {
+	// Send the largest files first. In walk order a large file late in the tree (arsd's webview.d, 12% of its lines)
+	// started after the rest and the whole run waited for it; started first, it runs while the small files fill the
+	// other workers. Results come back in completion order either way, and every consumer sorts them.
+	order := append([]Job(nil), jobs...)
+	sort.SliceStable(order, func(i, j int) bool { return order[i].Size > order[j].Size })
+	for _, job := range order {
 		jobsChan <- job
 	}
 	close(jobsChan)
