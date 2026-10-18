@@ -2,6 +2,7 @@ package internal
 
 import (
 	"math/rand"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -33,8 +34,9 @@ func TestIgnoreMatcher_GitSemantics(t *testing.T) {
 		{"_private", true, true}, {"x/_private", true, false},
 		{"lib/a.js", false, true}, {"lib/sub/a.js", false, false}, {"src/lib/a.js", false, false},
 		{"x#y", false, true},
-		// Windows paths from filepath.Rel use "\".
-		{`src\app.log`, false, true}, {`docs\tmp`, true, true}, {`foo\x\bar`, false, true}, {`lib\sub\a.js`, false, false},
+		// Paths in the OS separator, as filepath.Rel gives them ("\" on Windows).
+		{filepath.FromSlash("src/app.log"), false, true}, {filepath.FromSlash("docs/tmp"), true, true},
+		{filepath.FromSlash("foo/x/bar"), false, true}, {filepath.FromSlash("lib/sub/a.js"), false, false},
 	}
 	for _, c := range cases {
 		if got := m.Matches(c.path, c.isDir); got != c.want {
@@ -83,7 +85,7 @@ func TestIgnoreMatcher_LiteralGateMatchesRegex(t *testing.T) {
 			b.WriteString(pieces[rng.Intn(len(pieces))])
 		}
 		path, isDir := b.String(), rng.Intn(2) == 0
-		got, want := m.Matches(path, isDir), slow(strings.ReplaceAll(path, `\`, "/"), isDir)
+		got, want := m.Matches(path, isDir), slow(filepath.ToSlash(path), isDir)
 		if got != want {
 			t.Fatalf("Matches(%q, %v) = %v, regexes give %v", path, isDir, got, want)
 		}
