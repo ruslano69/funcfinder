@@ -11,6 +11,7 @@ struct Bounds { string name; int start,end; string className; int signatureLine;
 struct Result { Bounds[] functions,classes; }
 struct Config {
     string lang; JSONValue data; Regex!char[string] patterns;
+    bool declarationScanner,declaratorScanner; // typescript_header.declarationMatch / declaratorMatch stand for the patterns
     this(string path) { this(parseJSON(readText(path))); }
     this(JSONValue source) {
         data=source; lang=data["lang"].str;
@@ -23,9 +24,19 @@ struct Config {
             throw new Exception("unsupported string delimiters");
         if(lang=="ts" && data["func_pattern"].str!=typescript_header.functionPattern)
             throw new Exception("TypeScript header pattern differs from scanner");
+        if(lang=="ts") {
+            declarationScanner=data["declaration_pattern"].str==typescript_header.declarationPattern;
+            declaratorScanner=data["declarator_pattern"].str==typescript_header.declaratorPattern;
+        }
         foreach(key;["func_pattern","class_pattern","class_method_open","header_open_pattern","open_type_header_pattern","declaration_pattern","declarator_pattern","quoted_method_pattern"])
-            if(auto p=key in data.object) if(p.type==JSONType.string && p.str.length)
+            if(auto p=key in data.object) if(p.type==JSONType.string && p.str.length) {
+                // A pattern the scanners stand for is not compiled (only the audit build compares them with it).
+                version(AuditTSHeader) {} else {
+                    if(key=="declaration_pattern" && declarationScanner) continue;
+                    if(key=="declarator_pattern" && declaratorScanner) continue;
+                }
                 patterns[key]=regex(p.str.replace(`\x{200c}`,"\u200c").replace(`\x{200d}`,"\u200d"));
+            }
     }
     string[] captures(string key,string text) {
         if(lang=="ts" && key=="func_pattern") {
@@ -34,6 +45,15 @@ struct Config {
                 auto p=key in patterns; auto m=matchFirst(text,*p); string[] expected;
                 if(!m.empty) foreach(c;m.captures) expected~=c;
                 assert(result==expected,"TypeScript header scanner mismatch: " ~ text);
+            }
+            return result;
+        }
+        if(declarationScanner && key=="declaration_pattern" || declaratorScanner && key=="declarator_pattern") {
+            auto result=key=="declaration_pattern" ? typescript_header.declarationMatch(text) : typescript_header.declaratorMatch(text);
+            version(AuditTSHeader) {
+                auto p=key in patterns; auto m=matchFirst(text,*p); string[] expected;
+                if(!m.empty) foreach(c;m.captures) expected~=c;
+                assert(result==expected,"TypeScript " ~ key ~ " scanner mismatch: " ~ text);
             }
             return result;
         }
