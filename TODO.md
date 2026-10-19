@@ -4,7 +4,199 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ---
 
-## Language coverage on real projects: status and next steps (2026-10-18)
+## Language coverage on real projects: status and next steps (2026-10-19)
+
+Ruby D port: all 1,294 tracked Huginn/Maybe `.rb` files independently verify 4,146
+methods and 1,315 named class/module types, with zero D misses, false entries,
+wrong ends or grammar exclusions. Native grammar is tree-sitter 0.26.0 /
+tree-sitter-ruby 0.23.1, with explicit heredoc beginning/body pairing and physical
+terminator span extension. Fresh frozen-Go function missing/false/wrong-end counts
+are 20/1/0 and 0/0/3; D closes these accepted gaps. Production Go and its Ruby
+TODO remain unchanged. Separate units/token audits pass; 22 fixtures cover nested/
+endless/singleton/operator methods, value/modifier conditions, blocks/loops,
+literal forms, division, queued heredocs, Unicode/CRLF and malformed/long/deep input.
+Twenty valid fixtures independently verify 94 methods/six types. All 23 previous
+D sources are unchanged. Seven paired Go/D parser medians ms: Huginn 57.299/34.772
+(1.65x), Maybe 42.503/27.921 (1.52x); process medians 107.463/79.471 and
+100.600/81.006. Ruby-only D is 944,640 bytes versus generic Go 2,807,296;
+algorithms/profiles/specialization differ. All 15 languages now have finder
+prototypes; common CLI/workers/other analyses and complete lexical/semantic
+coverage remain open. Fresh pins, snapshots, truth/maps and all samples:
+`build/ruby-d-port-final-20261019/`; see `benchmarks/RUBY_D_PORT.md`.
+
+Python D port: all 180 tracked Flask/Requests/hr_portal files independently verify
+2,884 functions and 343 classes against native CPython 3.14.6 AST, with zero D
+misses, false entries, wrong ends or parse exclusions. The final frozen-Go baseline
+uses production PythonFinder through an exact-body preloaded-lines adapter and
+the original os.ReadFile/strings.Split reader. The generic NewFinder and earlier
+ReadLines-based probes are exploratory. Go raw maps retain trivia; after separate
+blank/comment end normalization, function missing/false/wrong-end counts are
+0/0/0, 29/0/1 and 0/0/0. The frozen Requests result needs separate investigation;
+it is not a replay of the earlier local Go fix. D has exact native ends, no trimming.
+Separate units/token audits and 15 fixtures pass; 13 valid fixtures independently
+verify 87 functions/three classes. All 21 previous D sources are unchanged. Seven
+paired Go/D parser medians ms: Flask 15.672/9.815 (1.60x), Requests 10.242/6.744
+(1.52x), hr_portal 21.736/12.973 (1.68x); process medians 48.636/43.797,
+41.048/37.810 and 55.020/46.026. Python-only D is 932,352 bytes versus the Go
+PythonFinder probe's 2,555,392. Full XID/NFKC/legacy encodings, common CLI/workers
+and other analyses remain open. Evidence: `build/python-d-port-production-20261019/`;
+see `benchmarks/PYTHON_D_PORT.md`.
+
+Scala D port: all 88 tracked scopt/os-lib files independently verify 1,023 named
+functions/signatures and 328 named types with zero misses, false entries, wrong
+ends or grammar exclusions. Frozen Go also has no function errors; its narrower
+type map misses 44/91 types. The D profile includes aliases/abstract/nested types
+and package objects. Separate module units and token/bounds maps pass; 22 fixtures
+cover parameterless/operator/setter/auxiliary-constructor names, annotations,
+curried/context clauses, expression/control bodies, characters/symbols/interpolation,
+Scala 3 indentation/enums/extensions/end markers, Unicode/CRLF and long/deep input.
+Twenty valid fixtures independently verify 107 functions/15 types; malformed and
+incomplete fixtures remain explicit unscored robustness checks. All 19 earlier D
+backend hashes are unchanged. Seven paired Go/D parser medians ms: scopt
+8.634/3.309 (2.61x), os-lib 23.835/5.863 (4.07x); process medians 37.797/32.977
+and 55.829/36.913. Scala-only D is 940,032 bytes versus generic Go 2,807,296;
+algorithms/profiles/specialization differ. Thirteen of fifteen finder prototypes
+are present; Python/Ruby, common CLI/workers/other analyses and complete Scala 3/
+Unicode/quote/XML grammar coverage remain open. Pins, snapshots, truth/maps and
+all raw samples: `build/scala-d-port-final-20261019/`; see `benchmarks/SCALA_D_PORT.md`.
+
+PHP D port: all 495 tracked Monolog/Symfony Routing files independently verify
+2,727 named functions/methods and 480 named types, with zero misses, false entries,
+wrong ends or grammar exclusions. Frozen Go also has zero function errors, while
+its old type profile misses 2/6 types and has 0/1 false types. Separate module
+units and token/bounds maps pass; 21 fixtures cover PHP/HTML, attributes, anonymous
+classes, references, DNF returns, interpolation, heredoc/nowdoc, Unicode/CRLF and
+long/deep input. Nineteen valid fixtures verify 94 functions/eight types; malformed
+and incomplete fixtures remain explicit unscored robustness checks. All 17 prior
+D backend hashes are unchanged. Seven paired Go/D parser medians ms:
+Monolog 38.611/12.632 (3.06x), Routing 44.612/13.850 (3.22x); process medians
+77.852/50.419 and 86.153/52.694. PHP-only D is 929,792 bytes versus generic Go
+2,807,296; algorithms/profiles/specialization differ. Twelve of fifteen languages
+have finder prototypes; shared CLI/workers/other analyses and complete PHP grammar
+coverage remain open. Pins, snapshots, maps, truth, hashes and all raw samples:
+`build/php-d-port-final-20261019/`; see `benchmarks/PHP_D_PORT.md`.
+
+Swift D port: the dedicated token finder independently verifies 3,249 functions
+and 835 nominal/alias/associated types on 268 accepted Alamofire/Kingfisher files
+with zero misses, false entries or wrong ends. All 276 tracked Swift inputs are
+retained, audited and timed; eight grammar exclusions remain explicit (5/3).
+CRLF normalization in reference memory avoids two false multiline-string grammar
+failures. Under the same fresh pins/profile frozen Go misses 4/48 functions and
+has 2/2 wrong ends; D closes all 52 accepted misses and four ends. The older Go
+Swift TODO remains open; production Go is unchanged. Thirteen fixtures pass map/
+token/bounds checks; eleven independently verify 21 functions and seven types.
+All 15 earlier backend source hashes are unchanged. Seven paired Go/D parser
+medians ms: Alamofire 148.556/17.392 (8.54x), Kingfisher 160.907/16.548 (9.72x);
+process 184.337/55.808 and 198.859/54.003. Swift-only D is 936,448 bytes versus
+generic Go 2,807,296; these compare different algorithms/specialization/profiles,
+not language-only gains or an equivalent complete CLI. Reference exclusions,
+full Unicode/regex contexts, semantic owners and common CLI/file workers remain
+open. Pins, snapshots, truth/diagnostics, audits and samples:
+`build/swift-d-port-20261019/`; see `benchmarks/SWIFT_D_PORT.md`.
+
+Kotlin D port: native Kotlin compiler 2.2.0 PSI now independently verifies all
+1,995 named functions and 413 named types on 311 tracked NekoBox/Seal `.kt`/`.kts`
+files with zero misses, false entries, wrong ends or parse exclusions. Against
+the same fresh pins, frozen Go has function missing/false/wrong-end counts
+NekoBox 3/0/1 and Seal 6/0/0; D closes all nine misses and the local `counters`
+span issue. These fixes are in the D prototype; the older Go TODOs remain open.
+Type discovery intentionally expands aliases and other named declarations.
+The tree-sitter Kotlin diagnostic misparsed `finally`; it is superseded by
+compiler PSI with explicit UTF-8 and CRLF normalization. Twelve fixture/stress
+files pass release/assertion checks, ten independently verify 19 functions and
+five types; module unit checks pass and all 13 previous backend hashes remain
+unchanged. Seven paired Go/D parser medians ms: NekoBox 48.855/11.846 (4.12x),
+Seal 84.858/17.119 (4.96x); process 86.132/46.428 and 120.787/53.108. Kotlin-only
+D is 939,520 bytes versus generic Go 2,807,296, not equivalent complete-toolkit
+scope. Full CLI/file workers, full Unicode categories and semantic ownership
+remain open. Snapshots, PSI oracle/runtime provenance, truth and samples:
+`build/kotlin-d-port-20261019/`; see `benchmarks/KOTLIN_D_PORT.md`.
+
+Rust D port: a separate Rust lexer/token finder verifies 1,379 functions and 470
+named types (including aliases/associated types) on 57 accepted kanzi-rs/Serde
+files with zero misses, false entries or wrong ends. All 58 inputs are retained,
+audited and timed. One `text_codec.rs` grammar rejection at line 978 remains an
+explicit exclusion; native rustfmt accepts it but does not establish span truth.
+Kanzi is a dirty checkout at `3a991f3`, recorded with actual source hashes; Serde
+is clean at `0db9b3b`, restricted to its two core source trees. D removes all 63
+Serde Go false functions inside macro token trees. Its broader named-type map
+intentionally differs from Go's impl-scope class map. Eleven fixtures pass map/
+bounds/token checks; nine accepted fixtures independently verify 16 functions
+and six types. Seven paired Go/D parser medians ms: kanzi 15.194/12.799 (1.19x),
+Serde 14.795/8.088 (1.83x); process 45.653/42.783 and 44.517/37.720. Rust-only
+D size is 932,864 bytes versus generic Go 2,807,296, not an equivalent toolkit.
+All 11 prior C/C++/C#/Go/Java D source hashes are unchanged. Remaining Rust work:
+macro expansion/cfg selection, full Unicode XID, another oracle for the excluded
+file and full CLI integration/file workers. Snapshots, truth, diagnostics and
+samples: `build/rust-d-port-20261019/`; see `benchmarks/RUST_D_PORT.md`.
+
+C D port: a separate C-only token/declarator probe now verifies all 1,568 Lua
+definitions/prototypes across 68 files with zero misses, false entries or wrong
+ends. The 135 inactive raw candidates remain separate; all preprocessing/grammar
+files are accepted for the recorded C99/GCC configuration. Eleven fixture/stress
+files pass release/assertion/normal/raw checks; eight valid fixtures independently
+verify 15 declarations. Prior C#/C++/Go/Java D sources remain byte-identical.
+Seven paired parser medians Go/D: 15.456/17.150 ms; complete process
+47.002/49.323 ms. D is currently 11.0% slower in parsing, with extra local-scope
+walking and 68 unscored tag definitions; there is no measured C speed gain.
+C-only D size is 946,688 bytes versus generic Go's 2,807,296, not equivalent
+toolkit scope. Remaining C work includes variable-first/initialized declaration
+lists, typedef ambiguities and macro expansion; unified CLI/file workers remain
+open. Full snapshots, checks, independent truth and samples:
+`build/c-d-port-20261019/`; see `benchmarks/C_D_PORT.md`.
+
+Go/Java D port: token backends now join C#/C++ in the shared serial probe.
+On 458 Gson/gin/installed Go 1.25.7 `encoding/json` files, native Go AST and the
+Java grammar verify all 6,059 named functions and 1,679 named types with zero
+missing/false/wrong-end entries. Go finds 16 extra generic functions with nested
+brackets in constraints; type output now covers all 912 Go TypeSpecs, including
+grouped/local/alias declarations. Java retains exact function/signature/scope
+and named-type-header parity, while correcting one record end previously closed
+inside an annotation array (85 -> 86). No previously correct function is lost.
+Seven paired parser medians Go/D ms: Gson 58.036/31.363 (1.85x), gin
+14.016/13.675 and JSON 30.392/28.855. Go gains are modest (2.4%/5.1% less time),
+with effectively unchanged gin complete-process time; D does broader Go discovery.
+The four-language D probe is 1,254,912 bytes (+14,848 versus C#/C++), generic
+Go 2,807,296 bytes. Unit/bounds/token/cleaner/native-fixture checks pass; all 980
+previous C#/C++ maps and both cleanup modes remain identical. Build-tag filtering,
+full CLI/file workers and other toolkit analyses remain outside this probe.
+Pins, snapshots, independent truth, samples and final source/binary/input audits:
+`build/go-java-d-port-20261018/`; see `benchmarks/GO_JAVA_D_PORT.md`.
+
+C++ D tokenization: normal function/type discovery now uses immutable tokens,
+paired brackets and declaration/body contexts, with no regex initialization or
+calls in the normal scan. Against the same libclang profile, fmt improves from
+36/7/0 to 22/0/0 and tinyxml2 from 1/0/0 to 0/0/0 (missing/false/wrong-end).
+No previously correct function is lost. Remaining fmt misses are 12 conversions
+needing semantic type resolution and 10 macro-expanded methods. Function-name
+tokens anchor matching; declaration starts can include outer template clauses
+before clang's extent and have explicit regression tests.
+Seven paired parser rounds, Go/regex-D/token-D ms: fmt 35.362/89.927/12.184,
+tinyxml2 11.067/28.524/2.632. Token D is 2.90x/4.20x Go and 7.38x/10.84x old D;
+full probe times are 24.070/12.219 ms (Go 46.613/18.891 ms). D size is 1,240,064
+bytes (+7,168 versus regex D). C# source/output and both normal/raw cleaners
+remain unchanged. Bounds/raw-coordinate/pair/no-regex audits, module unit tests,
+all 980 corpus files and existing fixture/pattern diagnostics pass. Snapshots,
+three-variant samples and final hash/input/quality checks:
+`build/cpp-tokens-20261018/`; `benchmarks/CSHARP_CPP_D_PORT.md` has reproduction
+and serial-probe/semantic/preprocessing limits. Full CLI/file workers remain open.
+
+C#/C++ D port: the separate serial API prototype now matches frozen Go 1.15.9
+(`bdbc81b`) on all 980 Polly/Dapper/fmt/tinyxml2 files: 8,978 ordered raw function
+entries, 1,797 raw classes, signatures/scopes and normal/raw cleanup facts.
+Roslyn retains all 6,708 C# truth functions with zero misses/false entries/wrong
+ends; fmt remains 36/7/0 and tinyxml2 1/0/0 (missing/false/wrong end). The two
+fmt grammar exclusions and inactive-source profiles remain explicit.
+Seven paired parser rounds (Go/D ms): Polly 115.694/68.649, Dapper 36.484/18.264,
+fmt 35.034/90.810, tinyxml2 10.758/28.088. C# takes 40.7%/49.9% less time; the
+initial runtime-regex C++ port takes 2.59x/2.61x as long as Go; the token stage
+above supersedes that implementation. The initial combined D probe is 1,232,896 bytes versus generic Go's
+2,807,296 bytes; neither is an equivalent complete-toolkit comparison.
+Bounds/cleaner audits, 261 fixture/stress files, 180,000 pattern-group cases and
+all 1,114,112 Unicode code points pass. Go Unicode 15.0.0 is pinned because D's
+newer categories otherwise broaden identifiers. Sources, pins, independent
+findings, raw samples and final hash checks: `build/cs-cpp-d-port-20261018/`.
+See `benchmarks/CSHARP_CPP_D_PORT.md`; full CLI/file workers remain open.
 
 JS/TS missing-function fix: Go and the D prototype now recover all 71 previously
 missing named functions in the accepted profiles. Express/lodash remain clean;
@@ -15,10 +207,25 @@ Incremental template handling and TS balanced-token recovery have regression
 tests for source extraction/selection/offsets. Both APIs/lexical facts agree on
 all 10,009 inputs; raw results and the frozen Go base-plus-overlay are under
 `build/js-ts-misses-20261018/`. Remaining quality work is false entries and ends.
-Five paired parser samples quantify the recovery cost: OmniRoute TS Go
+Historical five paired parser samples quantify the initial recovery cost: OmniRoute TS Go
 1710.505 -> 2158.723 ms (+26.2%), D 1593.788 -> 1919.023 ms (+20.4%); zod Go
-+35.8%, D +19.4%. Optimize this supplemental pass without hiding headers again.
++35.8%, D +19.4%. The narrower Go 1.15.9 gate is now also ported to D below.
 No complete-process speed claim is made for this correctness change.
+
+D TS recovery-gate follow-up: quoted arguments and ordinary split/generic calls
+avoid the supplemental token pass; incomplete shapes remain conservative within
+the 64-following-line lookahead. Seven paired rounds against frozen Go 1.15.9
+(`bdbc81b`) give Go/previous-D/current-D parser medians: OmniRoute TS
+1857.160/1881.277/1688.873 ms, zod 155.915/147.077/139.524 ms. D parser time
+falls 10.2%/5.1%; full OmniRoute TS probe time falls 2197.515 -> 1980.538 ms
+(Go 2247.350 ms). This is the serial API probe, not the production parallel CLI.
+All 10,009 complete cleanup/finder maps and independent counts remain unchanged.
+Gate unit tests, 20,009 Go/D gate cases, bounds/token audits and 100,000 header
+vectors pass. D probe size is 1,296,384 bytes (+1,536). Source snapshots, paired
+samples and final source/binary/input checks are under `build/d-ts-gate-20261018/`;
+the verified previous D stays in `build/d-ts-gate-20261018-before/`.
+See `benchmarks/JS_TS_D_PORT.md`. Remaining D work includes profiling the TS
+scanner and integrating the serial finder into a complete CLI with file workers.
 
 JS D-port tokenization follow-up: direct ASCII character checks and immutable
 UTF-8 token slices remove the JS slowdown while preserving the full Go map.

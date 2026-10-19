@@ -1,0 +1,71 @@
+import com.intellij.openapi.Disposable;
+import com.intellij.openapi.util.Disposer;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiErrorElement;
+import com.intellij.psi.util.PsiTreeUtil;
+import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles;
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment;
+import org.jetbrains.kotlin.config.CompilerConfiguration;
+import org.jetbrains.kotlin.psi.*;
+import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+// Parse syntax only: no Gradle, dependency resolution or semantic analysis.
+public final class KotlinPsiOracle {
+    static String json(String text) {
+        StringBuilder b=new StringBuilder("\"");
+        for(int i=0;i<text.length();i++) {
+            char c=text.charAt(i);
+            if(c=='"' || c=='\\')b.append('\\').append(c);
+            else if(c<32)b.append(String.format("\\u%04x",(int)c));
+            else b.append(c);
+        }
+        return b.append('"').toString();
+    }
+    static int line(List<Integer> starts,int offset) {
+        int n=Collections.binarySearch(starts,offset);
+        return n>=0?n+1:-n-1;
+    }
+    static String item(PsiElement node,PsiElement name,List<Integer> starts) {
+        return "{\"name\":"+json(name.getText())+",\"start\":"+line(starts,node.getTextRange().getStartOffset())+
+            ",\"name_line\":"+line(starts,name.getTextRange().getStartOffset())+
+            ",\"end\":"+line(starts,node.getTextRange().getEndOffset()-1)+"}";
+    }
+    public static void main(String[] args) throws Exception {
+        System.setOut(new java.io.PrintStream(System.out,true,StandardCharsets.UTF_8));
+        Disposable disposable=Disposer.newDisposable();
+        try {
+            KotlinCoreEnvironment environment=KotlinCoreEnvironment.Companion.createForProduction(
+                disposable,new CompilerConfiguration(),EnvironmentConfigFiles.JVM_CONFIG_FILES);
+            KtPsiFactory factory=new KtPsiFactory(environment.getProject(),false);
+            for(String path:Files.readAllLines(Path.of(args[0]),StandardCharsets.UTF_8)) {
+                if(path.isEmpty())continue;
+                // IntelliJ documents use LF; this preserves original CRLF line numbers.
+                String source=Files.readString(Path.of(path),StandardCharsets.UTF_8).replace("\r\n","\n");
+                KtFile file=factory.createFile(Path.of(path).getFileName().toString(),source);
+                List<Integer> starts=new ArrayList<>();starts.add(0);
+                for(int i=0;i<source.length();i++)if(source.charAt(i)=='\n')starts.add(i+1);
+                List<String> functions=new ArrayList<>(),types=new ArrayList<>(),errors=new ArrayList<>();int excluded=0;
+                for(PsiErrorElement error:PsiTreeUtil.collectElementsOfType(file,PsiErrorElement.class))
+                    errors.add("{\"start\":"+line(starts,error.getTextRange().getStartOffset())+",\"message\":"+json(error.getErrorDescription())+"}");
+                if(errors.isEmpty()) {
+                    for(KtNamedFunction function:PsiTreeUtil.collectElementsOfType(file,KtNamedFunction.class)) {
+                        if(function.getNameIdentifier()==null)continue;
+                        if(PsiTreeUtil.getParentOfType(function,KtStringTemplateExpression.class)!=null){excluded++;continue;}
+                        functions.add(item(function,function.getNameIdentifier(),starts));
+                    }
+                    for(KtClassOrObject type:PsiTreeUtil.collectElementsOfType(file,KtClassOrObject.class)) {
+                        if(type instanceof KtEnumEntry)continue;
+                        if(type.getNameIdentifier()!=null && PsiTreeUtil.getParentOfType(type,KtStringTemplateExpression.class)==null)
+                            types.add(item(type,type.getNameIdentifier(),starts));
+                    }
+                    for(KtTypeAlias type:PsiTreeUtil.collectElementsOfType(file,KtTypeAlias.class))
+                        if(type.getNameIdentifier()!=null && PsiTreeUtil.getParentOfType(type,KtStringTemplateExpression.class)==null)
+                            types.add(item(type,type.getNameIdentifier(),starts));
+                }
+                System.out.println("{\"path\":"+json(path)+",\"functions\":["+String.join(",",functions)+"],\"types\":["+String.join(",",types)+"],\"errors\":["+String.join(",",errors)+"],\"template_functions_excluded\":"+excluded+"}");
+            }
+        } finally {Disposer.dispose(disposable);}
+    }
+}

@@ -302,6 +302,87 @@ other child indexes/contracts remain unchanged because no directory boundary
 or toolkit/CLI ownership changed. Outstanding quality work is the false entries
 and wrong ends listed above.
 
+## Go 1.15.9 recovery-gate port (2026-10-18)
+
+The current D gate follows released Go `bdbc81b` (1.15.9). Quoted arguments
+no longer trigger recovery as quoted method names: the raw-line check skips
+leading comments/modifiers and requires a leading quote. Split parenthesized
+values and generic headers inspect up to 64 following cleaned lines to
+distinguish calls/ordinary values from function headers. Unclosed shapes stay
+conservative candidates. The canonical header pattern and recovery token pass
+are unchanged.
+
+`build/d-ts-gate-20261018-before/` preserves the previous D binary, its source
+snapshot and a Go 1.15.9 parity run. `build/d-ts-gate-20261018/` retains the
+candidate sources, frozen reference, builds, complete maps and measurement
+report. Neither run uses the older working-tree Go overlay. Baseline inputs
+and independent findings are unchanged on the five pinned corpora above.
+The shared OmniRoute worktree still has local changes; per-file hashes cover
+the actual input bytes, including its modified JS build script.
+
+The D gate's unit tests and 20,009 fixed/seeded differential cases match the
+private frozen Go gate. These include quoted arguments/methods, split calls
+and arrows, known declarations, Unicode and 63/64/65/100-line padding.
+`gate_vectors.py`, `gate_check.d`, `gate-verification.json` and the test added
+to the frozen reference retain the generator, probe and hashes. The unit-test
+binary uses bounds checks; its diagnostic main is run separately with
+`--DRT-testmode=run-main`.
+
+Complete cleanup and ordered finder/signature/class parity still cover all
+10,009 files. Independent function counts remain zero missing, 49 false
+entries and 39 wrong ends among 35,999 truth functions; 13 parse-error files
+remain excluded from grammar scoring. The assertion/bounds/token/header audit
+also passes all corpus maps, fixture/raw cleanup/stress cases and 100,000
+header vectors. `verification.json` and the final `postflight.json` retain
+these checks and verify source snapshots, binary hashes and input stability.
+
+Reproduce with the five projects below, `--revision bdbc81b`,
+`--work-dir build/d-ts-gate-20261018`,
+`--baseline-report build/d-ts-gate-20261018-before/report.json`,
+`--finder-only --samples 7 --repeats 1`. Cleanup parity is always checked;
+only finder parser/process timings are selected here. Run the separate audit
+build/checker before measurements. Preserve the baseline directory.
+
+Seven shuffled paired rounds, one serial preloaded pass per sample and a
+discarded warmup, give these finder parser medians in milliseconds:
+
+| Corpus | Go 1.15.9 | Previous D | Current D |
+|---|---:|---:|---:|
+| Express JS | 30.311 | 12.286 | 11.900 |
+| lodash JS | 143.541 | 75.143 | 73.206 |
+| zod TS | 155.915 | 147.077 | 139.524 |
+| OmniRoute JS | 112.831 | 66.065 | 64.618 |
+| OmniRoute TS | 1857.160 | 1881.277 | 1688.873 |
+
+Current D takes 10.2% less parser time on OmniRoute TS and 5.1% less on zod
+than previous D; it takes 9.1%/10.5% less than current Go. OmniRoute TS parser
+ranges are Go 1849.423–1870.811 ms, previous D 1872.846–1902.973 ms and current
+D 1679.985–1710.456 ms. JS code is unchanged; the small JS shifts are not
+attributed to this TS gate change.
+
+Complete probe-process medians include startup, input, parsing and JSON:
+
+| Corpus | Go 1.15.9 | Previous D | Current D |
+|---|---:|---:|---:|
+| Express JS | 42.810 | 28.752 | 28.638 |
+| lodash JS | 169.639 | 96.700 | 94.783 |
+| zod TS | 191.948 | 181.949 | 173.819 |
+| OmniRoute JS | 141.454 | 95.140 | 94.373 |
+| OmniRoute TS | 2247.350 | 2197.515 | 1980.538 |
+
+This remains a serial finder probe, not the parallel production CLI. Cleanup
+was checked but not timed in this stage. Current D is 1,296,384 bytes, previous
+D 1,294,848 bytes (+1,536), and the generic Go probe 2,805,760 bytes. The size
+comparison retains the specialization limit above. Full raw samples, build
+flags, source/binary hashes and input pins are in `report.json`; postflight
+also verifies that selecting the baseline directory as candidate fails before
+overwriting its report/binaries. No profiles, audit builds or other benchmark
+processes ran concurrently with these measurements.
+
+The benchmark contract and README are updated. Root and other child DOX
+contracts/indexes remain unchanged because production ownership, CLI behavior
+and directory boundaries are unchanged by this D-only stage.
+
 ## Reproduction
 
 Initialize `F:\D\ldcvars64.bat` for the installed LDC 1.43.0 / MSVC toolchain.

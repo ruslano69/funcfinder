@@ -68,6 +68,8 @@ def oracle(rows,lang,repo):
 def measure(a):
     repo=pathlib.Path(__file__).resolve().parent.parent; w=pathlib.Path(a.work_dir).resolve(); w.mkdir(parents=True,exist_ok=True)
     if not w.is_relative_to(repo/"build"): raise ValueError("work directory must stay under build/")
+    if a.baseline_report and pathlib.Path(a.baseline_report).resolve().parent==w:
+        raise ValueError("candidate directory must differ from the preserved baseline directory")
     env=dict(os.environ,GOPROXY="off",GOAMD64="v1",GOCACHE=str(pathlib.Path(os.environ["TEMP"])/"funcfinder-go-cache"))
     revision=run(["git","rev-parse",a.revision+"^{commit}"],cwd=repo).strip(); ref=w/"reference-src"; pin=w/"reference-revision.txt"
     if pin.exists() and pin.read_text()!=revision: raise ValueError("choose a new work directory for another revision")
@@ -79,10 +81,13 @@ def measure(a):
     go=w/"go-probe.exe"; d=w/"d-probe.exe"
     run(["go","build","-ldflags=-s -w","-o",go,src],cwd=ref,env=env)
     sources=["js_ts_cleaner.d","js_ts_model.d","javascript_port.d","typescript_header.d","typescript_port.d","typescript_candidates.d","js_ts_probe.d"]
+    snapshot=w/'sources';snapshot.mkdir(exist_ok=True)
+    for name in sources+["js_ts_port_compare.py","js_ts_port_checks.py"]:(snapshot/name).write_bytes((repo/'benchmarks'/name).read_bytes())
     command=[a.ldc,"-O3","-release","-mcpu=x86-64","-I="+str(repo/"benchmarks"),"-of="+str(d),*[repo/"benchmarks"/s for s in sources]]
     bat=w/"compile.bat";bat.write_text('@echo off\ncall "'+a.env_bat+'" >nul\nif errorlevel 1 exit /b 1\n'+subprocess.list2cmdline(list(map(str,command)))+'\nexit /b %errorlevel%\n')
     (w/"d-build.txt").write_text(run(["cmd","/d","/c",bat],cwd=repo,env=env))
     report={"revision":revision,"samples":a.samples,"repeats":a.repeats,"platform":platform.platform(),"python":platform.python_version(),"logical_cpus":os.cpu_count(),"go":run(["go","version"]).strip(),"go_amd64":"v1","ldc":run([a.ldc,"--version"]).split("Registered Targets:")[0].strip(),"seed":20261018,"scope":"Serial JS/TS finder API and lexical facts; no full CLI/parallel/extraction claim. Go retains generic language machinery.","build_command":list(map(str,command)),"go_probe_sha256":digest(src),"sources":{s:digest(repo/"benchmarks"/s) for s in sources+["js_ts_port_compare.py","js_ts_port_checks.py"]},"binaries":{n:{"path":str(p),"sha256":digest(p),"bytes":p.stat().st_size} for n,p in [("go",go),("d",d)]},"projects":[]}
+    report['timed_modes']=['find'] if a.finder_only else ['clean','find']
     baseline=None
     if a.baseline_report:
         baseline_path=pathlib.Path(a.baseline_report).resolve();baseline=json.loads(baseline_path.read_text(encoding="utf-8"))
@@ -121,7 +126,7 @@ def measure(a):
             if mode=="find":
                 p.update(functions=sum(len(r["functions"]) for r in maps["go"]),classes=sum(len(r["classes"]) for r in maps["go"]))
                 p["oracle"]=oracle(maps["d"],lang,repo);save();print(label,"independent",p["oracle"]["counts"],flush=True)
-            if not a.samples: continue
+            if not a.samples or (a.finder_only and mode=='clean'): continue
             samples={n:{"parser_ms":[],"process_ms":[]} for n in commands}
             for cmd in commands.values():run(cmd+extra,cwd=repo,env=env)
             for _ in range(a.samples):
@@ -137,4 +142,4 @@ def measure(a):
         save()
 
 if __name__=="__main__":
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument("--project",action="append",required=True);p.add_argument("--revision",default="HEAD");p.add_argument("--work-dir",default="build/js-ts-d-port-20261018");p.add_argument("--baseline-report",help="Include the verified previous D binary in the same shuffled rounds");p.add_argument("--samples",type=int,default=10);p.add_argument("--repeats",type=int,default=2);p.add_argument("--ldc",default="F:/D/ldc-1.43.0/bin/ldc2.exe");p.add_argument("--env-bat",default="F:/D/ldcvars64.bat");measure(p.parse_args())
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument("--project",action="append",required=True);p.add_argument("--revision",default="HEAD");p.add_argument("--work-dir",default="build/js-ts-d-port-20261018");p.add_argument("--baseline-report",help="Include the verified previous D binary in the same shuffled rounds");p.add_argument("--finder-only",action="store_true",help="Time finder only; still verify complete cleanup facts");p.add_argument("--samples",type=int,default=10);p.add_argument("--repeats",type=int,default=2);p.add_argument("--ldc",default="F:/D/ldc-1.43.0/bin/ldc2.exe");p.add_argument("--env-bat",default="F:/D/ldcvars64.bat");measure(p.parse_args())

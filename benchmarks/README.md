@@ -582,7 +582,10 @@ python benchmarks/js_ts_port_compare.py `
 
 The harness checks exact cleanup facts and full ordered function/class/signature
 arrays before timing, then reports the existing JS/TS independent profiles.
-`--samples 0` skips measurements. Use the installed LDC/MSVC environment and
+`--samples 0` skips measurements. `--finder-only` times only the finder while
+still checking complete cleanup parity; the report records `timed_modes`.
+Each run retains D/Python source snapshots in `sources/`.
+Use the installed LDC/MSVC environment and
 Python grammar runtimes described in the report. Build a separate
 `-O2 -boundscheck=on -d-version=AuditTSHeader -d-version=AuditJSTokens` probe, then run
 `python benchmarks/js_ts_port_checks.py --work-dir build/js-ts-d-port-current`;
@@ -593,3 +596,245 @@ and add `--baseline-report build/js-ts-d-port-20261018/report.json`. The harness
 verifies reference/binary/config identity, checks all three maps and times old D,
 new D and Go in the same shuffled rounds. Per-file input hashes are recorded and
 rechecked after each corpus. Keep phase diagnostics separate from release timing.
+The candidate directory must differ from the baseline directory; this is checked
+before building. The Go 1.15.9 TS recovery-gate comparison uses revision
+`bdbc81b` and is recorded in `JS_TS_D_PORT.md` under the recovery-gate stage.
+
+## C#/C++ finder API experiment in D
+
+`CSHARP_CPP_D_PORT.md` describes the separate serial D port, frozen Go 1.15.9
+comparison, Unicode 15.0.0 tables and independent Roslyn/libclang limits.
+C++ now uses tokenization; the initial regex experiment is preserved separately.
+`brace_port_compare.py --help` lists the four-project comparison; use
+`--samples 0` for correctness only and a new work directory for a new revision.
+Use `--baseline-report build/cs-cpp-d-port-20261018/report.json` and a distinct
+`build/cpp-tokens-20261018/` candidate directory to include the prior regex D
+binary in the same rounds. New C++ output may differ; the harness requires no
+lost correct function and no quality-count regression against Go before timing.
+Build the separate `--audit --samples 0 --skip-oracle` variant (same projects),
+then run `brace_port_checks.py --work-dir <work>` for fixtures, raw cleanup and
+every consumed pattern's capture groups. Full commands and classifier-table
+provenance are in the report. Preserve snapshots, pins, per-file/binary hashes
+and raw timing samples; run diagnostics separately from timing. The probe
+does not implement the production CLI or file parallelism.
+
+## Go/Java finder API experiment in D
+
+`GO_JAVA_D_PORT.md` describes `go_port.d`/`java_port.d`, the four-language shared
+probe, pinned gin/Gson and installed Go `encoding/json` corpora. The Go reference
+is native `go/parser`/`go/ast`, including exact named-function and all TypeSpec
+bounds; Java uses the existing grammar profile plus a named-type boundary audit.
+Go's broader type output and one corrected Java record end intentionally change
+whole maps. `go_java_port_compare.py --help` and `go_java_port_checks.py --help`
+describe the entrypoints. Use a new work directory for another reference revision,
+run separate bounds/token/cleaner audits and unit tests before paired timings,
+then recheck snapshots, binary/input hashes and prior C#/C++ maps. Full commands,
+measurement limits and build-tag/alias profiles are in the report.
+
+## C finder API experiment in D
+
+`C_D_PORT.md` describes the standalone C token/declarator port and its GCC plus
+tree-sitter Lua reference. Run `python benchmarks/c_port_compare.py --help`,
+then the default command for release/assertion/unit builds, all 68 Lua files,
+11 fixtures and seven paired timing rounds. `--samples 0` skips timing. It uses
+the hash-verified frozen Go probe from `build/go-java-d-port-20261018/` and the
+installed LDC/MSVC environment. Python grammar packages live in
+`build/c-eval-runtime/`; use the pinned versions from the C evaluation above.
+Choose a new `--work-dir` under `build/` for changed sources or inputs.
+
+Both APIs retain all 1,568 accepted functions/prototypes with correct ends and
+135 separate inactive candidates. D adds raw tag definitions without a type
+oracle and is currently 11.0% slower in serial parsing. Size is a specialized
+C-only probe versus generic Go, not an equivalent toolkit comparison. Macro
+expansion, typedef-dependent ambiguity, some declaration-list shapes and the
+complete CLI remain open; the report specifies these measurement limits.
+
+## Rust finder API experiment in D
+
+`RUST_D_PORT.md` describes the standalone Rust lexer/token finder and its
+unexpanded tree-sitter profile. Install tree-sitter 0.26.0 and
+tree-sitter-rust 0.24.0 under `build/rust-eval-runtime/`, then run:
+
+```powershell
+python benchmarks/rust_port_compare.py --help
+python benchmarks/rust_port_compare.py `
+  --project kanzi=G:/DEV/Go/kanzi/rust_kanzi `
+  --project serde=build/rust-d-port-20261019/repos/serde `
+  --work-dir build/rust-d-port-20261019 --samples 7 --repeats 3
+```
+
+The harness builds retained snapshots with installed LDC/MSVC, checks unit and
+separate token/bounds assertion builds, then scores functions and named types
+and times against the verified frozen Go probe. `--samples 0` skips timings.
+Serde selects tracked Rust files only under `serde/src` and `serde_core/src`.
+Kanzi's actual dirty tracked files are hashed; its untracked tree is excluded.
+Choose a new work directory for changed sources or inputs.
+
+Keep the explicit kanzi grammar exclusion and all 58 timed inputs separate from
+57 accepted files (1,379 functions and 470 types). Macro token trees are not
+expanded and cfg branches are not evaluated. Full maps differ from Go because
+macro candidates and impl-scope/alias type profiles differ. Native rustfmt syntax
+acceptance does not establish function spans. The Rust-only probe, serial timing
+and specialized binary size are not a complete nine-language CLI measurement;
+full Unicode XID and file workers remain open.
+
+## Kotlin finder API experiment in D
+
+`KOTLIN_D_PORT.md` describes the standalone Kotlin lexer/token finder and its
+native compiler PSI reference. The final harness uses Kotlin compiler 2.2.0 and
+a portable JDK under `build/kotlin-oracle-runtime/`; tree-sitter is not required.
+`kotlin_psi_oracle.java.txt` parses syntax without Gradle/Android dependencies,
+normalizes CRLF in memory and reports names/header/end lines in UTF-8.
+
+```powershell
+python benchmarks/kotlin_port_compare.py --help
+python benchmarks/kotlin_port_compare.py `
+  --project neko=build/kotlin-d-port-20261019/repos/NekoBoxForAndroid `
+  --project seal=build/kotlin-d-port-20261019/repos/Seal `
+  --work-dir build/kotlin-d-port-20261019 --samples 7 --repeats 3
+```
+
+Use `--samples 0` for correctness only and a new work directory for changed
+sources/inputs. The harness compiles retained D/Java snapshots, runs separate
+module unit and token/bounds assertion builds, scores all 311 tracked `.kt`/`.kts`
+files against PSI, then times the two serial APIs. All 1,995 functions and 413
+named types match without parse exclusions. Compiler libraries/classes, binaries,
+input bytes, earlier backend hashes and raw samples are retained and verified.
+Named fun/type truth excludes constructors/accessors, enum entries, anonymous or
+unnamed declarations and declarations in string interpolation. See the report
+for language limits, expanded type profile and specialized-probe size/speed
+limits; the common CLI and file workers remain open.
+
+## Swift finder API experiment in D
+
+`SWIFT_D_PORT.md` describes the standalone Swift token finder and its
+tree-sitter 0.26.0 / tree-sitter-swift 0.7.4 reference. Install those pinned
+packages under `build/swift-eval-runtime/`, then run:
+
+```powershell
+python benchmarks/swift_port_compare.py --help
+python benchmarks/swift_port_compare.py `
+  --project alamofire=build/swift-d-port-20261019/repos/Alamofire `
+  --project kingfisher=build/swift-d-port-20261019/repos/Kingfisher `
+  --work-dir build/swift-d-port-20261019 --samples 7 --repeats 3
+```
+
+The harness builds retained snapshots using LDC/MSVC, checks module unit tests
+and separate token/bounds assertion maps, then scores functions and nominal/
+alias/associated types against the grammar before paired serial timings.
+`--samples 0` skips timing; choose a new work directory for changed sources or
+inputs. Reference input normalizes CRLF with original line numbers preserved;
+error auditing includes missing unnamed syntax tokens.
+
+Keep 268 accepted files (3,249 functions and 835 types, zero mismatches) separate
+from all 276 audited/timed inputs and eight explicit grammar exclusions. Named
+func truth includes operators/protocol requirements, not constructors/accessors;
+extensions supply scopes rather than new types. Full maps intentionally differ
+from Go. The dedicated algorithm, specialized Swift-only executable and serial
+API timings are not a complete eleven-language CLI or language-only benchmark.
+
+## PHP finder API experiment in D
+
+`PHP_D_PORT.md` records the standalone token finder and its tree-sitter 0.26.0 /
+tree-sitter-php 0.25.1 reference under `build/eval-runtime/`.
+
+```powershell
+python benchmarks/php_port_compare.py --help
+python benchmarks/php_port_compare.py `
+  --project monolog=build/language-eval-20261012/repos/monolog `
+  --project routing=build/language-eval-20261012/repos/symfony-routing `
+  --work-dir build/php-d-port-final-20261019 --samples 7 --repeats 3
+```
+
+All 495 tracked files independently verify 2,727 named functions/methods and 480
+named class/interface/trait/enum types with zero misses, false entries, wrong ends
+or parse exclusions. The harness checks separate module units and token/bounds
+assertion maps, snapshots, prior backends and hashes before/after serial timing.
+Twenty-one fixtures include heredoc/nowdoc, interpolation, attributes, anonymous
+classes, mixed HTML, Unicode/CRLF and long/deep inputs. Incomplete/invalid-UTF-8
+fixtures are explicit robustness inputs outside independent truth. Use a new work
+directory for changed inputs and `--samples 0` for correctness only. The expanded
+type profile and specialized PHP-only API are not Go-map/cleanup parity, a language-
+only speed comparison or a complete twelve-language CLI.
+
+## Scala finder API experiment in D
+
+`SCALA_D_PORT.md` records the standalone lexer/finder with tree-sitter 0.26.0 /
+tree-sitter-scala 0.26.2 under `build/eval-runtime/`.
+
+```powershell
+python benchmarks/scala_port_compare.py --help
+python benchmarks/scala_port_compare.py `
+  --project scopt=build/language-eval-20261012/repos/scopt `
+  --project oslib=build/language-eval-20261012/repos/os-lib `
+  --work-dir build/scala-d-port-final-20261019 --samples 7 --repeats 3
+```
+
+All 88 tracked files independently verify 1,023 named functions/signatures and
+328 named class/object/package-object/trait/enum/type declarations with no missing
+or false entries, wrong ends or parse exclusions. Functions include parameterless,
+operator and auxiliary-constructor names; aliases, abstract and nested/local types
+broaden the older Go type profile. The harness verifies separate module units,
+token/bounds assertion maps, snapshots, prior backends and final hashes around
+paired serial timing. Twenty-two fixtures include Scala 3 indentation/end markers,
+symbols/characters, interpolation and long/deep input; incomplete/invalid-UTF-8
+fixtures remain explicit unscored robustness checks. These predominantly Scala 2
+corpora and limited Scala 3 fixtures do not establish complete language coverage,
+Go-map/cleanup parity, language-only gains or a combined thirteen-language CLI.
+Use `--samples 0` for correctness only and a new work directory for changed inputs.
+
+## Python finder API experiment in D
+
+`PYTHON_D_PORT.md` records the standalone logical-statement/indentation finder
+against CPython 3.14.6 native AST. The Go baseline uses production `PythonFinder`
+through an exact-body preloaded-lines overlay; the older generic Go probe is not
+the Python production path. The adapter keeps `os.ReadFile`/`strings.Split` input
+semantics and retains its frozen source/probe hashes.
+
+```powershell
+python benchmarks/python_port_compare.py --help
+python benchmarks/python_port_compare.py `
+  --project flask=build/language-eval-20261012/repos/flask `
+  --project requests=build/language-eval-20261012/repos/requests `
+  --project hr=G:/DEV/Python/hr_portal `
+  --work-dir build/python-d-port-production-20261019 --samples 7 --repeats 3
+```
+
+All 180 tracked files independently verify 2,884 functions and 343 classes with
+zero D errors or parse exclusions. Separate units and token/bounds maps pass;
+15 fixtures cover Python 3.14 f/t strings, nested/inline/decorated suites,
+continuations, tabs/newlines/BOM and malformed/long/deep inputs. Keep Go's raw
+ends and its separately normalized blank/comment ends distinct from D's exact
+AST ends. Verify the interpreter/AST library, adapter body/reader, prior backends
+and all final snapshots/input hashes outside timing. No application dependencies
+are needed. Full XID/NFKC/legacy encodings, CLI/workers and other analyses remain
+open. Use a new work directory for changed sources/inputs and `--samples 0` for
+correctness only; earlier generic-Go measurements are exploratory.
+
+## Ruby finder API experiment in D
+
+`RUBY_D_PORT.md` records the standalone lexer/token/block finder against
+tree-sitter 0.26.0 / tree-sitter-ruby 0.23.1 under `build/ruby-eval-runtime/`.
+
+```powershell
+python benchmarks/ruby_port_compare.py --help
+python benchmarks/ruby_port_compare.py `
+  --project huginn=build/ruby-d-port-20261019/repos/huginn `
+  --project maybe=build/ruby-d-port-20261019/repos/maybe `
+  --work-dir build/ruby-d-port-final-20261019 --samples 7 --repeats 3
+```
+
+All 1,294 tracked `.rb` files independently verify 4,146 methods and 1,315 named
+class/module types with zero misses, false entries, wrong ends or parse exclusions.
+Pair heredoc beginnings/bodies and extend declaration spans through physical
+terminators, including endless methods. The frozen Go comparison uses its original
+generic Ruby path, retained as `go_generic` in the preceding Python report.
+Separate units and token/bounds maps pass; 22 fixtures cover nested/endless/
+singleton/operator methods, condition modifiers/values, loops/blocks, regex/
+percent/interpolated literals, queued heredocs and malformed/long/deep input.
+Keep dynamic/alias/literal declarations outside this named profile and do not
+claim full grammar/Go-map/cleanup/semantic parity. Final snapshots, prior backends,
+compiler/grammar/binary/input hashes and stable per-variant maps are verified.
+Use a new work directory for changed inputs and `--samples 0` for correctness only.
+All 15 languages now have finder prototypes; the common CLI, file workers and
+other toolkit analyses remain open.
