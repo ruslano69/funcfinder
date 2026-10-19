@@ -108,3 +108,146 @@ string[] headerMatch(string s) {
     foreach_reverse(pos;positions) { m=methodAt(s,pos); if(m.length) return m; }
     return null;
 }
+
+// --- declaration_pattern and declarator_pattern ----------------------------------------------------------------------
+// Direct translation of Go ts_declaration.go: the TS declaration pattern (a bodyless signature or `abstract` member) and
+// declarator pattern (a later declarator of a const list) read without a regex. Each returns what the pattern's captures
+// give for the same text: declarationMatch the whole line and two groups (the name of the first alternative or of the
+// second), declaratorMatch the match up to the value's "<" or "(" and the name. They are used only while the
+// configuration holds these two texts (js_ts_model.Config); AuditTSHeader compares every call with the regex.
+enum declarationPattern=`^(?:\s*(?:(?:export|default|declare|public|protected|private|static|readonly|override|async|function)\s+)*([\p{L}\p{Nd}_]+)\??\s*(?:<[^()]*>)?\s*\((?:[^()]|\([^()]*\))*\)\s*:.+;\s*$|\s*(?:(?:export|default|declare|public|protected|private|static|readonly|override|async)\s+)*abstract\s+(?:async\s+)?([\p{L}\p{Nd}_]+)\??\s*(?:<[^()]*>)?\s*\((?:[^()]|\([^()]*\))*\)(?:\s*:.+)?;\s*$)`;
+enum declaratorPattern=`^\s*([\p{L}\p{Nd}_]+)\s*(?::\s*(?:[^=]|=>)+?)?=\s*(?:async\s*)?[<(]`;
+
+private immutable string[] declarationWords=["export","default","declare","public","protected","private","static","readonly","override","async","function"];
+private immutable string[] abstractWords=["export","default","declare","public","protected","private","static","readonly","override","async"];
+private size_t[] chain; // thread-local scratch, like positions above: non-reentrant
+
+// The offsets after each prefix of the greedy `(?:(?:word)\s+)*` from p (the first is p itself).
+private size_t[] modifierChain(string s,size_t p,immutable(string)[] words) {
+    chain.length=0; chain.assumeSafeAppend; chain~=p;
+    while(true) {
+        ptrdiff_t e=-1;
+        foreach(kw;words) { e=wordSpace(s,chain[$-1],kw); if(e>=0) break; }
+        if(e<0) break;
+        chain~=e;
+    }
+    return chain;
+}
+
+// `([\p{L}\p{Nd}_]+)\??\s*(?:<[^()]*>)?\s*\((?:[^()]|\([^()]*\))*\)` at i: the name and the offset of the closing ")".
+private bool nameAndParameters(string s,size_t i,out string name,out size_t close) {
+    auto e=identEnd(s,i); if(e==i) return false;
+    name=s[i..e];
+    if(e<s.length && s[e]=='?') ++e;
+    auto x=skip(s,e);
+    if(x<s.length && s[x]=='<') {
+        // `<[^()]*>` then `\s*\(`: the run of non-parenthesis characters ends at the first "(" or ")"; the greedy
+        // `[^()]*` leaves the run's last ">" for the closing one, and only it can be followed by whitespace and "(".
+        auto r=x+1;
+        while(r<s.length && s[r]!='(' && s[r]!=')') ++r;
+        if(r>=s.length || s[r]!='(') return false;
+        ptrdiff_t gt=-1;
+        foreach_reverse(k;x+1..r) if(s[k]=='>') { gt=k; break; }
+        if(gt<0 || skip(s,gt+1)!=r) return false;
+        x=r;
+    }
+    if(x>=s.length || s[x]!='(') return false;
+    auto pe=parenEnd(s,x); if(pe<0) return false;
+    close=pe-1; return true;
+}
+
+// `\s*:.+;\s*$` after the ")" at close: the ";" is the last character that is not whitespace, with at least one character
+// that is not a newline between it and the ":".
+private bool annotatedEnd(string s,size_t close) {
+    auto j=skip(s,close+1);
+    if(j>=s.length || s[j]!=':') return false;
+    auto e=s.length; while(e>0 && space(s[e-1])) --e;
+    if(e<j+3 || s[e-1]!=';') return false;
+    foreach(c;s[j+1..e-1]) if(c=='\n') return false;
+    return true;
+}
+
+// `(?:\s*:.+)?;\s*$` after the ")" at close.
+private bool abstractEnd(string s,size_t close) {
+    if(annotatedEnd(s,close)) return true;
+    auto i=close+1;
+    return i<s.length && s[i]==';' && skip(s,i+1)==s.length;
+}
+
+private bool signatureDeclaration(string s,size_t p,out string name) {
+    auto positions=modifierChain(s,p,declarationWords);
+    foreach_reverse(pos;positions) {
+        size_t close;
+        if(nameAndParameters(s,pos,name,close) && annotatedEnd(s,close)) return true;
+    }
+    return false;
+}
+
+private bool abstractDeclaration(string s,size_t p,out string name) {
+    auto positions=modifierChain(s,p,abstractWords);
+    // Fewer modifiers would leave a modifier word where `abstract` is needed: only the longest chain can match.
+    auto i=wordSpace(s,positions[$-1],"abstract"); if(i<0) return false;
+    size_t close;
+    // `(?:async\s+)?` is greedy: with the word first, then without it (the name may be "async").
+    auto e=wordSpace(s,i,"async");
+    if(e>=0 && nameAndParameters(s,e,name,close) && abstractEnd(s,close)) return true;
+    return nameAndParameters(s,i,name,close) && abstractEnd(s,close);
+}
+
+string[] declarationMatch(string s) {
+    auto p=skip(s,0); string name;
+    if(signatureDeclaration(s,p,name)) return [s,name,""];
+    if(abstractDeclaration(s,p,name)) return [s,"",name];
+    return null;
+}
+
+// `=\s*(async\s*)?[<(]` at i: the offset just past the "<" or "(".
+private bool valueEnd(string s,size_t i,out size_t end) {
+    if(i>=s.length || s[i]!='=') return false;
+    auto j=skip(s,i+1);
+    if(s[j..$].startsWith("async")) {
+        auto k=skip(s,j+5);
+        if(k<s.length && (s[k]=='<' || s[k]=='(')) { end=k+1; return true; }
+    }
+    if(j<s.length && (s[j]=='<' || s[j]=='(')) { end=j+1; return true; }
+    return false;
+}
+
+// `(?::\s*(?:[^=]|=>)+?)?=\s*(async\s*)?[<(]` from q (after the name and its whitespace), as variableHeader reads it:
+// the lazy annotation chain, then the one end that gives back whitespace.
+private bool assignedValue(string s,size_t q,out size_t end) {
+    if(q>=s.length || s[q]!=':') return valueEnd(s,q,end);
+    auto start=q+1,ws=skip(s,start);
+    for(auto cur=ws;cur<s.length;) {
+        if(s[cur]=='=') { if(cur+1>=s.length || s[cur+1]!='>') break; cur+=2; }
+        else { decode!(Yes.useReplacementDchar)(s,cur); }
+        if(valueEnd(s,cur,end)) return true;
+    }
+    return ws>start && valueEnd(s,ws,end);
+}
+
+string[] declaratorMatch(string s) {
+    auto p=skip(s,0), n=identEnd(s,p); if(n==p) return null;
+    size_t end;
+    if(!assignedValue(s,skip(s,n),end)) return null;
+    return [s[0..end],s[p..n]];
+}
+
+unittest {
+    assert(declarationMatch("foo(x: T): U;")==["foo(x: T): U;","foo",""]);
+    assert(declarationMatch("  export declare function f<T>(a: (b)): void;  ")==["  export declare function f<T>(a: (b)): void;  ","f",""]);
+    assert(declarationMatch("abstract run(): void;")==["abstract run(): void;","","run"]);
+    assert(declarationMatch("protected abstract async go();")==["protected abstract async go();","","go"]);
+    assert(declarationMatch("abstract async(): void;")==["abstract async(): void;","","async"]);
+    assert(declarationMatch("abstract run() ;") is null);
+    assert(declarationMatch("foo(x): ;")==["foo(x): ;","foo",""]);
+    assert(declarationMatch("foo(x):;") is null);
+    assert(declarationMatch("foo((a)(b)): T;")==["foo((a)(b)): T;","foo",""]); // two one-level groups are fine
+    assert(declarationMatch("foo(((a))): T;") is null);   // nested ones are not
+    assert(declarationMatch("static (x): T;")==["static (x): T;","static",""]);
+    assert(declarationMatch("foo<T>(x): T")  is null);
+    assert(declaratorMatch("a = (x) => 1")==["a = (","a"]);
+    assert(declaratorMatch("  handler: (a: A) => B = async <T>(x) => x")==["  handler: (a: A) => B = async <","handler"]);
+    assert(declaratorMatch("b = 2") is null);
+    assert(declaratorMatch("é: T = (") ==["é: T = (","é"]);
+}

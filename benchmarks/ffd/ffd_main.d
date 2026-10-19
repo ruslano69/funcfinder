@@ -13,6 +13,8 @@ import std.stdio : stderr, stdout;
 import std.algorithm : sort;
 import std.string : startsWith, strip;
 
+version (unittest) import ffd_vectors; // unit tests of the scanners against Go's patterns
+
 // ffd: the funcfinder directory run, written in D. Stage 0/1 of the D port: `--dir` with --all, --struct and --json,
 // the Go tool's JSON and grep-style text, the .gitignore rules and the worker pool. The other modes (--inp, --tree,
 // --names, --doc, --split, --extract) are not implemented yet and say so.

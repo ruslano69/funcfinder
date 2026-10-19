@@ -31,34 +31,32 @@ Measured by key (`ffd_compare.py`), Go 1.15.9 against `ffd` on 30 trees:
 ## Speed
 
 Median of 5 to 7 interleaved runs of `--dir --all --json` on a 16-core/32-thread Windows machine, against the **released
-Go 1.15.9** (`funcfinder-windows-amd64.exe` of the GitHub release). Go defaults to all 32 threads, `ffd` to 8 (at most 16).
-Milliseconds; `@1` and `@8` give both tools the same number of threads:
+Go 1.15.9** (`funcfinder-windows-amd64.exe` of the GitHub release; `ffd_compare.py` prints and records the reference's
+version). Go defaults to all 32 threads, `ffd` to 8 (at most 16). Milliseconds; `@1` and `@8` give both tools the same
+number of threads:
 
 | Tree | Go @1 | ffd @1 | Go @8 | ffd @8 | Go default | ffd default |
 |---|---:|---:|---:|---:|---:|---:|
-| gson (Java) | 101 | 53 | 56 | 41 | 47 | 40 |
-| fmt (C++) | 224 | 66 | 70 | 59 | 74 | 57 |
-| polly (C#) | 206 | 113 | 100 | 74 | 93 | 71 |
-| zod (TS) | 228 | 206 | 67 | 73 | 54 | 70 |
-| Seal (Kotlin) | 110 | 39 | 39 | 28 | 31 | 28 |
-| arsd (D) | 559 | 232 | 114 | 101 | 126 | 99 |
-| flask (Python) | 43 | 25 | 21 | 23 | 21 | 24 |
-| huginn (Ruby) | 142 | 93 | 46 | 61 | 53 | 56 |
-| maybe (Ruby) | 165 | 94 | 69 | 70 | 57 | 68 |
-| serde (Rust) | 62 | 40 | 27 | 32 | 24 | 31 |
-| Alamofire (Swift) | 208 | 56 | 56 | 51 | 43 | 47 |
-| Kingfisher (Swift) | 195 | 39 | 55 | 32 | 40 | 31 |
-| OmniRoute (TS/JS, 1.6M lines) | 2871 | 2643 | 642 | 611 | 488 | 610 |
-| tdtp-framework (Go, many small files) | 239 | 136 | 71 | 95 | 60 | 92 |
+| gson (Java) | 99 | 51 | 53 | 39 | 46 | 39 |
+| fmt (C++) | 224 | 65 | 72 | 59 | 75 | 58 |
+| polly (C#) | 205 | 107 | 95 | 72 | 91 | 73 |
+| zod (TS) | 226 | 149 | 65 | 49 | 54 | 49 |
+| Seal (Kotlin) | 108 | 37 | 38 | 28 | 31 | 29 |
+| arsd (D) | 562 | 230 | 112 | 99 | 128 | 101 |
+| flask (Python) | 44 | 25 | 21 | 23 | 21 | 23 |
+| huginn (Ruby) | 140 | 93 | 45 | 56 | 53 | 57 |
+| maybe (Ruby) | 164 | 92 | 68 | 70 | 57 | 66 |
+| serde (Rust) | 62 | 40 | 26 | 32 | 25 | 31 |
+| Alamofire (Swift) | 209 | 55 | 55 | 47 | 45 | 48 |
+| Kingfisher (Swift) | 190 | 40 | 55 | 31 | 39 | 31 |
+| OmniRoute (TS/JS) | 2917 | 2061 | 655 | 452 | 483 | 447 |
+| tdtp-framework (Go) | 241 | 134 | 72 | 88 | 59 | 88 |
 
-What the table says: **per thread `ffd` does much less work** (serial 8% to 80% less time, 45-80% on most trees), but it
-**scales worse than Go**: Go's run goes about 6 times faster from 1 to 32 threads, `ffd`'s about 4 times from 1 to 8 and
-not at all beyond (OmniRoute: 559 ms at 8, 870 at 16, 1463 at 32). With 8 threads each `ffd` is ahead on 8 of 14 trees,
-level on one, behind on five; against Go's default of 32 threads it is ahead on 6 and behind on 8. The limit is the shared
-runtime allocator and the finders that still allocate, and in TypeScript regexes (about 40% of its serial time): the next
-steps are in `TODO.md`.
+**Per thread `ffd` does much less work** (serially 29% to 79% less time, 45-79% on most trees) and **scales worse than Go**:
+Go goes about 6 times faster from 1 to 32 threads, `ffd` about 4.5 times from 1 to 8 and not at all beyond (OmniRoute, before
+the scanners below: 559 ms at 8 threads, 870 at 16, 1463 at 32). With 8 threads each `ffd` is ahead on 9 of 14 trees, level on
+1, behind on 4; against Go's default of 32 threads it is ahead on 8 and behind on 6. The limit is the shared runtime
+allocator and the finders that still allocate; the next steps are in `TODO.md`.
 
-> Correction: the first version of this table, and the "faster than Go's 32 threads on most trees" in the commit message
-> of this branch, were measured against a stale local `funcfinder.exe` (version 1.15.7 plus the accuracy fixes, without the
-> 1.15.8/1.15.9 speed-ups), not the release. The keys compared are unchanged (same functions and types), the speed claims
-> were wrong.
+The TypeScript `declaration_pattern` and `declarator_pattern` are read by scanners (as `func_pattern` is): OmniRoute serial
+2643 → 2061 ms, with 8 threads 611 → 452 ms; zod serial 206 → 149 ms. The Go tool has the same scanners in its own PR.
