@@ -1,0 +1,1155 @@
+{
+ "languages": {
+  "c": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "class_pattern": "^\\s*(?:typedef\\s+)?struct\\s+(?:\\w+\\s*)?\\{",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "for",
+    "switch",
+    "case",
+    "return",
+    "sizeof",
+    "define",
+    "include",
+    "ifdef",
+    "ifndef",
+    "endif"
+   ],
+   "extensions": [
+    ".c",
+    ".h"
+   ],
+   "field_pattern": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\s*([a-zA-Z_][\\w\\s\\*\\[\\]]*)\\s*;",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+   "func_pattern": "^\\w[\\w\\s\\*]*[\\s\\*]+(?:\\(\\s*([\\p{L}\\p{Nd}_]+)\\s*\\)|([\\p{L}\\p{Nd}_]+))\\s*\\(\\s*(?:[^*\\s]|$)",
+   "import_pattern": "^\\s*#\\s*include\\s*[\u003c\"]([^\u003e\"]+)[\u003e\"]",
+   "indent_based": false,
+   "keywords_not_names": true,
+   "lang": "c",
+   "lang_key": "c",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|while|do)\\b",
+   "multi_line_block": "",
+   "name": "C",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|case|default)\\b",
+   "raw_string_chars": [],
+   "string_chars": [
+    "\"",
+    "'"
+   ],
+   "struct_patterns": {
+    "struct": "^\\s*(?:typedef\\s+)?(?:struct|union)\\s+(?:([\\p{L}\\p{Nd}_]+)\\s*)?\\{",
+    "typedef_struct": "^\\s*typedef\\s+struct(?:\\s+\\w+)?\\s*\\{\\s*([\\p{L}\\p{Nd}_]+)\\s*\\}"
+   },
+   "supports_nested": false,
+   "type_keywords": [
+    "struct",
+    "union"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "cpp": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "class_pattern": "^\\s*(?:template\\s*\u003c.*\u003e\\s*)?(?:[\\w\\s]+\\s+)?(?:class|struct)\\s+(?:[A-Z][A-Z0-9_]*\\s+)?([\\p{L}\\p{Nd}_]+)",
+   "constructor_pattern": "^\\s*(?:(?:explicit|inline|constexpr|virtual|FMT_[A-Z0-9_]+)\\s+)*(~?[\\p{L}\\p{Nd}_]+)\\s*\\(",
+   "conversion_operator_pattern": "\\boperator\\s+([\\w:\u003c\u003e*\u0026\\s]+?)\\s*\\(",
+   "declaration_pattern": "^\\s*(?:template\\s*\u003c.*?\u003e\\s*)?(?:(?:[@\\w\u003c\\[~*\u0026][@\\w\u003c\u003e\\[\\],.?*\u0026:~]*\\s+)+?(?:[\\w~]+::)*)(~?[\\p{L}\\p{Nd}_]+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))(?:\u003c[^()]*\u003e)?\\s*\\((?:\\s*\\)|(?:(?:\\s*(?:void|int|char|bool|float|double|long|short|unsigned|signed|size_t|auto)\\b|\\s*[A-Za-z_][\\w:]*(?:\u003c[^()]*\u003e)?(?:\\s+[*\u0026]*|[*\u0026]+)\\s*[A-Za-z_]|\\s*\\.\\.\\.))(?:[^()]|\\([^()]*\\))*\\)|\\s*[A-Za-z_][\\w:]*(?:\u003c[^()]*\u003e)?[*\u0026]+\\s*(?:\\)|,(?:[^()]|\\([^()]*\\))*\\)))\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:(?:override|final)\\s*)*(?:-\u003e\\s*[^{;]+?)?\\s*(?:=\\s*(?:0|default|delete)\\s*)?;\\s*$",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "for",
+    "switch",
+    "case",
+    "return",
+    "sizeof",
+    "define",
+    "include",
+    "typedef",
+    "namespace",
+    "using",
+    "constexpr",
+    "static_assert",
+    "decltype",
+    "noexcept",
+    "alignas",
+    "alignof",
+    "requires",
+    "throw",
+    "new",
+    "delete",
+    "typeid",
+    "static_cast",
+    "dynamic_cast",
+    "const_cast",
+    "reinterpret_cast",
+    "co_return",
+    "co_await",
+    "co_yield",
+    "template",
+    "unsigned",
+    "signed",
+    "int",
+    "char",
+    "bool",
+    "void",
+    "long",
+    "short",
+    "float",
+    "double",
+    "wchar_t"
+   ],
+   "extensions": [
+    ".cpp",
+    ".cc",
+    ".cxx",
+    ".hpp",
+    ".h"
+   ],
+   "field_pattern": "^\\s*(?:const\\s+)?(?:\\w+(?:\u003c[^\u003e]*\u003e)?\\s+)+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:\\[\\s*\\]\\s*)?(?:=|;|,)",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+   "func_pattern": "^\\s*(?:template\\s*\u003c.*?\u003e\\s*)?(?:(?:[@\\w\u003c\\[~*\u0026][@\\w\u003c\u003e\\[\\],.?*\u0026:~]*\\s+)+?(?:[\\w~]+::)*|(?:[\\w~]+(?:\u003c[^()]*\u003e)?::)+)(~?[\\p{L}\\p{Nd}_]+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))(?:\u003c[^()]*\u003e)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:(?:override|final)\\s*)*(?:-\u003e\\s*[^{;]*?)?(?:\\s*:[^{;]*)?\\s*(?:\\{.*)?$",
+   "header_open_pattern": "^\\s*(?:[@\\w\u003c\\[~*\u0026][@\\w\u003c\u003e\\[\\],.?*\u0026:~]*\\s+)+?(?:[\\w~]+::)*(~?[\\p{L}\\p{Nd}_]+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))\\s*\\(",
+   "import_pattern": "^\\s*#\\s*include\\s*[\u003c\"]([^\u003e\"]+)[\u003e\"]",
+   "indent_based": false,
+   "initializer_lists": true,
+   "keywords_not_names": true,
+   "lang": "cpp",
+   "lang_key": "cpp",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|while|do)\\b",
+   "member_declaration_pattern": "^\\s*(?:template\\s*\u003c.*?\u003e\\s*)?(?:(?:[@\\w\u003c\\[~*\u0026][@\\w\u003c\u003e\\[\\],.?*\u0026:~]*\\s+)+?(?:[\\w~]+::)*)(~?[\\p{L}\\p{Nd}_]+|operator(?:\\s*(?:\\(\\)|\\[\\]|\"\"\\w+|[^\\w\\s(]+)|\\s+\\w+))(?:\u003c[^()]*\u003e)?\\s*\\((?:\\s*\\)|(?:(?:\\s*(?:void|int|char|bool|float|double|long|short|unsigned|signed|size_t|auto)\\b|\\s*[A-Za-z_][\\w:]*(?:\u003c[^()]*\u003e)?(?:\\s+[*\u0026]*|[*\u0026]+)\\s*[A-Za-z_]|\\s*\\.\\.\\.))(?:[^()]|\\([^()]*\\))*\\)|\\s*[A-Za-z_][\\w:]*(?:\u003c[^()]*\u003e)?[*\u0026]+\\s*(?:\\)|,(?:[^()]|\\([^()]*\\))*\\))|\\s*[A-Za-z_][\\w:]*(?:\u003c[^()]*\u003e)?\\s*(?:\\)|,(?:[^()]|\\([^()]*\\))*\\)))\\s*(?:const\\s*)?(?:noexcept\\s*)?(?:(?:override|final)\\s*)*(?:-\u003e\\s*[^{;]+?)?\\s*(?:=\\s*(?:0|default|delete)\\s*)?;\\s*$",
+   "multi_line_block": "",
+   "name": "C++",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|case|default|catch)\\b",
+   "raw_string_chars": [],
+   "statement_words": [
+    "if",
+    "else",
+    "while",
+    "for",
+    "switch",
+    "case",
+    "do",
+    "catch",
+    "return",
+    "throw",
+    "new",
+    "delete",
+    "co_return",
+    "co_await",
+    "co_yield",
+    "static_assert",
+    "sizeof",
+    "typeid",
+    "template"
+   ],
+   "string_chars": [
+    "\"",
+    "'"
+   ],
+   "struct_patterns": {
+    "class": "^\\s*(?:\\w+\\s+)?class\\s+([\\p{L}\\p{Nd}_]+)",
+    "enum": "^\\s*(?:\\w+\\s+)?enum\\s+(?:class\\s+)?([\\p{L}\\p{Nd}_]+)",
+    "interface": "^\\s*(?:\\w+\\s+)?class\\s+([\\p{L}\\p{Nd}_]+)\\s*:",
+    "struct": "^\\s*(?:\\w+\\s+)?struct\\s+([\\p{L}\\p{Nd}_]+)",
+    "union": "^\\s*(?:\\w+\\s+)?union\\s+([\\p{L}\\p{Nd}_]+)"
+   },
+   "supports_nested": false,
+   "type_keywords": [
+    "class",
+    "struct",
+    "enum",
+    "union"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "cs": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "char_delimiters": [
+    "'"
+   ],
+   "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|interface|struct|enum)\\s+([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "^\\s*\\[(\\w+)",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "foreach",
+    "for",
+    "switch",
+    "case",
+    "return",
+    "using",
+    "namespace",
+    "class",
+    "interface",
+    "struct",
+    "enum"
+   ],
+   "extensions": [
+    ".cs",
+    ".csx"
+   ],
+   "field_pattern": "^\\s*(?:public|private|protected|internal|static|readonly|const|volatile)?\\s*(?:readonly\\s+)?(?:[a-zA-Z_][\\w\u003c\u003e\\.\\[\\]]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:\\{|=|;)",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+   "func_pattern": "^\\s*[\\w\\s\\*\u003c\u003e,\\[\\]]+\\s+([\\p{L}\\p{Nd}_]+)\\s*\\([^)]*\\)\\s*(?:=\u003e|\\{)?\\s*$",
+   "import_pattern": "^\\s*using\\s+([\\w.]+)",
+   "indent_based": false,
+   "keywords_not_names": true,
+   "lang": "cs",
+   "lang_key": "cs",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|foreach|while|do)\\b",
+   "multi_line_block": "",
+   "name": "C#",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|foreach|while|do|switch|catch|finally)\\b",
+   "raw_string_chars": [
+    "@\""
+   ],
+   "string_chars": [
+    "\""
+   ],
+   "struct_patterns": {
+    "class": "^\\s*(?:(?:public|private|protected|internal|static|abstract|sealed|partial)\\s+)*(?:class|record)\\s+([\\p{L}\\p{Nd}_]+)",
+    "enum": "^\\s*(?:(?:public|private|protected|internal)\\s+)?enum\\s+([\\p{L}\\p{Nd}_]+)",
+    "interface": "^\\s*(?:(?:public|private|protected|internal)\\s+)?interface\\s+([\\p{L}\\p{Nd}_]+)",
+    "record": "^\\s*(?:(?:public|private|protected|internal|sealed)\\s+)?record\\s+(?:struct\\s+)?([\\p{L}\\p{Nd}_]+)",
+    "struct": "^\\s*(?:(?:public|private|protected|internal)\\s+)?struct\\s+([\\p{L}\\p{Nd}_]+)"
+   },
+   "supports_nested": false,
+   "type_keywords": [
+    "class",
+    "interface",
+    "struct",
+    "enum",
+    "record"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "d": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "char_delimiters": [
+    "'"
+   ],
+   "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|struct|interface|enum)\\s+([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "foreach",
+    "for",
+    "switch",
+    "case",
+    "return",
+    "import",
+    "module",
+    "class",
+    "struct",
+    "interface",
+    "enum",
+    "union",
+    "function",
+    "delegate",
+    "assert",
+    "extern",
+    "version",
+    "debug",
+    "scope",
+    "cast",
+    "typeof",
+    "__traits",
+    "align",
+    "pragma",
+    "mixin",
+    "unittest",
+    "void",
+    "bool",
+    "byte",
+    "ubyte",
+    "short",
+    "ushort",
+    "int",
+    "uint",
+    "long",
+    "ulong",
+    "cent",
+    "ucent",
+    "float",
+    "double",
+    "real",
+    "ifloat",
+    "idouble",
+    "ireal",
+    "char",
+    "wchar",
+    "dchar",
+    "const",
+    "immutable",
+    "shared",
+    "inout",
+    "auto"
+   ],
+   "extensions": [
+    ".d"
+   ],
+   "field_pattern": "^\\s*(?:public|private|protected|package|static|const|immutable|shared|enum)\\s*(?:[a-zA-Z_][\\w\\[\\]]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*;",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+   "func_pattern": "^\\s*(?:(?:@[\\p{L}\\p{Nd}_]+(?:\\((?:[^()]|\\([^()]*\\))*\\))?|public|private|protected|package|export|static|final|override|abstract|synchronized|pure|nothrow|scope|ref|const|immutable|shared|inout|auto)\\s+)*(?:(~?this|new)|(?:(?:const|immutable|shared|inout|typeof)\\s*\\((?:[^()]|\\([^()]*\\))*\\)|\\.?[\\p{L}\\p{Nd}_]+(?:\\.[\\p{L}\\p{Nd}_]+)*(?:!(?:\\((?:[^()]|\\([^()]*\\))*\\)|[\\p{L}\\p{Nd}_]+))?)(?:\\s*\\*|\\[[^\\]]*\\])*(?:(?:\\s*\\*)+\\s*|\\s+)(?:(?:delegate|function)\\((?:[^()]|\\([^()]*\\))*\\)(?:\\s+(?:@[\\p{L}\\p{Nd}_]+|pure|nothrow))*\\s+)?([\\p{L}\\p{Nd}_]+))\\s*\\(|^\\s*(?:(?:@[\\p{L}\\p{Nd}_]+(?:\\((?:[^()]|\\([^()]*\\))*\\))?|public|private|protected|package|export|static|final|override|abstract|synchronized|pure|nothrow|scope|ref|const|immutable|shared|inout|auto)\\s+)*@property\\s+([\\p{L}\\p{Nd}_]+)\\s*\\(",
+   "func_requires": [
+    "("
+   ],
+   "import_pattern": "^\\s*import\\s+([\\w.]+)",
+   "indent_based": false,
+   "keywords_not_names": true,
+   "lang": "d",
+   "lang_key": "d",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|foreach|while|do)\\b",
+   "multi_line_block": "",
+   "name": "D",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|foreach|while|do|switch|catch|finally)\\b",
+   "raw_string_chars": [
+    "`",
+    "r\""
+   ],
+   "string_chars": [
+    "\""
+   ],
+   "struct_patterns": {
+    "class": "^\\s*(?:(?:public|private|protected|static|const|immutable|shared)\\s+)*class\\s+([\\p{L}\\p{Nd}_]+)",
+    "enum": "^\\s*(?:(?:public|private|protected|static|const)\\s+)?enum\\s+([\\p{L}\\p{Nd}_]+)",
+    "interface": "^\\s*(?:(?:public|private|protected)\\s+)?interface\\s+([\\p{L}\\p{Nd}_]+)",
+    "struct": "^\\s*(?:(?:public|private|protected|static|const|immutable|shared)\\s+)*struct\\s+([\\p{L}\\p{Nd}_]+)",
+    "union": "^\\s*(?:(?:public|private|protected|static|const)\\s+)?union\\s+([\\p{L}\\p{Nd}_]+)"
+   },
+   "supports_nested": true,
+   "type_keywords": [
+    "class",
+    "struct",
+    "interface",
+    "enum",
+    "union"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "go": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "char_delimiters": [
+    "'"
+   ],
+   "class_pattern": "^\\s*type\\s+([\\p{L}\\p{Nd}_]+)\\s+(struct|interface)\\s*\\{",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "func",
+    "type",
+    "import",
+    "const",
+    "var",
+    "package"
+   ],
+   "extensions": [
+    ".go"
+   ],
+   "field_pattern": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s+([a-zA-Z_][\\w\\[\\]*\\s]*)\\s*$",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case)\\b",
+   "func_pattern": "^\\s*func\\s+(\\([^)]*\\)\\s+)?([\\p{L}\\p{Nd}_]+)(?:\\[[^\\]]*\\])?\\s*\\(",
+   "func_requires": [
+    "("
+   ],
+   "import_pattern": "^\\s*(?:import\\s+\"([^\"]+)\"|\"([^\"]+)\"$)",
+   "indent_based": false,
+   "lang": "go",
+   "lang_key": "go",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for)\\b",
+   "multi_line_block": "",
+   "name": "Go",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|for|switch)\\b",
+   "raw_string_chars": [
+    "`"
+   ],
+   "string_chars": [
+    "\""
+   ],
+   "struct_patterns": {
+    "interface": "^\\s*type\\s+([\\p{L}\\p{Nd}_]+)\\s+interface\\s*\\{",
+    "named": "^\\s*type\\s+([\\p{L}\\p{Nd}_]+)\\s+[^={\\s].*\\s*$",
+    "struct": "^\\s*type\\s+([\\p{L}\\p{Nd}_]+)\\s+struct\\s*\\{"
+   },
+   "supports_nested": true,
+   "type_keywords": [
+    "type"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "java": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "char_delimiters": [
+    "'"
+   ],
+   "class_method_open": "^\\s*(?:[@\\w\u003c\u003e\\[\\],.?*]+\\s+)*([\\p{L}\\p{Nd}_]+)\\s*\\(\\s*$",
+   "class_pattern": "^\\s*(?:[\\w\\s]+\\s+)?(?:class|interface|enum)\\s+([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "^\\s*@(\\w+)",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "for",
+    "switch",
+    "case",
+    "return",
+    "import",
+    "package",
+    "class",
+    "interface",
+    "enum"
+   ],
+   "extensions": [
+    ".java"
+   ],
+   "field_pattern": "^\\s*(?:public|private|protected|static|final|abstract|synchronized|native|strictfp)?\\s*(?:final\\s+)?(?:[a-zA-Z_][\\w\u003c\u003e[\\]]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:=|;)",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+   "func_pattern": "^\\s*(?:[@\\w\u003c\u003e\\[\\],.?*]+\\s+)+([\\p{L}\\p{Nd}_]+)\\s*\\(",
+   "import_pattern": "^\\s*import\\s+(?:static\\s+)?([\\w.]+)",
+   "indent_based": false,
+   "keywords_not_names": true,
+   "lang": "java",
+   "lang_key": "java",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|while|do)\\b",
+   "multi_line_block": "",
+   "name": "Java",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|catch|finally)\\b",
+   "raw_string_chars": [],
+   "string_chars": [
+    "\""
+   ],
+   "struct_patterns": {
+    "abstract": "^\\s*(?:(?:public|private|protected|static|abstract)\\s+)*abstract\\s+class\\s+([\\p{L}\\p{Nd}_]+)",
+    "class": "^\\s*(?:(?:public|private|protected|static|abstract|final|sealed|non-sealed)\\s+)*(?:class|record)\\s+([\\p{L}\\p{Nd}_]+)",
+    "enum": "^\\s*(?:(?:public|private|protected|static)\\s+)?enum\\s+([\\p{L}\\p{Nd}_]+)",
+    "interface": "^\\s*(?:(?:public|private|protected|static)\\s+)?interface\\s+([\\p{L}\\p{Nd}_]+)",
+    "record": "^\\s*(?:(?:public|private|protected|static)\\s+)?record\\s+([\\p{L}\\p{Nd}_]+)"
+   },
+   "supports_nested": false,
+   "type_keywords": [
+    "class",
+    "interface",
+    "enum",
+    "record"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "js": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({JS_IDENT})\\s*\\(",
+   "class_method_open": "^\\s*(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*([\\p{L}\\p{Nd}_]+)\\s*(?:\u003c[^\u003e]*\u003e)?\\s*\\(\\s*$",
+   "class_pattern": "^\\s*(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?class\\s+([\\p{L}_$#][\\p{L}\\p{Nd}\\p{M}_$\\x{200c}\\x{200d}]*)",
+   "declarator_pattern": "^\\s*([\\p{L}\\p{Nd}_]+)\\s*(?::\\s*(?:[^=]|=\u003e)+?)?=\\s*(?:async\\s*)?[\u003c(]",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": [
+    "^\\.",
+    "^\\./"
+   ],
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "for",
+    "switch",
+    "case",
+    "return",
+    "typeof",
+    "instanceof",
+    "new",
+    "delete",
+    "void",
+    "await",
+    "async",
+    "export",
+    "import",
+    "default"
+   ],
+   "extensions": [
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs"
+   ],
+   "field_pattern": "(?:(?:public|private|protected|readonly|static|abstract)\\s+)*(?:[a-zA-Z_][\\w\\[\\]]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:=|;|,)",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+   "func_pattern": "^\\s*(?:(export\\s+)?(?:default\\s+)?(async\\s+)?function\\s*\\*?\\s+([\\p{L}\\p{Nd}_]+)\\s*\\(|(?:export\\s+)?(const|let|var)\\s+([\\p{L}\\p{Nd}_]+)\\s*=\\s*(async\\s+)?\\(|(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*([\\p{L}\\p{Nd}_]+)\\s*(?:\u003c[^\u003e]*\u003e)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{)",
+   "func_requires": [
+    "(",
+    "\u003c"
+   ],
+   "import_pattern": "^\\s*(?:import\\s+.*?from\\s+[\"']([^\"']+)[\"']|require\\s*\\(\\s*[\"']([^\"']+)[\"'])",
+   "indent_based": false,
+   "inline_headers": true,
+   "lang": "js",
+   "lang_key": "js",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|while|do)\\b",
+   "multi_line_block": "",
+   "name": "JavaScript",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|catch|finally)\\b",
+   "quoted_method_pattern": "^\\s*((?:\"[^\"]*\"|'[^']*'))\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{",
+   "raw_string_chars": [
+    "`"
+   ],
+   "regex_literals": true,
+   "single_line_strings": true,
+   "statement_words": [
+    "if",
+    "for",
+    "while",
+    "switch",
+    "catch",
+    "with",
+    "function",
+    "return",
+    "else",
+    "do",
+    "try",
+    "finally",
+    "case"
+   ],
+   "string_chars": [
+    "\"",
+    "'"
+   ],
+   "struct_patterns": {
+    "class": "^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+([\\p{L}_$#][\\p{L}\\p{Nd}\\p{M}_$\\x{200c}\\x{200d}]*)",
+    "enum": "^\\s*(?:export\\s+)?const\\s+([\\p{L}\\p{Nd}_]+)\\s*=\\s*\\{",
+    "interface": "^\\s*(?:export\\s+)?interface\\s+([\\p{L}\\p{Nd}_]+)",
+    "type_alias": "^\\s*(?:export\\s+)?type\\s+([\\p{L}\\p{Nd}_]+)\\s*="
+   },
+   "supports_nested": true,
+   "template_expressions": true,
+   "type_keywords": [
+    "class",
+    "interface",
+    "const",
+    "type"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "kotlin": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "char_delimiters": [
+    "'"
+   ],
+   "class_pattern": "^\\s*(?:(?:public|private|protected|internal)\\s+)?(?:data\\s+|sealed\\s+|enum\\s+|abstract\\s+)?(?:class|interface|object)\\s+([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "^\\s*@(\\w+)",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "for",
+    "when",
+    "switch",
+    "return",
+    "fun",
+    "class",
+    "interface",
+    "object",
+    "data",
+    "sealed",
+    "enum",
+    "val",
+    "var",
+    "import",
+    "package"
+   ],
+   "extensions": [
+    ".kt",
+    ".kts"
+   ],
+   "field_pattern": "(?:var|val|public|private|protected|internal|static|lateinit)\\s+(?:\\w+(?:\u003c[^\u003e]*\u003e)?\\s+)+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?::\\s*[\\w\\[\\]\u003c\u003e?,=\\s]*)?(?:\\{|=|;)",
+   "flat_pattern": "^\\s*\\}?\\s*else\\b|^\\s*-\u003e",
+   "func_pattern": "^\\s*(?:@[\\w.]+(?:\\([^)]*\\))?\\s+)*(?:(?:public|private|protected|internal|override|open|abstract|final|suspend|inline|infix|operator|tailrec|external|actual|expect|const|lateinit)\\s+)*fun\\s+(?:\u003c[^\u003e]+\u003e\\s+)?(?:[\\w.\u003c\u003e?]+\\.)?([\\p{L}\\p{Nd}_]+)\\s*\\(",
+   "import_pattern": "^\\s*import\\s+([\\w.]+)",
+   "indent_based": false,
+   "lang": "kotlin",
+   "lang_key": "kotlin",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|while|do)\\b",
+   "multi_line_block": "",
+   "name": "Kotlin",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|when|catch|finally)\\b",
+   "raw_string_chars": [
+    "\"\"\""
+   ],
+   "string_chars": [
+    "\""
+   ],
+   "struct_patterns": {
+    "class": "^\\s*(?:(?:public|private|protected|internal)\\s+)?(?:open\\s+)?(?:abstract\\s+)?(?:data\\s+)?(?:sealed\\s+)?class\\s+([\\p{L}\\p{Nd}_]+)",
+    "data_class": "^\\s*(?:(?:public|private|protected|internal)\\s+)?data\\s+class\\s+([\\p{L}\\p{Nd}_]+)",
+    "enum_class": "^\\s*(?:(?:public|private|protected|internal)\\s+)?enum\\s+class\\s+([\\p{L}\\p{Nd}_]+)",
+    "interface": "^\\s*(?:(?:public|private|protected|internal)\\s+)?interface\\s+([\\p{L}\\p{Nd}_]+)",
+    "object": "^\\s*(?:(?:public|private|protected|internal)\\s+)?object\\s+([\\p{L}\\p{Nd}_]+)",
+    "sealed_class": "^\\s*(?:(?:public|private|protected|internal)\\s+)?sealed\\s+class\\s+([\\p{L}\\p{Nd}_]+)"
+   },
+   "supports_nested": true,
+   "type_keywords": [
+    "class",
+    "interface",
+    "object"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "php": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "class_pattern": "^\\s*(?:(?:abstract|final)\\s+)?(?:class|interface|trait)\\s+([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "foreach",
+    "for",
+    "switch",
+    "case",
+    "return",
+    "echo",
+    "print",
+    "class",
+    "interface",
+    "trait",
+    "function",
+    "public",
+    "private",
+    "protected",
+    "static"
+   ],
+   "extensions": [
+    ".php"
+   ],
+   "field_pattern": "(?:public|private|protected|var|static)\\s+(?:\\$\\w+(?:\u003c[^\u003e]*\u003e)?\\s*,?\\s*)+",
+   "flat_pattern": "^\\s*\\}?\\s*(elseif|else|case|default)\\b",
+   "func_pattern": "^\\s*(?:(?:public|private|protected|static|abstract|final)\\s+)*function\\s+\u0026?\\s*([\\p{L}\\p{Nd}_]+)\\s*\\(",
+   "func_requires": [
+    "("
+   ],
+   "import_pattern": "^\\s*(?:use\\s+([\\w\\\\]+)|require(?:_once)?\\s*[\"']([^\"']+)[\"']|include(?:_once)?\\s*[\"']([^\"']+)[\"'])",
+   "indent_based": false,
+   "lang": "php",
+   "lang_key": "php",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|foreach|while|do)\\b",
+   "multi_line_block": "",
+   "name": "PHP",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|elseif|for|foreach|while|do|switch|case|default|catch|finally)\\b",
+   "raw_string_chars": [],
+   "string_chars": [
+    "\"",
+    "'"
+   ],
+   "struct_patterns": {
+    "abstract": "^\\s*abstract\\s+class\\s+([\\p{L}\\p{Nd}_]+)",
+    "class": "^\\s*(?:abstract\\s+|final\\s+)*(?:public\\s+|private\\s+|protected\\s+)*class\\s+([\\p{L}\\p{Nd}_]+)",
+    "interface": "^\\s*(?:public\\s+|private\\s+|protected\\s+)*interface\\s+([\\p{L}\\p{Nd}_]+)",
+    "trait": "^\\s*(?:public\\s+|private\\s+|protected\\s+)*trait\\s+([\\p{L}\\p{Nd}_]+)"
+   },
+   "supports_nested": true,
+   "type_keywords": [
+    "class",
+    "interface",
+    "trait"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "py": {
+   "block_comment_end": "",
+   "block_comment_start": "",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "class_pattern": "^\\s*class\\s+([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "^\\s*@(\\w+)",
+   "doc_string_markers": [
+    "\"\"\"",
+    "'''"
+   ],
+   "escape_char": "\\",
+   "exclude_patterns": [
+    "^\\.",
+    "^\\.\\.",
+    "^__future__"
+   ],
+   "exclude_words": [
+    "def",
+    "class",
+    "if",
+    "else",
+    "elif",
+    "while",
+    "for",
+    "try",
+    "except",
+    "finally",
+    "with",
+    "return",
+    "yield",
+    "import",
+    "from",
+    "pass",
+    "break",
+    "continue"
+   ],
+   "extensions": [
+    ".py",
+    ".pyw"
+   ],
+   "field_pattern": "^\\s*(\\w+)\\s*:\\s*([\\w\\[\\],\\.\\s\\*]*?)\\s*(?:=|$)",
+   "flat_pattern": "^\\s*(elif|else|except)\\b",
+   "func_pattern": "^\\s*(async\\s+)?def\\s+([\\p{L}\\p{Nd}_]+)\\s*\\(",
+   "func_requires": [
+    "("
+   ],
+   "import_pattern": "^\\s*(?:from\\s+(\\S+)\\s+import|import\\s+(\\S+))",
+   "indent_based": true,
+   "lang": "py",
+   "lang_key": "py",
+   "line_comment": "#",
+   "loop_pattern": "^\\s*(for|while)\\b",
+   "multi_line_block": "",
+   "name": "Python",
+   "nesting_pattern": "^\\s*(if|elif|for|while|except|with)\\b",
+   "raw_string_chars": [
+    "r\"",
+    "r'"
+   ],
+   "string_chars": [
+    "\"",
+    "'"
+   ],
+   "struct_patterns": {
+    "NamedTuple": "^\\s*class\\s+([\\p{L}\\p{Nd}_]+)\\s*\\(\\s*NamedTuple\\s*\\)",
+    "Protocol": "^\\s*class\\s+([\\p{L}\\p{Nd}_]+)\\s*\\(\\s*Protocol\\s*\\)",
+    "TypedDict": "^\\s*class\\s+([\\p{L}\\p{Nd}_]+)\\s*\\(\\s*TypedDict\\s*\\)",
+    "abstract": "^\\s*class\\s+([\\p{L}\\p{Nd}_]+)\\s*\\(\\s*ABC\\s*\\)",
+    "attrs": "^\\s*@attr\\.s\\s*\\nclass\\s+([\\p{L}\\p{Nd}_]+)",
+    "class": "^\\s*class\\s+([\\p{L}\\p{Nd}_]+)",
+    "dataclass": "^\\s*@dataclass\\s*\\nclass\\s+([\\p{L}\\p{Nd}_]+)",
+    "enum": "^\\s*class\\s+([\\p{L}\\p{Nd}_]+)\\s*\\(\\s*Enum\\s*\\)"
+   },
+   "supports_nested": true,
+   "type_keywords": [
+    "class"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "ruby": {
+   "block_comment_end": "=end",
+   "block_comment_start": "=begin",
+   "block_end_keyword": "end",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "class_pattern": "^\\s*(?:class|module)\\s+([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "if",
+    "elsif",
+    "else",
+    "unless",
+    "while",
+    "until",
+    "for",
+    "case",
+    "when",
+    "return",
+    "yield",
+    "class",
+    "module",
+    "def",
+    "end"
+   ],
+   "extensions": [
+    ".rb",
+    ".rake"
+   ],
+   "field_pattern": "^\\s*(?:attr_reader|attr_writer|attr_accessor)?\\s*(?:\\w+)\\s*[,|\\s]",
+   "flat_pattern": "^\\s*(elsif|else|when|rescue|ensure)\\b",
+   "func_pattern": "^\\s*(?:(?:private|protected|public)\\s+)?def\\s+(?:self\\.)?(\\[\\]=?|\u003c=\u003e|===?|=\\x7e|!=|!|\u003c\u003c|\u003e\u003e|[\u003c\u003e]=?|\\*\\*|[+\\-*/%\u0026|^\\x7e]@?|[\\p{L}\\p{Nd}_]+[?!=]?)",
+   "import_pattern": "^\\s*require(?:_relative)?\\s*[\"']([^\"']+)[\"']",
+   "indent_based": false,
+   "lang": "ruby",
+   "lang_key": "ruby",
+   "line_comment": "#",
+   "loop_pattern": "^\\s*(while|until|for)\\b",
+   "multi_line_block": "",
+   "name": "Ruby",
+   "nesting_pattern": "^\\s*(if|unless|while|until|for|case)\\b",
+   "percent_literals": true,
+   "raw_string_chars": [],
+   "regex_literals": true,
+   "string_chars": [
+    "\"",
+    "'"
+   ],
+   "struct_patterns": {
+    "class": "^\\s*class\\s+([\\p{L}\\p{Nd}_]+)",
+    "data": "^\\s*Data\\.define\\s*\\(\\s*\"([\\p{L}\\p{Nd}_]+)\"",
+    "module": "^\\s*module\\s+([\\p{L}\\p{Nd}_]+)",
+    "struct": "^\\s*Struct\\.new\\s*\\(\\s*\"([\\p{L}\\p{Nd}_]+)\""
+   },
+   "supports_nested": true,
+   "type_keywords": [
+    "class",
+    "module",
+    "Struct",
+    "Data"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "rust": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "char_delimiters": [
+    "'"
+   ],
+   "char_literal_lookahead": true,
+   "class_pattern": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?(?:struct|trait|enum|impl)(?:\\s*\u003c[^\u003e]*\u003e)?\\s+(?:[^{;]*?\\s+for\\s+)?([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": [
+    "^super::",
+    "^self::"
+   ],
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "for",
+    "loop",
+    "match",
+    "return",
+    "break",
+    "continue",
+    "unsafe",
+    "fn",
+    "struct",
+    "enum",
+    "trait",
+    "impl",
+    "pub",
+    "mod",
+    "use"
+   ],
+   "extensions": [
+    ".rs"
+   ],
+   "field_pattern": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?(?:const\\s+)?(?:static\\s+)?(?:mut\\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\\s*:(?:\\s*\u003c[^\u003e]*\u003e\\s*)?\\s*[a-zA-Z_][\\w\u003c\u003e,\\[\\]\\s]*",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case)\\b",
+   "func_pattern": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?(?:async\\s+)?(?:unsafe\\s+)?(?:const\\s+)?(?:extern\\s+(?:\"C\"\\s+)?)?fn\\s+([\\p{L}\\p{Nd}_]+)\\s*(?:\u003c[^\u003e]*\u003e)?\\s*\\(",
+   "func_requires": [
+    "("
+   ],
+   "import_pattern": "^\\s*(?:pub(?:\\([^)]*\\))?\\s+)?use\\s+([^;]+)",
+   "indent_based": false,
+   "lang": "rust",
+   "lang_key": "rust",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|while|loop)\\b",
+   "multi_line_block": "",
+   "name": "Rust",
+   "nesting_pattern": "\\b(if|match|while|loop)\\b|^\\s*for\\s|\\bfor\\s+[^;]*?\\bin\\b",
+   "raw_string_chars": [
+    "r\"",
+    "r#\"",
+    "r##\"",
+    "r###\"",
+    "r####\""
+   ],
+   "string_chars": [
+    "\""
+   ],
+   "struct_patterns": {
+    "enum": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?enum\\s+([\\p{L}\\p{Nd}_]+)",
+    "struct": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?struct\\s+([\\p{L}\\p{Nd}_]+)",
+    "trait": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?trait\\s+([\\p{L}\\p{Nd}_]+)",
+    "union": "^\\s*(?:pub(?:\\((?:crate|super|self|in\\s+[\\w:]+)\\))?\\s+)?union\\s+([\\p{L}\\p{Nd}_]+)"
+   },
+   "supports_nested": true,
+   "type_keywords": [
+    "struct",
+    "enum",
+    "trait",
+    "impl",
+    "union"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "scala": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "class_pattern": "^\\s*(?:(?:private|protected|public)\\s+)?(?:case\\s+)?(?:class|object|trait)\\s+([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "for",
+    "match",
+    "case",
+    "return",
+    "yield",
+    "def",
+    "class",
+    "trait",
+    "object",
+    "val",
+    "var",
+    "import",
+    "package"
+   ],
+   "extensions": [
+    ".scala"
+   ],
+   "field_pattern": "(?:val|var|private|protected|public)\\s+(?:\\w+(?:\u003c[^\u003e]*\u003e)?\\s+)+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?::\\s*[\\w\\[\\]\u003c\u003e?,=\\s]*)?(?:=|;)",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case)\\b",
+   "func_pattern": "^\\s*(?:(?:@[\\p{L}\\p{Nd}_.]+(?:\\((?:[^()]|\\([^()]*\\))*\\))?|private(?:\\[[^\\]]+\\])?|protected(?:\\[[^\\]]+\\])?|public|override|final|abstract|implicit|inline|transparent|infix)\\s+)*def\\s+(?:\\x60([^\\x60]+)\\x60|([\\p{L}\\p{Nd}_]+(?:[!#%\u0026*+/\u003c=\u003e?@\\\\^|~-]+)?|[!#%\u0026*+/:\u003c=\u003e?@\\\\^|~-]+))\\s*(?:[\\[(=:]|$)",
+   "import_pattern": "^\\s*import\\s+([\\w.]+)",
+   "indent_based": false,
+   "lang": "scala",
+   "lang_key": "scala",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|while|do)\\b",
+   "multi_line_block": "",
+   "name": "Scala",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|match|case|catch|finally)\\b",
+   "raw_string_chars": [
+    "\"\"\""
+   ],
+   "string_chars": [
+    "\""
+   ],
+   "struct_patterns": {
+    "case_class": "^\\s*(?:(?:private|protected|public)\\s+)?case\\s+class\\s+([\\p{L}\\p{Nd}_]+)",
+    "class": "^\\s*(?:(?:private|protected|public)\\s+)?(?:final\\s+)?(?:sealed\\s+)?(?:abstract\\s+)?class\\s+([\\p{L}\\p{Nd}_]+)",
+    "enum": "^\\s*(?:(?:private|protected|public)\\s+)?enum\\s+([\\p{L}\\p{Nd}_]+)",
+    "object": "^\\s*(?:(?:private|protected|public)\\s+)?object\\s+([\\p{L}\\p{Nd}_]+)",
+    "trait": "^\\s*(?:(?:private|protected|public)\\s+)?trait\\s+([\\p{L}\\p{Nd}_]+)"
+   },
+   "supports_nested": true,
+   "type_keywords": [
+    "class",
+    "object",
+    "trait",
+    "enum"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "swift": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "class_pattern": "^\\s*(?:public\\s+)?(?:class|struct|enum|protocol)\\s+([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "func",
+    "class",
+    "struct",
+    "enum",
+    "protocol",
+    "if",
+    "else",
+    "while",
+    "for",
+    "guard",
+    "switch",
+    "catch",
+    "return",
+    "throw",
+    "import",
+    "public",
+    "private",
+    "internal",
+    "static",
+    "var",
+    "let"
+   ],
+   "extensions": [
+    ".swift"
+   ],
+   "field_pattern": "(?:var|let|public|private|internal|fileprivate|static)\\s+(?:\\w+(?:\u003c[^\u003e]*\u003e)?\\s+)+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?::\\s*[\\w\\[\\]\u003c\u003e?,=\\s]*)?(?:\\{|=|;)",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case)\\b",
+   "func_pattern": "^\\s*(?:@\\w+(?:\\([^)]*\\))?\\s+)*(?:(?:public|private|internal|fileprivate|open|static|class|override|final|mutating|nonmutating|convenience|required|dynamic|lazy)\\s+)*func\\s+([\\p{L}\\p{Nd}_]+)\\s*[\u003c(]",
+   "import_pattern": "^\\s*import\\s+(\\S+)",
+   "indent_based": false,
+   "lang": "swift",
+   "lang_key": "swift",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|while|repeat)\\b",
+   "multi_line_block": "",
+   "name": "Swift",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|guard|for|while|repeat)\\b",
+   "raw_string_chars": [
+    "\"\"\".*?\"\"\""
+   ],
+   "string_chars": [
+    "\""
+   ],
+   "struct_patterns": {
+    "class": "^\\s*(?:public\\s+)?(?:open\\s+)?(?:public\\s+)?(?:final\\s+)?class\\s+([\\p{L}\\p{Nd}_]+)",
+    "enum": "^\\s*(?:public\\s+)?enum\\s+([\\p{L}\\p{Nd}_]+)",
+    "protocol": "^\\s*(?:public\\s+)?protocol\\s+([\\p{L}\\p{Nd}_]+)",
+    "struct": "^\\s*(?:public\\s+)?struct\\s+([\\p{L}\\p{Nd}_]+)"
+   },
+   "supports_nested": true,
+   "type_keywords": [
+    "class",
+    "struct",
+    "enum",
+    "protocol"
+   ],
+   "unicode_version": "15.0.0"
+  },
+  "ts": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "class_method_open": "^\\s*(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*([\\p{L}\\p{Nd}_]+)\\s*(?:\u003c[^\u003e]*\u003e)?\\s*\\(\\s*$",
+   "class_pattern": "^\\s*(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?(?:class|interface)\\s+([\\p{L}\\p{Nd}_]+)",
+   "declaration_pattern": "^(?:\\s*(?:(?:export|default|declare|public|protected|private|static|readonly|override|async|function)\\s+)*([\\p{L}\\p{Nd}_]+)\\??\\s*(?:\u003c[^()]*\u003e)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*:.+;\\s*$|\\s*(?:(?:export|default|declare|public|protected|private|static|readonly|override|async)\\s+)*abstract\\s+(?:async\\s+)?([\\p{L}\\p{Nd}_]+)\\??\\s*(?:\u003c[^()]*\u003e)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)(?:\\s*:.+)?;\\s*$)",
+   "declarator_pattern": "^\\s*([\\p{L}\\p{Nd}_]+)\\s*(?::\\s*(?:[^=]|=\u003e)+?)?=\\s*(?:async\\s*)?[\u003c(]",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": [
+    "^\\.",
+    "^\\./"
+   ],
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "for",
+    "switch",
+    "case",
+    "return",
+    "typeof",
+    "instanceof",
+    "new",
+    "delete",
+    "void",
+    "await",
+    "async",
+    "export",
+    "import",
+    "default"
+   ],
+   "extensions": [
+    ".ts",
+    ".tsx"
+   ],
+   "field_pattern": "(?:(?:public|private|protected|readonly|static|abstract)\\s+)*(?:[a-zA-Z_][\\w\\[\\]]*)\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:\\?|=|;|,)",
+   "flat_pattern": "^\\s*\\}?\\s*(else|case|default)\\b",
+   "func_pattern": "^\\s*(?:(export\\s+)?(?:default\\s+)?(async\\s+)?function\\s*\\*?\\s+([\\p{L}\\p{Nd}_]+)\\s*[\u003c(]|(?:export\\s+)?(const|let|var)\\s+([\\p{L}\\p{Nd}_]+)\\s*(?::\\s*(?:[^=]|=\u003e)+?)?=\\s*(async\\s*)?[\u003c(]|(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\\s+)*\\*?\\s*([\\p{L}\\p{Nd}_]+)\\s*(?:\u003c[^\u003e]*\u003e)?\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{)",
+   "func_requires": [
+    "(",
+    "\u003c"
+   ],
+   "header_open_pattern": "^\\s*(?:(?:export|default|declare|public|protected|private|static|readonly|override|async)\\s+)*([\\p{L}\\p{Nd}_]+)\\??\\s*(?:\u003c[^()]*\u003e)?\\s*\\(",
+   "import_pattern": "^\\s*(?:import\\s+.*?from\\s+[\"']([^\"']+)[\"']|require\\s*\\(\\s*[\"']([^\"']+)[\"'])",
+   "indent_based": false,
+   "inline_headers": true,
+   "lang": "ts",
+   "lang_key": "ts",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|while|do)\\b",
+   "multi_line_block": "",
+   "name": "TypeScript",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|switch|catch|finally)\\b",
+   "open_type_header_pattern": "^\\s*(?:(?:export|default|declare|public|protected|private|static|readonly|override|abstract|async)\\s+)*(?:(?:(?:const|let|var)\\s+)([\\p{L}\\p{Nd}_]+)\\??\\s*(?::[^=]*)|([\\p{L}\\p{Nd}_]+)\\??\\s*\\([^()]*\\)\\s*:[^=]*)\u003c[^\u003c\u003e=]*$",
+   "quoted_method_pattern": "^\\s*((?:\"[^\"]*\"|'[^']*'))\\s*\\((?:[^()]|\\([^()]*\\))*\\)\\s*(?::\\s*[^{;]+?)?\\s*\\{",
+   "raw_string_chars": [
+    "`"
+   ],
+   "regex_literals": true,
+   "single_line_strings": true,
+   "statement_words": [
+    "if",
+    "for",
+    "while",
+    "switch",
+    "catch",
+    "with",
+    "function",
+    "return",
+    "else",
+    "do",
+    "try",
+    "finally",
+    "case"
+   ],
+   "string_chars": [
+    "\"",
+    "'"
+   ],
+   "struct_patterns": {
+    "class": "^\\s*(?:export\\s+)?(?:abstract\\s+)?class\\s+([\\p{L}\\p{Nd}_]+)",
+    "enum": "^\\s*(?:export\\s+)?(?:const\\s+)?enum\\s+([\\p{L}\\p{Nd}_]+)",
+    "interface": "^\\s*(?:export\\s+)?interface\\s+([\\p{L}\\p{Nd}_]+)",
+    "type_alias": "^\\s*(?:export\\s+)?type\\s+([\\p{L}\\p{Nd}_]+)\\s*="
+   },
+   "supports_nested": true,
+   "template_expressions": true,
+   "type_keywords": [
+    "class",
+    "interface",
+    "enum",
+    "type"
+   ],
+   "unicode_version": "15.0.0"
+  }
+ },
+ "unicode_version": "15.0.0"
+}

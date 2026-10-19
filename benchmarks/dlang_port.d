@@ -17,16 +17,18 @@ import std.typecons : Yes;
 
 struct Bounds { string name; int start, end; string className; }
 struct Result { Bounds[] functions, classes; }
-Regex!char funcPattern, classPattern, attrPattern, typePattern, stmtPattern;
-Regex!char declarationPattern, continuationPattern;
-string[] excluded;
+// __gshared: configure() runs once, before any worker thread, and the patterns are only read afterwards (a compiled
+// std.regex Regex holds no mutable state; each match allocates its own matcher).
+__gshared Regex!char funcPattern, classPattern, attrPattern, typePattern, stmtPattern;
+__gshared Regex!char declarationPattern, continuationPattern;
+__gshared string[] excluded;
 Regex!char makePattern(string p)() {
     version (CompiledPatterns) return ctRegex!p;
     else return regex(p);
 }
 
-void configure(string path) {
-    auto cfg = parseJSON(readText(path));
+void configure(string path) { configure(parseJSON(readText(path))); }
+void configure(JSONValue cfg) {
     version (CompiledPatterns) {
         import dlang_port_patterns;
         if (cfg["func_pattern"].str!=functionPatternText || cfg["class_pattern"].str!=classPatternText)

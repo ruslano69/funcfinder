@@ -105,8 +105,9 @@ bool typedFunction(string[] lines,size_t first) {
     }
     return false;
 }
-Regex!char declarationStart,anonymousObject,continuationStart,arrowTail,listDeclaration;
-bool configured;
+// __gshared: setup() is called once, before any worker thread; the patterns are only read afterwards.
+__gshared Regex!char declarationStart,anonymousObject,continuationStart,arrowTail,listDeclaration;
+__gshared bool configured;
 void setup() {
     if(configured) return;
     declarationStart=regex(`^(?:@|(?:(?:public|private|protected|internal|override|open|abstract|final|inline|suspend|const|lateinit|external|operator|infix|data|sealed|enum|companion|inner|static|mutating|lazy)\s+)*(?:val|var|fun|func|class|object|interface|typealias|init|constructor|struct|protocol|extension)\b)`);

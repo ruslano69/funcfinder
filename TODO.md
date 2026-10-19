@@ -940,6 +940,38 @@ enterprise/Pro correctness story.
 
 ---
 
+## D port: the ffd executable, stage 0/1 (2026-10-19)
+
+`benchmarks/ffd/` is one D executable over the 15 token finders: the Go tool's `--dir [--all|--struct] --json` and text,
+the root `.gitignore`, a worker pool (default 8 threads, at most 16), `--timing`. Against the released Go 1.15.9 on 30
+trees: every function key but 185 of about 98,000 (111 Rust macro bodies, 71 C++, 3 Kotlin/Ruby); JavaScript/TypeScript
+types equal (six trees byte-identical); the walk selects the same files on all 31 trees. Speed: serially 8% to 80% less
+time than Go; with 8 threads each ahead on 8 of 14 trees and behind on 5; against Go's default 32 threads ahead on 6 and
+behind on 8 (OmniRoute 610 ms against 488): `ffd` does less work per thread but scales worse (see Scaling below). The
+first version of these numbers compared with a stale local binary and was wrong. See `benchmarks/ffd/README.md`.
+
+Open, in order:
+
+- [ ] **Types of the other 13 languages.** Go's struct finder (`structfinder.go`, `python_struct_finder.go`) adds kinds the
+  D finders do not list (C#, C/C++, D: 86-565 types per tree) and the D finders list named types Go does not (Kotlin,
+  Swift, Scala, Rust, Ruby, Python, PHP). Per-language decision: port Go's kinds like `ffd_hybrid.d` does for JS/TS, or
+  accept the D set; counts are in `benchmarks/ffd/ffd_deltas.json`. Also Go's class order (structs/interfaces first).
+- [ ] **Functions Go finds and D does not:** Rust `macro_rules` bodies (111 in serde), C++ cases in `fmt` (71, e.g.
+  `StreamableToString` after a `template` line), 2 in Kotlin `Seal`, 1 in Ruby `huginn`.
+- [ ] **Scaling.** The run stops scaling after about 8 threads: the runtime allocator is shared and the finders still
+  allocate (6-40 bytes per source byte; JS 40, Ruby 19, C/C++ 17, Rust/Kotlin/Python 15). Reusing blocks is done for the
+  line array, facts, cleaned text and the C#/Go/Java tokens (`reuse.d`); the token arrays of the other finders and the
+  regex-based passes (D class/attribute/type/statement, TS declaration/declarator) remain. A `Vec`-style buffer instead
+  of `~=` is 6x faster per append in a micro-benchmark and scales with threads.
+- [ ] **Regexes, in D and in Go.** TypeScript spends 40% of its serial time in regexes: `declaration_pattern` 20%,
+  `declarator_pattern` 7%, `func_pattern` 5% (already a scanner), `class_method_open` 3%, `class_pattern` 2%,
+  `quoted_method_pattern` 2%. Go runs the same patterns (declaration 4%, struct fields 4% in the Go profile), so a scanner
+  for each, proved equal like `tsHeaderSubmatch`, would speed up both implementations.
+- [ ] **Stage 2 and later:** `--inp`, `--tree`, `--names`, `--doc`, `--split`, `--extract`, then `funcstats` and
+  `callgraph` (need line facts from every finder), `complexity`, `deps`.
+
+---
+
 ## New uses of the cleaner and finders (plan, 2026-10-18)
 
 The cleaner knows, per line and for every language, which characters are code, comment or string literal (raw

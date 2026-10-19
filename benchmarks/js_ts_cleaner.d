@@ -136,9 +136,22 @@ bool regexAllowed(T)(const(T)[] result,size_t i) {
         default: return false;
     }
 }
+// Blocks kept from the previous file on this thread (reuse.d): the facts array, the scratch of the cleaner and the arena
+// that holds the cleaned lines. Cleaned text and facts are valid until the next facts() call on the same thread.
+private LineFact[] factPool;
+private char[] arenaPool, byteScratchPool;
+private dchar[] inputScratchPool, runeScratchPool;
 struct Cleaner {
     LexState state; dchar delimiter=0; bool useRaw;
     char[] byteScratch; dchar[] inputScratch,runeScratch;
+    char[] arena;size_t arenaUsed;
+    // The cleaned text of a line: a copy in the arena while it has room (facts() sizes it), else on the heap.
+    string own(T)(T[] s) {
+        static if(is(T==char)) {
+            if(arenaUsed+s.length>arena.length) return s.idup;
+            auto dest=arena[arenaUsed..arenaUsed+s.length];dest[]=s[];arenaUsed+=s.length;return cast(string)dest;
+        } else return to!string(s);
+    }
     TemplateScanner templateScan;
     LineFact fact(string line) {
         LineFact f; f.startState=state;
@@ -151,7 +164,8 @@ struct Cleaner {
         bool marker;
         foreach(c;line) if(c=='"' || c=='\'' || c=='`' || c=='/') { marker=true; break; }
         if(state==LexState.normal && !marker) {
-            // Decode only to normalize invalid UTF-8, matching Go's slow path.
+            // Decode only to normalize invalid UTF-8, matching Go's slow path; ASCII needs no check.
+            if(ascii(line)) return line;
             import std.utf : validate;
             try { validate(line); return line; } catch(Exception) {}
         }
@@ -199,10 +213,15 @@ struct Cleaner {
             outText[i]=s[i]; ++i;
         }
         if(state==LexState.quoted) { state=LexState.normal; delimiter=0; }
-        return owned(outText);
+        return own(outText);
     }
     LineFact[] facts(string[] lines) {
-        auto result=new LineFact[lines.length];
+        size_t need;foreach(line;lines)need+=line.length;
+        if(arenaPool.length<need)arenaPool=new char[need+need/2+4096];
+        arena=arenaPool;arenaUsed=0;byteScratch=byteScratchPool;inputScratch=inputScratchPool;runeScratch=runeScratchPool;
+        scope(exit){byteScratchPool=byteScratch;inputScratchPool=inputScratch;runeScratchPool=runeScratch;}
+        if(factPool.length<lines.length)factPool=new LineFact[lines.length+lines.length/2+64];
+        auto result=factPool[0..lines.length];
         foreach(i,line;lines) result[i]=fact(line);
         return result;
     }
