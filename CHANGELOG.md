@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **TypeScript: the declaration and declarator patterns are read by scanners instead of regular expressions.** As for
+  `func_pattern` in 1.15.8, `tsDeclarationSubmatch` (a bodyless signature: an overload, an interface member, an `abstract`
+  method) and `tsDeclaratorSubmatch` (a later declarator of a `const` list after its `,`) return exactly what the patterns
+  return, groups included, while `languages.json` holds them unchanged. The declaration pattern ran for every line that ends
+  in `;` and the declarator pattern after every `,` of a line: together they were a tenth of a TypeScript run. They were
+  compared with the patterns on 1.2 million fixture, suffix and generated lines (every group, nil against nil). Output is
+  byte-identical to 1.15.9 for `funcfinder`, `callgraph`, `funcstats` and `complexity` on OmniRoute, zod, Express, lodash,
+  arsd, tdtp-framework, kanzi, flask, symfony-routing, lua and the fixtures. Serial `funcfinder --dir --all` on OmniRoute
+  2864 → 2574 ms (-10%), zod 224 → 192 ms (-14%); median with all threads: OmniRoute `--all` 490 → 453 ms,
+  `callgraph` 827 → 788 ms, `complexity` 626 → 597 ms; zod `--all` 56 → 51 ms.
+
 ## v1.15.9 - 2026-10-18
 
 An accuracy release for JavaScript and TypeScript. Functions that template literals, comments, JSX text or complex

@@ -127,9 +127,19 @@ func tsVariableHeader(s string, i int) []string {
 	if n == w {
 		return nil
 	}
-	q := dSkipSpace(s, n)
+	end, async, ok := tsAssignedValue(s, dSkipSpace(s, n))
+	if !ok {
+		return nil
+	}
+	return []string{s[:end], "", "", "", keyword, s[w:n], async, ""}
+}
+
+// tsAssignedValue: `(?::\s*(?:[^=]|=>)+?)?=\s*(async\s*)?[<(]` from q, where the name and the whitespace after it
+// end. It returns the offset just past the "<" or "(" (the end of the match), the text of the async group, and whether
+// the value matched. It is the tail shared by a const|let|var header and a declarator.
+func tsAssignedValue(s string, q int) (end int, async string, ok bool) {
 	if q >= len(s) || s[q] != ':' {
-		return tsVariableValue(s, q, keyword, s[w:n])
+		return tsValueEnd(s, q)
 	}
 	// The type annotation `:\s*(?:[^=]|=>)+?` is lazy: its possible ends are tried shortest first. After the greedy
 	// \s*, the items form one chain (a rune other than "=", or "=>") until an "=" not followed by ">". Giving back
@@ -146,31 +156,31 @@ func tsVariableHeader(s string, i int) []string {
 			_, size := utf8.DecodeRuneInString(s[cur:])
 			cur += size
 		}
-		if m := tsVariableValue(s, cur, keyword, s[w:n]); m != nil {
-			return m
+		if end, async, ok = tsValueEnd(s, cur); ok {
+			return end, async, true
 		}
 	}
 	if ws > start {
-		return tsVariableValue(s, ws, keyword, s[w:n])
+		return tsValueEnd(s, ws)
 	}
-	return nil // without the annotation the "=" would be needed where the ":" is
+	return 0, "", false // without the annotation the "=" would be needed where the ":" is
 }
 
-// tsVariableValue: `=\s*(async\s*)?[<(]` at i.
-func tsVariableValue(s string, i int, keyword, name string) []string {
+// tsValueEnd: `=\s*(async\s*)?[<(]` at i.
+func tsValueEnd(s string, i int) (end int, async string, ok bool) {
 	if i >= len(s) || s[i] != '=' {
-		return nil
+		return 0, "", false
 	}
 	j := dSkipSpace(s, i+1)
 	if strings.HasPrefix(s[j:], "async") {
 		if k := dSkipSpace(s, j+len("async")); k < len(s) && (s[k] == '<' || s[k] == '(') {
-			return []string{s[:k+1], "", "", "", keyword, name, s[j:k], ""}
+			return k + 1, s[j:k], true
 		}
 	}
 	if j < len(s) && (s[j] == '<' || s[j] == '(') {
-		return []string{s[:j+1], "", "", "", keyword, name, "", ""}
+		return j + 1, "", true
 	}
-	return nil
+	return 0, "", false
 }
 
 // tsMethodHeader: `(?:(?:public|...|set)\s+)*\*?\s*({IDENT}+)\s*(?:<[^>]*>)?\s*\(...\)\s*(?::\s*[^{;]+?)?\s*\{`. The
