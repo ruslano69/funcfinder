@@ -79,17 +79,13 @@
   "schema": []
  },
  "fmt": {
-  "digest": "c875ed6516d4cdd4",
+  "digest": "a2125f5933963523",
   "languages": {
    "cpp": {
     "function_only_ffd": 357,
     "function_only_go": 71,
     "type_only_ffd": 525,
     "type_only_go": 563
-   },
-   "py": {
-    "type_only_ffd": 2,
-    "type_only_go": 2
    }
   },
   "schema": []
@@ -172,12 +168,10 @@
   "schema": []
  },
  "requests": {
-  "digest": "ae2d9c689c9348c0",
+  "digest": "acfe8e3f96b5379f",
   "languages": {
    "py": {
-    "function_only_ffd": 29,
-    "type_only_ffd": 2,
-    "type_only_go": 2
+    "function_only_ffd": 29
    }
   },
   "schema": []

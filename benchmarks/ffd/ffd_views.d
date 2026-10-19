@@ -234,7 +234,13 @@ string formatFunctionsJson(const(Sym)[] functions) {
     o ~= "{\n";
     foreach (i, k; keys) {
         auto f = byName[k];
-        o ~= "  "; putString(o, k); o ~= ": {\n    \"end\": "; o ~= f.end.to!string; o ~= ",\n    \"start\": "; o ~= f.start.to!string;
+        o ~= "  "; putString(o, k); o ~= ": {\n";
+        if (f.decorators.length) {
+            o ~= "    \"decorators\": [\n";
+            foreach (d, text; f.decorators) { o ~= "      "; putString(o, text); o ~= d + 1 < f.decorators.length ? ",\n" : "\n"; }
+            o ~= "    ],\n";
+        }
+        o ~= "    \"end\": "; o ~= f.end.to!string; o ~= ",\n    \"start\": "; o ~= f.start.to!string;
         o ~= "\n  }"; o ~= i + 1 < keys.length ? ",\n" : "\n";
     }
     o ~= "}";
@@ -431,16 +437,29 @@ string formatFileTree(ref const FileView v, bool showTypes) {
 
 private string kindOrClass(ref const Sym t) { return t.kind.length ? t.kind : "class"; }
 
-/// `Name: 3-9; Other: 12-20;` (the Go tool adds `; fields: ...` when its struct finder reads fields; the D finders do not).
+/// `Name: 3-9; fields: a, b Other: 12-20;`: a type with fields lists them after `; fields: `, one without ends in `;`.
 string formatTypeMap(const(Sym)[] types) {
     string[] parts;
-    foreach (ref t; types) parts ~= t.name ~ ": " ~ t.start.to!string ~ "-" ~ t.end.to!string ~ ";";
+    foreach (ref t; types) {
+        auto part = t.name ~ ": " ~ t.start.to!string ~ "-" ~ t.end.to!string;
+        if (t.fields.length) {
+            string[] names;
+            foreach (ref f; t.fields) names ~= f.name;
+            part ~= "; fields: " ~ names.join(", ");
+        } else part ~= ";";
+        parts ~= part;
+    }
     return parts.join(" ");
 }
 
 string formatTypeTree(const(Sym)[] types) {
     string[] lines;
-    foreach (ref t; types) lines ~= t.name ~ " (" ~ t.start.to!string ~ "-" ~ t.end.to!string ~ ") [" ~ kindOrClass(t) ~ "]";
+    foreach (ref t; types) {
+        auto line = t.name ~ " (" ~ t.start.to!string ~ "-" ~ t.end.to!string ~ ") [" ~ kindOrClass(t) ~ "]";
+        foreach (i, ref f; t.fields)
+            line ~= "\n│   " ~ (i + 1 == t.fields.length ? "└── " : "├── ") ~ f.name ~ " " ~ f.type ~ ": " ~ f.line.to!string;
+        lines ~= line;
+    }
     return lines.join("\n");
 }
 
@@ -462,6 +481,16 @@ string formatTypeJson(string filename, const(Sym)[] types) {
             o ~= ",\n      \"kind\": "; putString(o, kindOrClass(t));
             o ~= ",\n      \"start\": "; o ~= t.start.to!string;
             o ~= ",\n      \"end\": "; o ~= t.end.to!string;
+            if (t.fields.length) {
+                o ~= ",\n      \"fields\": [\n";
+                foreach (k, ref f; t.fields) {
+                    o ~= "        {\n          \"name\": "; putString(o, f.name);
+                    o ~= ",\n          \"type\": "; putString(o, f.type);
+                    o ~= ",\n          \"line\": "; o ~= f.line.to!string;
+                    o ~= k + 1 < t.fields.length ? "\n        },\n" : "\n        }\n";
+                }
+                o ~= "      ]";
+            }
             o ~= "\n    }"; o ~= i + 1 < types.length ? ",\n" : "\n";
         }
         o ~= "  ]";
@@ -505,8 +534,7 @@ private string quoted(string s) {
     return o.data;
 }
 
-/// The combined `--all --json` of one file: functions then types, one entry per line, with the empty `fields` the D finders
-/// give every type.
+/// The combined `--all --json` of one file: functions then types, one entry per line, each type with its fields.
 string formatAllJson(string filename, const(Sym)[] functions, const(Sym)[] types) {
     auto o = appender!string();
     o ~= "{\n  \"filename\": "; o ~= quoted(filename); o ~= ",\n  \"functions\": [\n";
@@ -517,7 +545,12 @@ string formatAllJson(string filename, const(Sym)[] functions, const(Sym)[] types
     o ~= "  ],\n  \"types\": [\n";
     foreach (i, ref t; types) {
         o ~= "    {\"name\": "; o ~= quoted(t.name); o ~= ", \"kind\": "; o ~= quoted(kindOrClass(t));
-        o ~= ", \"start\": "; o ~= t.start.to!string; o ~= ", \"end\": "; o ~= t.end.to!string; o ~= ", \"fields\": []}";
+        o ~= ", \"start\": "; o ~= t.start.to!string; o ~= ", \"end\": "; o ~= t.end.to!string; o ~= ", \"fields\": [";
+        foreach (k, ref f; t.fields) {
+            if (k) o ~= ", ";
+            o ~= "{\"name\": "; o ~= quoted(f.name); o ~= ", \"type\": "; o ~= quoted(f.type); o ~= ", \"line\": "; o ~= f.line.to!string; o ~= "}";
+        }
+        o ~= "]}";
         o ~= i + 1 < types.length ? ",\n" : "\n";
     }
     o ~= "  ]\n}\n";

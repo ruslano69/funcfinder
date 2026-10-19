@@ -20,8 +20,8 @@ version (unittest) import ffd_vectors; // unit tests of the scanners against Go'
 
 // ffd: the funcfinder command line, written in D. Directory runs (`--dir` with --all/--struct, --map, --tree,
 // --tree-full, --json, --split [--inc]), the lists of --names and --doc, and the single-file run (`--inp --source` with
-// --func, --type, --map, --tree, --tree-full, --extract, --json) behave as the Go tool does, with the .gitignore rules and
-// a worker pool. `--lines` and `--raw` are not implemented and say so.
+// --func, --type, --map, --tree, --tree-full, --extract, --json, --lines) behave as the Go tool does, with the .gitignore rules and
+// a worker pool, `--lines` and `--raw`.
 
 enum ffdVersion = "0.2.0";
 enum referenceVersion = import("VERSION").strip;
@@ -37,9 +37,9 @@ private int fatal(string text, int code = 1) {
 }
 
 private struct Options {
-    string dir, inp, source, funcStr, typeStr, docNames, splitBy = "dir", outDir = ".codemap";
+    string dir, inp, source, funcStr, typeStr, docNames, lines, splitBy = "dir", outDir = ".codemap";
     bool all, structs, json, noGitignore, recursive = true, version_, timing, timingAlloc;
-    bool map, tree, treeFull, extract, names, split, inc;
+    bool map, tree, treeFull, extract, names, split, inc, raw;
     int workers;
     string unsupported;
     string[] seen; // the flags given, in order (--names and --doc accept only some)
@@ -99,6 +99,7 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
                 case "source": o.source = value; break;
                 case "func": o.funcStr = value; break;
                 case "type": o.typeStr = value; break;
+                case "lines": o.lines = value; break;
                 case "doc": o.docNames = value; break;
                 case "split-by": o.splitBy = value; break;
                 case "out": o.outDir = value; break;
@@ -110,7 +111,7 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
                         return false;
                     }
                     break;
-                default: o.unsupported = "--" ~ name; break; // --lines
+                default: break;
             }
             continue;
         }
@@ -138,7 +139,8 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
             case "names": o.names = b; break;
             case "split": o.split = b; break;
             case "inc": o.inc = b; break;
-            default: if (b) o.unsupported = "--" ~ name; break; // --raw
+            case "raw": o.raw = b; break;
+            default: break;
         }
     }
     return true;
@@ -387,6 +389,6 @@ int main(string[] args) {
     FileRequest q;
     q.inp = o.inp; q.source = o.source; q.funcStr = o.funcStr; q.typeStr = o.typeStr;
     q.structMode = o.structs; q.allMode = o.all; q.mapMode = o.map; q.treeMode = o.tree; q.treeFull = o.treeFull;
-    q.json = o.json; q.extract = o.extract;
+    q.json = o.json; q.extract = o.extract; q.lines = o.lines; q.raw = o.raw;
     return runFile(q);
 }

@@ -27,8 +27,9 @@ EXT = {"c": [".c"], "cpp": [".cpp", ".cc", ".hpp", ".h"], "cs": [".cs"], "d": ["
        "swift": [".swift"], "ts": [".ts"]}
 FILE_COMBOS = [
     ["--map"], ["--map", "--json"], ["--tree"], ["--tree-full"], ["--map", "--extract"],
-    ["--struct", "--map"], ["--struct", "--tree"], ["--struct", "--json"], ["--struct", "--extract"],
+    ["--struct", "--map"], ["--struct", "--tree"], ["--struct", "--map", "--json"], ["--struct", "--extract"],
     ["--all", "--map"], ["--all", "--tree"], ["--all", "--json"], ["--all", "--extract"],
+    ["--map", "--lines", "20:140"], ["--map", "--extract", "--lines", "60:200"], ["--map", "--raw"], ["--struct", "--map", "--raw"],
 ]
 DIR_COMBOS = [["--names"], ["--all", "--names"], ["--struct", "--names"], ["--tree"], ["--all", "--tree-full"], ["--struct", "--tree"]]
 
@@ -104,11 +105,13 @@ def main():
                 _, out = run(go, base + ["--map"])
                 m = re.match(rb"\s*([^:;\s][^:;]*): \d+-\d+", out)
                 combos = [(" ".join(c), c) for c in FILE_COMBOS]
+                combos += [("--lines", ["--lines", "5:12"]), ("--lines --json", ["--lines", "5:12", "--json"])]
                 if m:
                     name = m.group(1).decode()
                     combos += [("--func", ["--func", name]), ("--func --extract", ["--func", name, "--extract"])]
                 for suffix, combo in combos:
-                    compare(f"file/{lang}/{suffix}", os.path.basename(f) + " " + " ".join(combo), base + combo)
+                    standalone = combo[0] == "--lines"  # --lines alone reads plain lines, no language
+                    compare(f"file/{lang}/{suffix}", os.path.basename(f) + " " + " ".join(combo), (["--inp", f] if standalone else base) + combo)
     if not a.no_dirs:
         for c in corpora + [os.path.join(os.path.dirname(a.corpora_root), "internal")]:
             if not os.path.isdir(c):
