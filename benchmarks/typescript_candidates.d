@@ -4,6 +4,8 @@ import js_ts_model;
 import javascript_port;
 import std.string : strip,startsWith,endsWith;
 import std.algorithm : canFind;
+import std.array : appender;
+import std.string : indexOf;
 
 private enum modifiers=["public","private","protected","static","async","override","readonly","abstract","get","set"];
 private enum recoveryModifiers=modifiers~["export","default","declare"];
@@ -21,7 +23,7 @@ bool candidateFile(string[] raw,LineFact[] facts,ref int[CandidateKey] known) {
             text=text[end..$].strip;
         }
         auto end=nameEnd(text);
-        if(!end && text.startsWith("(") && (raw[i].canFind('"') || raw[i].canFind('\''))) return true;
+        if(!end && text.startsWith("(") && quotedNameFirst(raw[i])) return true;
         if(!end || end>text.length) continue;
         auto name=text[0..end],rest=text[end..$].strip;
         if(count(known,CandidateKey(name,cast(int)i+1))) continue;
@@ -29,13 +31,14 @@ bool candidateFile(string[] raw,LineFact[] facts,ref int[CandidateKey] known) {
         if(kind=="const" || kind=="let" || kind=="var") {
             if(rest.endsWith("=")) foreach(j;i+1..facts.length) {
                 auto next=facts[j].cleaned.strip;if(!next.length) continue;
-                if(next.startsWith("(") || next.startsWith("<") || next.startsWith("async") || next.startsWith("function")) return true;
+                if(next.startsWith("(")) {if(parenValue(joinedText(facts,j,next))) return true;break;}
+                if(next.startsWith("<") || next.startsWith("async") || next.startsWith("function")) return true;
                 break;
             }
             if(name.canFind('$') && f.cleaned.canFind("=>")) return true;
             if(rest.startsWith("=")) {auto rhs=rest[1..$].strip;if(rhs.startsWith("async ")) rhs=rhs[6..$].strip;auto n=nameEnd(rhs);if(n>0 && rhs[n..$].strip.startsWith("=>")) return true;}continue;
         }
-        if((rest.startsWith("<") && candidateGeneric(rest)) || (name=="catch" && rest.startsWith("("))) return true;
+        if((rest.startsWith("<") && candidateGeneric(joinedText(facts,i,rest))) || (name=="catch" && rest.startsWith("("))) return true;
         if(rest.startsWith("(") && f.cleaned.strip.endsWith("(")) foreach(j;i+1..facts.length) {
             auto next=facts[j].cleaned.strip;if(!next.length) continue;auto n=nameEnd(next);
             if(n>0 && next[n..$].strip.startsWith(":")) return true;
@@ -43,6 +46,33 @@ bool candidateFile(string[] raw,LineFact[] facts,ref int[CandidateKey] known) {
         }
     }
     return false;
+}
+bool quotedNameFirst(string raw) {
+    auto text=raw.strip;
+    while(true) {
+        if(text.startsWith("/*")) {
+            auto end=text[2..$].indexOf("*/");if(end<0) return false;
+            text=text[end+4..$].strip;continue;
+        }
+        auto end=nameEnd(text);
+        if(!end || end==text.length || (text[end]!=' ' && text[end]!='\t') || !recoveryModifiers.canFind(text[0..end])) break;
+        text=text[end..$].strip;
+    }
+    return text.length && (text[0]=='"' || text[0]=='\'');
+}
+enum joinLines=64;
+string joinedText(LineFact[] facts,size_t i,string first) {
+    auto b=appender!string();b.put(first);
+    for(auto j=i+1;j<facts.length && j<=i+joinLines;++j) {b.put(' ');b.put(facts[j].cleaned.strip);}
+    return b.data;
+}
+bool parenValue(string s) {
+    int depth;
+    foreach(i,c;s) {
+        if(c=='(') ++depth;
+        else if(c==')') {--depth;if(!depth) {auto tail=s[i+1..$].strip;return tail.startsWith("=>") || tail.startsWith(":");}}
+    }
+    return true;
 }
 bool candidateGeneric(string s) {
     int depth;
@@ -52,6 +82,30 @@ bool candidateGeneric(string s) {
         int parens;for(;j<s.length;++j) {if(s[j]=='(') ++parens;if(s[j]==')') {--parens;if(!parens) {auto tail=s[j+1..$].strip;return tail.startsWith(":") || tail.startsWith("{");}}}return true;
     }
     return true;
+}
+unittest {
+    import std.array : split;
+    import std.conv : to;
+    struct Case { string source;bool want; }
+    Case[] cases=[
+        Case("foo(\n  (\"a\"), b,\n);",false),
+        Case("class A {\n  \"quoted\"(x: number) {\n    return x;\n  }\n}",true),
+        Case("const o = {\n  async 'name'(x) {\n  },\n};",true),
+        Case("const total =\n  (a + b) * 2;",false),
+        Case("const pick =\n  (cond)\n    ? a\n    : b;",false),
+        Case("const handler =\n  (req: Request): Response => {\n    return res;\n  };",true),
+        Case("const handler =\n  (\n    a: number,\n    b: number,\n  ) => a + b;",true),
+        Case("useThing<Config>(\n  a,\n  b,\n);",false),
+        Case("class A {\n  run<T>(\n    a: T,\n  ): T {\n    return a;\n  }\n}",true),
+        Case("/* comment */ async /* between */ 'имя'(x) {}",true)
+    ];
+    string longHeader="const handler =\n (\n";foreach(i;0..100) longHeader~=" // padding\n";
+    cases~=Case(longHeader~" value: number\n ) => value;",true);
+    foreach(i,tc;cases) {Cleaner cleaner;auto lines=tc.source.split("\n");int[CandidateKey] known;assert(candidateFile(lines,cleaner.facts(lines),known)==tc.want,"TS recovery gate case "~i.to!string);}
+    assert(parenValue("(a, (b)"));
+    assert(!quotedNameFirst("/* unfinished 'quote'"));
+    Cleaner cleaner;auto lines=["function known<T>() {}"];int[CandidateKey] known;known[CandidateKey("known",1)]=1;
+    assert(!candidateFile(lines,cleaner.facts(lines),known));
 }
 int angleEnd(Token[] t,int[] pairs,int i) {
     if(i>=t.length || t[i].text!="<") return i;int depth;
