@@ -4,6 +4,7 @@ import std.string : startsWith, indexOf;
 import std.uni : unicode,CodepointSet;
 import std.utf : decode;
 import std.typecons : Yes;
+import reuse : Buffer;
 enum functionPattern=`^\s*(?:(export\s+)?(?:default\s+)?(async\s+)?function\s*\*?\s+([\p{L}\p{Nd}_]+)\s*[<(]|(?:export\s+)?(const|let|var)\s+([\p{L}\p{Nd}_]+)\s*(?::\s*(?:[^=]|=>)+?)?=\s*(async\s*)?[<(]|(?:(?:public|private|protected|static|async|override|readonly|abstract|get|set)\s+)*\*?\s*([\p{L}\p{Nd}_]+)\s*(?:<[^>]*>)?\s*\((?:[^()]|\([^()]*\))*\)\s*(?::\s*[^{;]+?)?\s*\{)`;
 
 private __gshared CodepointSet letters,digits;
@@ -92,11 +93,11 @@ string[] methodAt(string s,size_t i) {
     if(q<s.length && s[q]=='{') return [s[0..q+1],"","","","","","",s[j..n]];
     return null;
 }
-private size_t[] positions;
+private Buffer!size_t positions; // reuse.d: appending is a store, not a runtime call
 string[] headerMatch(string s) {
     auto p=skip(s,0); auto m=functionDeclaration(s,p); if(m.length) return m;
     m=variableHeader(s,p); if(m.length) return m;
-    positions.length=0; positions.assumeSafeAppend; positions~=p;
+    positions.clear(); positions~=p;
     while(true) {
         ptrdiff_t e=-1;
         foreach(kw;methodWords) {
@@ -120,18 +121,18 @@ enum declaratorPattern=`^\s*([\p{L}\p{Nd}_]+)\s*(?::\s*(?:[^=]|=>)+?)?=\s*(?:asy
 
 private immutable string[] declarationWords=["export","default","declare","public","protected","private","static","readonly","override","async","function"];
 private immutable string[] abstractWords=["export","default","declare","public","protected","private","static","readonly","override","async"];
-private size_t[] chain; // thread-local scratch, like positions above: non-reentrant
+private Buffer!size_t chain; // thread-local scratch, like positions above: non-reentrant
 
 // The offsets after each prefix of the greedy `(?:(?:word)\s+)*` from p (the first is p itself).
 private size_t[] modifierChain(string s,size_t p,immutable(string)[] words) {
-    chain.length=0; chain.assumeSafeAppend; chain~=p;
+    chain.clear(); chain~=p;
     while(true) {
         ptrdiff_t e=-1;
         foreach(kw;words) { e=wordSpace(s,chain[$-1],kw); if(e>=0) break; }
         if(e<0) break;
         chain~=e;
     }
-    return chain;
+    return chain.data;
 }
 
 // `([\p{L}\p{Nd}_]+)\??\s*(?:<[^()]*>)?\s*\((?:[^()]|\([^()]*\))*\)` at i: the name and the offset of the closing ")".

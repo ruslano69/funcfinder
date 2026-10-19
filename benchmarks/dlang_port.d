@@ -11,9 +11,10 @@ import std.stdio;
 import std.string : strip, stripLeft, startsWith, endsWith;
 import std.datetime.stopwatch : StopWatch, AutoStart;
 import std.uni : isWhite, isAlpha, isNumber;
-import std.utf : validate, decode;
+import std.utf : validate, decode, encode, codeLength;
 import std.uni : unicode, CodepointSet;
 import std.typecons : Yes;
+import reuse : Buffer;
 
 struct Bounds { string name; int start, end; string className; }
 struct Result { Bounds[] functions, classes; }
@@ -75,7 +76,7 @@ immutable string[] headerSelfWords = ["~this", "this", "new"];
 
 // Scratch lists, reused per call: positions after modifiers, after type suffixes, after separator stars, after
 // delegate attributes. They are never in use twice at once.
-size_t[] headerPositions, headerEnds, headerStars, headerAttrs;
+Buffer!size_t headerPositions, headerEnds, headerStars, headerAttrs; // reuse.d: appending to them is a store, not a runtime call
 
 bool headerSpace(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\f' || c == '\r'; }
 
@@ -151,7 +152,7 @@ bool headerDelegateName(string s, size_t g, ref string name) {
         if (!s[g .. $].startsWith(kw)) continue;
         immutable p = headerParenEnd(s, g + kw.length);
         if (p < 0) break;
-        headerAttrs.length = 0; headerAttrs.assumeSafeAppend; headerAttrs ~= cast(size_t) p;
+        headerAttrs.clear(); headerAttrs ~= cast(size_t) p;
         size_t cur = cast(size_t) p;
         for (;;) {
             immutable w = headerSkip(s, cur);
@@ -175,7 +176,7 @@ bool headerDelegateName(string s, size_t g, ref string name) {
 }
 
 bool headerTypeTail(string s, size_t t, ref string name) {
-    headerEnds.length = 0; headerEnds.assumeSafeAppend; headerEnds ~= t;
+    headerEnds.clear(); headerEnds ~= t;
     for (size_t cur = t;;) {
         immutable w = headerSkip(s, cur);
         if (w < s.length && s[w] == '*') cur = w + 1;
@@ -188,7 +189,7 @@ bool headerTypeTail(string s, size_t t, ref string name) {
         headerEnds ~= cur;
     }
     foreach_reverse (e; headerEnds) {
-        headerStars.length = 0; headerStars.assumeSafeAppend;
+        headerStars.clear();
         for (size_t cur = e;;) {
             immutable w = headerSkip(s, cur);
             if (w >= s.length || s[w] != '*') break;
@@ -239,7 +240,7 @@ bool headerAt(string s, size_t pos, ref string name) {
 
 // The D func_pattern's result for s: whether it matches, and the captured name (the last nonempty group).
 bool headerMatch(string s, ref string name) {
-    headerPositions.length = 0; headerPositions.assumeSafeAppend;
+    headerPositions.clear();
     headerPositions ~= headerSkip(s, 0);
     for (;;) {
         immutable e = headerModifierEnd(s, headerPositions[$ - 1]);
@@ -389,10 +390,21 @@ bool asciiLine(string line) @nogc nothrow {
     foreach(ch;line) if(ch>=0x80) return false;
     return true;
 }
-string ownCleanText(T)(T[] code) {
-    static if(is(T==char)) return code.idup;
-    else return to!string(code);
+// The text of a cleaned line: a copy in the block this thread keeps for the file (prepare sizes it), else on the heap. The
+// copies are valid until the next prepare on the same thread; find() hands out only copies of names.
+private char[] textPool;
+private size_t textUsed;
+string ownText(T)(T[] code) {
+    size_t n;
+    static if(is(T==char)) n=code.length;
+    else foreach(c;code) n+=codeLength!char(c);
+    if(textUsed+n>textPool.length) { static if(is(T==char)) return code.idup; else return to!string(code); }
+    auto dest=textPool[textUsed..textUsed+n]; textUsed+=n;
+    static if(is(T==char)) dest[]=code[];
+    else { size_t at; foreach(c;code) { char[4] units; auto k=encode(units,c); dest[at..at+k]=units[0..k]; at+=k; } }
+    return cast(string)dest;
 }
+string ownCleanText(T)(T[] code) { return ownText(code); }
 bool plainCode(string line) @nogc nothrow {
     foreach(i,ch;line) {
         if(ch>=0x80 || ch=='/' || ch=='"' || ch=='\'' || ch=='`') return false;
@@ -550,10 +562,11 @@ string normalizeSlow(string line, ref dchar[] scratch) {
         if (word=="extern" || word=="deprecated" || word=="debug") { code[start..i]=' '; continue; }
         if (start==i || (!attribute(word) && !["static","final","override","abstract","auto"].canFind(word))) break;
     }
-    return to!string(code);
+    return ownText(code);
 }
 string[] prepare(string[] lines, out int[int] headerEnds, out byte[] hints) {
     Lexer lexer; auto result=new string[lines.length];
+    { size_t need=4096; foreach(line;lines) need+=line.length*2; if(textPool.length<need) textPool=new char[need+need/2]; textUsed=0; }
     dchar[] scratch;
     foreach (i,line; lines) result[i]=normalize(lexer.clean(line),scratch);
     foreach (i; 0..result.length) {
@@ -591,10 +604,10 @@ string[] prepare(string[] lines, out int[int] headerEnds, out byte[] hints) {
             statement=true; code=decodeBuffer(line,scratch);
             foreach (ref ch; code) { if (!isWhite(ch)) { ch='?'; modified=true; break; } }
         }
-        auto checked=modified ? to!string(code) : line;
+        auto checked=modified ? ownText(code) : line;
         if (text.length && attribute(checked)) {
             if(!code.length) code=decodeBuffer(line,scratch);
-            code[]=' '; result[i]=to!string(code); continue;
+            code[]=' '; result[i]=ownText(code); continue;
         }
         byte hint;
         if(statement) hint=-1;
@@ -638,7 +651,7 @@ string[] prepare(string[] lines, out int[int] headerEnds, out byte[] hints) {
                 default: break;
             }
         }
-        result[i]=changed ? to!string(code) : checked;
+        result[i]=changed ? ownText(code) : checked;
         // Contract masking can invalidate an earlier match. Reuse only exact-text results.
         if(result[i]==checked) hints[i]=hint;
     }

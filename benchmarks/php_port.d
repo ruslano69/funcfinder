@@ -1,4 +1,5 @@
 module php_port;
+import reuse : TokenPool;
 import brace_port_model : Result,Bounds;
 import std.algorithm : canFind;
 
@@ -55,8 +56,10 @@ private struct Lexer {
     }
 }
 
+// the tokens of the previous file on this thread (reuse.d): valid until the next call
+private TokenPool!PHPToken pool;
 PHPTokens tokenizePHP(string source){
-    Lexer l=Lexer(source);PHPTokens output;int[] stack;bool code;
+    Lexer l=Lexer(source);alias output=pool;pool.reset();auto stack=pool.stack[0..1];bool code;
     while(l.i<source.length){
         if(!code){
             if(l.at("<?")){l.i+=2;if(l.at("="))++l.i;else if(l.i+3<=source.length && equalWord(source[l.i..l.i+3],"php") && (l.i+3==source.length || source[l.i+3]<=' '))l.i+=3;code=true;}
@@ -77,9 +80,9 @@ PHPTokens tokenizePHP(string source){
         else ++l.i;
         auto n=cast(int)output.items.length;auto t=PHPToken(source[start..l.i],start,l.i,line,l.line,word,literal);
         output.items~=t;output.pairs~=-1;if(word || literal)continue;
-        if(["(","[","{"].canFind(t.text))stack~=n;
-        else if([")","]","}"].canFind(t.text) && stack.length){auto other=stack[$-1];auto open=output.items[other].text;
-            if(open=="(" && t.text==")" || open=="[" && t.text=="]" || open=="{" && t.text=="}"){stack.length--;output.pairs[n]=other;output.pairs[other]=n;}
+        if(["(","[","{"].canFind(t.text))stack[0]~=n;
+        else if([")","]","}"].canFind(t.text) && stack[0].length){auto other=stack[0][$-1];auto open=output.items[other].text;
+            if(open=="(" && t.text==")" || open=="[" && t.text=="]" || open=="{" && t.text=="}"){stack[0].popBack();output.pairs[n]=other;output.pairs[other]=n;}
         }
     }
     version(AuditPHPTokens){size_t cursor;int actualLine=1;foreach(n,t;output.items){
@@ -88,7 +91,7 @@ PHPTokens tokenizePHP(string source){
         while(cursor<t.end){if(source[cursor++]=='\n')++actualLine;}assert(actualLine==t.last);
         if(n)assert(output.items[n-1].end<=t.start && output.items[n-1].last<=t.line);auto p=output.pairs[n];if(p>=0)assert(p<output.items.length && output.pairs[p]==n);
     }}
-    return output;
+    return PHPTokens(pool.items.data,pool.pairs.data);
 }
 
 Result findPHP(string source){

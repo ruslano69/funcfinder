@@ -1,4 +1,5 @@
 module ruby_port;
+import reuse : TokenPool;
 import brace_port_cleaner : nextRune;
 import brace_port_unicode : goLetter,goDigit;
 import brace_port_model : Result,Bounds;
@@ -66,8 +67,10 @@ private struct Lexer {
 }
 
 private bool operand(RubyToken t){return t.word || t.literal || t.text.length && (t.text[0]=='@' || t.text[0]=='$') || [")","]","}","end"].canFind(t.text);}
+// the tokens of the previous file on this thread (reuse.d): valid until the next call
+private TokenPool!RubyToken pool;
 RubyTokens tokenizeRuby(string source){
-    Lexer l=Lexer(source);RubyTokens output;int[] stack;
+    Lexer l=Lexer(source);alias output=pool;pool.reset();auto stack=pool.stack[0..1];
     bool expect=true;
     while(l.i<source.length){
         auto start=l.i;auto line=l.line;auto c=cast(ubyte)source[l.i];
@@ -105,9 +108,9 @@ RubyTokens tokenizeRuby(string source){
         auto n=cast(int)output.items.length;auto t=RubyToken(source[start..l.i],start,l.i,line,l.line,word,literal);output.items~=t;output.pairs~=-1;
         expect=!operand(t) || word && ["if","unless","while","until","when","case","return","yield","raise","and","or","not","then","else","elsif","in"].canFind(t.text);
         if(word || literal)continue;
-        if(["(","[","{"].canFind(t.text))stack~=n;
-        else if([")","]","}"].canFind(t.text) && stack.length){auto other=stack[$-1];auto open=output.items[other].text;
-            if(open=="(" && t.text==")" || open=="[" && t.text=="]" || open=="{" && t.text=="}"){stack.length--;output.pairs[n]=other;output.pairs[other]=n;}
+        if(["(","[","{"].canFind(t.text))stack[0]~=n;
+        else if([")","]","}"].canFind(t.text) && stack[0].length){auto other=stack[0][$-1];auto open=output.items[other].text;
+            if(open=="(" && t.text==")" || open=="[" && t.text=="]" || open=="{" && t.text=="}"){stack[0].popBack();output.pairs[n]=other;output.pairs[other]=n;}
         }
     }
     version(AuditRubyTokens){size_t cursor;int actualLine=1;foreach(n,t;output.items){
@@ -115,7 +118,7 @@ RubyTokens tokenizeRuby(string source){
         while(cursor<t.start){if(source[cursor++]=='\n')++actualLine;}assert(actualLine==t.line);
         while(cursor<t.end){if(source[cursor++]=='\n')++actualLine;}assert(actualLine==t.last+(t.text=="\n"?1:0));
         if(n)assert(output.items[n-1].end<=t.start);auto p=output.pairs[n];if(p>=0)assert(p<output.items.length && output.pairs[p]==n);
-    }}return output;
+    }}return RubyTokens(pool.items.data,pool.pairs.data);
 }
 
 private struct Decl {int name=-1,nameEnd=-1,equal=-1;string text;}

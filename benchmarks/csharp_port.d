@@ -5,7 +5,7 @@ import std.string : strip,startsWith;
 import std.algorithm : canFind;
 import std.uni : isWhite;
 import brace_port_unicode : goLetter,goDigit;
-import reuse : recycled,keep;
+import reuse : TokenPool;
 
 struct Token {string text;int line;}
 private enum modifiers=["public","private","protected","internal","static","abstract","virtual","override","sealed","async","unsafe","extern","partial","readonly","new","ref","scoped"];
@@ -13,24 +13,22 @@ private enum statements=["return","throw","await","yield","new","if","else","for
 bool digit(dchar c) {return goDigit(c);}
 bool letter(dchar c) {return goLetter(c);}
 bool identifier(string text) {if(text.startsWith("@"))text=text[1..$];if(!text.length)return false;size_t i;bool first=true;while(i<text.length){auto c=nextRune(text,i);if(c!='_' && !letter(c) && !(!first && digit(c)))return false;first=false;}return true;}
-// Pools (thread-local): the token and pair arrays and the bracket stacks of the previous file, see reuse.d.
-private Token[] tokenPool;
-private int[] pairPool;
-private int[][3] stackPool;
+// The tokens, pairs and bracket stacks of the previous file on this thread (reuse.d): tokens and pairs are valid until the
+// next call.
+private TokenPool!Token pool;
 void tokenize(LineFact[] facts,out Token[] tokens,out int[] pairs,bool java=false) {
-    tokens=recycled(tokenPool);pairs=recycled(pairPool);
-    scope(exit){keep(tokenPool,tokens);keep(pairPool,pairs);}
-    alias stacks=stackPool;
-    foreach(ref stack;stacks)stack=recycled(stack);
+    pool.reset();
+    auto stacks=pool.stack[];
     foreach(line,f;facts){if(f.cleaned.strip.startsWith("#"))continue;size_t i;
         while(i<f.cleaned.length){auto start=i;auto c=nextRune(f.cleaned,i);if(isWhite(c))continue;
             if(letter(c) || c=='_' || c=='@' || java && c=='$')while(i<f.cleaned.length){auto j=i;auto next=nextRune(f.cleaned,j);if(!letter(next) && !digit(next) && next!='_' && !(java && next=='$'))break;i=j;}
-            auto text=f.cleaned[start..i];auto index=cast(int)tokens.length;tokens~=Token(text,cast(int)line);pairs~=-1;
+            auto text=f.cleaned[start..i];auto index=cast(int)pool.items.length;pool.items~=Token(text,cast(int)line);pool.pairs~=-1;
             auto open=text=="("?0:text=="["?1:text=="{"?2:-1;
             if(open>=0)stacks[open]~=index;
-            else {auto close=text==")"?0:text=="]"?1:text=="}"?2:-1;if(close>=0 && stacks[close].length){auto at=stacks[close][$-1];stacks[close].length--;pairs[at]=index;pairs[index]=at;}}
+            else {auto close=text==")"?0:text=="]"?1:text=="}"?2:-1;if(close>=0 && stacks[close].length){auto at=stacks[close][$-1];stacks[close].popBack();pool.pairs[at]=index;pool.pairs[index]=at;}}
         }
     }
+    tokens=pool.items.data;pairs=pool.pairs.data;
     version(AuditBraceTokens)foreach(i,t;tokens){assert(t.line>=0 && t.line<facts.length);if(i)assert(tokens[i-1].line<=t.line);auto other=pairs[i];if(other>=0)assert(other<tokens.length && pairs[other]==i);}
 }
 int skipAttributes(Token[] t,int[] p,int start,int end) {while(start<end && t[start].text=="["){if(p[start]<start || p[start]>=end)return end;start=p[start]+1;}return start;}

@@ -60,3 +60,10 @@ allocator and the finders that still allocate; the next steps are in `TODO.md`.
 
 The TypeScript `declaration_pattern` and `declarator_pattern` are read by scanners (as `func_pattern` is): OmniRoute serial
 2643 → 2061 ms, with 8 threads 611 → 452 ms; zod serial 206 → 149 ms. The Go tool has the same scanners in its own PR.
+
+The tokenizers and cleaners of every finder keep their token, pair, stack and text blocks from file to file on each thread
+(`reuse.d`), and the D finder keeps the text of its cleaned lines in one block. Parse time at 1 → 8 workers (ms, the same
+outputs byte for byte on 30 trees × 4 modes): arsd (D) 213 → 189 serially and 82 → 39 with 8 threads (2.6× → 4.9×), Seal (Kotlin)
+23 → 10 and 13 → 3, serde (Rust) 28 → 12 and 18 → 4, Alamofire (Swift) 35 → 21 and 28 → 10, huginn (Ruby) 74 → 51 and 33 → 14,
+gson (Java) 36 → 23 and 24 → 7, OmniRoute 1906 → 1834 and 290 → 274 (6.6×). Allocation fell from 8-20 to 1-8 bytes per source
+byte in most finders; what is left is the JS finder's phases on small files, C++ (35 on tdtp) and Ruby (7.7).
