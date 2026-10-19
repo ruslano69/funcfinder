@@ -5,15 +5,21 @@
 `ffd` is the D port of funcfinder's directory run: one executable that reads a tree with the token finders of all 15
 languages (`../*_port.d`), in parallel, and writes the Go tool's `--dir` JSON and text. It is experimental: production
 stays Go, and nothing here is built or run by CI except the `genconfig` Go test. Stage 0/1 of the port covers
-`--dir [--all|--struct] [--json]`, `--workers`, `--recursive`, `--no-gitignore` and `--timing`; `--inp`, `--tree`,
-`--names`, `--doc`, `--split`, `--extract` and the other four tools are not implemented and say so.
+`--dir [--all|--struct] [--json]`, `--workers`, `--recursive`, `--no-gitignore` and `--timing`. Stage 2 adds the modes of
+the Go command line over the same finders: `--map`/`--tree`/`--tree-full`, `--names`, `--doc`, `--split [--inc]` and the
+single-file run (`--inp --source` with `--func`, `--type`, `--struct`, `--all`, `--extract`, `--json`). `--lines`, `--raw`
+and the other four tools are not implemented and say so.
 
 ## Ownership
 
 - `ffd_main.d` flags, messages and exit codes; `ffd_walk.d` directory discovery; `ffd_ignore.d` the root `.gitignore`;
-  `ffd_run.d` the worker pool and mode filter; `ffd_langs.d` language registry, configuration checks and the finder of
-  each language; `ffd_json.d` output; `ffd_model.d` the neutral result; `ffd_goalias.d` Go aliases; `ffd_hybrid.d` the
-  JavaScript/TypeScript types of Go's struct finder.
+  `ffd_run.d` the worker pool and mode filter; `ffd_langs.d` language registry, configuration checks, the finder of
+  each language and the kind of a type; `ffd_json.d` the `--dir --json` output; `ffd_model.d` the neutral result;
+  `ffd_goalias.d` Go aliases; `ffd_hybrid.d` the JavaScript/TypeScript types of Go's struct finder.
+- `ffd_views.d` the text views of the Go formatters (`--names`, `--doc`, the directory and file trees, extract, the
+  function and type listings); `ffd_file.d` the single-file run and its validations; `ffd_split.d` `--split` (shards,
+  manifest, `--inc` planning); `ffd_paths.d` the `filepath` rules (Clean, Rel, Dir) and the FNV-1a 128 checksum.
+- `ffd_modes_compare.py` runs the modes side by side with the Go release binary (byte comparison per view and language).
 - `genvectors/` (Go) writes `ts_declaration_vectors.jsonl`: 6,000 lines with what Go's TS declaration and declarator patterns
   return, which `ffd_vectors.d` (a unit test) holds the D scanners in `../typescript_header.d` to.
 - `genconfig/` (Go) writes `ffd_config.json`, the resolved configuration of every language; `ffd_config.json` is
@@ -28,8 +34,16 @@ stays Go, and nothing here is built or run by CI except the `genconfig` Go test.
   `total_*`, two-space indent, `\n\n` at the end, strings escaped as `encoding/json` does; `ffd_json.d` unit tests pin
   the escapes against Go 1.25) and `ffd_compare.py` compares `(name, line)` per file. Functions must match Go's; types
   match for JavaScript and TypeScript exactly (`ffd_hybrid.d`). Where the D finders are more accurate than Go they differ
-  and the difference is recorded, never hidden (see Differences below). The order of `classes` follows the source, not
+  and the difference is recorded, never hidden (see Differences below). The D finders keep no struct fields and no
+  decorators, so the views omit them. The order of `classes` follows the source, not
   Go's struct-finder order (structs and interfaces first), so outputs are not always byte-identical.
+- **A view is the Go formatter over D keys.** `ffd_views.d` ports `names.go`, `docs.go`, `tree.go`, `formatter.go`,
+  `struct_formatter.go` and the directory tree of `dirprocessor.go` line for line, quirks included (the directory tree
+  passes the prefix on unchanged; a signature keeps the space before its brace; the function tree orders by exchange).
+  Do not tidy them: `ffd_modes_compare.py` holds them to Go's bytes where the finders agree. Messages, validations and
+  exit codes of the flags are Go's (`ffd_file.d`, `ffd_main.d`); the shard checksum is FNV-1a 128 so that `--inc` works
+  across the two tools. `--names`/`--doc`/the file views fill a type's kind (`wantKinds`, only outside the default mode,
+  where Go names none), read off the declaration line (`kindOfDeclaration`).
 - **One finder per language: the token-based D finders.** Do not add a second (regex or Go-parity) finder or a switch
   between them. When Go and a D finder differ by convention, adapt the D finder in `ffd_langs.d` (Python functions start at
   their first decorator; a C++ function starts at its signature line, after a `template <...>` prefix, as Go reports it).
@@ -94,6 +108,7 @@ python benchmarks/ffd/build.py --test        # unit tests of all modules, compil
 python benchmarks/ffd/build.py               # release build: build/ffd/ffd
 go test ./benchmarks/ffd/genconfig ./benchmarks/ffd/genvectors   # ffd_config.json and the vectors are current
 python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe --corpora-root <repo>/build --expect benchmarks/ffd/ffd_deltas.json
+python benchmarks/ffd/ffd_modes_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe --corpora-root <repo>/build   # views and --split
 ```
 
 ## Child DOX Index

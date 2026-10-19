@@ -144,6 +144,24 @@ void initLanguages() {
     }
 }
 
+/// The language whose key is `key` (--source), or false.
+bool languageFromKey(string key, out Lang lang) {
+    foreach (l; EnumMembers!Lang)
+        if (langKey(l) == key) {
+            lang = l;
+            return true;
+        }
+    return false;
+}
+
+/// The comment markers of a language: line comment, block comment start and end ("" when it has none).
+void commentMarkers(Lang l, out string line, out string blockStart, out string blockEnd) {
+    const e = expectation(l);
+    line = e.lineComment;
+    blockStart = e.blockStart;
+    blockEnd = e.blockEnd;
+}
+
 /// The language of a file extension (with its dot, case-sensitive), or false.
 bool languageOf(string ext, out Lang lang) {
     if (auto p = ext in extToLang) {
@@ -268,6 +286,51 @@ private void take(R)(ref FileResult r, R found) {
     r.classes = toSyms(found.classes);
 }
 
+/// Set by the modes that print the kind of a type: each file then also names the kind of its types.
+__gshared bool wantKinds;
+
+private bool isWordChar(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+/// The kind of the type declared on `line`: the first of class, struct, interface, enum, union, trait, protocol, object,
+/// module and record among its words; else "type_alias" (JavaScript, TypeScript), "named" (Go) or "type" for a `type`
+/// declaration; else "class". The D finders do not keep a kind, so it is read off the declaration line; the Go tool takes
+/// it from the pattern that matched, so the two agree on the usual declarations and may differ on unusual ones
+/// (data/sealed class, dataclass, ...). Kinds are not part of the key contract.
+string kindOfDeclaration(string line, Lang lang) {
+    static immutable strong = ["class", "struct", "interface", "enum", "union", "trait", "protocol", "object", "module", "record"];
+    bool sawType;
+    int index;
+    size_t i = 0;
+    while (i < line.length) {
+        if (!isWordChar(line[i])) { ++i; continue; }
+        size_t j = i;
+        while (j < line.length && isWordChar(line[j])) ++j;
+        auto word = line[i .. j];
+        i = j;
+        // Go: `type Name struct` and `type Name interface` name their kind right after the name; any other `type Name ...`
+        // (a map, a function type, a defined type) is "named", whatever words its definition holds.
+        if (lang == Lang.go && sawType) {
+            if (++index == 2) return word == "struct" ? "struct" : word == "interface" ? "interface" : "named"; // literals: `word` is a slice of the reused source
+            continue;
+        }
+        foreach (k; strong) if (word == k) return k;
+        if (word == "type") sawType = true;
+    }
+    if (sawType) return lang == Lang.go ? "named" : lang == Lang.js || lang == Lang.ts ? "type_alias" : "type";
+    return "class";
+}
+
+private void fillKinds(ref FileResult r, string source, Lang lang) {
+    auto lines = splitLines(source);
+    foreach (ref c; r.classes) {
+        c.kind = c.start >= 1 && c.start <= lines.length ? kindOfDeclaration(lines[c.start - 1], lang) : "class";
+    }
+    foreach (ref c; r.structTypes)
+        c.kind = c.start >= 1 && c.start <= lines.length ? kindOfDeclaration(lines[c.start - 1], lang) : "class";
+}
+
 /// Finds the functions and types of one file with the finder of its language. Errors are returned in the result.
 FileResult analyzeFile(string path, Lang lang) {
     FileResult r;
@@ -337,6 +400,7 @@ FileResult analyzeFile(string path, Lang lang) {
                 break;
             }
         }
+        if (wantKinds) fillKinds(r, source, lang);
     } catch (Exception e) {
         r.functions = null;
         r.classes = null;

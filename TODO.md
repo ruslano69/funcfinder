@@ -968,8 +968,13 @@ Open, in order:
   TypeScript: `class_method_open` 3%, `class_pattern` 2%, `quoted_method_pattern` 2% of the serial time; in D the class,
   attribute, type, statement and declaration patterns (about a quarter of a D run); in Go struct fields (4%) and the
   struct/class patterns of every language. Each scanner is proved equal to its pattern like `tsHeaderSubmatch`.
-- [ ] **Stage 2 and later:** `--inp`, `--tree`, `--names`, `--doc`, `--split`, `--extract`, then `funcstats` and
-  `callgraph` (need line facts from every finder), `complexity`, `deps`.
+- [x] **Stage 2 (2026-10-19):** `--inp --source` (`--func`, `--type`, `--struct`, `--all`, `--extract`, `--json`, `--map`,
+  `--tree`, `--tree-full`), `--dir --tree/--tree-full`, `--names`, `--doc`, `--split [--split-by] [--out] [--inc]` in
+  `ffd`; checked side by side with Go 1.15.9 (`ffd_modes_compare.py`): JS/TS views identical, `--names`/`--doc`/trees of
+  Go code identical but for finder differences, shard checksums identical to Go's and `--inc` works across the two tools.
+  Open inside it: struct fields (`--struct --map` fields, tree field lines), Python decorators in `--map --json`,
+  `--lines`, `--raw`.
+- [ ] **Stage 3:** `funcstats` and `callgraph` (need line facts from every finder), `complexity`, `deps`.
 
 ---
 

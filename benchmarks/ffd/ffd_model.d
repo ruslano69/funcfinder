@@ -4,12 +4,14 @@ module ffd_model;
 // (brace_port_model, js_ts_model, dlang_port); ffd_langs converts them here, so the walker, the pool and the
 // formatters know no language.
 
-/// A function or a type: the name, the first and last line (1-based) and the enclosing type's name, if any.
+/// A function or a type: the name, the first and last line (1-based), the enclosing type's name, if any, and, for a type
+/// and only when a run asks for it (--names, --doc, the file views), its kind (struct, interface, enum, ...).
 struct Sym {
     string name;
     int start;
     int end;
     string className;
+    string kind;
 }
 
 /// A Go type alias: `type name = target`, listed apart from the types.

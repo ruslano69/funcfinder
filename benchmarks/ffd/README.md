@@ -9,12 +9,40 @@ python benchmarks/ffd/build.py                       # build/ffd/ffd[.exe]; need
 build/ffd/ffd --dir . --all --json                   # functions, types and Go aliases, as JSON
 build/ffd/ffd --dir src --struct                     # types only, path:line: name
 build/ffd/ffd --dir . --all --json --workers 4 --timing
+build/ffd/ffd --dir . --names                        # kind, name and file:line, one per line
+build/ffd/ffd --dir . --doc Parse,Handler            # doc comment and first line, no body
+build/ffd/ffd --dir . --tree                         # files, functions and types as a tree
+build/ffd/ffd --dir . --all --json --split           # .codemap/manifest.json and one shard per directory (--inc: changed shards only)
+build/ffd/ffd --inp a.go --source go --func Parse --extract      # a function body
+build/ffd/ffd --inp a.go --source go --struct Config --extract   # a type body
+build/ffd/ffd --inp a.py --source py --tree-full                 # signatures
 ```
 
-Implemented: `--dir`, `--all`, `--struct`, `--json`, `--workers` (default 8, at most 16), `--recursive=false`,
-`--no-gitignore`, `--timing`, `--version`. The root `.gitignore`, hidden names and the extension table follow the Go
-tool exactly (the same files, the same "skipped N files" notice on 31 trees). Not yet: `--inp`, `--tree`, `--names`,
-`--doc`, `--split`, `--extract`, `funcstats`, `callgraph`, `complexity`, `deps`.
+Implemented: `--dir`, `--all`, `--struct`, `--json`, `--map`, `--tree`, `--tree-full`, `--names`, `--doc`, `--split`
+(`--split-by`, `--out`, `--inc`), `--inp --source` with `--func`, `--type`, `--struct`, `--all`, `--extract`, `--workers`
+(default 8, at most 16), `--recursive=false`, `--no-gitignore`, `--timing`, `--version`. The root `.gitignore`, hidden
+names and the extension table follow the Go tool exactly (the same files, the same "skipped N files" notice on 31 trees).
+The messages, validations and exit codes of the Go tool's flags are the same (`ffd_modes_compare.py` runs them side by
+side). Not yet: `--lines`, `--raw`, `funcstats`, `callgraph`, `complexity`, `deps`.
+
+## The views
+
+`ffd_views.d` and `ffd_file.d` print what Go's formatters print, over the D finders' keys. With the same finders' output the
+text is byte-identical: `--names`, `--doc` and the trees of a Go tree (`internal`) differ from Go only where the finders
+do, and the JavaScript and TypeScript files of every corpus are identical in all 15 single-file views. Differences:
+
+- **Struct fields.** The D finders keep no fields, so `--struct --map` omits `; fields: ...`, `--struct --tree` the field
+  lines, and `--all --json` writes `"fields": []`.
+- **Decorators.** `--map --json` of Python writes no `decorators` (the function starts at its first decorator).
+- **Kinds.** A type's kind is read off its declaration line (struct, interface, enum, trait, ..., `named` for Go
+  `type X ...`, `type_alias` in JS/TS): as Go's in the usual cases and, in the default mode, "class" as Go's. Data/sealed
+  classes, dataclasses and the like are "class".
+- **Order and ends.** Finder differences show through: C++ template types start on the template line, Python ends omit
+  trailing blank lines, Rust nested functions come in source order, and the extra or missing types in `ffd_deltas.json`.
+- **Directory `--extract` and `--tree-full`** are what the Go tool does: ignored (the tree is the plain tree).
+- **`--split`** writes the same manifest as Go: shard names, FNV-1a 128 checksums (identical to Go's on every corpus
+  tried, so `--inc` continues a manifest the Go tool wrote and the other way round), `empty_shards`; shards are listed in
+  name order, and the shard files differ only where the finders do.
 
 ## How close to Go
 
