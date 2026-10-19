@@ -1,5 +1,6 @@
 module ffd_langs;
 
+import ffd_fields : cleanLines, pythonKind;
 import ffd_goalias;
 import ffd_hybrid;
 import ffd_model;
@@ -69,13 +70,13 @@ private bool getFlag(JSONValue cfg, string key) {
     return false;
 }
 
-private struct Expect {
+struct Expect {
     string lineComment, blockStart, blockEnd;
     string[] strings, raw, chars, docStrings;
     bool charLookahead, percent, regex, template_, singleLine;
 }
 
-private Expect expectation(Lang l) {
+Expect expectation(Lang l) {
     enum slashes = Expect("//", "/*", "*/");
     final switch (l) {
         case Lang.c: { auto e = slashes; e.strings = ["\"", "'"]; return e; }
@@ -142,6 +143,24 @@ void initLanguages() {
                 extToLang[ext] = l;
         }
     }
+}
+
+/// The language whose key is `key` (--source), or false.
+bool languageFromKey(string key, out Lang lang) {
+    foreach (l; EnumMembers!Lang)
+        if (langKey(l) == key) {
+            lang = l;
+            return true;
+        }
+    return false;
+}
+
+/// The comment markers of a language: line comment, block comment start and end ("" when it has none).
+void commentMarkers(Lang l, out string line, out string blockStart, out string blockEnd) {
+    const e = expectation(l);
+    line = e.lineComment;
+    blockStart = e.blockStart;
+    blockEnd = e.blockEnd;
 }
 
 /// The language of a file extension (with its dot, case-sensitive), or false.
@@ -268,75 +287,147 @@ private void take(R)(ref FileResult r, R found) {
     r.classes = toSyms(found.classes);
 }
 
+/// Set by `--raw`: the cleaner of the brace languages keeps raw strings in the text it counts braces in.
+__gshared bool rawStrings;
+
+/// Whether --raw changes anything for the language: the Go tool's raw-string switch is a sanitizer setting, which the
+/// D finders have in the cleaner of C, C++, C#, Go and Java only.
+bool rawApplies(Lang l) {
+    return l == Lang.c || l == Lang.cpp || l == Lang.cs || l == Lang.go || l == Lang.java;
+}
+
+/// Set by the modes that print the kind of a type: each file then also names the kind of its types.
+__gshared bool wantKinds;
+
+private bool isWordChar(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+/// The kind of the type declared on `line`: the first of class, struct, interface, enum, union, trait, protocol, object,
+/// module and record among its words; else "type_alias" (JavaScript, TypeScript), "named" (Go) or "type" for a `type`
+/// declaration; else "class". The D finders do not keep a kind, so it is read off the declaration line; the Go tool takes
+/// it from the pattern that matched, so the two agree on the usual declarations and may differ on unusual ones
+/// (data/sealed class, dataclass, ...). Kinds are not part of the key contract.
+string kindOfDeclaration(string line, Lang lang) {
+    static immutable strong = ["class", "struct", "interface", "enum", "union", "trait", "protocol", "object", "module", "record"];
+    bool sawType;
+    int index;
+    size_t i = 0;
+    while (i < line.length) {
+        if (!isWordChar(line[i])) { ++i; continue; }
+        size_t j = i;
+        while (j < line.length && isWordChar(line[j])) ++j;
+        auto word = line[i .. j];
+        i = j;
+        // Go: `type Name struct` and `type Name interface` name their kind right after the name; any other `type Name ...`
+        // (a map, a function type, a defined type) is "named", whatever words its definition holds.
+        if (lang == Lang.go && sawType) {
+            if (++index == 2) return word == "struct" ? "struct" : word == "interface" ? "interface" : "named"; // literals: `word` is a slice of the reused source
+            continue;
+        }
+        foreach (k; strong) if (word == k) return k;
+        if (word == "type") sawType = true;
+    }
+    if (sawType) return lang == Lang.go ? "named" : lang == Lang.js || lang == Lang.ts ? "type_alias" : "type";
+    return "class";
+}
+
+private void fillKinds(ref FileResult r, string source, Lang lang) {
+    auto lines = splitLines(source);
+    if (lang == Lang.py) {
+        // Python: a dataclass or attrs decorator, or the base classes, name the kind (the Python struct finder's rules).
+        auto cleaned = cleanLines(lines, Lang.py);
+        foreach (ref c; r.classes) c.kind = pythonKind(lines, c.start, cleaned);
+        return;
+    }
+    foreach (ref c; r.classes) {
+        c.kind = c.start >= 1 && c.start <= lines.length ? kindOfDeclaration(lines[c.start - 1], lang) : "class";
+    }
+    foreach (ref c; r.structTypes)
+        c.kind = c.start >= 1 && c.start <= lines.length ? kindOfDeclaration(lines[c.start - 1], lang) : "class";
+}
+
 /// Finds the functions and types of one file with the finder of its language. Errors are returned in the result.
+/// Finds the functions and types of `source`, a text of the language, into r.
+void analyzeInto(ref FileResult r, string source, Lang lang) {
+    final switch (lang) {
+        case Lang.kotlin: take(r, findKotlin(source)); break;
+        case Lang.php: take(r, findPHP(source)); break;
+        case Lang.py: {
+            // A function starts at its first decorator, a class on its `class` line, as the Go finder reports them.
+            auto found = findPython(source, true);
+            foreach (ref c; found.classes) c.start = c.signatureLine;
+            take(r, found);
+            break;
+        }
+        case Lang.ruby: take(r, findRuby(source)); break;
+        case Lang.rust: take(r, findRust(source)); break;
+        case Lang.scala: take(r, findScala(source)); break;
+        case Lang.swift: take(r, findSwift(source)); break;
+        case Lang.c:
+        case Lang.cpp:
+        case Lang.cs:
+        case Lang.go:
+        case Lang.java: {
+            auto lines = splitLines(source);
+            bcl.Cleaner cleaner;
+            cleaner.csharp = lang == Lang.cs;
+            cleaner.golang = lang == Lang.go;
+            cleaner.charLiterals = lang == Lang.go || lang == Lang.java;
+            cleaner.useRaw = rawStrings;
+            auto facts = cleaner.facts(lines);
+            final switch (lang) {
+                case Lang.c: take(r, findC(lines, facts)); break;
+                case Lang.cs: take(r, findCSharp(facts)); break;
+                case Lang.go:
+                    take(r, findGo(facts));
+                    r.aliases = findGoAliases(facts);
+                    foreach (ref a; r.aliases) {
+                        a.name = a.name.idup;
+                        a.target = a.target.idup;
+                    }
+                    r.classes = withoutAliases(r.classes, r.aliases);
+                    break;
+                case Lang.java: take(r, findJava(facts)); break;
+                case Lang.cpp: {
+                    auto found = findCppTokens(braceConfigs[Lang.cpp], lines, facts);
+                    // Go starts a function on the line of its header proper, after a template prefix; the token
+                    // finder starts it at the prefix (the declaration, as libclang counts it).
+                    foreach (ref f; found.functions)
+                        if (f.signatureLine > f.start) f.start = f.signatureLine;
+                    take(r, found);
+                    break;
+                }
+                case Lang.d, Lang.js, Lang.kotlin, Lang.php, Lang.py, Lang.ruby, Lang.rust, Lang.scala, Lang.swift, Lang.ts:
+                    assert(0);
+            }
+            break;
+        }
+        case Lang.js:
+        case Lang.ts: {
+            auto lines = splitLines(source);
+            jcl.Cleaner cleaner;
+            auto facts = cleaner.facts(lines);
+            if (lang == Lang.js) take(r, findJavaScript(jsConfigs[Lang.js], lines, facts));
+            else take(r, findTypeScript(jsConfigs[Lang.ts], lines, facts));
+            r.structTypes = hybridTypes(facts, lang == Lang.js);
+            r.hasStructTypes = true;
+            break;
+        }
+        case Lang.d: {
+            take(r, dp.find(splitLines(source)));
+            break;
+        }
+    }
+    if (wantKinds) fillKinds(r, source, lang);
+}
+
 FileResult analyzeFile(string path, Lang lang) {
     FileResult r;
     r.path = path;
     r.lang = langKey(lang);
     try {
-        auto source = readSource(path);
-        final switch (lang) {
-            case Lang.kotlin: take(r, findKotlin(source)); break;
-            case Lang.php: take(r, findPHP(source)); break;
-            case Lang.py: take(r, findPython(source, true)); break;
-            case Lang.ruby: take(r, findRuby(source)); break;
-            case Lang.rust: take(r, findRust(source)); break;
-            case Lang.scala: take(r, findScala(source)); break;
-            case Lang.swift: take(r, findSwift(source)); break;
-            case Lang.c:
-            case Lang.cpp:
-            case Lang.cs:
-            case Lang.go:
-            case Lang.java: {
-                auto lines = splitLines(source);
-                bcl.Cleaner cleaner;
-                cleaner.csharp = lang == Lang.cs;
-                cleaner.golang = lang == Lang.go;
-                cleaner.charLiterals = lang == Lang.go || lang == Lang.java;
-                auto facts = cleaner.facts(lines);
-                final switch (lang) {
-                    case Lang.c: take(r, findC(lines, facts)); break;
-                    case Lang.cs: take(r, findCSharp(facts)); break;
-                    case Lang.go:
-                        take(r, findGo(facts));
-                        r.aliases = findGoAliases(facts);
-                        foreach (ref a; r.aliases) {
-                            a.name = a.name.idup;
-                            a.target = a.target.idup;
-                        }
-                        r.classes = withoutAliases(r.classes, r.aliases);
-                        break;
-                    case Lang.java: take(r, findJava(facts)); break;
-                    case Lang.cpp: {
-                        auto found = findCppTokens(braceConfigs[Lang.cpp], lines, facts);
-                        // Go starts a function on the line of its header proper, after a template prefix; the token
-                        // finder starts it at the prefix (the declaration, as libclang counts it).
-                        foreach (ref f; found.functions)
-                            if (f.signatureLine > f.start) f.start = f.signatureLine;
-                        take(r, found);
-                        break;
-                    }
-                    case Lang.d, Lang.js, Lang.kotlin, Lang.php, Lang.py, Lang.ruby, Lang.rust, Lang.scala, Lang.swift, Lang.ts:
-                        assert(0);
-                }
-                break;
-            }
-            case Lang.js:
-            case Lang.ts: {
-                auto lines = splitLines(source);
-                jcl.Cleaner cleaner;
-                auto facts = cleaner.facts(lines);
-                if (lang == Lang.js) take(r, findJavaScript(jsConfigs[Lang.js], lines, facts));
-                else take(r, findTypeScript(jsConfigs[Lang.ts], lines, facts));
-                r.structTypes = hybridTypes(facts, lang == Lang.js);
-                r.hasStructTypes = true;
-                break;
-            }
-            case Lang.d: {
-                take(r, dp.find(splitLines(source)));
-                break;
-            }
-        }
+        analyzeInto(r, readSource(path), lang);
     } catch (Exception e) {
         r.functions = null;
         r.classes = null;
