@@ -1,0 +1,231 @@
+{
+ "Alamofire": {
+  "digest": "d087404dcdca3791",
+  "languages": {
+   "swift": {
+    "function_only_ffd": 6,
+    "type_only_ffd": 131,
+    "type_only_go": 1
+   }
+  },
+  "schema": []
+ },
+ "Kingfisher": {
+  "digest": "27170603333045ab",
+  "languages": {
+   "cpp": {
+    "function_only_ffd": 6
+   },
+   "swift": {
+    "function_only_ffd": 49,
+    "type_only_ffd": 134
+   }
+  },
+  "schema": []
+ },
+ "NekoBoxForAndroid": {
+  "digest": "91ed2b45cd59d7c7",
+  "languages": {
+   "kotlin": {
+    "function_only_ffd": 3,
+    "type_only_ffd": 86
+   }
+  },
+  "schema": []
+ },
+ "Seal": {
+  "digest": "8f4ca82d71e1a789",
+  "languages": {
+   "kotlin": {
+    "function_only_ffd": 8,
+    "function_only_go": 2,
+    "type_only_ffd": 105
+   }
+  },
+  "schema": []
+ },
+ "arsd": {
+  "digest": "ae5624d65648b2ea",
+  "languages": {
+   "d": {
+    "type_only_go": 105
+   }
+  },
+  "schema": []
+ },
+ "d-yaml": {
+  "digest": "4f53cda18c2baa0c",
+  "languages": {},
+  "schema": []
+ },
+ "dapper": {
+  "digest": "63014cc111a49689",
+  "languages": {
+   "cs": {
+    "type_only_go": 86
+   }
+  },
+  "schema": []
+ },
+ "express": {
+  "digest": "4f53cda18c2baa0c",
+  "languages": {},
+  "schema": []
+ },
+ "flask": {
+  "digest": "4f53cda18c2baa0c",
+  "languages": {},
+  "schema": []
+ },
+ "fmt": {
+  "digest": "c875ed6516d4cdd4",
+  "languages": {
+   "cpp": {
+    "function_only_ffd": 357,
+    "function_only_go": 71,
+    "type_only_ffd": 525,
+    "type_only_go": 563
+   },
+   "py": {
+    "type_only_ffd": 2,
+    "type_only_go": 2
+   }
+  },
+  "schema": []
+ },
+ "gin": {
+  "digest": "4f53cda18c2baa0c",
+  "languages": {},
+  "schema": []
+ },
+ "gson": {
+  "digest": "4f53cda18c2baa0c",
+  "languages": {},
+  "schema": []
+ },
+ "huginn": {
+  "digest": "a240d2faaa58b68f",
+  "languages": {
+   "ruby": {
+    "function_only_ffd": 20,
+    "function_only_go": 1,
+    "type_only_ffd": 53,
+    "type_only_go": 14
+   }
+  },
+  "schema": []
+ },
+ "lodash": {
+  "digest": "4f53cda18c2baa0c",
+  "languages": {},
+  "schema": []
+ },
+ "lua": {
+  "digest": "5c50fb41585635c6",
+  "languages": {
+   "c": {
+    "type_only_ffd": 2
+   },
+   "cpp": {
+    "function_only_ffd": 162,
+    "type_only_go": 6
+   }
+  },
+  "schema": []
+ },
+ "maybe": {
+  "digest": "055f586c0418ef00",
+  "languages": {
+   "ruby": {
+    "type_only_ffd": 252,
+    "type_only_go": 249
+   }
+  },
+  "schema": []
+ },
+ "monolog": {
+  "digest": "82c42b264f413cfd",
+  "languages": {
+   "php": {
+    "type_only_ffd": 2
+   }
+  },
+  "schema": []
+ },
+ "os-lib": {
+  "digest": "ded888a8be92bfcd",
+  "languages": {
+   "scala": {
+    "type_only_ffd": 90
+   }
+  },
+  "schema": []
+ },
+ "polly": {
+  "digest": "4675dcfb65abee2e",
+  "languages": {
+   "cs": {
+    "type_only_go": 103
+   }
+  },
+  "schema": []
+ },
+ "requests": {
+  "digest": "ae2d9c689c9348c0",
+  "languages": {
+   "py": {
+    "function_only_ffd": 29,
+    "type_only_ffd": 2,
+    "type_only_go": 2
+   }
+  },
+  "schema": []
+ },
+ "scopt": {
+  "digest": "18470260a18b6a82",
+  "languages": {
+   "scala": {
+    "type_only_ffd": 39
+   }
+  },
+  "schema": []
+ },
+ "serde": {
+  "digest": "0a21adc278d54071",
+  "languages": {
+   "rust": {
+    "function_only_ffd": 5,
+    "function_only_go": 111,
+    "type_only_ffd": 367,
+    "type_only_go": 502
+   }
+  },
+  "schema": []
+ },
+ "symfony-routing": {
+  "digest": "dd20f6430738761e",
+  "languages": {
+   "php": {
+    "type_only_ffd": 6,
+    "type_only_go": 1
+   }
+  },
+  "schema": []
+ },
+ "tinyxml2": {
+  "digest": "360f0efec3c5e047",
+  "languages": {
+   "cpp": {
+    "function_only_ffd": 1,
+    "type_only_ffd": 8,
+    "type_only_go": 17
+   }
+  },
+  "schema": []
+ },
+ "zod": {
+  "digest": "4f53cda18c2baa0c",
+  "languages": {},
+  "schema": []
+ }
+}

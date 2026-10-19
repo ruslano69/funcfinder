@@ -11,8 +11,9 @@ struct Bounds { string name; int start,end; string className; int signatureLine;
 struct Result { Bounds[] functions,classes; }
 struct Config {
     string lang; JSONValue data; Regex!char[string] patterns;
-    this(string path) {
-        data=parseJSON(readText(path)); lang=data["lang"].str;
+    this(string path) { this(parseJSON(readText(path))); }
+    this(JSONValue source) {
+        data=source; lang=data["lang"].str;
         if(lang!="js" && lang!="ts") throw new Exception("unsupported language");
         foreach(key,value;["line_comment":"//","block_comment_start":"/*","block_comment_end":"*/","escape_char":"\\"])
             if(data[key].str!=value) throw new Exception("unsupported lexical configuration: " ~ key);

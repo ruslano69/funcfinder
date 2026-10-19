@@ -74,7 +74,9 @@ PythonTokens tokenizePython(string source){
     }}return output;
 }
 
-Result findPython(string source){
+// decoratorStarts: a decorated function starts at its first decorator, as the Go finder reports it (the decorator
+// statements directly above it, at its indentation); the probe leaves it off and reports the def line.
+Result findPython(string source,bool decoratorStarts=false){
     source=source.replace("\r\n","\n").replace("\r","\n");auto tokens=tokenizePython(source);auto t=tokens.items;auto p=tokens.pairs;Result result;
     struct Statement {int first,last,indent;}Statement[] statements;
     int first;
@@ -95,7 +97,9 @@ Result findPython(string source){
         for(int i=next;i<=st.last;++i){if(t[i].text==":"){colon=i;break;}if(["(","[","{"].canFind(t[i].text)){if(p[i]<i)break;i=p[i];}}
         if(colon<0)continue;
         auto end=colon<st.last?index:ends[index];if(end==index && colon==st.last)continue;
-        auto bound=Bounds(t[name].text,t[st.first].line,t[statements[end].last].last,scopes.length?scopes[$-1].name:"",t[name].line,t[name].text);
+        int startLine=t[st.first].line;
+        if(decoratorStarts)for(auto j=cast(ptrdiff_t)index-1;j>=0 && t[statements[j].first].text=="@" && statements[j].indent==st.indent;--j)startLine=t[statements[j].first].line;
+        auto bound=Bounds(t[name].text,startLine,t[statements[end].last].last,scopes.length?scopes[$-1].name:"",t[name].line,t[name].text);
         if(t[keyword].text=="def")result.functions~=bound;
         else {result.classes~=bound;scopes~=Scope(bound.name,end);}
     }return result;

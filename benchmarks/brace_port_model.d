@@ -29,8 +29,9 @@ struct Bounds {string name;int start,end;string className;int signatureLine;stri
 struct Result {Bounds[] functions,classes;}
 struct Config {
     string lang;JSONValue data;Regex!char[string] patterns;
-    this(string path,bool compilePatterns=true) {
-        data=parseJSON(readText(path));lang=data["lang"].str;
+    this(string path,bool compilePatterns=true) { this(parseJSON(readText(path)),compilePatterns); }
+    this(JSONValue source,bool compilePatterns=true) {
+        data=source;lang=data["lang"].str;
         if(!["cs","cpp","go","java"].canFind(lang)) throw new Exception("unsupported language");
         if(data["unicode_version"].str!=unicodeVersion) throw new Exception("unsupported Go Unicode version");
         foreach(k,v;["line_comment":"//","block_comment_start":"/*","block_comment_end":"*/","escape_char":"\\"])

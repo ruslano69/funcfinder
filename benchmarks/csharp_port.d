@@ -5,6 +5,7 @@ import std.string : strip,startsWith;
 import std.algorithm : canFind;
 import std.uni : isWhite;
 import brace_port_unicode : goLetter,goDigit;
+import reuse : recycled,keep;
 
 struct Token {string text;int line;}
 private enum modifiers=["public","private","protected","internal","static","abstract","virtual","override","sealed","async","unsafe","extern","partial","readonly","new","ref","scoped"];
@@ -12,8 +13,15 @@ private enum statements=["return","throw","await","yield","new","if","else","for
 bool digit(dchar c) {return goDigit(c);}
 bool letter(dchar c) {return goLetter(c);}
 bool identifier(string text) {if(text.startsWith("@"))text=text[1..$];if(!text.length)return false;size_t i;bool first=true;while(i<text.length){auto c=nextRune(text,i);if(c!='_' && !letter(c) && !(!first && digit(c)))return false;first=false;}return true;}
+// Pools (thread-local): the token and pair arrays and the bracket stacks of the previous file, see reuse.d.
+private Token[] tokenPool;
+private int[] pairPool;
+private int[][3] stackPool;
 void tokenize(LineFact[] facts,out Token[] tokens,out int[] pairs,bool java=false) {
-    int[][3] stacks;
+    tokens=recycled(tokenPool);pairs=recycled(pairPool);
+    scope(exit){keep(tokenPool,tokens);keep(pairPool,pairs);}
+    alias stacks=stackPool;
+    foreach(ref stack;stacks)stack=recycled(stack);
     foreach(line,f;facts){if(f.cleaned.strip.startsWith("#"))continue;size_t i;
         while(i<f.cleaned.length){auto start=i;auto c=nextRune(f.cleaned,i);if(isWhite(c))continue;
             if(letter(c) || c=='_' || c=='@' || java && c=='$')while(i<f.cleaned.length){auto j=i;auto next=nextRune(f.cleaned,j);if(!letter(next) && !digit(next) && next!='_' && !(java && next=='$'))break;i=j;}
