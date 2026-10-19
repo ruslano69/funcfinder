@@ -151,6 +151,10 @@ def main():
     corpora = dict(c.split("=", 1) for c in a.corpus) if a.corpus else default_corpora(a.corpora_root or [ROOT / "build"])
     if a.only:
         corpora = {k: v for k, v in corpora.items() if k in a.only.split(",")}
+    # The reference is whatever --go is: say which version, and keep it with the recorded differences, so that results
+    # measured against another build (a stale local binary, an older release) cannot pass for these.
+    reference = subprocess.run([a.go, "--version"], capture_output=True).stdout.decode("utf-8", "replace").strip()
+    print(f"reference: {reference}")
     expected = json.loads(pathlib.Path(a.expect).read_text(encoding="utf-8")) if a.expect and not a.update and pathlib.Path(a.expect).exists() else {}
     current, all_deltas, failures = {}, {}, 0
 
@@ -202,9 +206,13 @@ def main():
                     "languages": {l: {k: v for k, v in s.items() if k.endswith(("_only_go", "_only_ffd"))} for l, s in c["languages"].items()
                                   if any(k.endswith(("_only_go", "_only_ffd")) for k in s)}} for n, c in current.items()}
         if a.update:
+            slim["_reference"] = reference
             pathlib.Path(a.expect).write_text(json.dumps(slim, indent=1, sort_keys=True) + "\n", encoding="utf-8")
             print(f"wrote {a.expect}")
         else:
+            if expected.get("_reference") != reference:
+                print(f"REFERENCE DIFFERS: differences were recorded against {expected.get('_reference')!r}, now {reference!r}")
+                failures += 1
             for n, c in slim.items():
                 if n in expected and expected[n] != c:
                     print(f"UNEXPECTED DIFFERENCES in {n}: expected {expected[n]['languages']} digest {expected[n]['digest']}, "
