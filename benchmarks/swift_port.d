@@ -1,4 +1,5 @@
 module swift_port;
+import reuse : TokenPool;
 import brace_port_cleaner : nextRune;
 import brace_port_unicode : goLetter,goDigit;
 import brace_port_model : Result,Bounds;
@@ -55,8 +56,10 @@ private struct Lexer {
     }
 }
 
+// the tokens of the previous file on this thread (reuse.d): valid until the next call
+private TokenPool!SwiftToken pool;
 SwiftTokens tokenizeSwift(string source) {
-    Lexer l=Lexer(source);SwiftTokens output;int[][3] stack;
+    Lexer l=Lexer(source);alias output=pool;pool.reset();auto stack=pool.stack[];
     while(l.i<source.length) {
         auto start=l.i;auto line=l.line;auto c=cast(ubyte)source[l.i];
         if(l.at("//")){while(l.i<source.length && source[l.i]!='\n')++l.i;continue;}
@@ -79,10 +82,10 @@ SwiftTokens tokenizeSwift(string source) {
         output.items~=token;output.pairs~=-1;if(word || literal)continue;
         auto open=token.text=="("?0:token.text=="["?1:token.text=="{"?2:-1;
         if(open>=0)stack[open]~=n;
-        else {auto close=token.text==")"?0:token.text=="]"?1:token.text=="}"?2:-1;if(close>=0 && stack[close].length){auto other=stack[close][$-1];stack[close].length--;output.pairs[n]=other;output.pairs[other]=n;}}
+        else {auto close=token.text==")"?0:token.text=="]"?1:token.text=="}"?2:-1;if(close>=0 && stack[close].length){auto other=stack[close][$-1];stack[close].popBack();output.pairs[n]=other;output.pairs[other]=n;}}
     }
     version(AuditSwiftTokens)foreach(n,t;output.items){assert(t.start<t.end && t.end<=source.length && source[t.start..t.end]==t.text && t.line<=t.last);if(n)assert(output.items[n-1].end<=t.start && output.items[n-1].last<=t.line);auto p=output.pairs[n];if(p>=0)assert(p<output.items.length && output.pairs[p]==n);}
-    return output;
+    return SwiftTokens(pool.items.data,pool.pairs.data);
 }
 
 private struct Scan {

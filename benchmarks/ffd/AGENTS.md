@@ -50,7 +50,8 @@ stays Go, and nothing here is built or run by CI except the `genconfig` Go test.
   text (an arena) and the token arrays live in thread-local blocks that the next file overwrites. Therefore nothing a
   finder returns may point into them: `toSyms` and the alias/type code copy every name (`idup`), and any new result string
   must be copied the same way. Appending with `~=` in a hot loop is slow in D (a runtime call each time); prefer sizing
-  or a reused block.
+  or a reused block. The D finder's cleaned-line text is one such block (`ownText` in `dlang_port.d`); the allocator
+  lock, not the collector, was what kept it at 2.5× on 8 threads (the GC off changed nothing, fewer allocations did).
 - **Threads: default 8, never more than 16.** The default is the measured best (OmniRoute 559 ms at 8 workers, 870 at 16,
   1463 at 32): the runtime allocator is shared and the finders still allocate. Reducing allocation, not adding workers,
   is how the run gets faster.

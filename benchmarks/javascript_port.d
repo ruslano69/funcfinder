@@ -7,6 +7,7 @@ import std.string : startsWith;
 import std.uni : unicode, CodepointSet, isWhite;
 import std.conv : to;
 import std.utf : validate;
+import reuse : TokenPool, joinInto;
 
 private __gshared CodepointSet letters,digits,marks;
 shared static this() { letters=unicode.L; digits=unicode.Nd; marks=unicode.M; }
@@ -32,9 +33,14 @@ bool identifier(Token t) {
     foreach(i,dchar c;t.text) if(!jsWord(c) || (!i && decimal(c))) return false;
     return true;
 }
+// What the tokenizer keeps for the next file on this thread (reuse.d): the tokens, the pairs, the joined file and the
+// joined cleaned lines. The tokens and the texts they hold are valid until the next call on the same thread.
+private TokenPool!Token pool;
+private char[] rawJoinPool,cleanJoinPool;
 Token[] tokenize(string[] lines,LineFact[] facts,out int[] pairs) {
     auto result=tokenizeFast(lines,facts,pairs);
     version(AuditJSTokens) {
+        result=result.dup;pairs=pairs.dup; // the audit tokenizes again, which reuses the pool
         auto raw=lines.join("\n");string[] cleaned;foreach(f;facts) cleaned~=f.cleaned;
         int[] expectedPairs;
         auto expected=tokenizeUnits!(dchar,false)(runes(raw),runes(cleaned.join("\n")),expectedPairs);
@@ -44,9 +50,14 @@ Token[] tokenize(string[] lines,LineFact[] facts,out int[] pairs) {
     return result;
 }
 private Token[] tokenizeFast(string[] lines,LineFact[] facts,out int[] pairs) {
-    auto rawBytes=lines.join("\n"); string[] cleaned;
-    foreach(f;facts) cleaned~=f.cleaned;
-    auto cleanBytes=cleaned.join("\n");
+    auto rawBytes=joinInto(lines,rawJoinPool);
+    // The cleaned lines joined, as lines would be: no separator after the last.
+    size_t cleanTotal;foreach(f;facts) cleanTotal+=f.cleaned.length;
+    if(facts.length>1) cleanTotal+=facts.length-1;
+    if(cleanJoinPool.length<cleanTotal) cleanJoinPool=new char[cleanTotal+cleanTotal/2+4096];
+    size_t cleanAt;
+    foreach(k,f;facts) { if(k) cleanJoinPool[cleanAt++]='\n'; cleanJoinPool[cleanAt..cleanAt+f.cleaned.length]=f.cleaned[]; cleanAt+=f.cleaned.length; }
+    string cleanBytes=cast(string)cleanJoinPool[0..cleanTotal];
     if(ascii(rawBytes) && ascii(cleanBytes)) return tokenizeUnits!char(rawBytes,cleanBytes,pairs);
     auto rawRunes=runes(rawBytes),cleanRunes=runes(cleanBytes);
     // The probe supplies valid UTF-8. Preserve the API's replacement behavior
@@ -58,7 +69,7 @@ private Token[] tokenizeFast(string[] lines,LineFact[] facts,out int[] pairs) {
 private size_t utf8Width(dchar c) { return c<0x80 ? 1 : c<0x800 ? 2 : c<0x10000 ? 3 : 4; }
 private Token[] tokenizeUnits(T,bool retainSlices=true)(immutable(T)[] raw,immutable(T)[] clean,out int[] pairs,string rawUtf8=null,string cleanUtf8=null) {
     assert(raw.length==clean.length,"rune coordinate mismatch");
-    auto tokens=appender!(Token[])(); auto paired=appender!(int[])(); int[] stack; int line;
+    pool.reset(); int line;
     size_t rawByte,cleanByte;
     for(size_t i;i<clean.length;) {
         auto start=i; auto first=line; bool literal;
@@ -93,16 +104,16 @@ private Token[] tokenizeUnits(T,bool retainSlices=true)(immutable(T)[] raw,immut
         static if(is(T==char)) string text=literal ? raw[start..i] : clean[start..i];
         else static if(retainSlices) string text=literal ? rawUtf8[rawStart..rawByte] : cleanUtf8[cleanStart..cleanByte];
         else string text=to!string(literal ? raw[start..i] : clean[start..i]);
-        int index=cast(int)tokens.length;
-        tokens~=Token(text,first,line,literal); paired~=-1;
+        int index=cast(int)pool.items.length;
+        pool.items~=Token(text,first,line,literal); pool.pairs~=-1;
         if(literal) continue;
-        if(text=="(" || text=="[" || text=="{") stack~=index;
-        else if((text==")" || text=="]" || text=="}") && stack.length) {
-            auto open=stack[$-1]; auto want=text==")" ? "(" : text=="]" ? "[" : "{";
-            if(tokens.data[open].text==want) { paired.data[open]=index; paired.data[index]=open; stack.length--; }
+        if(text=="(" || text=="[" || text=="{") pool.stack[0]~=index;
+        else if((text==")" || text=="]" || text=="}") && pool.stack[0].length) {
+            auto open=pool.stack[0][$-1]; auto want=text==")" ? "(" : text=="]" ? "[" : "{";
+            if(pool.items[open].text==want) { pool.pairs[open]=index; pool.pairs[index]=open; pool.stack[0].popBack(); }
         }
     }
-    pairs=paired.data; return tokens.data;
+    pairs=pool.pairs.data; return pool.items.data;
 }
 bool arrowAt(Token[] t,int i) { return i+1<t.length && t[i].text=="=" && t[i+1].text==">"; }
 bool expressionContinues(Token previous,Token next) {

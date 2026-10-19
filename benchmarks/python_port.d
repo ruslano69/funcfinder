@@ -1,4 +1,5 @@
 module python_port;
+import reuse : TokenPool;
 import brace_port_cleaner : nextRune;
 import brace_port_unicode : goLetter,goDigit;
 import brace_port_model : Result,Bounds;
@@ -40,15 +41,17 @@ private struct Lexer {
     }
 }
 
+// the tokens of the previous file on this thread (reuse.d): valid until the next call
+private TokenPool!PythonToken pool;
 PythonTokens tokenizePython(string source){
-    Lexer l=Lexer(source);PythonTokens output;int[] stack;
+    Lexer l=Lexer(source);alias output=pool;pool.reset();auto stack=pool.stack[0..1];
     if(source.length>=3 && source[0..3]=="\xef\xbb\xbf")l.i=3;
     while(l.i<source.length){
         auto start=l.i;auto line=l.line;auto indent=l.indent;auto c=cast(ubyte)source[l.i];
         if(c=='#'){while(l.i<source.length && source[l.i]!='\n')++l.i;continue;}
         if(l.at("\\\n")){l.i+=2;++l.line;l.leading=false;continue;}
         if(c=='\n'){
-            l.step();if(stack.length)continue;
+            l.step();if(stack[0].length)continue;
             if(!output.items.length || output.items[$-1].text=="\n")continue;
             output.items~=PythonToken("\n",start,l.i,line,line,indent);output.pairs~=-1;continue;
         }
@@ -61,9 +64,9 @@ PythonTokens tokenizePython(string source){
         }
         auto n=cast(int)output.items.length;auto t=PythonToken(source[start..l.i],start,l.i,line,l.line,indent,word,literal);output.items~=t;output.pairs~=-1;
         if(word || literal)continue;
-        if(["(","[","{"].canFind(t.text))stack~=n;
-        else if([")","]","}"].canFind(t.text) && stack.length){auto other=stack[$-1];auto open=output.items[other].text;
-            if(open=="(" && t.text==")" || open=="[" && t.text=="]" || open=="{" && t.text=="}"){stack.length--;output.pairs[n]=other;output.pairs[other]=n;}
+        if(["(","[","{"].canFind(t.text))stack[0]~=n;
+        else if([")","]","}"].canFind(t.text) && stack[0].length){auto other=stack[0][$-1];auto open=output.items[other].text;
+            if(open=="(" && t.text==")" || open=="[" && t.text=="]" || open=="{" && t.text=="}"){stack[0].popBack();output.pairs[n]=other;output.pairs[other]=n;}
         }
     }
     version(AuditPythonTokens){size_t cursor;int actualLine=1;foreach(n,t;output.items){
@@ -71,7 +74,7 @@ PythonTokens tokenizePython(string source){
         while(cursor<t.start){if(source[cursor++]=='\n')++actualLine;}assert(actualLine==t.line);
         while(cursor<t.end){if(source[cursor++]=='\n')++actualLine;}assert(actualLine==t.last+(t.text=="\n"?1:0));
         if(n)assert(output.items[n-1].end<=t.start);auto p=output.pairs[n];if(p>=0)assert(p<output.items.length && output.pairs[p]==n);
-    }}return output;
+    }}return PythonTokens(pool.items.data,pool.pairs.data);
 }
 
 // decoratorStarts: a decorated function starts at its first decorator, as the Go finder reports it (the decorator

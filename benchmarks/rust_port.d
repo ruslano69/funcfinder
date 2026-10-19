@@ -1,4 +1,5 @@
 module rust_port;
+import reuse : TokenPool;
 import brace_port_cleaner : nextRune;
 import brace_port_unicode : goLetter,goDigit;
 import brace_port_model : Result,Bounds;
@@ -27,8 +28,10 @@ private size_t characterEnd(string source,size_t quote) {
     return i<source.length && source[i]=='\''?i+1:quote;
 }
 
+// the tokens of the previous file on this thread (reuse.d): valid until the next call
+private TokenPool!RustToken pool;
 RustTokens tokenizeRust(string source) {
-    RustTokens output;int[][3] stack;size_t i;int line=1;
+    alias output=pool;pool.reset();auto stack=pool.stack[];size_t i;int line=1;
     while(i<source.length) {
         auto start=i;auto atLine=line;auto c=cast(ubyte)source[i];
         if(c=='\n'){++i;++line;continue;}
@@ -79,7 +82,7 @@ RustTokens tokenizeRust(string source) {
         if(open>=0)stack[open]~=index;
         else {
             auto close=token.text==")"?0:token.text=="]"?1:token.text=="}"?2:-1;
-            if(close>=0 && stack[close].length){auto other=stack[close][$-1];stack[close].length--;output.pairs[index]=other;output.pairs[other]=index;}
+            if(close>=0 && stack[close].length){auto other=stack[close][$-1];stack[close].popBack();output.pairs[index]=other;output.pairs[other]=index;}
         }
     }
     version(AuditRustTokens) foreach(n,t;output.items) {
@@ -87,7 +90,7 @@ RustTokens tokenizeRust(string source) {
         if(n)assert(output.items[n-1].end<=t.start && output.items[n-1].line<=t.line);
         auto p=output.pairs[n];if(p>=0)assert(p<output.items.length && output.pairs[p]==n);
     }
-    return output;
+    return RustTokens(pool.items.data,pool.pairs.data);
 }
 
 private struct Scan {
