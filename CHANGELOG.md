@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.15.10 - 2026-10-19
+
+A speed release for TypeScript, plus the D port's directory tool as benchmark material. The Go tools' output is unchanged
+(byte-identical to 1.15.9 on the tracked trees); the only code change in the Go tools is the TypeScript scanners below.
+`benchmarks/ffd/` adds `ffd`, a D executable over the 15 token finders with the Go tool's `--dir` JSON, a worker pool
+(default 8, at most 16), and a by-key comparison with `funcfinder`; the D finders reuse their token, pair and text blocks
+from file to file, which lifts their scaling at 8 threads (arsd 2.6x -> 4.9x). It is not part of the release archives.
+
 - **TypeScript: the declaration and declarator patterns are read by scanners instead of regular expressions.** As for
   `func_pattern` in 1.15.8, `tsDeclarationSubmatch` (a bodyless signature: an overload, an interface member, an `abstract`
   method) and `tsDeclaratorSubmatch` (a later declarator of a `const` list after its `,`) return exactly what the patterns
