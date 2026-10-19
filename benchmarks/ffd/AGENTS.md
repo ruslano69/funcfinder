@@ -14,6 +14,8 @@ stays Go, and nothing here is built or run by CI except the `genconfig` Go test.
   `ffd_run.d` the worker pool and mode filter; `ffd_langs.d` language registry, configuration checks and the finder of
   each language; `ffd_json.d` output; `ffd_model.d` the neutral result; `ffd_goalias.d` Go aliases; `ffd_hybrid.d` the
   JavaScript/TypeScript types of Go's struct finder.
+- `genvectors/` (Go) writes `ts_declaration_vectors.jsonl`: 6,000 lines with what Go's TS declaration and declarator patterns
+  return, which `ffd_vectors.d` (a unit test) holds the D scanners in `../typescript_header.d` to.
 - `genconfig/` (Go) writes `ffd_config.json`, the resolved configuration of every language; `ffd_config.json` is
   compiled into `ffd` as a string import.
 - `build.py` builds with LDC (`--test` builds and runs the unit tests); `ffd_compare.py` compares `ffd` with the Go tool
@@ -35,6 +37,11 @@ stays Go, and nothing here is built or run by CI except the `genconfig` Go test.
   afterwards, and the module-level patterns of `dlang_port.d` and `typescript_port.d` are `__gshared` for that reason.
   Do not configure per thread (building them in every worker cost more than parsing a small tree) and do not call a
   finder before `prepareLanguages`.
+- **A regex a scanner stands for is proved against Go's regexp, not against another scanner**: the D scanners for the TS
+  `func_pattern`, `declaration_pattern` and `declarator_pattern` are used only while the configuration holds the pattern text
+  they were written for (`js_ts_model.Config`), the regex is then not compiled, and the vectors file (made by Go's regexp,
+  kept current by a Go test) must pass; the `AuditTSHeader` build also compares every call with the D regex. Regenerate with
+  `go run ./benchmarks/ffd/genvectors > benchmarks/ffd/ts_declaration_vectors.jsonl` when a generator or pattern changes.
 - **`checkConfig` refuses a configuration the finders were not written for** (comment markers, delimiters, flags, the TS
   header pattern, the JS/TS struct patterns). A `languages.json` change needs `go run ./benchmarks/ffd/genconfig >
   benchmarks/ffd/ffd_config.json` (`go test ./benchmarks/ffd/genconfig` fails until it is done) and, if a pattern a
@@ -84,7 +91,7 @@ finder adds kinds the D finders do not list). The exact counts are in `ffd_delta
 ```bash
 python benchmarks/ffd/build.py --test        # unit tests of all modules, compiled in
 python benchmarks/ffd/build.py               # release build: build/ffd/ffd
-go test ./benchmarks/ffd/genconfig           # ffd_config.json is current
+go test ./benchmarks/ffd/genconfig ./benchmarks/ffd/genvectors   # ffd_config.json and the vectors are current
 python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe --corpora-root <repo>/build --expect benchmarks/ffd/ffd_deltas.json
 ```
 

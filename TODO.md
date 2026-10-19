@@ -945,10 +945,10 @@ enterprise/Pro correctness story.
 `benchmarks/ffd/` is one D executable over the 15 token finders: the Go tool's `--dir [--all|--struct] --json` and text,
 the root `.gitignore`, a worker pool (default 8 threads, at most 16), `--timing`. Against the released Go 1.15.9 on 30
 trees: every function key but 185 of about 98,000 (111 Rust macro bodies, 71 C++, 3 Kotlin/Ruby); JavaScript/TypeScript
-types equal (six trees byte-identical); the walk selects the same files on all 31 trees. Speed: serially 8% to 80% less
-time than Go; with 8 threads each ahead on 8 of 14 trees and behind on 5; against Go's default 32 threads ahead on 6 and
-behind on 8 (OmniRoute 610 ms against 488): `ffd` does less work per thread but scales worse (see Scaling below). The
-first version of these numbers compared with a stale local binary and was wrong. See `benchmarks/ffd/README.md`.
+types equal (six trees byte-identical); the walk selects the same files on all 31 trees. Speed: serially 29% to 79% less
+time than Go; with 8 threads each ahead on 9 of 14 trees, level on 1, behind on 4; against Go's default 32 threads ahead on
+8 and behind on 6 (OmniRoute 447 ms against 483). `ffd` does less work per thread but scales worse (see Scaling below).
+The first version of these numbers compared with a stale local binary and was wrong. See `benchmarks/ffd/README.md`.
 
 Open, in order:
 
@@ -963,10 +963,11 @@ Open, in order:
   line array, facts, cleaned text and the C#/Go/Java tokens (`reuse.d`); the token arrays of the other finders and the
   regex-based passes (D class/attribute/type/statement, TS declaration/declarator) remain. A `Vec`-style buffer instead
   of `~=` is 6x faster per append in a micro-benchmark and scales with threads.
-- [ ] **Regexes, in D and in Go.** TypeScript spends 40% of its serial time in regexes: `declaration_pattern` 20%,
-  `declarator_pattern` 7%, `func_pattern` 5% (already a scanner), `class_method_open` 3%, `class_pattern` 2%,
-  `quoted_method_pattern` 2%. Go runs the same patterns (declaration 4%, struct fields 4% in the Go profile), so a scanner
-  for each, proved equal like `tsHeaderSubmatch`, would speed up both implementations.
+- [ ] **Regexes, in D and in Go.** `declaration_pattern` and `declarator_pattern` of TypeScript are scanners now, in Go
+  (PR #122: serial OmniRoute -10%) and in D (serial -22%, 8 threads -26%), each proved against Go's regexp. Left in
+  TypeScript: `class_method_open` 3%, `class_pattern` 2%, `quoted_method_pattern` 2% of the serial time; in D the class,
+  attribute, type, statement and declaration patterns (about a quarter of a D run); in Go struct fields (4%) and the
+  struct/class patterns of every language. Each scanner is proved equal to its pattern like `tsHeaderSubmatch`.
 - [ ] **Stage 2 and later:** `--inp`, `--tree`, `--names`, `--doc`, `--split`, `--extract`, then `funcstats` and
   `callgraph` (need line facts from every finder), `complexity`, `deps`.
 
