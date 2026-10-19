@@ -55,6 +55,10 @@ stays Go, and nothing here is built or run by CI except the `genconfig` Go test.
   (`build/*/repos/*` plus local trees); `--expect benchmarks/ffd/ffd_deltas.json` checks the pinned ones against the
   recorded differences (counts per language and a hash of the sorted list) and fails on any change, better or worse;
   `--update` records the current ones. Corpora are not in worktrees: pass the main checkout's `build/`.
+  **The Go reference must be the release binary, not a local build**: a stale `funcfinder.exe` (the checkout's root
+  binaries are rebuilt by other work) once made the speed claims wrong. The script prints the reference's `--version` and
+  `ffd_deltas.json` records it; a different version fails the check. Download the release archive and pass its
+  `funcfinder` as `--go`; time with `--workers 1` and `--workers 8` as well as the defaults (Go's default is 32 threads).
 
 ## Differences from Go (pinned corpora, `--all`)
 

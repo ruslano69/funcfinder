@@ -30,17 +30,35 @@ Measured by key (`ffd_compare.py`), Go 1.15.9 against `ffd` on 30 trees:
 
 ## Speed
 
-Median of 5 interleaved runs, `--dir --all --json`, 16-core/32-thread Windows machine. `ffd` uses 8 threads, Go all 32
-(its default):
+Median of 5 to 7 interleaved runs of `--dir --all --json` on a 16-core/32-thread Windows machine, against the **released
+Go 1.15.9** (`funcfinder-windows-amd64.exe` of the GitHub release). Go defaults to all 32 threads, `ffd` to 8 (at most 16).
+Milliseconds; `@1` and `@8` give both tools the same number of threads:
 
-| Tree | Go | ffd | | Tree | Go | ffd |
-|---|---:|---:|---|---|---:|---:|
-| OmniRoute (TS/JS, 1.6M lines) | 758 ms | 617 ms | | Kingfisher (Swift) | 54 ms | 33 ms |
-| arsd (D, 9.5 MB) | 134 ms | 99 ms | | polly (C#) | 127 ms | 73 ms |
-| gson (Java) | 62 ms | 42 ms | | fmt (C++) | 85 ms | 61 ms |
-| maybe (Ruby) | 81 ms | 69 ms | | tdtp-framework (Go, small files) | 77 ms | 93 ms |
+| Tree | Go @1 | ffd @1 | Go @8 | ffd @8 | Go default | ffd default |
+|---|---:|---:|---:|---:|---:|---:|
+| gson (Java) | 101 | 53 | 56 | 41 | 47 | 40 |
+| fmt (C++) | 224 | 66 | 70 | 59 | 74 | 57 |
+| polly (C#) | 206 | 113 | 100 | 74 | 93 | 71 |
+| zod (TS) | 228 | 206 | 67 | 73 | 54 | 70 |
+| Seal (Kotlin) | 110 | 39 | 39 | 28 | 31 | 28 |
+| arsd (D) | 559 | 232 | 114 | 101 | 126 | 99 |
+| flask (Python) | 43 | 25 | 21 | 23 | 21 | 24 |
+| huginn (Ruby) | 142 | 93 | 46 | 61 | 53 | 56 |
+| maybe (Ruby) | 165 | 94 | 69 | 70 | 57 | 68 |
+| serde (Rust) | 62 | 40 | 27 | 32 | 24 | 31 |
+| Alamofire (Swift) | 208 | 56 | 56 | 51 | 43 | 47 |
+| Kingfisher (Swift) | 195 | 39 | 55 | 32 | 40 | 31 |
+| OmniRoute (TS/JS, 1.6M lines) | 2871 | 2643 | 642 | 611 | 488 | 610 |
+| tdtp-framework (Go, many small files) | 239 | 136 | 71 | 95 | 60 | 92 |
 
-Run serially (`--workers 1`) `ffd` takes 2.2 s on OmniRoute against Go's 4.1 s, and 236 ms on arsd against 592 ms. The
-run stops scaling after about 8 threads (the shared runtime allocator, and regex-based finders that still allocate),
-which is why the default is 8 and the cap 16; the next gains are in the finders: TypeScript spends about 40% of its
-time in regexes (`declaration_pattern` alone 20%, `declarator_pattern` 7%), the same patterns Go still runs.
+What the table says: **per thread `ffd` does much less work** (serial 8% to 80% less time, 45-80% on most trees), but it
+**scales worse than Go**: Go's run goes about 6 times faster from 1 to 32 threads, `ffd`'s about 4 times from 1 to 8 and
+not at all beyond (OmniRoute: 559 ms at 8, 870 at 16, 1463 at 32). With 8 threads each `ffd` is ahead on 8 of 14 trees,
+level on one, behind on five; against Go's default of 32 threads it is ahead on 6 and behind on 8. The limit is the shared
+runtime allocator and the finders that still allocate, and in TypeScript regexes (about 40% of its serial time): the next
+steps are in `TODO.md`.
+
+> Correction: the first version of this table, and the "faster than Go's 32 threads on most trees" in the commit message
+> of this branch, were measured against a stale local `funcfinder.exe` (version 1.15.7 plus the accuracy fixes, without the
+> 1.15.8/1.15.9 speed-ups), not the release. The keys compared are unchanged (same functions and types), the speed claims
+> were wrong.

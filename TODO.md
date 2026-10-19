@@ -943,11 +943,12 @@ enterprise/Pro correctness story.
 ## D port: the ffd executable, stage 0/1 (2026-10-19)
 
 `benchmarks/ffd/` is one D executable over the 15 token finders: the Go tool's `--dir [--all|--struct] --json` and text,
-the root `.gitignore`, a worker pool (default 8 threads, at most 16), `--timing`. Against Go 1.15.9 on 30 trees: every
-function key but 185 of about 98,000 (111 Rust macro bodies, 71 C++, 3 Kotlin/Ruby); JavaScript/TypeScript types equal
-(six trees byte-identical); the walk selects the same files on all 31 trees. With 8 threads it is faster than Go's 32 on
-most trees (polly -42%, Kingfisher -39%, gson -32%, fmt -28%, arsd -26%, OmniRoute -19%), equal on zod/serde/flask and
-slower on tdtp-framework (+20%, many small Go files); serially 1.9-2.6x faster. See `benchmarks/ffd/README.md`.
+the root `.gitignore`, a worker pool (default 8 threads, at most 16), `--timing`. Against the released Go 1.15.9 on 30
+trees: every function key but 185 of about 98,000 (111 Rust macro bodies, 71 C++, 3 Kotlin/Ruby); JavaScript/TypeScript
+types equal (six trees byte-identical); the walk selects the same files on all 31 trees. Speed: serially 8% to 80% less
+time than Go; with 8 threads each ahead on 8 of 14 trees and behind on 5; against Go's default 32 threads ahead on 6 and
+behind on 8 (OmniRoute 610 ms against 488): `ffd` does less work per thread but scales worse (see Scaling below). The
+first version of these numbers compared with a stale local binary and was wrong. See `benchmarks/ffd/README.md`.
 
 Open, in order:
 
