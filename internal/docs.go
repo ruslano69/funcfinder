@@ -132,7 +132,7 @@ func FormatDocs(config Config, results []DirResult, names map[string]bool) (stri
 		for _, d := range decls {
 			var b strings.Builder
 			fmt.Fprintf(&b, "%s:%d: %s %s\n", r.Path, d.Line, d.Kind, d.Name)
-			for _, c := range DocLines(lines, d.Line, lang) {
+			for _, c := range declarationDoc(lines, d.Line, lang) {
 				b.WriteString(c + "\n")
 			}
 			if d.Line >= 1 && d.Line <= len(lines) {

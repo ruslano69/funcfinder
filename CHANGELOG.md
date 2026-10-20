@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## Unreleased
+
+### Doc comments (`--doc`)
+
+- Python: `--doc` prints the docstring of a `def` or `class`, the first statement of its body, dedented and without its
+  quotes. A declaration without a docstring still prints the comment lines above it, as before. A signature that runs
+  over several lines is read to its colon; an f-string is not a docstring.
+
 ## v1.15.10 - 2026-10-19
 
 A speed release for TypeScript, plus the D port's directory tool as benchmark material. The Go tools' output is unchanged
