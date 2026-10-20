@@ -1,3 +1,8 @@
+---
+name: funcfinder
+description: "Use this skill whenever the user wants to analyze a GitHub repository or local project: explore code structure, find functions or methods, understand architecture, detect dependencies, measure complexity, or navigate large codebases efficiently. Triggers on: analyze this repo, what functions are in, show me the structure, find all methods, explore this codebase, any GitHub URL + code analysis, refactor this project, where is this logic, how does X work in this codebase. Use funcfinder tools to get 95%+ token reduction vs reading raw files. ALWAYS use this skill before opening any source file in Go, C, C++, C#, Java, D, JavaScript, TypeScript, or Python - map first, read only what you need. Also covers doc comments and Python docstrings without bodies, call graphs, complexity limits and summaries, unused functions, and the function behind each grep hit."
+---
+
 # Skill: funcfinder — Codebase Investigation
 
 Use this skill when you need to navigate, analyze, or understand an unfamiliar codebase without wasting tokens reading source files directly.
