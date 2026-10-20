@@ -12,6 +12,7 @@ import (
 func main() {
 	// Парсинг аргументов командной строки
 	version := flag.Bool("version", false, "print version and exit")
+	enclose := flag.Bool("enclose", false, "read grep -n output on stdin and print the function that holds each hit, and whether the hit is code or a comment or string")
 
 	// Режим файла
 	inp := flag.String("inp", "", "input file with source code")
@@ -56,6 +57,14 @@ func main() {
 	// Обработка флага --version
 	if *version {
 		internal.PrintVersion("funcfinder")
+	}
+
+	// --enclose reads grep output on stdin, so it needs neither --inp nor --dir.
+	if *enclose {
+		if err := internal.RunEnclose(os.Stdin, os.Stdout, *jsonOut); err != nil {
+			internal.FatalError("enclose: %v", err)
+		}
+		return
 	}
 
 	// Валидация: либо -inp либо -dir должно быть указано
