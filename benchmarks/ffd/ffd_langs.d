@@ -270,11 +270,23 @@ private void take(R)(ref FileResult r, R found) {
 
 /// Finds the functions and types of one file with the finder of its language. Errors are returned in the result.
 FileResult analyzeFile(string path, Lang lang) {
+    try {
+        return analyzeSource(path, lang, readSource(path));
+    } catch (Exception e) {
+        FileResult r; r.path = path; r.lang = langKey(lang); r.error = e.msg; return r;
+    }
+}
+
+/// Same token finders for a file or a selected source range; no second parser path.
+FileResult analyzeSource(string path, Lang lang, string source) {
     FileResult r;
     r.path = path;
     r.lang = langKey(lang);
     try {
-        auto source = readSource(path);
+        if (!allAscii(source)) {
+            try { validate(source); }
+            catch (Exception) { source = to!string(bcl.runes(source)); }
+        }
         final switch (lang) {
             case Lang.kotlin: take(r, findKotlin(source)); break;
             case Lang.php: take(r, findPHP(source)); break;

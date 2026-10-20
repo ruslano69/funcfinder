@@ -2,6 +2,17 @@
 
 Known issues and follow-up work, tracked here until they become GitHub issues.
 
+## D file CLI follow-up (2026-10-20)
+
+- `ffd` now supports `--inp`, explicit `--source`, `--map`, `--func`, `--extract`, file JSON and standalone/parsed `--lines`. The file CLI has 135 comparisons against the current local Go build across all 15 languages; this does not replace pinned real-project oracle coverage or establish exact span parity on arbitrary sources.
+- Remaining file-mode parity: Go's Python automatic scope expansion/report for parsed `--lines`, file type/all modes, tree/names/doc modes, and parser-specific differences in declaration spans/trailing trivia. Directory selection/output contracts stay unchanged.
+
+## Go C++ token migration (2026-10-20)
+
+- Local four-file C++ fixture comparison now finds 117 functions in Go (previously 109), matching the D directory tool by `(name, line)`. The eight recovered declarations are nested constructors, `operator bool`, ref-qualified methods and a conditional `noexcept` method. This is fixture parity, not a new libclang corpus evaluation or a speed measurement.
+- `cpp_members.go` is an incremental token recovery path; complete C++ token discovery, semantic conversion names and macro expansion remain open. Re-run the pinned fmt/tinyxml2 oracle comparisons before updating their historical accuracy or timing claims.
+- On the current Go 1.27.1 host, `go test ./...` still fails `benchmarks/ffd/genconfig/TestConfigIsCurrent`: generated Unicode 17.0.0 differs from the D port's pinned Unicode 15.0.0. Other exported configuration fields match; retain the pin until its Unicode tables and audits are migrated together.
+
 ---
 
 ## Language coverage on real projects: status and next steps (2026-10-19)

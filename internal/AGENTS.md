@@ -21,6 +21,7 @@ Core parsing engine. Implements function/struct discovery, body extraction, call
 ## Work Guidance
 
 - Adding a new language: implement the `Finder` interface, register in `finder_factory.go` and `struct_finder_factory.go`, add the extension in `languages.json`, add test fixtures in `test_examples/`.
+- C++ is migrating incrementally: `cpp_members.go` uses shared brace tokens to recover builtin conversion operators and members with ref qualifiers/conditional `noexcept`, and adds nested class scopes before the legacy function scan. Choose the nearest enclosing C++ class. Recovery scans all function bounds before applying name selection, excludes existing bodies and continued directives, and preserves original extraction and offsets. Alias/dependent conversion types still need semantic resolution; this is not a complete C++ token parser.
 - C function recognition in `languages.json` accepts parenthesized names in definitions/prototypes. A pointer declarator `(*name)` must not turn its return type into a function name; preserve original extraction and offsets. `c_parenthesized_test.go` covers these boundaries and selected-function mode.
 - `enhanced_sanitizer.go` strips string literals and comments before parsing to prevent false positives; touch it carefully and run its bench test after changes.
 - `python_finder.go` and `python_lines_processor.go` handle Python's indent-based scope; keep them in sync.

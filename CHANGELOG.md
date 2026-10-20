@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Experimental D `ffd` adds single-file function maps and JSON, comma-separated `--func` selection, original-source `--extract`, and standalone/parsed `--lines` ranges. It uses all 15 existing token finders; file type/all modes and Python range scope expansion remain unsupported.
+- Go C++ discovery now retains nested-class constructors and recovers builtin conversion operators, ref-qualified methods and conditional `noexcept` methods with a token pass. Selection, source offsets and original extraction are preserved.
+
 ## v1.15.10 - 2026-10-19
 
 A speed release for TypeScript, plus the D port's directory tool as benchmark material. The Go tools' output is unchanged

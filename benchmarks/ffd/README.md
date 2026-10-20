@@ -1,11 +1,11 @@
-# ffd: funcfinder's directory run in D
+# ffd: funcfinder in D
 
 `ffd` reads a source tree with the token finders of all 15 languages that live next to it (`../*_port.d`), in parallel,
 and prints what `funcfinder --dir` prints. It is the first executable of the D port that is more than a probe; the
 contract and the rules for changing it are in [AGENTS.md](AGENTS.md).
 
 ```bash
-python benchmarks/ffd/build.py                       # build/ffd/ffd[.exe]; needs LDC (F:\D\ldc-1.43.0 or $LDC2)
+python benchmarks/ffd/build.py                       # build/ffd/ffd[.exe]; needs LDC (set $LDC2 to the local compiler)
 build/ffd/ffd --dir . --all --json                   # functions, types and Go aliases, as JSON
 build/ffd/ffd --dir src --struct                     # types only, path:line: name
 build/ffd/ffd --dir . --all --json --workers 4 --timing
@@ -13,8 +13,9 @@ build/ffd/ffd --dir . --all --json --workers 4 --timing
 
 Implemented: `--dir`, `--all`, `--struct`, `--json`, `--workers` (default 8, at most 16), `--recursive=false`,
 `--no-gitignore`, `--timing`, `--version`. The root `.gitignore`, hidden names and the extension table follow the Go
-tool exactly (the same files, the same "skipped N files" notice on 31 trees). Not yet: `--inp`, `--tree`, `--names`,
-`--doc`, `--split`, `--extract`, `funcstats`, `callgraph`, `complexity`, `deps`.
+tool exactly (the same files, the same "skipped N files" notice on 31 trees). File mode also supports `--inp`, `--source`,
+`--map`, `--func`, `--extract` and `--lines` (see below). Not yet: `--tree`, `--names`,
+`--doc`, `--split`, `funcstats`, `callgraph`, `complexity`, `deps`.
 
 ## How close to Go
 
@@ -67,3 +68,40 @@ outputs byte for byte on 30 trees × 4 modes): arsd (D) 213 → 189 serially and
 23 → 10 and 13 → 3, serde (Rust) 28 → 12 and 18 → 4, Alamofire (Swift) 35 → 21 and 28 → 10, huginn (Ruby) 74 → 51 and 33 → 14,
 gson (Java) 36 → 23 and 24 → 7, OmniRoute 1906 → 1834 and 290 → 274 (6.6×). Allocation fell from 8-20 to 1-8 bytes per source
 byte in most finders; what is left is the JS finder's phases on small files, C++ (35 on tdtp) and Ruby (7.7).
+
+## File mode
+
+Map one file or select functions:
+
+```powershell
+build/ffd/ffd.exe --inp test_examples/test_example.go --source go --map
+build/ffd/ffd.exe --inp test_examples/test_example.go --source go --map --json
+build/ffd/ffd.exe --inp test_examples/test_example.go --source go --func SimpleFunction,FunctionWithParams --extract
+build/ffd/ffd.exe --inp test_examples/test_edge_cases.cpp --source cpp --func "operator bool" --extract
+```
+
+File mode requires `--source` and either `--map` or `--func`. `--func` accepts comma-separated names and keeps
+every overload; name-keyed JSON retains the last overload, as Go does. `--extract` takes precedence over `--json`.
+File type/all modes are not yet supported.
+
+Read text lines without a language or parse a source range with global line coordinates:
+
+```powershell
+build/ffd/ffd.exe --inp README.md --lines 1:10
+build/ffd/ffd.exe --inp README.md --lines :10 --json
+build/ffd/ffd.exe --inp test_examples/test_example.go --source go --map --lines 15:17
+```
+
+Ranges accept `N`, `N:M`, `:M`, `N:` and `:`; numbering starts at 1 and an end past EOF is clipped.
+Parsed ranges can cut declarations or lose their enclosing scope. Python ranges currently use the literal slice,
+without Go's automatic scope expansion/report. Underlying D and Go parser span/trailing-trivia differences remain.
+Extraction uses original source text, with Go-compatible newline handling (CRLF normalized except for Python).
+
+Validate the file CLI against a specified Go binary:
+
+```powershell
+python benchmarks/ffd/file_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+```
+
+This is a CLI regression check; real-project accuracy and timing require the independent benchmark harnesses.
+Directory modes and their known key differences are described in [AGENTS.md](AGENTS.md).

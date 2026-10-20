@@ -2,8 +2,80 @@ package internal
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestCppTokenMembersAndNestedConstructors(t *testing.T) {
+	src := `class Outer {
+ class Inner {
+ public:
+  Inner() {}
+  explicit operator bool() const { return true; }
+  void left() & {}
+  void right() &&;
+  void checked() noexcept(false) {}
+  void ordinary() { call() & other(); }
+ };
+};`
+	got := spans(mapFunctions(t, "cpp", src))
+	want := []string{"Inner:4-4", "checked:8-8", "left:6-6", "operator bool:5-5", "ordinary:9-9", "right:7-7"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cpp, err := config.GetLanguageConfig("cpp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(src, "\n")
+	for _, selection := range [][]string{nil, {"left", "operator bool"}, {"call"}} {
+		finder := NewFinder(cpp, selection, selection == nil, true, false)
+		result, err := finder.FindFunctionsInLines(lines, 11, "members.cpp")
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantCount := 6
+		if selection != nil {
+			wantCount = 2
+			if selection[0] == "call" {
+				wantCount = 0
+			}
+		}
+		if len(result.Functions) != wantCount {
+			t.Fatalf("selection %v: %+v", selection, result.Functions)
+		}
+		for _, fn := range result.Functions {
+			if fn.ClassName != "Inner" {
+				t.Errorf("%s owner = %q", fn.Name, fn.ClassName)
+			}
+			if got := strings.Join(fn.Lines, "\n"); got != strings.Join(lines[fn.Start-11:fn.End-10], "\n") {
+				t.Errorf("%s extraction = %q", fn.Name, got)
+			}
+		}
+	}
+}
+
+func TestCppTokenMembersIgnoreExpressionsAndDirectives(t *testing.T) {
+	src := `class C {
+ void f() {
+  value = object.call() & other();
+  if (call()) {}
+ }
+ #define METHODS \
+ void fake() & {}
+ explicit operator Alias() const;
+ void real() const & noexcept(check()) {}
+};`
+	got := spans(mapFunctions(t, "cpp", src))
+	want := []string{"f:2-5", "real:9-9"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("functions = %v, want %v", got, want)
+	}
+}
 
 // A signature may carry a nested parenthesis in its parameters and end its line before the
 // return type: the header runs to the body's closing brace.
@@ -187,7 +259,7 @@ func TestCpp_OperatorsAndConversions(t *testing.T) {
 };
 `
 	got := spans(mapFunctions(t, "cpp", src))
-	want := []string{"get:7-7", "operator==:3-5", "operator>:2-2"}
+	want := []string{"get:7-7", "operator bool:6-6", "operator==:3-5", "operator>:2-2"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("functions = %v, want %v", got, want)
 	}

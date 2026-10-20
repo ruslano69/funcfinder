@@ -576,6 +576,9 @@ func (f *Finder) findFunctionsInPreparedLines(lines []string, facts []LineFacts,
 		} else {
 			classes = f.findClassesWithOffset(facts, lineOffset)
 		}
+		if f.config.LangKey == "cpp" {
+			classes = cppNestedClasses(facts, startLine, classes)
+		}
 		result.Classes = classes
 	}
 
@@ -594,7 +597,26 @@ func (f *Finder) findFunctionsInPreparedLines(lines []string, facts []LineFacts,
 	}
 
 	// Старая логика для языков без вложенных функций
-	return f.findFunctionsSimple(lines, facts, lineOffset, classes, result)
+	scanner := f
+	if f.config.LangKey == "cpp" && !f.mapMode {
+		all := *f
+		all.mapMode = true // Recovery must also exclude bodies of unselected functions.
+		scanner = &all
+	}
+	result, err := scanner.findFunctionsSimple(lines, facts, lineOffset, classes, result)
+	if err == nil && f.config.LangKey == "cpp" {
+		scanner.recoverCppMembers(lines, facts, startLine, result)
+		if !f.mapMode {
+			selected := result.Functions[:0]
+			for _, fn := range result.Functions {
+				if f.funcNames[fn.Name] {
+					selected = append(selected, fn)
+				}
+			}
+			result.Functions = selected
+		}
+	}
+	return result, err
 }
 
 // findFunctionsSimple - старая логика для языков без вложенных функций
@@ -1545,6 +1567,15 @@ func classHeaderContinues(facts []LineFacts, i int, cleaned string) bool {
 
 // findClassForLine находит класс, которому принадлежит строка
 func (f *Finder) findClassForLine(classes []ClassBounds, lineNum int) string {
+	if f.config.LangKey == "cpp" {
+		name, start := "", -1
+		for _, class := range classes {
+			if class.Start <= lineNum+1 && class.End >= lineNum+1 && class.Start > start {
+				name, start = class.Name, class.Start
+			}
+		}
+		return name
+	}
 	for _, class := range classes {
 		if class.Start <= lineNum+1 && class.End >= lineNum+1 {
 			return class.Name

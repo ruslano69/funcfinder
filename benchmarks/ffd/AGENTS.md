@@ -2,11 +2,12 @@
 
 ## Purpose
 
-`ffd` is the D port of funcfinder's directory run: one executable that reads a tree with the token finders of all 15
-languages (`../*_port.d`), in parallel, and writes the Go tool's `--dir` JSON and text. It is experimental: production
-stays Go, and nothing here is built or run by CI except the `genconfig` Go test. Stage 0/1 of the port covers
-`--dir [--all|--struct] [--json]`, `--workers`, `--recursive`, `--no-gitignore` and `--timing`; `--inp`, `--tree`,
-`--names`, `--doc`, `--split`, `--extract` and the other four tools are not implemented and say so.
+`ffd` is the D port of funcfinder's file and directory discovery: one executable with the token finders of all 15
+languages (`../*_port.d`). It is experimental: production stays Go, and CI runs only the `genconfig` Go test.
+Directory mode covers `--dir [--all|--struct] [--json]`, `--workers`, `--recursive`, `--no-gitignore` and `--timing`.
+File mode covers `--inp --source (--map|--func names) [--json|--extract] [--lines range]` and standalone
+`--inp --lines range [--json]`. File type/all modes, `--tree`, `--names`, `--doc`, `--split` and the other four tools
+are not implemented and say so.
 
 ## Ownership
 
@@ -14,6 +15,9 @@ stays Go, and nothing here is built or run by CI except the `genconfig` Go test.
   `ffd_run.d` the worker pool and mode filter; `ffd_langs.d` language registry, configuration checks and the finder of
   each language; `ffd_json.d` output; `ffd_model.d` the neutral result; `ffd_goalias.d` Go aliases; `ffd_hybrid.d` the
   JavaScript/TypeScript types of Go's struct finder.
+- `ffd_file.d` file-mode validation, name selection, line ranges, source extraction and file-specific JSON/text;
+  `file_checks.py` compares file CLI contracts with Go using generated fixtures under ignored `build/`.
+- `README.md` owns user-facing build/run examples and file/directory limitations.
 - `genvectors/` (Go) writes `ts_declaration_vectors.jsonl`: 6,000 lines with what Go's TS declaration and declarator patterns
   return, which `ffd_vectors.d` (a unit test) holds the D scanners in `../typescript_header.d` to.
 - `genconfig/` (Go) writes `ffd_config.json`, the resolved configuration of every language; `ffd_config.json` is
@@ -24,6 +28,15 @@ stays Go, and nothing here is built or run by CI except the `genconfig` Go test.
 
 ## Local Contracts
 
+- File mode uses the same `analyzeSource` token finders as `analyzeFile`; do not introduce a second parser. `--source`
+  is explicit, except for standalone text `--lines`. File function JSON is Go's name-keyed `{name: {end, start}}`
+  map (last duplicate wins), with Python decorator metadata; text/extraction retains all overloads. Empty function
+  results exit 2, argument/IO failures exit 1, flag syntax failures exit 2. `--extract` takes precedence over `--json`.
+- Read file source once and retain original lines independently of reusable parsing buffers. Extraction normalizes
+  CRLF like Go's generic reader; Python retains CR as Go's dedicated reader does. Standalone `--lines` handles
+  `N`, `N:M`, `:M`, `N:` and `:`, clips ends to EOF, rejects empty selections and needs no language/configuration.
+  Parsed `--lines` parses the literal selected slice and restores global line coordinates. It does not implement
+  Go's Python-specific automatic scope expansion/report; underlying D/Go span differences remain visible.
 - **Keys, not bytes, are the contract.** The JSON has the Go tool's shape (`files[].path/functions[]/classes[]/aliases[]`,
   `total_*`, two-space indent, `\n\n` at the end, strings escaped as `encoding/json` does; `ffd_json.d` unit tests pin
   the escapes against Go 1.25) and `ffd_compare.py` compares `(name, line)` per file. Functions must match Go's; types
@@ -92,9 +105,14 @@ finder adds kinds the D finders do not list). The exact counts are in `ffd_delta
 ```bash
 python benchmarks/ffd/build.py --test        # unit tests of all modules, compiled in
 python benchmarks/ffd/build.py               # release build: build/ffd/ffd
+python benchmarks/ffd/file_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 go test ./benchmarks/ffd/genconfig ./benchmarks/ffd/genvectors   # ffd_config.json and the vectors are current
 python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe --corpora-root <repo>/build --expect benchmarks/ffd/ffd_deltas.json
 ```
+
+- File checks cover all 15 languages, multi-name selection, duplicate overloads, JSON, original extraction,
+  CRLF/Unicode/long lines, standalone and parsed ranges, missing functions/files and invalid flags/ranges.
+  Directory regression checks must retain the existing maps and compare one/eight-worker outputs after file-mode changes.
 
 ## Child DOX Index
 

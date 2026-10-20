@@ -5,6 +5,7 @@ import ffd_langs;
 import ffd_model;
 import ffd_run;
 import ffd_walk;
+import ffd_file;
 import std.conv : to, ConvException;
 import std.datetime.stopwatch : AutoStart, StopWatch;
 import std.file : exists, isDir;
@@ -15,9 +16,7 @@ import std.string : startsWith, strip;
 
 version (unittest) import ffd_vectors; // unit tests of the scanners against Go's patterns
 
-// ffd: the funcfinder directory run, written in D. Stage 0/1 of the D port: `--dir` with --all, --struct and --json,
-// the Go tool's JSON and grep-style text, the .gitignore rules and the worker pool. The other modes (--inp, --tree,
-// --names, --doc, --split, --extract) are not implemented yet and say so.
+// Directory discovery plus single-file function maps, selection, extraction and line ranges.
 
 enum ffdVersion = "0.1.0";
 enum referenceVersion = import("VERSION").strip;
@@ -34,6 +33,7 @@ private int fatal(string text) {
 
 private struct Options {
     string dir;
+    FileOptions file;
     bool all, structs, json, noGitignore, recursive = true, version_, timing, timingAlloc;
     int workers;
     string unsupported;
@@ -41,10 +41,10 @@ private struct Options {
 
 /// Go's flag package accepts -name, --name, -name=value and --name value; bool flags take only the first forms.
 private bool parseArgs(string[] args, ref Options o, ref string error) {
-    static immutable boolFlags = ["all", "struct", "json", "no-gitignore", "recursive", "version", "map", "timing", "timing-alloc"];
-    static immutable valueFlags = ["dir", "workers"];
-    static immutable unsupportedBool = ["tree", "tree-full", "extract", "names", "raw", "split", "inc"];
-    static immutable unsupportedValue = ["inp", "source", "func", "type", "doc", "lines", "split-by", "out"];
+    static immutable boolFlags = ["all", "struct", "json", "no-gitignore", "recursive", "version", "map", "extract", "timing", "timing-alloc"];
+    static immutable valueFlags = ["dir", "workers", "inp", "source", "func", "lines"];
+    static immutable unsupportedBool = ["tree", "tree-full", "names", "raw", "split", "inc"];
+    static immutable unsupportedValue = ["type", "doc", "split-by", "out"];
     for (size_t i = 1; i < args.length; ++i) {
         string a = args[i];
         if (!a.startsWith("-") || a == "-" || a == "--") {
@@ -97,6 +97,8 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
                 case "version": o.version_ = b; break;
                 case "timing": o.timing = b; break;
                 case "timing-alloc": o.timingAlloc = b; o.timing = o.timing || b; break;
+                case "map": o.file.map = b; break;
+                case "extract": o.file.extract = b; break;
                 default: break; // --map is the default of --dir
             }
             continue;
@@ -106,6 +108,10 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
         }
         switch (name) {
             case "dir": o.dir = value; break;
+            case "inp": o.file.path = value; break;
+            case "source": o.file.source = value; break;
+            case "func": o.file.names = value; break;
+            case "lines": o.file.lines = value; break;
             case "workers":
                 try {
                     o.workers = value.to!int;
@@ -120,6 +126,17 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
     return true;
 }
 
+unittest {
+    Options o; string error;
+    assert(parseArgs(["ffd", "--inp=a.cpp", "-source", "cpp", "--func", "a,b", "--extract", "--lines=2:"], o, error));
+    assert(o.file.path == "a.cpp" && o.file.source == "cpp" && o.file.names == "a,b" && o.file.extract && o.file.lines == "2:");
+    o = Options.init;
+    assert(parseArgs(["ffd", "--inp", "a.go", "--map=false", "--extract=false"], o, error));
+    assert(!o.file.map && !o.file.extract);
+    assert(!parseArgs(["ffd", "--source"], o, error));
+    assert(!parseArgs(["ffd", "--extract=maybe"], o, error));
+}
+
 int main(string[] args) {
     Options o;
     string error;
@@ -131,8 +148,17 @@ int main(string[] args) {
         stdout.writeln("ffd version ", ffdVersion, " (D port; reference funcfinder ", referenceVersion, ")");
         return 0;
     }
-    if (o.dir.length == 0) return fatal("--dir is required (the other modes of funcfinder are not implemented in ffd yet)");
     if (o.unsupported.length) return fatal(o.unsupported ~ " is not implemented in ffd yet");
+    if (o.dir.length && o.file.path.length) return fatal("--dir and --inp are mutually exclusive");
+    o.file.json = o.json;
+    if (o.file.path.length) {
+        if (o.all || o.structs) return fatal("--all and --struct in file mode are not implemented in ffd yet");
+        version (Windows) { _setmode(1, _O_BINARY); _setmode(2, _O_BINARY); }
+        return runFile(o.file);
+    }
+    if (o.dir.length == 0) return fatal("--dir or --inp is required");
+    if (o.file.source.length || o.file.names.length || o.file.lines.length || o.file.extract)
+        return fatal("--source, --func, --lines and --extract require --inp");
     if (o.structs && o.all) return fatal("--struct and --all are mutually exclusive");
     if (!exists(o.dir)) return fatal("directory does not exist: " ~ o.dir);
     if (!isDir(o.dir)) return fatal("path is not a directory: " ~ o.dir);

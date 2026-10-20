@@ -7,7 +7,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 ## Ownership
 
 - `specsheet.py` compares directory maps with the Go oracle and estimates token savings.
-- `ffd/` is the D port's directory-run executable: all 15 token finders, the Go tool's `--dir` JSON, a worker pool and the comparison with Go by key; its contracts are in `ffd/AGENTS.md`. `reuse.d` holds the thread-local block reuse the finders and cleaners share.
+- `ffd/` is the D port's file/directory executable: all 15 token finders, function maps/selection/extraction/line ranges, the Go tool's `--dir` JSON, a worker pool and comparisons with Go; its contracts are in `ffd/AGENTS.md`. `reuse.d` holds the thread-local block reuse the finders and cleaners share.
 - `python_ast_eval.py` compares Python function locations and ends with Python's native AST.
 - `php_tree_eval.py` compares named PHP functions/methods, including bodyless declarations, with tree-sitter PHP.
 - `scala_d_tree_eval.py` compares Scala definitions/declarations, D functions/constructors/destructors/postblits and Java methods/constructors/annotation elements with their tree-sitter grammars (the historical filename is retained).
@@ -89,7 +89,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 
 - Record measured results and outstanding parser issues in root `TODO.md`.
 - State reference grammar/runtime and span normalization alongside measurements.
-- The user's Windows D toolchain lives under `F:\D`. LDC 1.43.0 is in `F:\D\ldc-1.43.0`; `F:\D\ldcvars64.bat` initializes the installed Visual Studio x64 environment and adds LDC for that shell. Use this environment for linking, and retain the older DMD installation alongside it.
+- The user's current Windows D compiler is `C:\Program Files\LDC 1.43\bin\ldc2.exe` (LDC 1.43.0, LLVM 22.1.8, target x86_64-pc-windows-msvc). Quote the path when invoking it. Historical benchmark commands under `F:\D` describe the original measurement host; verify the local linker environment before reusing them.
 
 ## Verification
 
@@ -127,4 +127,4 @@ Measure funcfinder on real projects using independent syntax-tree references.
 ## Child DOX Index
 
 - `searchserver/` — existing search-server load harness.
-- `ffd/` — the D port's directory-run executable (`ffd`), its Go config generator and comparison tools — see [ffd/AGENTS.md](ffd/AGENTS.md).
+- `ffd/` — the D port's file/directory executable (`ffd`), its Go config generator and comparison tools — see [ffd/AGENTS.md](ffd/AGENTS.md).

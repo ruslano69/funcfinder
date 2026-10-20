@@ -420,7 +420,8 @@ Default section order:
 
 ## User Preferences
 
-When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
+- The project is transitioning to token-based parsing. Develop new parser work toward tokenization and migrate existing recognition incrementally; existing regex implementations describe the current state, not the target architecture.
+- When comparing implementations, distinguish the tokenization algorithm from the implementation language and evaluate correctness, performance and CLI completeness separately.
 
 ## Child DOX Index
 
