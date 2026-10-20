@@ -87,7 +87,7 @@ funcfinder --inp auth/handler.go --source go --struct "User,Session" --extract
 funcfinder --inp auth/handler.go --source go --doc AuthenticateUser
 ```
 
-**Doc first**: `--doc Name` gives the comment above a declaration and its first line, without the body. Use it to learn what a function is for; read the body with `--extract` only when the code itself is needed.
+**Doc first**: `--doc Name` gives the docstring (Python `def`/`class`) or the comment above a declaration, and its first line, without the body. Use it to learn what a function is for; read the body with `--extract` only when the code itself is needed.
 
 **Rule**: extract only the specific function you need, not the whole file.
 
@@ -163,6 +163,15 @@ complexity internal/dirprocessor.go -l go --breakdown
 # Set a limit or turn its flag off (0): -len lines, -if decisions, -deep branch depth, -loop loop depth
 complexity internal/dirprocessor.go -l go --breakdown -len 200 -loop 0
 
+# Tracking a goal: counts per level and per limit (keep the limits fixed between runs)
+complexity . -l go -summary -exclude "*_test.go"
+
+# Boolean chains: lines with more than N operators (&&, ||, and, or)
+complexity internal/dirprocessor.go -l go --breakdown -bool 2
+
+# Which function holds each grep hit (experimental): reads grep -n output on stdin
+grep -rn "<name>" . --include=*.go | funcfinder --enclose
+
 # Import graph for one file
 deps internal/finder.go -l go --json
 ```
@@ -180,6 +189,7 @@ deps internal/finder.go -l go --json
 | `--doc` one name | ~20-100 (depends on the comment) | Learn what a function is for |
 | `--extract` one function | ~50-500 | When you know which function |
 | `callgraph --reverse` | ~100 | Impact analysis before editing |
+| `grep ... \| funcfinder --enclose` | ~20 per hit | Name the function behind each grep hit (experimental) |
 | Read full source file | ~500-5000 | Almost never needed |
 
 ---
@@ -217,9 +227,9 @@ callgraph --dir . -l go --reverse --func AuthenticateUser
 | `deps`/`callgraph` misses `cmd/` | Add `--no-gitignore` |
 | `--split` without `--json` | Always pair: `--json --split` |
 | Calling `--extract` without knowing the line | Use `--names` or `--map` first, then `--func Name --extract` |
-| Wanting the purpose of a function from its body | Use `--doc Name`: it shows the comment above the declaration |
+| Wanting the purpose of a function from its body | Use `--doc Name`: it shows the docstring or the comment above the declaration |
 | Expecting Go methods as `method` in `--names`/`--doc` | They show as `function` for now: the receiver is not recorded |
-| Expecting a Python docstring from `--doc` | Not read yet: only the comment above `def`/`class` is shown |
+| A grep hit in a comment, and you need its function | `grep ... \| funcfinder --enclose`: a comment above a function names that function and prints its doc |
 | `deps --shards` returns an empty/all-leaf graph | You rooted below `go.mod`/`tsconfig.json` — heed the resolution-% WARNING and re-run from the real root |
 
 ---
@@ -236,7 +246,7 @@ funcfinder --dir . --names | grep -i "<name>"    # kind, name, file:line (add --
 
 # Extract
 funcfinder --inp <file> --source <lang> --func <Name> --extract
-funcfinder --inp <file> --source <lang> --doc <Name>    # comment + first line, no body
+funcfinder --inp <file> --source <lang> --doc <Name>    # docstring or comment + first line, no body
 
 # Impact
 callgraph --dir . -l <lang> --reverse --func <Name>
