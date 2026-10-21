@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `funcfinder --replace-func NAME --with FILE|-` replaces one top-level Go function in a file. Its span comes from the finder and is checked against `go/ast`. Options: `--line N` picks one of several functions with the same name, `--old FILE` refuses the edit if the current text differs from the expected text, and `--apply` writes the file (without it, the change is only validated). The replacement must keep the same top-level declarations, so renames, extra functions and imports are refused. Line endings are kept.
+
 - Experimental D statistics and call graphs reuse per-thread token/call scratch and index declaration occurrences only for native function names. Retained result keys remain owned; ordinary stats skip identifier-use analysis, while `--uncalled` preserves it. On the measured internal Go tree with default GC, stats improve 58.7 → 22.3 ms and graph 41.4 → 25.5 ms; file-processing allocation falls 38%. Independent Go AST count checks and ownership/measurement limits are recorded in `benchmarks/ffd/STATS_BUFFERS.md`.
 
 - D CLI tools use generated immutable language settings instead of repeatedly parsing embedded JSON. Registry/profile/documentation reads share allocation-free table lookup; existing native-parser configuration APIs receive equivalent adapters only for selected languages. Go freshness tests cover both generated artifacts, and D tests compare all settings with the JSON reference. JSON output/manifest readers and runtime settings are unchanged.

@@ -1,5 +1,10 @@
 # TODO
 
+## Structural editing: Go first operation (2026-10-21)
+
+- Done on branch `structured-edit-go`: `funcfinder --replace-func NAME --with FILE|- [--line N] [--old FILE] [--apply]`. The span comes from the finder and is checked against `go/ast`; the replacement must keep the top-level declarations; line endings are kept. Covered by `internal/edit_go_test.go`.
+- Not done: other languages; struct/class members and fragment edits inside a function; ownership of comments and attributes above the `func` line (they are not replaced); evaluation on real agent tasks against line/text patches.
+
 ## D funcstats (2026-10-21)
 
 - The experimental D tool implements all advertised flags and 15 native file/directory profiles. It reuses finder bounds/signature metadata, the shared token adapter and worker/walker infrastructure. [Scope and checks](benchmarks/ffd/FUNCSTATS_PORT.md).
