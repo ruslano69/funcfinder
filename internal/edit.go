@@ -87,7 +87,7 @@ func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectO
 	}
 
 	oldText := strings.Join(lines[fn.Start-1:fn.End], "\n")
-	if expectOld != nil && oldText != strings.ReplaceAll(string(expectOld), "\r\n", "\n") {
+	if expectOld != nil && oldText != strings.TrimSuffix(strings.ReplaceAll(string(expectOld), "\r\n", "\n"), "\n") {
 		return nil, fmt.Errorf("function %s at lines %d-%d is not the expected text (it changed since it was read)",
 			target.Name, fn.Start, fn.End)
 	}
