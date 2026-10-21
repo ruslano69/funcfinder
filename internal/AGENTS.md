@@ -15,6 +15,7 @@ Core parsing engine. Implements function/struct discovery, body extraction, call
 - Public API surface: `FindFunctions`, `FindStructs`, `ProcessDirectory`, `BuildCallGraph`, `WriteSplitOutput`, `WriteSplitOutputIncremental`, `ForEachParallel`, `FindFunctionsInFile`, `LanguageConfig.FuncSubmatch`.
 - Language dispatch is handled by `finder_factory.go` (functions) and `struct_finder_factory.go` (structs); new languages must register here.
 - `languages.json` is the canonical list of supported file extensions → language identifiers.
+- Go `exclude_words` lists all reserved keywords so `funcstats` does not count parenthesized control/return expressions as calls. Predeclared functions and type conversions remain eligible; do not exclude them as keywords. `cmd/funcstats` pins this with a syntax-checked Go regression.
 - Shard output goes to `.codemap/` by default; manifest is `.codemap/manifest.json`.
 - Incremental mode (`--inc`) uses xxh3 checksums (`checksum_xxh3.go`) with stdlib fallback (`checksum_stdlib.go`).
 

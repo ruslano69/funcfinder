@@ -30,6 +30,9 @@ parser is not a target for silently accepting typos.
 - Calls are syntactic named invocations, not symbol-resolved targets. Identifier conversions such as `int(x)` count;
   composite-type conversions such as `[]byte(nil)` do not. Go control keywords and interface signatures are not calls.
   Generic/indexed Go callees are included. Other complex/indirect/operator/cast syntax remains profile-dependent.
+- `ffd_calls.d` shares declaration exclusion and call recognition with the D callgraph. JS private method names
+  count as both calls and code uses; optional receivers retain their terminal call names. The field/discovery token
+  adapter is unchanged. The extra private-method regression is independent of Go parity.
 - Function bounds and owned signature metadata come from the existing finder. Only the declaration occurrence is
   suppressed; recursive calls on that line remain. JS arrow/anonymous bindings retain their real recursive calls.
   Signature metadata is requested through `ScanNeeds` and copied only for call-site consumers; ordinary `ffd`
@@ -47,11 +50,13 @@ parser is not a target for silently accepting typos.
   inside comments/literals but is not a complete import/dependency grammar. In particular grouped/aliased/dynamic
   syntax remains limited by the configured profile. Go grouped quoted imports retain their existing profile.
 - Existing finder accuracy/analysis-scope differences remain visible. Fifteen-language fixture support does not
-  establish full grammar accuracy. Parser and token passes currently run separately; no performance gain is claimed.
+  establish full grammar accuracy. Parser and token passes still run separately. CLI use-map analysis now runs
+  only for `--uncalled`; returned maps retain owned distinct names. See [buffer measurements](STATS_BUFFERS.md)
+  for scratch reuse, independent Go count checks and measured corpus-specific gains.
 
 ## Verification on 2026-10-21
 
-188 funcstats CLI/truth checks pass; its unit build passes 22 modules. The shared-module changes also pass
+189 funcstats CLI/truth checks pass after callgraph integration; its unit build passes 22 modules. The initial port's shared-module changes also passed
 the 30-module funcfinder unit build and 3,137 existing funcfinder CLI checks.
 
 The CLI checker covers controlled 15-language call truth and text/JSON parity, empty/CRLF files, imports,

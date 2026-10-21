@@ -3,7 +3,7 @@
 ## Purpose
 
 `ffd` is the D port of funcfinder's file and directory discovery: one executable with the token finders of all 15
-languages (`../*_port.d`). This folder also builds the experimental D `funcstats`. Production stays Go,
+languages (`../*_port.d`). This folder also builds the experimental D `funcstats` and `callgraph`. Production stays Go,
 and CI runs only the `genconfig` Go test.
 Directory mode covers `--dir [--all|--struct] [--json]`, `--workers`, `--recursive`, `--no-gitignore` and `--timing`.
 File mode covers function maps/selection/extraction/JSON, type maps/`--type` selection/extraction/JSON (`--struct`),
@@ -12,7 +12,8 @@ combined output (`--all`) and standalone/parsed `--lines`. `--names` lists file/
 or directory paths. Directory `--json --split [--split-by dir|file] [--out PATH] [--inc]` writes shards and a manifest.
 File `--raw` exposes the existing function-cleaner raw-string controls; `--help`/`-h` lists supported keys.
 `funcstats` covers single-file/directory statistics, call counts/top-N, exclusions and uncalled candidates.
-The remaining three tools (`deps`, `callgraph`, `complexity`) are not implemented in D.
+`callgraph` covers file/directory edges, forward trees, reverse lookup and depth filtering.
+The remaining two tools (`deps`, `complexity`) are not implemented in D.
 
 ## Ownership
 
@@ -28,13 +29,25 @@ The remaining three tools (`deps`, `callgraph`, `complexity`) are not implemente
 - `ffd_fields.d` derives direct-member field metadata from the existing native tokenizers; `field_checks.py` verifies
   explicit field truth for all 15 language profiles and simple Go parity. `ffd_model.Field` owns name/type/line values.
 - `ffd_tokens.d` is the shared neutral token adapter for fields and statistics; reuse existing native lexers and
-  retain C-family code/metadata line masks before finder-only directive masking. Its text is borrowed scratch.
+  retain C-family code/metadata line masks before finder-only directive masking. Its arrays and text are thread-local
+  borrowed scratch, consumed before any further lexer/finder/token-adapter call; retained results own their data.
+- `ffd_calls.d` owns shared declaration-token exclusion and call-site recognition for `funcstats` and `callgraph`.
+  Default results own names/receivers/masks/positions/sites. Stats explicitly borrows scratch synchronously and owns
+  distinct retained count keys. Restrict occurrence indexing to declaration names, preserving all their occurrences.
+  Preserve Go control/interface/composite-type exclusions, generics, recursion and JS private/optional receiver names.
+- `cgraph_core.d` owns native-bound caller attribution, known-name filtering, edge deduplication, Go import aliases,
+  forward/reverse views and iterative traversal. `cgraph_main.d` owns flags and the eight-worker file pipeline.
+  `callgraph_checks.py` checks 15 profiles, explicit edges/owners, traversal and CLI errors;
+  `callgraph_go_ast.go.txt` supplies the independent syntax-only Go edge reference. `callgraph_compare.py` saves
+  source/binary snapshots, AST differences and shuffled full-CLI timings under ignored build/. `CALLGRAPH_PORT.md`
+  owns graph scope, deliberate Go differences and measurement limits.
 - `fstats_main.d` owns funcstats flags, text/JSON output and deterministic eight-worker aggregation;
   `fstats_core.d` owns call counts, line/import/annotation profiles and conservative uncalled candidates;
   `fstats_walk.d` reuses the walker and adds language selection/path.Match-style exclusions.
   `funcstats_checks.py` checks all 15 profiles, CLI contracts and independent truth; `funcstats_go_ast.go.txt`
   is its Go AST reference (copied under ignored build/ to compile, never a Go package in the source tree).
   `FUNCSTATS_PORT.md` owns supported scope, deliberate differences and validation evidence.
+  `STATS_BUFFERS.md` owns scratch-reuse measurements, independent Go count scoring and allocation/GC limits.
 - `ffd_docs.d` owns doc-name validation, Go-compatible adjacent-comment/annotation rules and sorted doc output;
   `doc_checks.py` compares file/directory docs and incompatible flags against Go.
 - `ffd_tree.d` owns file function/class containment, full signatures, type/field trees and directory path trees;
@@ -48,19 +61,36 @@ The remaining three tools (`deps`, `callgraph`, `complexity`) are not implemente
 - `OPTIMIZATION_PLAN.md` owns the staged optimization plan: reuse validated function lexers/scanners/pools, propagate consumer needs, pilot JS/TS types-only, specialize other native finders, share Go C++ tokens, then profile allocations/scheduling. Independent accuracy gates apply to every stage.
 - `genvectors/` (Go) writes `ts_declaration_vectors.jsonl`: 6,000 lines with what Go's TS declaration and declarator patterns
   return, which `ffd_vectors.d` (a unit test) holds the D scanners in `../typescript_header.d` to.
-- `genconfig/` (Go) writes `ffd_config.json`, the resolved configuration of every language; `ffd_config.json` is
-  compiled into `ffd` as a string import.
+- `genconfig/` (Go) writes resolved settings as `ffd_config.json` for probes/tests and, with `-d`, immutable
+  `ffd_config_data.d` for the three CLI tools. `ffd_config_table.d` owns the restricted data kinds and allocation-free
+  binary-search lookup; object keys must stay sorted. `ffd_config.d` exposes registry/settings reads and converts only
+  selected C++/JS/TS/D settings to legacy native-parser JSONValue inputs. It never parses embedded JSON at runtime.
+  The full-data D unit check compares these tables with the JSON reference; Go tests keep both artifacts current.
+- `static_config_compare.py` compares frozen before/after CLI binaries with shuffled samples, exact result equality
+  and input/binary hash checks; it retains input snapshots and raw reports. `STATIC_CONFIG.md` records scope,
+  initialization/CLI timings, size costs and the funcstats/internal GC-sensitive regression. Its phase follow-up
+  retains instrumented frozen copies under ignored build/, separates worker wall time from overlapping file sums,
+  and measures allocations/GC separately from the primary time-only builds.
 - `build.py` builds with LDC (`--test` builds and runs the unit tests); `ffd_compare.py` compares `ffd` with the Go tool
   by key, times both and checks `ffd_deltas.json`; `ffd_deltas.json` records the accepted differences.
 - `../reuse.d` is the thread-local block reuse the finders and cleaners share.
 
 ## Local Contracts
 
+- Call graphs retain qualified calls and bare calls naming a declaration in the scanned scope. Only named native
+  functions own calls; anonymous bodies inherit that named owner. Identity remains name-based, not type-resolved.
+  Each file retains its first call-site line per caller/callee pair. Reverse queries deduplicate callers; bare
+  queries include terminal qualified names, qualified queries match exactly. File results are sorted by path.
+  Filtered JSON preserves real paths/lines and scanned-scope known-name counts; depth uses shortest-path distance.
+  Tree rendering uses explicit frames and distinguishes cycles on the path from already shown branches.
+  Validate independent edges and caller/line attribution separately from Go CLI agreement.
 - `funcstats` reuses native finder bounds and tokenization, without another declaration parser. Only
   `ScanNeeds.signatureMetadata` consumers allocate owned `FileResult.signatures`, aligned with function rows;
   ordinary discovery retains its existing `Sym` size and avoids this copy. Exclude declaration occurrences, not complete lines;
   preserve recursive/inline calls and JS arrow/anonymous-binding semantics. Identifier-use suppression is separate
-  from call suppression. Directory aggregation retains lexical depth-first walker order regardless of task completion.
+  from call suppression. CLI use-map analysis runs only for `--uncalled`; the direct `analyzeStats` API defaults to
+  collecting uses. Copy count keys only on first insertion; scratch must not escape into returned file maps.
+  Directory aggregation retains lexical depth-first walker order regardless of task completion.
 - Counts are syntactic named calls, not resolved targets; identifier conversions can count, while Go composite-type
   conversions, interface signatures and control keywords do not. Include Go generic/indexed callees. An uncalled
   name is a conservative candidate, excluding tests/entrypoints/Go implicit methods; test uses still count.
@@ -184,15 +214,20 @@ The remaining three tools (`deps`, `callgraph`, `complexity`) are not implemente
   afterwards, and the module-level patterns of `dlang_port.d` and `typescript_port.d` are `__gshared` for that reason.
   Do not configure per thread (building them in every worker cost more than parsing a small tree) and do not call a
   finder before `prepareLanguages`.
+- Registry validation, extensions, stats/callgraph profiles and documentation read immutable generated settings.
+  Do not reparse the embedded JSON or rebuild a complete configuration DOM. Native-parser adapters retain the exact
+  previous per-language JSON schema and run only for a selected backend before workers start. JSON output and
+  incremental manifest decoding still use their existing implementations; this step does not remove std.json/GC.
 - **A regex a scanner stands for is proved against Go's regexp, not against another scanner**: the D scanners for the TS
   `func_pattern`, `declaration_pattern` and `declarator_pattern` are used only while the configuration holds the pattern text
   they were written for (`js_ts_model.Config`), the regex is then not compiled, and the vectors file (made by Go's regexp,
   kept current by a Go test) must pass; the `AuditTSHeader` build also compares every call with the D regex. Regenerate with
   `go run ./benchmarks/ffd/genvectors > benchmarks/ffd/ts_declaration_vectors.jsonl` when a generator or pattern changes.
 - **`checkConfig` refuses a configuration the finders were not written for** (comment markers, delimiters, flags, the TS
-  header pattern, the JS/TS struct patterns). A `languages.json` change needs `go run ./benchmarks/ffd/genconfig >
-  benchmarks/ffd/ffd_config.json` (`go test ./benchmarks/ffd/genconfig` fails until it is done) and, if a pattern a
-  hand-written matcher stands for changed, the matcher too.
+  header pattern, the JS/TS struct patterns). A `languages.json` change needs both `go run ./benchmarks/ffd/genconfig >
+  benchmarks/ffd/ffd_config.json` and `go run ./benchmarks/ffd/genconfig -d > benchmarks/ffd/ffd_config_data.d`.
+  Go freshness tests fail until both are current. Unsupported generated value kinds must fail generation explicitly.
+  If a pattern a hand-written matcher stands for changed, update the matcher too.
 - **Memory is reused from file to file on each thread.** The source bytes, the line array, the line facts, the cleaned
   text (an arena) and the token arrays live in thread-local blocks that the next file overwrites. Therefore nothing a
   finder returns may point into them: `toSyms` and the alias/type code copy every name (`idup`), and any new result string
@@ -242,6 +277,10 @@ python benchmarks/ffd/build.py               # release build: build/ffd/ffd
 python benchmarks/ffd/build.py --tool funcstats --test
 python benchmarks/ffd/build.py --tool funcstats
 python benchmarks/ffd/funcstats_checks.py --d build/ffd/funcstats.exe --go funcstats.exe
+python benchmarks/ffd/build.py --tool callgraph --test
+python benchmarks/ffd/build.py --tool callgraph
+python benchmarks/ffd/callgraph_checks.py --d build/ffd/callgraph.exe --go callgraph.exe
+python benchmarks/ffd/callgraph_compare.py --root internal --d build/ffd/callgraph.exe --go callgraph.exe --out build/callgraph-internal
 python benchmarks/ffd/file_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/type_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/python_range_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
@@ -252,7 +291,7 @@ python benchmarks/ffd/split_checks.py --ffd build/ffd/ffd.exe --go funcfinder.ex
 python benchmarks/ffd/incremental_checks.py --ffd build/ffd/ffd.exe
 python benchmarks/ffd/raw_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/flag_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
-go test ./benchmarks/ffd/genconfig ./benchmarks/ffd/genvectors   # ffd_config.json and the vectors are current
+go test ./benchmarks/ffd/genconfig ./benchmarks/ffd/genvectors   # JSON/D config artifacts and vectors are current
 python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe --corpora-root <repo>/build --expect benchmarks/ffd/ffd_deltas.json
 ```
 

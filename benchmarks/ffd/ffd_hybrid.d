@@ -2,7 +2,7 @@ module ffd_hybrid;
 
 import ffd_model;
 import js_ts_cleaner : LineFact;
-import std.json;
+import ffd_config_table;
 import std.uni : unicode, CodepointSet;
 import std.utf : decode, UTFException;
 
@@ -210,18 +210,18 @@ private immutable string[2][] jsPatterns = [
 ];
 
 /// Throws when the language's struct patterns or type keywords are not the ones hybridTypes was written for.
-void checkStructPatterns(bool js, JSONValue cfg) {
+void checkStructPatterns(bool js, ConfigEntry cfg) {
     immutable lang = js ? "js" : "ts";
     immutable expected = js ? jsPatterns : tsPatterns;
-    auto actual = cfg["struct_patterns"].object;
-    if (actual.length != expected.length) throw new Exception(lang ~ ": the struct patterns changed: update ffd_hybrid.d");
+    auto actual = cfg["struct_patterns"];
+    if (actual.children.length != expected.length) throw new Exception(lang ~ ": the struct patterns changed: update ffd_hybrid.d");
     foreach (pair; expected) {
-        auto p = pair[0] in actual;
-        if (p is null || p.str != pair[1])
+        auto p = actual[pair[0]];
+        if (p.kind != ConfigKind.text || p.str != pair[1])
             throw new Exception(lang ~ ": the struct pattern '" ~ pair[0] ~ "' differs from the one ffd_hybrid.d implements");
     }
     string[] words;
-    foreach (w; cfg["type_keywords"].array) words ~= w.str;
+    foreach (w; cfg["type_keywords"].strings) words ~= w;
     immutable want = js ? ["class", "interface", "const", "type"] : ["class", "interface", "enum", "type"];
     if (words != want) throw new Exception(lang ~ ": the type_keywords changed: update ffd_hybrid.d");
 }

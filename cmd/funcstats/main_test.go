@@ -1,12 +1,47 @@
 package main
 
 import (
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/ruslano69/funcfinder/internal"
 )
+
+func TestCallCounts_GoParenthesizedControlExpressions(t *testing.T) {
+	src := `package sample
+func predicate() bool { return true }
+func value() int { return 1 }
+func recur(n int) int {
+    if (predicate()) { println(len(make([]byte, 1))) }
+    for (predicate()) { break }
+    switch (value()) {
+    case (value()): println("case")
+    }
+    if (n > 0) { return (recur(n - 1)) }
+    return (int(value()))
+}`
+	// Check actual Go syntax, including optional parentheses around conditions
+	// and return expressions, independently of the function finder.
+	if _, err := parser.ParseFile(token.NewFileSet(), "control.go", src, 0); err != nil {
+		t.Fatalf("invalid Go fixture: %v", err)
+	}
+	want := map[string]int{
+		"predicate": 2,
+		"value":     3,
+		"recur":     1,
+		"println":   2,
+		"len":       1,
+		"make":      1,
+		"int":       1,
+	}
+	if got := callCountsOf(t, "go", "control.go", src); !reflect.DeepEqual(got, want) {
+		t.Errorf("calls = %v, want %v (keywords excluded, real calls retained)", got, want)
+	}
+}
 
 func TestCallCounts_JavaSplitAndInlineSignatures(t *testing.T) {
 	counts := callCountsOf(t, "java", "sample.java", `class C {

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Experimental D statistics and call graphs reuse per-thread token/call scratch and index declaration occurrences only for native function names. Retained result keys remain owned; ordinary stats skip identifier-use analysis, while `--uncalled` preserves it. On the measured internal Go tree with default GC, stats improve 58.7 → 22.3 ms and graph 41.4 → 25.5 ms; file-processing allocation falls 38%. Independent Go AST count checks and ownership/measurement limits are recorded in `benchmarks/ffd/STATS_BUFFERS.md`.
+
+- D CLI tools use generated immutable language settings instead of repeatedly parsing embedded JSON. Registry/profile/documentation reads share allocation-free table lookup; existing native-parser configuration APIs receive equivalent adapters only for selected languages. Go freshness tests cover both generated artifacts, and D tests compare all settings with the JSON reference. JSON output/manifest readers and runtime settings are unchanged.
+
+- Experimental D `callgraph` adds all advertised flag names, file/directory graphs for 15 native language profiles, reverse lookup, recursion-aware trees and shortest-path depth filtering. It shares token call recognition with D `funcstats`, including JS private names and optional receivers. Filtered JSON retains source paths/lines and file mode reports actual known-name counts; these deliberate Go differences and syntax-only AST scope are recorded in `benchmarks/ffd/CALLGRAPH_PORT.md`.
+
+- Go `funcstats` excludes reserved Go keywords from call counts, including `if`, `for`, `switch`, `case` and `return` followed by parenthesized expressions. Real calls, recursion, builtins and existing type-conversion counts are preserved.
+
 - Experimental D `funcstats` adds all advertised flags, 15-language file/directory metrics, sorted call counts/top-N, exclusions and uncalled candidates using shared native lexers/finders. Declaration-token exclusion preserves recursion; Go control syntax, interface signatures and composite-type conversions are excluded, generic/indexed calls retained. Active lexer context prevents import/annotation matches inside comments/literals. Syntax-only Go AST checks and profile limits are recorded separately from CLI agreement.
 
 - Experimental D `ffd` accepts all Go boolean spellings and stops option parsing at `--` or the first positional argument. Extended CLI regressions compare actual output, repeated assignments, invalid values and parsing boundaries; D retains explicit `--struct=false` instead of Go's shorthand-preprocessor behavior.

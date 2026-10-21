@@ -1,8 +1,10 @@
 module fstats_core;
 
 import ffd_langs;
+import ffd_config : rootConfig;
 import ffd_model;
 import ffd_tokens;
+import ffd_calls : scanCalls, callWord;
 import brace_port_model : goRegex;
 import std.algorithm : canFind, sort;
 import std.array : array;
@@ -28,13 +30,14 @@ private struct Profile {
     bool hasImports, hasDecorators;
 }
 private __gshared Profile[Lang.max+1] profiles;
+private bool[] codePool, metadataPool;
 
 void prepareStats() {
-    auto languages = parseJSON(configText)["languages"];
+    auto languages = rootConfig()["languages"];
     foreach (i; 0 .. profiles.length) {
         auto cfg = languages[langKey(cast(Lang)i)];
         Profile p; p.name = cfg["name"].str;
-        foreach (v; cfg["exclude_words"].array) p.excluded ~= v.str;
+        p.excluded = cfg["exclude_words"].strings.dup;
         foreach (key; ["import_pattern", "decorator_pattern"]) {
             auto pattern = cfg[key].str;
             if (!pattern.length) continue;
@@ -57,75 +60,7 @@ private void capture(string line, Regex!char pattern, ref string[] values, ref b
     }
 }
 
-// Native coordinates identify declaration occurrences, not whole lines. An arrow's recursive call
-// on its binding line remains a use. Identifier suppression is separate from call suppression.
-private void declarations(Tokens tokens, Sym[] functions, FunctionSignature[] signatures, string lang, out bool[] names, out bool[] calls) {
-    names.length = calls.length = tokens.items.length;
-    size_t[][string] positions;
-    foreach (i,t; tokens.items) if (t.word && !t.literal) positions[t.text] ~= i;
-    foreach (fnIndex,f; functions) {
-        auto signature = fnIndex < signatures.length ? signatures[fnIndex] : FunctionSignature.init;
-        auto name = signature.name.length ? signature.name : f.name;
-        if (name.startsWith("~")) name = name[1..$];
-        int selected = -1;
-        auto candidates = name in positions;
-        if (candidates is null) continue;
-        foreach (i; *candidates) {
-            auto t = tokens.items[i];
-            if (names[i] || t.literal || t.line < f.start || t.line > f.end || t.text != name) continue;
-            if (signature.line > 0 && t.line != signature.line) continue;
-            if (lang == "py" && (i == 0 || tokens.items[i-1].text != "def")) continue;
-            bool namedKeyword = i > 0 && ["def","fun","func","fn","function","const","let","var"].canFind(tokens.items[i-1].text);
-            if (!namedKeyword && !(lang == "js" && signature.line == 0) && !callAfter(tokens,i)) continue;
-            selected = cast(int)i; break;
-        }
-        if (selected < 0) continue;
-        names[selected] = true;
-        // JS native metadata deliberately omits a signature for arrow/anonymous bindings.
-        if (lang != "js" || signature.line > 0) calls[selected] = true;
-    }
-}
-
-private bool callAfter(Tokens tokens, size_t i, bool go = false, bool python = false) {
-    auto t = tokens.items;
-    auto j = i+1;
-    if (python && j < t.length && t[j].text == "\n") return false;
-    while (j < t.length && t[j].text == "\n") ++j;
-    if (go && j < t.length && t[j].text == "[" && tokens.pairs[j] > j)
-        j = tokens.pairs[j]+1; // generic instantiation or indexed callable
-    if (j < t.length && t[j].text == "<") {
-        int depth;
-        for (; j < t.length; ++j) {
-            if (t[j].text == "<") ++depth;
-            if (t[j].text == ">" && --depth == 0) { ++j; break; }
-            if ([";","{","}"].canFind(t[j].text)) return false;
-        }
-    }
-    return j < t.length && t[j].text == "(";
-}
-
-private bool[] goNonCalls(Tokens tokens) {
-    auto t = tokens.items;
-    bool[] blocked; blocked.length = t.length;
-    int[] ranges; ranges.length = t.length+1;
-    foreach (i, token; t) {
-        if (token.text == "interface" && i+1 < t.length && t[i+1].text == "{" && tokens.pairs[i+1] > i+1) {
-            ++ranges[i+2]; --ranges[tokens.pairs[i+1]];
-        }
-        if (["if","else","for","switch","select","case","default","return","defer","go","range","break","continue","fallthrough"].canFind(token.text)) blocked[i] = true;
-        // []T(nil), [N]T(...), map[K]T(...) and chan T(...): the callable expression
-        // is a composite type, not the final identifier in that type.
-        auto before = i;
-        while (before >= 2 && t[before-1].text == "." && t[before-2].word) before -= 2;
-        while (before > 0 && t[before-1].text == "*") --before;
-        if (before > 0 && (t[before-1].text == "]" && t[before-1].line == token.line || t[before-1].text == "chan")) blocked[i] = true;
-    }
-    int depth;
-    foreach (i; 0..t.length) { depth += ranges[i]; if (depth > 0) blocked[i] = true; }
-    return blocked;
-}
-
-Stats analyzeStats(string path, Lang lang) {
+Stats analyzeStats(string path, Lang lang, bool collectUses = true) {
     import std.file : getSize;
     Stats s; s.path = path; s.language = languageName(lang);
     try {
@@ -136,22 +71,25 @@ Stats analyzeStats(string path, Lang lang) {
         auto found = analyzeSource(path,lang,source,needs);
         if (found.error.length) throw new Exception(found.error);
         s.functions = found.functions;
-        auto lines = splitLines(source).dup;
+        auto lines = splitLines(source);
         auto tokens = tokensFor(source,langKey(lang));
-        bool[] declaredNames, declaredCalls;
-        declarations(tokens,s.functions,found.signatures,langKey(lang),declaredNames,declaredCalls);
-        auto nonCalls = lang == Lang.go ? goNonCalls(tokens) : null;
-        auto code = tokens.codeLines.dup; code.length = lines.length;
-        bool[] metadata; metadata.length = lines.length;
+        auto calls = scanCalls(tokens,s.functions,found.signatures,langKey(lang),profiles[lang].excluded,false);
+        foreach (site; calls.sites) {
+            if (auto count = site.name in s.calls) ++*count;
+            else s.calls[site.name.idup] = 1;
+        }
+        auto code = zeroScratch(codePool,lines.length);
+        auto copied = code.length < tokens.codeLines.length ? code.length : tokens.codeLines.length;
+        code[0..copied] = tokens.codeLines[0..copied];
+        auto metadata = zeroScratch(metadataPool,lines.length);
         foreach (i, t; tokens.items) {
             if (t.text == "\n") continue;
             auto last = t.line + cast(int)t.text.count('\n');
             foreach (line; t.line .. last+1) if (line > 0 && line <= code.length) code[line-1] = true;
             if (!t.literal && t.line > 0 && t.line <= metadata.length) metadata[t.line-1] = true;
-            if (!t.word || t.literal) continue;
-            if (!declaredNames[i]) s.uses[t.text.idup]++;
-            if (!declaredCalls[i] && (!nonCalls.length || !nonCalls[i]) && callAfter(tokens,i,lang == Lang.go,lang == Lang.py) && !profiles[lang].excluded.canFind(t.text))
-                s.calls[t.text.idup]++;
+            if (!collectUses || !callWord(t) || t.literal || calls.declaredNames[i]) continue;
+            if (auto count = t.text in s.uses) ++*count;
+            else s.uses[t.text.idup] = 1;
         }
         bool[string] imports, decorators;
         foreach (i, line; lines) {

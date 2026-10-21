@@ -1,13 +1,15 @@
-// Command genconfig writes ffd_config.json: the resolved configuration of every language, as the D port reads it.
+// Command genconfig writes resolved language settings as JSON or immutable D tables (-d).
 //
 // The D finders were written against Go's resolved patterns ({IDENT} and {JS_IDENT} expanded), not the raw text of
 // languages.json, so the file is produced by the Go package itself. Run it after changing languages.json:
 //
 //	go run ./benchmarks/ffd/genconfig > benchmarks/ffd/ffd_config.json
+//	go run ./benchmarks/ffd/genconfig -d > benchmarks/ffd/ffd_config_data.d
 package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"regexp"
@@ -72,7 +74,12 @@ func generate() ([]byte, error) {
 }
 
 func main() {
+	staticD := flag.Bool("d", false, "write immutable D configuration tables instead of JSON")
+	flag.Parse()
 	b, err := generate()
+	if *staticD {
+		b, err = generateD()
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "genconfig:", err)
 		os.Exit(1)

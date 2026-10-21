@@ -89,10 +89,10 @@ int main(string[] args) {
         }
         prepareLanguages([lang]);
         auto results = new Stats[jobs.length];
-        if (jobs.length < 2) foreach (i,j; jobs) results[i] = analyzeStats(j.path,lang);
+        if (jobs.length < 2) foreach (i,j; jobs) results[i] = analyzeStats(j.path,lang,uncalled);
         else {
             auto pool = new TaskPool(7); scope(exit) pool.finish(true);
-            foreach (i; pool.parallel(iota(jobs.length),1)) results[i] = analyzeStats(jobs[i].path,lang);
+            foreach (i; pool.parallel(iota(jobs.length),1)) results[i] = analyzeStats(jobs[i].path,lang,uncalled);
         }
         foreach (s; results) if (s.error.length) throw new Exception("reading file: " ~ s.error);
         if (uncalled) { printUncalled(findUncalled(results,dir,lang),json); return 0; }

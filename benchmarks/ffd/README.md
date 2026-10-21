@@ -22,7 +22,24 @@ Boolean values accept `1/t/T/true/TRUE/True` and `0/f/F/false/FALSE/False`. Like
 or the first positional argument (including a lone `-`); subsequent flags are ignored. D's `--struct=false`
 disables type mode; Go's struct shorthand preprocessor instead enables it.
 That Go preprocessor also drops empty standalone arguments; D treats them as positional boundaries.
-The D `funcstats` is also available (below). Not yet: `callgraph`, `complexity`, `deps`.
+The D `funcstats` and `callgraph` are also available (below). Not yet: `complexity`, `deps`.
+
+## Generated language settings
+
+The three D tools read immutable settings compiled from `ffd_config_data.d`, with allocation-free table lookup.
+They do not parse an embedded JSON configuration at startup. Go's configuration remains the source of truth:
+
+```powershell
+go run ./benchmarks/ffd/genconfig > benchmarks/ffd/ffd_config.json
+go run ./benchmarks/ffd/genconfig -d > benchmarks/ffd/ffd_config_data.d
+go test ./benchmarks/ffd/genconfig
+```
+
+The JSON file remains a probe/test reference. Full-data unit checks preserve every setting, including null/empty
+values and escaped pattern strings. Existing native C++/JS/TS/D APIs receive adapters built only for selected
+languages; their recognition rules are unchanged. JSON result writing and incremental manifest reading remain
+separate work; this change does not remove the JSON library or Druntime.
+See [configuration measurements and limits](STATIC_CONFIG.md) for startup savings, binary size and validation.
 
 ## funcstats in D
 
@@ -44,6 +61,26 @@ and includes Go generic/indexed calls. Imports and annotations retain the config
 context. `--uncalled` counts code identifiers, including callback references and recursion, and marks exported Go names
 outside `internal`; reflection/external use is invisible. D rejects malformed options that Go silently ignores.
 Native discovery/literal/line profiles still differ: see [scope and verification](FUNCSTATS_PORT.md).
+Temporary token/call storage is reused per worker; see [allocation and CLI measurements](STATS_BUFFERS.md).
+
+## callgraph in D
+
+```powershell
+python benchmarks/ffd/build.py --tool callgraph
+build/ffd/callgraph.exe --dir src -l go --json
+build/ffd/callgraph.exe --dir src --reverse --func Read
+build/ffd/callgraph.exe --inp source.ts -l ts --func run --depth 2
+```
+
+Supports all advertised Go callgraph flag names, file/directory graphs, mixed-language scans, forced-language
+filtering, sorted JSON/text, reverse lookup and recursion-aware trees. It reuses the native finders and the
+token-based call recognition now shared with `funcstats`; there is no new declaration parser.
+
+The graph is a syntactic candidate graph: qualified calls are retained, bare calls need a known declaration name.
+Overloads and same-named functions are merged by name; this is not semantic dispatch. D deliberately retains real
+file/line provenance in filtered JSON, counts known names in file mode, and applies depth by shortest path.
+The Go AST check and 15-language smoke checks establish different levels of evidence. See
+[scope, differences and measurements](CALLGRAPH_PORT.md).
 
 ## How close to Go
 

@@ -6,7 +6,7 @@ import ffd_model;
 import std.conv : to;
 import std.exception : assumeUnique;
 import std.stdio : File;
-import std.json;
+import ffd_config;
 import std.traits : EnumMembers;
 import std.utf : validate;
 
@@ -34,14 +34,12 @@ import typescript_port;
 
 // The language registry: which finder reads which file, and the configuration each finder was written against.
 //
-// ffd_config.json (generated from languages.json by benchmarks/ffd/genconfig, so that the D finders see Go's resolved
-// patterns) is compiled into the executable. The finders carry their own frozen assumptions about the lexical
+// ffd_config_data.d is generated from Go's resolved language settings. Its immutable tables need no JSON parsing.
+// ffd_config.json remains the reference for probes and the data-equivalence unit test. The finders carry their own frozen assumptions about the lexical
 // settings; checkConfig refuses a configuration that departs from them rather than parse with the wrong rules.
 
 /// The language keys of languages.json, in sorted order (the order Go visits them in).
 enum Lang : ubyte { c, cpp, cs, d, go, java, js, kotlin, php, py, ruby, rust, scala, swift, ts }
-
-enum configText = import("ffd_config.json");
 
 string langKey(Lang l) {
     static immutable string[] keys = ["c", "cpp", "cs", "d", "go", "java", "js", "kotlin", "php", "py", "ruby", "rust", "scala", "swift", "ts"];
@@ -51,12 +49,8 @@ string langKey(Lang l) {
 /// The extension -> language table, filled once by initLanguages before any thread reads it.
 __gshared Lang[string] extToLang;
 
-private string[] getStrings(JSONValue cfg, string key) {
-    string[] r;
-    if (auto p = key in cfg.object)
-        if (p.type == JSONType.array)
-            foreach (v; p.array) r ~= v.str;
-    return r;
+private string[] getStrings(ConfigEntry cfg, string key) {
+    return cfg[key].strings.dup;
 }
 
 unittest {
@@ -84,9 +78,9 @@ unittest {
     }
 }
 
-private string getString(JSONValue cfg, string key) {
-    if (auto p = key in cfg.object) return p.type == JSONType.string ? p.str : "";
-    return "";
+private string getString(ConfigEntry cfg, string key) {
+    auto value = cfg[key];
+    return value.kind == ConfigKind.text ? value.str : "";
 }
 
 unittest {
@@ -103,10 +97,7 @@ unittest {
     assert(analyzeSource("sample.d",Lang.d,source,needs).functions == full.functions);
 }
 
-private bool getFlag(JSONValue cfg, string key) {
-    if (auto p = key in cfg.object) return p.type == JSONType.true_;
-    return false;
-}
+private bool getFlag(ConfigEntry cfg, string key) { return cfg[key].flag; }
 
 private struct Expect {
     string lineComment, blockStart, blockEnd;
@@ -138,7 +129,7 @@ private Expect expectation(Lang l) {
 
 /// Throws when cfg is not the language's configuration or differs from what its finder assumes (the lexical rules the
 /// finders were measured with: comment markers, string and character delimiters, a few mode flags).
-void checkConfig(Lang l, JSONValue cfg) {
+void checkConfig(Lang l, ConfigEntry cfg) {
     immutable key = langKey(l);
     if (cfg.getString("lang") != key) throw new Exception(key ~ ": the configuration names another language");
     if (cfg.getString("unicode_version") != unicodeVersion)
@@ -166,14 +157,13 @@ void checkConfig(Lang l, JSONValue cfg) {
 
 /// Reads the embedded configuration, checks every language and fills extToLang. Call once, before any worker runs.
 void initLanguages() {
-    auto root = parseJSON(configText);
+    auto root = rootConfig();
     if (root["unicode_version"].str != unicodeVersion)
         throw new Exception("the configuration was made for another Unicode version");
     foreach (l; EnumMembers!Lang) {
         auto cfg = root["languages"][langKey(l)];
         checkConfig(l, cfg);
-        foreach (e; cfg["extensions"].array) {
-            immutable ext = e.str;
+        foreach (ext; cfg["extensions"].strings) {
             // Only ".h" is claimed twice (C and C++); the C++ configuration gets it.
             if (auto p = ext in extToLang) {
                 if (l == Lang.cpp) *p = l;
@@ -203,26 +193,24 @@ private __gshared jm.Config[Lang.max + 1] jsConfigs;
 
 /// Builds what the finders of the given languages read: call it once, before processFiles.
 void prepareLanguages(const(Lang)[] used) {
-    auto root = parseJSON(configText);
     bool[Lang.max + 1] done;
     foreach (l; used) {
         if (done[l]) continue;
         done[l] = true;
-        auto cfg = root["languages"][langKey(l)];
         switch (l) {
             case Lang.cpp:
                 // Patterns are compiled only for what a token finder reads; C++ reads none of them in a normal run.
-                braceConfigs[l] = bm.Config(cfg, false);
+                braceConfigs[l] = bm.Config(backendConfig(langKey(l)), false);
                 break;
             case Lang.js:
-                jsConfigs[l] = jm.Config(cfg);
+                jsConfigs[l] = jm.Config(backendConfig(langKey(l)));
                 break;
             case Lang.ts:
-                jsConfigs[l] = jm.Config(cfg);
+                jsConfigs[l] = jm.Config(backendConfig(langKey(l)));
                 typescript_port.setup();
                 break;
             case Lang.d:
-                dp.configure(cfg);
+                dp.configure(backendConfig(langKey(l)));
                 break;
             default:
                 break;

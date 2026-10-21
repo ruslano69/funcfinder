@@ -8,7 +8,9 @@ Measure funcfinder on real projects using independent syntax-tree references.
 
 - `accuracy_checks.py` validates small C/C++/Kotlin/Ruby regressions with independent pinned tree-sitter grammars and explicit expected declarations. It requires a caller-supplied grammar runtime and Go/D binaries; artifacts stay under ignored `build/accuracy-fixed`.
 - `specsheet.py` compares directory maps with the Go oracle and estimates token savings.
-- `ffd/` owns experimental D `ffd` and `funcstats`: all 15 token finders, discovery/extraction/shards and statistics/call counts/uncalled candidates, with shared lexers, workers and Go/independent comparisons. Its contracts are in `ffd/AGENTS.md`. `reuse.d` holds the thread-local block reuse the finders and cleaners share.
+- `ffd/` owns experimental D `ffd`, `funcstats` and `callgraph`: all 15 token finders, discovery/extraction/shards, statistics/uncalled candidates and forward/reverse call graphs, with shared lexers, call recognition, workers and Go/independent comparisons. Its contracts are in `ffd/AGENTS.md`. `reuse.d` holds the thread-local block reuse the finders and cleaners share.
+- D CLI settings come from generated immutable tables; `ffd/genconfig` keeps the JSON probe reference and D data
+  synchronized with the canonical Go configuration. Registry reads must not reparse that embedded JSON at runtime.
 - `python_ast_eval.py` compares Python function locations and ends with Python's native AST.
 - `php_tree_eval.py` compares named PHP functions/methods, including bodyless declarations, with tree-sitter PHP.
 - `scala_d_tree_eval.py` compares Scala definitions/declarations, D functions/constructors/destructors/postblits and Java methods/constructors/annotation elements with their tree-sitter grammars (the historical filename is retained).
@@ -156,4 +158,4 @@ Measure funcfinder on real projects using independent syntax-tree references.
 ## Child DOX Index
 
 - `searchserver/` — existing search-server load harness.
-- `ffd/` — experimental D discovery (`ffd`) and statistics (`funcstats`), their shared adapters, Go references and checks — see [ffd/AGENTS.md](ffd/AGENTS.md).
+- `ffd/` — experimental D discovery (`ffd`), statistics (`funcstats`) and call graphs (`callgraph`), their shared adapters, Go references and checks — see [ffd/AGENTS.md](ffd/AGENTS.md).

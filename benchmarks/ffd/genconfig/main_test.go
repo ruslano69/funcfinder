@@ -35,3 +35,27 @@ func TestEveryLanguageIsExported(t *testing.T) {
 		}
 	}
 }
+
+func TestDConfigIsCurrent(t *testing.T) {
+	want, err := generateD()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile("../ffd_config_data.d")
+	if err != nil {
+		t.Fatal(err)
+	}
+	norm := func(b []byte) []byte { return bytes.TrimSpace(bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))) }
+	if !bytes.Equal(norm(got), norm(want)) {
+		t.Fatal("ffd_config_data.d is out of date: run `go run ./benchmarks/ffd/genconfig -d > benchmarks/ffd/ffd_config_data.d`")
+	}
+}
+
+func TestDConfigRejectsUnsupportedSchema(t *testing.T) {
+	for _, v := range []any{float64(1), []any{"text", float64(1)}} {
+		var b bytes.Buffer
+		if err := emitD(&b, "new_field", v, 0); err == nil {
+			t.Fatalf("unsupported value %v was silently accepted", v)
+		}
+	}
+}

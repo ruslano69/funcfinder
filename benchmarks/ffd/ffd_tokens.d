@@ -2,17 +2,37 @@ module ffd_tokens;
 
 import std.string : split, replace, strip, startsWith;
 import std.uni : isAlpha, isNumber;
+import reuse : Buffer;
 
 struct Token { string text; int line; bool word, literal; }
 struct Tokens { Token[] items; int[] pairs; bool[] codeLines, metadataLines; }
 
+// All returned arrays/text are scratch until the next tokensFor call on this thread.
+private Buffer!Token tokenBuffer;
+private bool[] codePool, metadataPool;
+
+private void startTokens(size_t count) {
+    tokenBuffer.data[] = Token.init; // release old text references, including an unused tail
+    tokenBuffer.clear();
+    tokenBuffer.reserve(count);
+}
+
+// Reset a consumer's thread-local primitive array without allocating for each file.
+T[] zeroScratch(T)(ref T[] pool, size_t count) {
+    if (pool.length < count) pool = new T[count + count/2 + 16];
+    auto result = pool[0..count]; result[] = T.init;
+    return result;
+}
+
 private Tokens convert(T)(T native) {
-    Tokens result; result.pairs = native.pairs.dup;
+    startTokens(native.items.length);
+    Tokens result; result.pairs = native.pairs;
     foreach (t; native.items) {
         bool literal;
         static if (__traits(hasMember, typeof(t), "literal")) literal = t.literal;
-        result.items ~= Token(t.text, t.line, t.word, literal);
+        tokenBuffer ~= Token(t.text, t.line, t.word, literal);
     }
+    result.items = tokenBuffer.data;
     return result;
 }
 
@@ -36,8 +56,10 @@ Tokens tokensFor(string source, string lang) {
             import js_ts_cleaner : Cleaner;
             import javascript_port : tokenize;
             auto lines = source.split("\n"); Cleaner cleaner; auto facts = cleaner.facts(lines); int[] pairs;
-            auto native = tokenize(lines, facts, pairs); Tokens result; result.pairs = pairs.dup;
-            foreach (t; native) result.items ~= Token(t.text,t.line+1,identifier(t.text),t.literal);
+            auto native = tokenize(lines, facts, pairs); Tokens result; result.pairs = pairs;
+            startTokens(native.length);
+            foreach (t; native) tokenBuffer ~= Token(t.text,t.line+1,identifier(t.text),t.literal);
+            result.items = tokenBuffer.data;
             return result;
         }
         default: {
@@ -54,7 +76,9 @@ Tokens tokensFor(string source, string lang) {
                 facts = cleaner.facts(lines);
             }
             // Retain line classification before finder-only directive masking.
-            Tokens result; result.codeLines.length = result.metadataLines.length = facts.length;
+            Tokens result;
+            result.codeLines = zeroScratch(codePool,facts.length);
+            result.metadataLines = zeroScratch(metadataPool,facts.length);
             foreach (i,f; facts) {
                 result.codeLines[i] = f.cleaned.strip.length != 0;
                 result.metadataLines[i] = f.startState == 0 && (result.codeLines[i] || lang == "go" && lines[i].strip.startsWith("\""));
@@ -65,9 +89,21 @@ Tokens tokensFor(string source, string lang) {
                 auto text = f.cleaned.strip;
                 if (directive || text.startsWith("#")) { directive = text.length && text[$-1] == '\\'; f.cleaned = ""; }
             }
-            auto native = tokenizeCpp(facts); result.pairs = native.pairs.dup;
-            foreach (t; native.items) result.items ~= Token(t.text,t.line+1,t.word,false);
+            auto native = tokenizeCpp(facts); result.pairs = native.pairs;
+            startTokens(native.items.length);
+            foreach (t; native.items) tokenBuffer ~= Token(t.text,t.line+1,t.word,false);
+            result.items = tokenBuffer.data;
             return result;
         }
     }
+}
+
+unittest {
+    // The neutral pool is reused across backend changes; shorter files must not retain flags/tokens.
+    foreach (lang; ["go","js","py","rust","cpp"]) {
+        auto t = tokensFor("ping()",lang);
+        assert(t.items.length && t.items[0].text == "ping" && t.items[0].line == 1);
+        assert(t.items.length == t.pairs.length);
+    }
+    assert(tokensFor("","cpp").items.length == 0);
 }

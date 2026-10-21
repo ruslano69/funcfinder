@@ -1,13 +1,13 @@
 module ffd_docs;
 
 import ffd_model;
-import ffd_langs : configText, splitLines;
+import ffd_langs : splitLines;
+import ffd_config : languageConfig;
 import std.algorithm : canFind, sort, reverse, SwapStrategy;
 import std.array : appender;
 import std.exception : enforce;
 import std.file : read;
 import std.format : format;
-import std.json : parseJSON;
 import std.string : split, strip, startsWith, endsWith;
 
 struct DocConfig { string lang, lineComment, blockStart, blockEnd; }
@@ -58,7 +58,6 @@ string[] docLines(string[] lines, int start, DocConfig cfg) {
 }
 
 string formatDocs(FileResult[] results, string[] wanted, string[] singleLines = null) {
-    auto config = parseJSON(configText)["languages"];
     auto files = results.dup; files.sort!((a,b) => a.path < b.path);
     auto out_ = appender!(char[])(); bool haveEntry;
     struct Row { string kind, name; int line; }
@@ -69,7 +68,7 @@ string formatDocs(FileResult[] results, string[] wanted, string[] singleLines = 
         foreach (c; r.classes) if (wanted.canFind(c.name)) rows ~= Row(c.kind.length ? c.kind : "class",c.name,c.start);
         foreach (a; r.aliases) if (wanted.canFind(a.name)) rows ~= Row("alias",a.name,a.line);
         if (!rows.length) continue;
-        auto cfg = config[r.lang];
+        auto cfg = languageConfig(r.lang);
         DocConfig comments = DocConfig(r.lang,cfg["line_comment"].str,cfg["block_comment_start"].str,cfg["block_comment_end"].str);
         auto lines = singleLines;
         if (lines is null) lines = splitLines(cast(string)read(r.path)).dup;

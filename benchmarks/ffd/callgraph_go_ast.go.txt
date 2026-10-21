@@ -1,0 +1,86 @@
+// Syntax-only independent reference for named Go call edges. Built under build/.
+package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "go/ast"
+    "go/parser"
+    "go/token"
+    "os"
+    "path"
+    "sort"
+    "strconv"
+)
+
+type edge struct { Caller string `json:"caller"`; Callee string `json:"callee"`; Line int `json:"line"` }
+type fileGraph struct { Path string `json:"path"`; Calls []edge `json:"calls"` }
+type graph struct { Files []fileGraph `json:"files"`; TotalCalls int `json:"total_calls"`; TotalFunctions int `json:"total_functions"` }
+
+func main() {
+    var files []string
+    if err := json.NewDecoder(os.Stdin).Decode(&files); err != nil { panic(err) }
+    sort.Strings(files)
+    fset := token.NewFileSet()
+    trees := make(map[string]*ast.File)
+    known := make(map[string]bool)
+    for _, name := range files {
+        f, err := parser.ParseFile(fset,name,nil,parser.SkipObjectResolution)
+        if err != nil { fmt.Fprintln(os.Stderr,err); os.Exit(1) }
+        trees[name] = f
+        for _, decl := range f.Decls { if fn, ok := decl.(*ast.FuncDecl); ok { known[fn.Name.Name] = true } }
+    }
+    result := graph{TotalFunctions:len(known)}
+    for _, name := range files {
+        f := trees[name]
+        aliases := make(map[string]string)
+        for _, spec := range f.Imports {
+            pkg, err := strconv.Unquote(spec.Path.Value); if err != nil { panic(err) }
+            alias := path.Base(pkg); if spec.Name != nil { alias = spec.Name.Name }
+            if alias != "." && alias != "_" { aliases[alias] = path.Base(pkg) }
+        }
+        row := fileGraph{Path:name}; seen := make(map[string]bool)
+        for _, decl := range f.Decls {
+            fn, ok := decl.(*ast.FuncDecl); if !ok || fn.Body == nil { continue }
+            ast.Inspect(fn.Body,func(node ast.Node) bool {
+                call, ok := node.(*ast.CallExpr); if !ok { return true }
+                target := call.Fun
+                for {
+                    switch v := target.(type) {
+                    case *ast.IndexExpr: target = v.X
+                    case *ast.IndexListExpr: target = v.X
+                    default: goto resolved
+                    }
+                }
+                resolved:
+                callee := ""
+                switch v := target.(type) {
+                case *ast.Ident: if known[v.Name] { callee = v.Name }
+                case *ast.SelectorExpr:
+                    // The public lexical profile keeps the immediate receiver:
+                    // cfg.reader.Read() is reader.Read, without type resolution.
+                    prefix := ""
+                    switch recv := v.X.(type) {
+                    case *ast.Ident: prefix = recv.Name
+                    case *ast.SelectorExpr: prefix = recv.Sel.Name
+                    }
+                    if prefix != "" {
+                        if alias, ok := aliases[prefix]; ok { prefix = alias }
+                        callee = prefix + "." + v.Sel.Name
+                    } else if known[v.Sel.Name] {
+                        // A computed receiver has no lexical identifier. As for
+                        // a bare call, retain only a known declaration name.
+                        callee = v.Sel.Name
+                    }
+                }
+                if callee == "" { return true }
+                key := fn.Name.Name+"\x00"+callee
+                if !seen[key] { seen[key] = true; row.Calls = append(row.Calls,edge{fn.Name.Name,callee,fset.Position(call.Pos()).Line}) }
+                return true
+            })
+        }
+        sort.Slice(row.Calls,func(i,j int) bool { if row.Calls[i].Caller != row.Calls[j].Caller { return row.Calls[i].Caller < row.Calls[j].Caller }; return row.Calls[i].Callee < row.Calls[j].Callee })
+        if len(row.Calls)>0 { result.Files=append(result.Files,row); result.TotalCalls+=len(row.Calls) }
+    }
+    if err := json.NewEncoder(os.Stdout).Encode(result); err != nil { panic(err) }
+}

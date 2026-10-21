@@ -174,6 +174,31 @@ def main():
             assert {r["name"]:r["count"] for r in obj["top_calls"]} == {"ping":1}, obj
             assert obj["total_lines"] == obj["code_lines"] + obj["comment_lines"] + obj["blank_lines"]
             checks += 1
+        private_dir = root / "private-js"
+        private_dir.mkdir()
+        private_file = private_dir / "private.js"
+        private_file.write_text("class C { #ping(){} run(){this.#ping(); external?.ping()} }\n", encoding="utf-8")
+        obj = json.loads(run(d, [private_file, "-j"]).stdout)
+        assert {r["name"]: r["count"] for r in obj["top_calls"]} == {"#ping": 1, "ping": 1}, obj
+        uses = json.loads(run(d, ["--dir", private_dir, "--uncalled", "-j"]).stdout)
+        assert "#ping" not in {c["name"] for c in uses["candidates"]}, uses
+        checks += 1
+        # Pooled token/call scratch must not corrupt retained count-map keys across files/workers.
+        pooled = root / "pooled"
+        pooled.mkdir()
+        for i in range(40):
+            repeats = 2049 if i == 0 else 257
+            (pooled / f"f{i:02d}.go").write_text(
+                f"package p\nfunc keep{i}() {{}}\nfunc dead{i}() {{" + f"keep{i}();" * repeats + "}\n")
+        obj = json.loads(run(d, ["--dir", pooled, "-j"]).stdout)
+        assert obj["total_files"] == 40
+        for row in obj["files"]:
+            i = int(pathlib.Path(row["file"]).stem[1:])
+            assert {r["name"]: r["count"] for r in row["top_calls"]} == {f"keep{i}": 2049 if i == 0 else 257}, row
+        checks += 1
+        unused = json.loads(run(d, ["--dir", pooled, "--uncalled", "-j"]).stdout)
+        assert {r["name"] for r in unused["candidates"]} == {f"dead{i}" for i in range(40)}, unused
+        checks += 1
         for args in ([], ["--uncalled"], ["missing.go"], [py,"-l","bad"], ["--dir",tree,"--exclude","["], ["--dir",tree,"--exclude","[]"], ["--dir",tree,"--exclude","[a-]"]):
             for exe in (go,d): run(exe,args,1)
             checks += 1

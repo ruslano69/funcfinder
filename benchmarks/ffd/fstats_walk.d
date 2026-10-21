@@ -1,9 +1,9 @@
 module fstats_walk;
 
 import ffd_langs;
+import ffd_config : rootConfig;
 import ffd_walk;
 import std.algorithm : canFind;
-import std.json;
 import std.regex : Regex, regex, matchFirst;
 import std.string : replace;
 import std.path : baseName, relativePath, absolutePath;
@@ -48,7 +48,7 @@ private Regex!char glob(string pattern) {
 
 Job[] statsFiles(string root, out Lang language, string forced, string[] excludes) {
     import std.file : exists, isDir, getSize;
-    auto configs = parseJSON(configText)["languages"];
+    auto configs = rootConfig()["languages"];
     if (forced.length) {
         bool valid;
         foreach (i; 0 .. Lang.max+1) if (langKey(cast(Lang)i) == forced) { language = cast(Lang)i; valid = true; }
@@ -67,7 +67,7 @@ Job[] statsFiles(string root, out Lang language, string forced, string[] exclude
         if (!best) throw new Exception("no supported files found in directory");
     }
     Regex!char[] patterns; foreach (p; excludes) patterns ~= glob(p);
-    string[] extensions; foreach (e; configs[langKey(language)]["extensions"].array) extensions ~= e.str;
+    string[] extensions; foreach (e; configs[langKey(language)]["extensions"].strings) extensions ~= e;
     Job[] result;
     foreach (j; jobs) {
         if (!extensions.canFind(fileExtension(baseName(j.path)))) continue;
