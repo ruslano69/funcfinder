@@ -18,7 +18,32 @@ tool exactly (the same files, the same "skipped N files" notice on 31 trees). Fi
 File/directory `--tree` and `--tree-full` are also supported.
 Directory JSON also supports `--split`, `--split-by dir|file`, `--out` and `--inc`.
 `--raw` controls existing function cleaners in file mode; `--help`/`-h` lists the keys.
-Not yet: `funcstats`, `callgraph`, `complexity`, `deps`.
+Boolean values accept `1/t/T/true/TRUE/True` and `0/f/F/false/FALSE/False`. Like Go, parsing stops at `--`
+or the first positional argument (including a lone `-`); subsequent flags are ignored. D's `--struct=false`
+disables type mode; Go's struct shorthand preprocessor instead enables it.
+That Go preprocessor also drops empty standalone arguments; D treats them as positional boundaries.
+The D `funcstats` is also available (below). Not yet: `callgraph`, `complexity`, `deps`.
+
+## funcstats in D
+
+```powershell
+python benchmarks/ffd/build.py --tool funcstats
+build/ffd/funcstats.exe source.go -l go -n 10
+build/ffd/funcstats.exe --dir src -j
+build/ffd/funcstats.exe --dir src --uncalled --exclude "*_test.go"
+```
+
+Supports Go's advertised `--version`, `--dir`, `-l`, `-n`, `-j`/`--json`, `--uncalled`, repeatable `--exclude`
+and `-h`/`--help`. All 15 native language profiles share the existing tokenizers and declaration finders.
+Directory language is chosen by file count (ties by language key); processing preserves sorted depth-first path
+order and respects the root `.gitignore`/hidden-file rules. Top-N ties sort by name. JSON has Go's field schema;
+text matches on controlled common profiles. JSON whitespace/key order can differ.
+
+The D call counter excludes declaration tokens, Go interface signatures/composite-type conversions/control words,
+and includes Go generic/indexed calls. Imports and annotations retain the configured patterns, gated by native lexer
+context. `--uncalled` counts code identifiers, including callback references and recursion, and marks exported Go names
+outside `internal`; reflection/external use is invisible. D rejects malformed options that Go silently ignores.
+Native discovery/literal/line profiles still differ: see [scope and verification](FUNCSTATS_PORT.md).
 
 ## How close to Go
 

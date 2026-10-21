@@ -1,5 +1,12 @@
 # TODO
 
+## D funcstats (2026-10-21)
+
+- The experimental D tool implements all advertised flags and 15 native file/directory profiles. It reuses finder bounds/signature metadata, the shared token adapter and worker/walker infrastructure. [Scope and checks](benchmarks/ffd/FUNCSTATS_PORT.md).
+- Native Go AST named-call checks cover 142 local Go files / 28,537 lines: D has zero count differences; current Go funcstats has 108 excess occurrences across 64 file/name pairs (control words, composite-type conversions, interface signatures). Correct Go separately with token-aware call-site tests instead of treating its counts as reference truth.
+- Extend independent real-project call/metric/use scoring to the remaining languages, especially operators, anonymous/indirect calls, interpolation and literal-only line classification. Import/annotation recognition still uses configured patterns after lexical filtering. These checks do not establish full grammar/semantic call resolution.
+- No funcstats speed claim yet: profile the shared finder/token passes and directory allocations before optimizing.
+
 ## C# types-only step in D (2026-10-21)
 
 - D `ffd` C# directory `--struct` skips function results/conditional output-end work while retaining recognition/body markers. Polly/Dapper warmed parser allocations fall about 6.7%; repeated parser medians improve 4–6%. Small CLI gains vary. All 2,504 existing CLI checks, 47 C# checks and 30 unit suites pass. [Report](benchmarks/ffd/CSHARP_TYPES_ONLY.md).

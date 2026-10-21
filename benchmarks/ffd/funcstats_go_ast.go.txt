@@ -1,0 +1,43 @@
+// Syntax-only reference for named call expressions; a conversion with an identifier
+// as its callee is included. Resolving functions versus types requires go/types.
+package main
+
+import (
+    "encoding/json"
+    "go/ast"
+    "go/parser"
+    "go/token"
+    "os"
+)
+
+func callName(e ast.Expr) string {
+    switch v := e.(type) {
+    case *ast.Ident: return v.Name
+    case *ast.SelectorExpr: return v.Sel.Name
+    case *ast.IndexExpr: return callName(v.X)
+    case *ast.IndexListExpr: return callName(v.X)
+    }
+    return ""
+}
+
+func main() {
+    data, err := os.ReadFile(os.Args[1]); if err != nil { panic(err) }
+    var cfg struct { Languages map[string]struct { Exclude []string `json:"exclude_words"` } `json:"languages"` }
+    if err = json.Unmarshal(data, &cfg); err != nil { panic(err) }
+    excluded := map[string]bool{}
+    for _, name := range cfg.Languages["go"].Exclude { excluded[name] = true }
+    out := map[string]map[string]int{}
+    for _, path := range os.Args[2:] {
+        file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0); if err != nil { panic(err) }
+        counts := map[string]int{}
+        ast.Inspect(file, func(node ast.Node) bool {
+            if call, ok := node.(*ast.CallExpr); ok {
+                name := callName(call.Fun)
+                if name != "" && !excluded[name] { counts[name]++ }
+            }
+            return true
+        })
+        out[path] = counts
+    }
+    if err := json.NewEncoder(os.Stdout).Encode(out); err != nil { panic(err) }
+}

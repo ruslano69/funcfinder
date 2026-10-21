@@ -302,9 +302,28 @@ private Sym[] toSyms(B)(const(B)[] bounds) {
     return o;
 }
 
-private void take(R)(ref FileResult r, R found) {
+private void take(R)(ref FileResult r, R found, bool signatureMetadata) {
     r.functions = toSyms(found.functions);
     r.classes = toSyms(found.classes);
+    if (signatureMetadata) {
+        r.signatures = new FunctionSignature[found.functions.length];
+        static if (__traits(hasMember, typeof(found.functions[0]), "signatureLine"))
+            foreach (i,b; found.functions) r.signatures[i] = FunctionSignature(b.signatureLine,b.signatureName.idup);
+    }
+}
+
+unittest {
+    initLanguages(); prepareLanguages([Lang.js]);
+    string source = "function first() { first(); }\nconst arrow = n => arrow(n);\n";
+    auto ordinary = analyzeSource("first.js",Lang.js,source);
+    assert(!ordinary.error.length && !ordinary.signatures.length);
+    ScanNeeds needs; needs.signatureMetadata = true;
+    auto consumer = analyzeSource("first.js",Lang.js,source,needs);
+    assert(!consumer.error.length && ordinary.functions == consumer.functions);
+    assert(consumer.signatures.length == consumer.functions.length);
+    assert(consumer.signatures[0] == FunctionSignature(1,"first") && consumer.signatures[1].line == 0);
+    analyzeSource("later.js",Lang.js,"function overwritten() {}\n",needs);
+    assert(consumer.signatures[0].name == "first");
 }
 
 /// Finds the functions and types of one file with the finder of its language. Errors are returned in the result.
@@ -338,13 +357,13 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
             catch (Exception) { source = to!string(bcl.runes(source)); }
         }
         final switch (lang) {
-            case Lang.kotlin: take(r, findKotlin(source)); break;
-            case Lang.php: take(r, findPHP(source)); break;
-            case Lang.py: take(r, findPython(source, true)); break;
-            case Lang.ruby: take(r, findRuby(source)); break;
-            case Lang.rust: take(r, findRust(source)); break;
-            case Lang.scala: take(r, findScala(source)); break;
-            case Lang.swift: take(r, findSwift(source)); break;
+            case Lang.kotlin: take(r, findKotlin(source), needs.signatureMetadata); break;
+            case Lang.php: take(r, findPHP(source), needs.signatureMetadata); break;
+            case Lang.py: take(r, findPython(source, true), needs.signatureMetadata); break;
+            case Lang.ruby: take(r, findRuby(source), needs.signatureMetadata); break;
+            case Lang.rust: take(r, findRust(source), needs.signatureMetadata); break;
+            case Lang.scala: take(r, findScala(source), needs.signatureMetadata); break;
+            case Lang.swift: take(r, findSwift(source), needs.signatureMetadata); break;
             case Lang.c:
             case Lang.cpp:
             case Lang.cs:
@@ -358,11 +377,11 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
                 cleaner.charLiterals = lang == Lang.go || lang == Lang.java;
                 auto facts = cleaner.facts(lines);
                 final switch (lang) {
-                    case Lang.c: take(r, findC(lines, facts)); break;
+                    case Lang.c: take(r, findC(lines, facts), needs.signatureMetadata); break;
                     case Lang.cs: {
                         bool functions = needs.functions || needs.functionContext;
                         version (FFDReferenceScan) functions = true;
-                        take(r, findCSharp(facts, functions));
+                        take(r, findCSharp(facts, functions), needs.signatureMetadata);
                         version (FFDTypeAudit) {
                             if (!functions) {
                                 auto fullNeeds = needs;
@@ -379,7 +398,7 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
                     case Lang.go: {
                         bool functions = needs.functions || needs.functionContext;
                         version (FFDReferenceScan) functions = true;
-                        take(r, findGo(facts, functions));
+                        take(r, findGo(facts, functions), needs.signatureMetadata);
                         r.aliases = findGoAliases(facts);
                         foreach (ref a; r.aliases) {
                             a.name = a.name.idup;
@@ -402,7 +421,7 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
                     case Lang.java: {
                         bool functions = needs.functions || needs.functionContext;
                         version (FFDReferenceScan) functions = true;
-                        take(r, findJava(facts, functions));
+                        take(r, findJava(facts, functions), needs.signatureMetadata);
                         version (FFDTypeAudit) {
                             if (!functions) {
                                 auto fullNeeds = needs;
@@ -424,7 +443,7 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
                         // finder starts it at the prefix (the declaration, as libclang counts it).
                         foreach (ref f; found.functions)
                             if (f.signatureLine > f.start) f.start = f.signatureLine;
-                        take(r, found);
+                        take(r, found, needs.signatureMetadata);
                         version (FFDTypeAudit) {
                             if (!functions) {
                                 auto fullNeeds = needs;
@@ -457,8 +476,8 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
                 bool native = needs.needsNative;
                 version (FFDReferenceScan) native = true; // diagnostics: original full scan, same finders
                 if (native) {
-                    if (lang == Lang.js) take(r, findJavaScript(jsConfigs[Lang.js], lines, facts));
-                    else take(r, findTypeScript(jsConfigs[Lang.ts], lines, facts));
+                    if (lang == Lang.js) take(r, findJavaScript(jsConfigs[Lang.js], lines, facts), needs.signatureMetadata);
+                    else take(r, findTypeScript(jsConfigs[Lang.ts], lines, facts), needs.signatureMetadata);
                     version (FFDScanStats) {
                         r.scanStats.nativeCalls = 1;
                         r.scanStats.functionBounds = r.functions.length;
@@ -486,7 +505,7 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
             case Lang.d: {
                 bool functions = needs.functions || needs.functionContext;
                 version (FFDReferenceScan) functions = true;
-                take(r, dp.find(splitLines(source), functions));
+                take(r, dp.find(splitLines(source), functions), needs.signatureMetadata);
                 version (FFDTypeAudit) {
                     if (!functions) {
                         auto fullNeeds = needs;
@@ -502,6 +521,7 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
         }
     } catch (Exception e) {
         r.functions = null;
+        r.signatures = null;
         r.classes = null;
         r.aliases = null;
         r.structTypes = null;

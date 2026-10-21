@@ -1,8 +1,9 @@
-"""Build ffd, the D port of funcfinder's directory run, with LDC.
+"""Build the experimental D funcfinder/funcstats tools with LDC.
 
     python benchmarks/ffd/build.py                 # release build: build/ffd/ffd[.exe]
     python benchmarks/ffd/build.py --test          # unit tests (compiled in, run before main) and exit status
     python benchmarks/ffd/build.py --out DIR --flag=-d-version=Foo
+    python benchmarks/ffd/build.py --tool funcstats [--test]
 
 LDC is taken from $LDC2, then PATH, then F:\\D\\ldc-1.43.0 (the project's Windows installation). On Windows the
 linker needs the Visual Studio x64 environment: $FFD_LDCVARS, or F:\\D\\ldcvars64.bat, is called first. ffd_config.json
@@ -60,15 +61,18 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=str(ROOT / "build" / "ffd"), help="output directory (default: build/ffd)")
     ap.add_argument("--test", action="store_true", help="build with unit tests and run them")
+    ap.add_argument("--tool", choices=("funcfinder", "funcstats"), default="funcfinder", help="D tool to build")
     ap.add_argument("--flag", action="append", default=[], help="extra ldc2 flag (repeatable)")
     a = ap.parse_args()
     out = pathlib.Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    exe = out / ("ffd-test" if a.test else "ffd")
+    name = "funcstats" if a.tool == "funcstats" else "ffd"
+    exe = out / (name + ("-test" if a.test else ""))
     if WINDOWS:
         exe = exe.with_suffix(".exe")
     flags = ["-O1", "-unittest", "-g"] if a.test else RELEASE
-    code = run([*flags, *COMMON, *a.flag, f"-of={exe}", str(HERE / "ffd_main.d")], out, "build-test" if a.test else "build")
+    main_file = "fstats_main.d" if a.tool == "funcstats" else "ffd_main.d"
+    code = run([*flags, *COMMON, *a.flag, f"-of={exe}", str(HERE / main_file)], out, "build-" + name + ("-test" if a.test else ""))
     if code:
         sys.exit(code)
     print(f"built {exe} ({exe.stat().st_size} bytes)")

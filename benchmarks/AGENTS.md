@@ -8,7 +8,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 
 - `accuracy_checks.py` validates small C/C++/Kotlin/Ruby regressions with independent pinned tree-sitter grammars and explicit expected declarations. It requires a caller-supplied grammar runtime and Go/D binaries; artifacts stay under ignored `build/accuracy-fixed`.
 - `specsheet.py` compares directory maps with the Go oracle and estimates token savings.
-- `ffd/` is the D port's file/directory executable: all 15 token finders, function/type maps with file field metadata, name selection, extraction, line ranges, raw-cleaner controls, trees, `--names`/`--doc`, directory JSON, split/incremental shards, a worker pool and comparisons with Go; its contracts are in `ffd/AGENTS.md`. `reuse.d` holds the thread-local block reuse the finders and cleaners share.
+- `ffd/` owns experimental D `ffd` and `funcstats`: all 15 token finders, discovery/extraction/shards and statistics/call counts/uncalled candidates, with shared lexers, workers and Go/independent comparisons. Its contracts are in `ffd/AGENTS.md`. `reuse.d` holds the thread-local block reuse the finders and cleaners share.
 - `python_ast_eval.py` compares Python function locations and ends with Python's native AST.
 - `php_tree_eval.py` compares named PHP functions/methods, including bodyless declarations, with tree-sitter PHP.
 - `scala_d_tree_eval.py` compares Scala definitions/declarations, D functions/constructors/destructors/postblits and Java methods/constructors/annotation elements with their tree-sitter grammars (the historical filename is retained).
@@ -156,4 +156,4 @@ Measure funcfinder on real projects using independent syntax-tree references.
 ## Child DOX Index
 
 - `searchserver/` — existing search-server load harness.
-- `ffd/` — the D port's file/directory executable (`ffd`), its Go config generator and comparison tools — see [ffd/AGENTS.md](ffd/AGENTS.md).
+- `ffd/` — experimental D discovery (`ffd`) and statistics (`funcstats`), their shared adapters, Go references and checks — see [ffd/AGENTS.md](ffd/AGENTS.md).

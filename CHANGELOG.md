@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Experimental D `funcstats` adds all advertised flags, 15-language file/directory metrics, sorted call counts/top-N, exclusions and uncalled candidates using shared native lexers/finders. Declaration-token exclusion preserves recursion; Go control syntax, interface signatures and composite-type conversions are excluded, generic/indexed calls retained. Active lexer context prevents import/annotation matches inside comments/literals. Syntax-only Go AST checks and profile limits are recorded separately from CLI agreement.
+
+- Experimental D `ffd` accepts all Go boolean spellings and stops option parsing at `--` or the first positional argument. Extended CLI regressions compare actual output, repeated assignments, invalid values and parsing boundaries; D retains explicit `--struct=false` instead of Go's shorthand-preprocessor behavior.
+
 - Experimental D `ffd` omits unused C# method results and conditional expression-end work for directory `--struct`, retaining body/scope recognition. Polly/Dapper parser allocations fall about 6.7% and parser medians improve 4–6%. Roslyn reference output now exposes nominal types and explicit post-attribute function headers; existing bodyless-type/start limitations remain separately recorded.
 
 - Experimental D `ffd` omits unused Java method/constructor results for directory `--struct`, retaining local/anonymous-class scope traversal. Warmed parser allocations fall 40.6% on Gson; parser medians improve about 4%, with a small full-CLI effect. Independent grammar checks retain exact method/type spans.

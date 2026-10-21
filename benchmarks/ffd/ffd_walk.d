@@ -39,13 +39,14 @@ private string joinPath(string dir, string name) {
     return dir.endsWith(dirSeparator) ? dir ~ name : dir ~ dirSeparator ~ name;
 }
 
-private void walk(string dir, string rel, bool recursive, IgnoreMatcher matcher, ref Collected c) {
+private void walk(string dir, string rel, bool recursive, IgnoreMatcher matcher, ref Collected c, bool walkOrder) {
     DirEntry[] entries;
     try {
         entries = dirEntries(dir, SpanMode.shallow, false).array;
     } catch (Exception) {
         return; // a directory that cannot be read is skipped, as the Go walk skips it
     }
+    if (walkOrder) entries.sort!((a,b) => baseName(a.name) < baseName(b.name));
     foreach (ref e; entries) {
         immutable name = baseName(e.name);
         immutable relPath = rel == "." ? name : rel ~ "/" ~ name;
@@ -54,7 +55,7 @@ private void walk(string dir, string rel, bool recursive, IgnoreMatcher matcher,
         if (name.length > 0 && name[0] == '.' && name != ".gitignore") continue;
         immutable path = joinPath(dir, name);
         if (isDir) {
-            if (recursive) walk(path, relPath, recursive, matcher, c);
+            if (recursive) walk(path, relPath, recursive, matcher, c, walkOrder);
             continue;
         }
         immutable ext = fileExtension(name);
@@ -73,11 +74,11 @@ private void walk(string dir, string rel, bool recursive, IgnoreMatcher matcher,
 }
 
 /// The source files under root. Paths are cleaned as filepath.Join cleans them.
-Collected collectFiles(string root, bool recursive, bool useGitignore) {
+Collected collectFiles(string root, bool recursive, bool useGitignore, bool walkOrder = false) {
     Collected c;
     auto matcher = useGitignore ? new IgnoreMatcher(root) : null;
     if (matcher !is null && matcher.matches(".", true)) return c;
-    walk(buildNormalizedPath(root), ".", recursive, matcher, c);
+    walk(buildNormalizedPath(root), ".", recursive, matcher, c, walkOrder);
     return c;
 }
 

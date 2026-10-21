@@ -46,7 +46,7 @@ private struct Options {
     string[] given;
 }
 
-/// Go's flag package accepts -name, --name, -name=value and --name value; bool flags take only the first forms.
+/// Go's flag syntax; parsing stops at -- or the first positional argument.
 private bool parseArgs(string[] args, ref Options o, ref string error) {
     static immutable boolFlags = ["raw", "inc", "split", "tree", "tree-full", "all", "struct", "names", "json", "no-gitignore", "recursive", "version", "map", "extract", "timing", "timing-alloc"];
     static immutable valueFlags = ["split-by", "out", "dir", "workers", "inp", "source", "func", "lines", "type", "doc"];
@@ -55,8 +55,7 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
     for (size_t i = 1; i < args.length; ++i) {
         string a = args[i];
         if (!a.startsWith("-") || a == "-" || a == "--") {
-            error = "unexpected argument " ~ a;
-            return false;
+            break; // Like flag.Parse: trailing arguments are not options.
         }
         a = a[a.startsWith("--") ? 2 : 1 .. $];
         string name = a, value;
@@ -89,8 +88,8 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
         } else if (isBool || unsupportedB) {
             bool b = true;
             if (hasValue) {
-                if (value == "true" || value == "1") b = true;
-                else if (value == "false" || value == "0") b = false;
+                if (value == "true" || value == "True" || value == "TRUE" || value == "t" || value == "T" || value == "1") b = true;
+                else if (value == "false" || value == "False" || value == "FALSE" || value == "f" || value == "F" || value == "0") b = false;
                 else {
                     error = "invalid boolean value \"" ~ value ~ "\" for -" ~ name;
                     return false;

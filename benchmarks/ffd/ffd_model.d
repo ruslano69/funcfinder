@@ -14,6 +14,8 @@ struct Sym {
     Field[] fields; // file type output only
 }
 
+struct FunctionSignature { int line; string name; }
+
 struct Field { string name, type; int line; }
 
 /// A Go type alias: `type name = target`, listed apart from the types.
@@ -32,6 +34,7 @@ struct ScanNeeds {
     bool structTypes = true;
     bool details;
     bool useRaw;
+    bool signatureMetadata; // call-site consumers only; ordinary discovery does not allocate it
 
     static ScanNeeds directory(Mode mode, bool details = false) {
         ScanNeeds needs;
@@ -59,6 +62,7 @@ struct FileResult {
     string path;
     string lang;
     Sym[] functions;
+    FunctionSignature[] signatures; // optional, aligned with functions; never serialized
     Sym[] classes;
     Alias[] aliases;
     Sym[] structTypes;     // JavaScript and TypeScript: the types of Go's struct finder (ffd_hybrid)

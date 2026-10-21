@@ -3,14 +3,16 @@
 ## Purpose
 
 `ffd` is the D port of funcfinder's file and directory discovery: one executable with the token finders of all 15
-languages (`../*_port.d`). It is experimental: production stays Go, and CI runs only the `genconfig` Go test.
+languages (`../*_port.d`). This folder also builds the experimental D `funcstats`. Production stays Go,
+and CI runs only the `genconfig` Go test.
 Directory mode covers `--dir [--all|--struct] [--json]`, `--workers`, `--recursive`, `--no-gitignore` and `--timing`.
 File mode covers function maps/selection/extraction/JSON, type maps/`--type` selection/extraction/JSON (`--struct`),
 combined output (`--all`) and standalone/parsed `--lines`. `--names` lists file/directory declarations;
 `--doc Name,Other` prints adjacent comments and the first source line. `--tree`/`--tree-full` format file declarations
 or directory paths. Directory `--json --split [--split-by dir|file] [--out PATH] [--inc]` writes shards and a manifest.
 File `--raw` exposes the existing function-cleaner raw-string controls; `--help`/`-h` lists supported keys.
-The other four tools are not implemented.
+`funcstats` covers single-file/directory statistics, call counts/top-N, exclusions and uncalled candidates.
+The remaining three tools (`deps`, `callgraph`, `complexity`) are not implemented in D.
 
 ## Ownership
 
@@ -25,6 +27,14 @@ The other four tools are not implemented.
   range adjustment reports; `python_range_checks.py` compares the Python range CLI with Go.
 - `ffd_fields.d` derives direct-member field metadata from the existing native tokenizers; `field_checks.py` verifies
   explicit field truth for all 15 language profiles and simple Go parity. `ffd_model.Field` owns name/type/line values.
+- `ffd_tokens.d` is the shared neutral token adapter for fields and statistics; reuse existing native lexers and
+  retain C-family code/metadata line masks before finder-only directive masking. Its text is borrowed scratch.
+- `fstats_main.d` owns funcstats flags, text/JSON output and deterministic eight-worker aggregation;
+  `fstats_core.d` owns call counts, line/import/annotation profiles and conservative uncalled candidates;
+  `fstats_walk.d` reuses the walker and adds language selection/path.Match-style exclusions.
+  `funcstats_checks.py` checks all 15 profiles, CLI contracts and independent truth; `funcstats_go_ast.go.txt`
+  is its Go AST reference (copied under ignored build/ to compile, never a Go package in the source tree).
+  `FUNCSTATS_PORT.md` owns supported scope, deliberate differences and validation evidence.
 - `ffd_docs.d` owns doc-name validation, Go-compatible adjacent-comment/annotation rules and sorted doc output;
   `doc_checks.py` compares file/directory docs and incompatible flags against Go.
 - `ffd_tree.d` owns file function/class containment, full signatures, type/field trees and directory path trees;
@@ -46,6 +56,19 @@ The other four tools are not implemented.
 
 ## Local Contracts
 
+- `funcstats` reuses native finder bounds and tokenization, without another declaration parser. Only
+  `ScanNeeds.signatureMetadata` consumers allocate owned `FileResult.signatures`, aligned with function rows;
+  ordinary discovery retains its existing `Sym` size and avoids this copy. Exclude declaration occurrences, not complete lines;
+  preserve recursive/inline calls and JS arrow/anonymous-binding semantics. Identifier-use suppression is separate
+  from call suppression. Directory aggregation retains lexical depth-first walker order regardless of task completion.
+- Counts are syntactic named calls, not resolved targets; identifier conversions can count, while Go composite-type
+  conversions, interface signatures and control keywords do not. Include Go generic/indexed callees. An uncalled
+  name is a conservative candidate, excluding tests/entrypoints/Go implicit methods; test uses still count.
+  Configured import/annotation patterns remain the measurement profile, gated by active lexer lines to reject
+  comments/literal contents. Native literal-only line classifications can differ from Go; document these limits.
+- `build.py --tool funcstats [--test]` writes `funcstats` or `funcstats-test` (with `.exe` on Windows) under its output folder;
+  the default tool/output stays `ffd`. Unknown/missing funcstats options and malformed `-n` fail explicitly;
+  do not imitate Go's silent ignore/coercion. JSON schema/values match on common profiles; whitespace/key order may differ.
 - `ScanNeeds` carries consumer requirements before analysis. Defaults preserve full scans. Directory JS/TS `--struct`
   skips native discovery only when functions, ownership context and native types are unneeded; reuse the existing
   cleaner/hybrid scanner. D requests may skip function work after shared preparation/class discovery in
@@ -76,6 +99,11 @@ The other four tools are not implemented.
   Extraction still uses original lines. No new declaration parser or raw source rewrite is allowed.
 - Help goes to stderr with exit 0 for `--help`/`-h`; list Go's keys plus D's timing extensions and actual D worker
   defaults. Advertised key names/types must match parser support. Flag coverage is distinct from grammar/output parity.
+- Boolean values accept Go's exact spellings: `1/t/T/true/TRUE/True` and `0/f/F/false/FALSE/False`.
+  Parsing stops at `--`, `-` or the first positional argument; later flags are ignored, including incompatible
+  explicitly false flags. A string flag still consumes its following value even when it is `--`.
+  D retains explicit boolean `--struct=false`; Go's struct shorthand preprocessor instead enables that mode.
+  That Go preprocessor also discards empty standalone arguments; D treats them as positional boundaries.
 - Split output requires directory JSON; defaults are `--split-by dir` and `--out .codemap`. Shard keys are paths
   relative to the scan root, flattened like Go; reject distinct keys sharing a filename and `manifest.json` collisions
   before output mutation. Manifest v1.0 fields, counts, empty_shards and FNV-1a 128 checksums match default Go builds
@@ -211,6 +239,9 @@ finder adds kinds the D finders do not list). The exact counts are in `ffd_delta
 ```bash
 python benchmarks/ffd/build.py --test        # unit tests of all modules, compiled in
 python benchmarks/ffd/build.py               # release build: build/ffd/ffd
+python benchmarks/ffd/build.py --tool funcstats --test
+python benchmarks/ffd/build.py --tool funcstats
+python benchmarks/ffd/funcstats_checks.py --d build/ffd/funcstats.exe --go funcstats.exe
 python benchmarks/ffd/file_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/type_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/python_range_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
@@ -246,7 +277,12 @@ python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe
   output with fresh D scans; verify unchanged shard bytes and mtimes.
 - Raw checks cover acceptance/output across 15 languages, meaningful Go/C#/JS/TS literal effects, D's unchanged
   preprocessing, combined JSON, ranges, original extraction, output priorities and invalid flags. Key checks cover
-  every Go help key/type, D timing extensions, accepted bool/value spellings and help aliases.
+  every Go help key/type, D timing extensions, all boolean spellings/invalid values, help aliases, real output state,
+  repeated boolean assignments and argument boundaries. Keep the Go struct-preprocessor exception explicit.
+- Funcstats checks require Go on PATH to compile the independent AST reference into ignored build/. Verify call
+  and use truth, recursion/split headers/JS bindings, all 15 text/JSON profiles, metrics, imports/annotations, top-N,
+  deterministic aggregation, ignore/exclusion globs, test/internal rules, Unicode/CRLF/invalid UTF-8 and long lines.
+  Real-project AST scoring remains separate from these fixtures; syntax-only calls are not semantic call resolution.
 
 ## Child DOX Index
 
