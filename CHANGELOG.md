@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Experimental D `ffd` omits unused C# method results and conditional expression-end work for directory `--struct`, retaining body/scope recognition. Polly/Dapper parser allocations fall about 6.7% and parser medians improve 4–6%. Roslyn reference output now exposes nominal types and explicit post-attribute function headers; existing bodyless-type/start limitations remain separately recorded.
+
 - Experimental D `ffd` omits unused Java method/constructor results for directory `--struct`, retaining local/anonymous-class scope traversal. Warmed parser allocations fall 40.6% on Gson; parser medians improve about 4%, with a small full-CLI effect. Independent grammar checks retain exact method/type spans.
 
 - Experimental D `ffd` skips function recognition/results for Go-source directory `--struct`, retaining local/grouped types and alias handling. Warmed parser allocations fall 55–81% on gin/encoding-json; no consistent full-CLI speedup is established. Native Go AST checks retain exact function/type spans.

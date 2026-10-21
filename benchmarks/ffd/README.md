@@ -201,4 +201,5 @@ Directory D `--struct` also skips function work after shared preparation; see [m
 Directory C++ `--struct` omits function results while retaining boundary recognition; [allocation savings and timing limits](CPP_TYPES_ONLY.md).
 Directory Go `--struct` skips function recognition while retaining local types/aliases; [native AST checks and allocation measurements](GO_TYPES_ONLY.md).
 Directory Java `--struct` omits method/constructor results while retaining local/anonymous scopes; [grammar checks and measurements](JAVA_TYPES_ONLY.md).
+Directory C# `--struct` omits method results/conditional output-end work while retaining body markers; [Roslyn checks and measurements](CSHARP_TYPES_ONLY.md).
 Directory modes and their known key differences are described in [AGENTS.md](AGENTS.md).

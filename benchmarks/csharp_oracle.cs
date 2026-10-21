@@ -21,6 +21,17 @@ foreach (var path in JsonSerializer.Deserialize<string[]>(File.ReadAllText(args[
     var errors = tree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error)
         .Select(d => d.ToString()).ToArray();
     var functions = new List<object>();
+    var classes = new List<object>();
+    foreach (var node in root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>())
+    {
+        // Attribute/modifier starts belong to the declaration. For body types,
+        // exclude an optional trailing semicolon from the neutral body extent.
+        bool bodyless = node.CloseBraceToken.RawKind == 0 || node.CloseBraceToken.IsMissing;
+        classes.Add(new { name = node.Identifier.ValueText, start = Line(node.SpanStart),
+            name_line = Line(node.Identifier.SpanStart),
+            end = Line((bodyless ? node.Span.End : node.CloseBraceToken.Span.End) - 1),
+            bodyless, node_type = node.Kind().ToString() });
+    }
     foreach (var node in root.DescendantNodes())
     {
         SyntaxToken name;
@@ -49,13 +60,17 @@ foreach (var path in JsonSerializer.Deserialize<string[]>(File.ReadAllText(args[
                 bodyless = n.Body == null && n.ExpressionBody == null; break;
             default: continue;
         }
-        functions.Add(new { name = label, start = Line(node.SpanStart), name_line = Line(name.SpanStart),
+        var attributes = node.ChildNodes().OfType<AttributeListSyntax>().ToArray();
+        var headerToken = attributes.Length == 0 ? default
+            : node.DescendantTokens().FirstOrDefault(t => t.SpanStart >= attributes[^1].Span.End);
+        int headerStart = headerToken.RawKind == 0 ? node.SpanStart : headerToken.SpanStart;
+        functions.Add(new { name = label, start = Line(node.SpanStart), header_start = Line(headerStart), name_line = Line(name.SpanStart),
             end = Line(node.Span.End - 1), bodyless, node_type = node.Kind().ToString() });
     }
     var inactive = root.DescendantTrivia(descendIntoTrivia: true)
         .Where(t => t.IsKind(SyntaxKind.DisabledTextTrivia) && t.Span.Length > 0)
         .Select(t => new[] { Line(t.SpanStart), Line(t.Span.End - 1) }).ToArray();
-    files.Add(new { path, functions, errors, inactive });
+    files.Add(new { path, functions, classes, errors, inactive });
 }
 Console.WriteLine(JsonSerializer.Serialize(new {
     roslyn_version = typeof(CSharpSyntaxTree).Assembly.GetName().Version!.ToString(),

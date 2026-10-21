@@ -16,7 +16,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 - `ts_tree_eval.py` compares TypeScript functions, methods, signatures and variable-bound functions with tree-sitter-typescript.
 - `js_tree_eval.py` compares JavaScript named declarations/expressions, generators, literal methods and directly bound anonymous variable functions/arrows with tree-sitter-javascript. `JAVASCRIPT_FIX.md` records the profile, pinned corpora and before/after results.
 - `cpp_tree_eval.py` compares C++ functions, constructors, destructors and bodyless declarations with libclang, keeping only the active lines of `g++ -E`.
-- `csharp_roslyn_eval.py` builds `csharp_oracle.cs` against the installed SDK's Roslyn assemblies and compares C# named methods, constructors/destructors, local functions and operators, including bodyless declarations.
+- `csharp_roslyn_eval.py` builds `csharp_oracle.cs` against the selected SDK's Roslyn assemblies and compares C# named methods, constructors/destructors, local functions and operators, including bodyless declarations. The oracle additionally emits nominal `classes` and function `header_start` after attributes, retaining full `start` spans.
 - `csharp_traversal_compare.py` compares production linear scope traversal with the test-only recursive prototype through a Go overlay; it records source/binary size, in-process timing/allocations, complete CLI output equality and Roslyn results for both builds.
 - `brace_pilot_build.py` builds and tests the shared C#/Java/D recursive pilot through a Go overlay, recording source/binary hashes and test/vet logs. `BRACE_PILOT.md` describes the pilot, scope and independent corpus results.
 - `d_traversal_compare.py` measures the full production D parser versus the verified shared recursive pilot: serial parsing/allocations on preloaded tracked D files and paired complete directory CLI runs. Raw samples and maps stay under its ignored work directory.
@@ -39,6 +39,12 @@ Measure funcfinder on real projects using independent syntax-tree references.
 - `searchserver/` contains the existing search-server load harness.
 
 ## Local Contracts
+
+- `findCSharp(facts, includeFunctions = true)` retains function recognition/end checks and body markers for type
+  traversal. Type-only requests may omit result rows, conditional ranges and expression-alternative output ends.
+  Roslyn types include class/struct/interface/enum/record declarations, with full attribute/modifier starts and body
+  closing-brace ends (syntax ends for bodyless types). Keep delegate/alias scope and inactive rows explicit. Function
+  `start` remains the full Roslyn span; additive `header_start` normalizes the existing attribute-skipping convention.
 
 - `findJava(facts, includeFunctions = true)` controls method/constructor-result emission. Type-only requests retain
   recognition/end scans/scope traversal for local/anonymous classes, records and enum members. Preserve default full

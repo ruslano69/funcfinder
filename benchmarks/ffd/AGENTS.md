@@ -52,7 +52,8 @@ The other four tools are not implemented.
   `dlang_port.find`. C++ may omit function results/header starts but retains boundary recognition/body skipping in
   `findCppTokens`. Go may skip function recognition/results in `findGo` while retaining whole-input type traversal
   and alias discovery/separation. Java may omit method/constructor results while retaining recognition/scope traversal;
-  other backends retain full scans until verified. File fields retain ownership context.
+  C# may omit method results and conditional output-end work while preserving recognition/body markers. Other
+  backends retain full scans until verified. File fields retain ownership context.
   `FFDReferenceScan`, `FFDTypeAudit` and `FFDScanStats` are build-time diagnostics, not CLI flags; exclude them from
   release timings. Audit compares complete type bounds/kinds/order. `TYPES_ONLY_PILOT.md` owns measured results;
   `types_only_checks.py` checks frozen output, independent fixture AST names/lines and audit behavior.
@@ -64,6 +65,8 @@ The other four tools are not implemented.
   `go_types_only_checks.py` covers native AST fixture truth, aliases and complete type/context audits.
   `JAVA_TYPES_ONLY.md` records Java allocation/timing and independent grammar results;
   `java_types_only_checks.py` checks fixture AST truth, preserved local/anonymous scopes and complete type audits.
+  `CSHARP_TYPES_ONLY.md` records C# measurements/Roslyn accuracy limits; `csharp_types_only_checks.py` checks types,
+  conditional raw-scope unions and complete context audits. Its reference uses the local SDK under ignored build/.
 
 - `--raw` controls function parsing, not output serialization. Pass it only to the existing Go/C#/JS/TS cleaners;
   retain the single token finder per language. D/Java/Python and the standalone native token lexers retain their

@@ -359,7 +359,23 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
                 auto facts = cleaner.facts(lines);
                 final switch (lang) {
                     case Lang.c: take(r, findC(lines, facts)); break;
-                    case Lang.cs: take(r, findCSharp(facts)); break;
+                    case Lang.cs: {
+                        bool functions = needs.functions || needs.functionContext;
+                        version (FFDReferenceScan) functions = true;
+                        take(r, findCSharp(facts, functions));
+                        version (FFDTypeAudit) {
+                            if (!functions) {
+                                auto fullNeeds = needs;
+                                fullNeeds.functions = true;
+                                fullNeeds.details = false;
+                                auto reference = analyzeSource(path,lang,source,fullNeeds);
+                                assert(!reference.error.length && r.classes == reference.classes,
+                                    "C# types-only bounds/kind/order changed: " ~ path);
+                                assert(!r.functions.length);
+                            }
+                        }
+                        break;
+                    }
                     case Lang.go: {
                         bool functions = needs.functions || needs.functionContext;
                         version (FFDReferenceScan) functions = true;

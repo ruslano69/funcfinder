@@ -91,8 +91,10 @@ int functionEnd(Token[] t,int[] p,int close,out int body) {
 struct Conditional {int start,end;}
 Conditional[] conditionals(LineFact[] fs) {int[] stack;Conditional[] result;foreach(line,f;fs){auto text=f.cleaned.strip;if(text.startsWith("#if ") || text.startsWith("#if\t"))stack~=cast(int)line;else if(text.startsWith("#endif") && stack.length){result~=Conditional(stack[$-1],cast(int)line);stack.length--;}}return result;}
 int expressionAlternatives(Token[] t,int[] p,int close,int end,Conditional[] ranges) {foreach(span;ranges){if(span.start<=t[close].line || span.start>t[end].line || span.end<=t[end].line)continue;for(auto i=end+1;i<t.length && t[i].line<span.end;++i){if(t[i].text==";")end=i;else if(["(","[","{"].canFind(t[i].text) && p[i]>i)i=p[i];}}return end;}
-Result findCSharp(LineFact[] facts) {
-    Token[] t;int[] p;tokenize(facts,t,p);auto ranges=conditionals(facts);Result result;
+// Function recognition marks body boundaries used by type traversal. Preserve
+// that context; conditional expression ends and result rows are output-only.
+Result findCSharp(LineFact[] facts,bool includeFunctions = true) {
+    Token[] t;int[] p;tokenize(facts,t,p);auto ranges=includeFunctions?conditionals(facts):null;Result result;
     struct ClassScope {string name;int end;}
     ClassScope[] classes;auto boundaries=new int[t.length];auto blocks=new bool[t.length];int boundary;
     for(int i=0;i<t.length;++i){while(classes.length && classes[$-1].end<i)classes.length--;
@@ -103,11 +105,22 @@ Result findCSharp(LineFact[] facts) {
                 boundary=i+1;break;
             case "}":auto open=p[i];if(open>=0 && !blocks[open])boundary=boundaries[open];else boundary=i+1;break;
             case ";":boundary=i+1;break;
-            case "(":if(p[i]<i)break;auto cls=classes.length?classes[$-1].name:"";int start;auto name=functionName(t,p,boundary,i,cls,start);if(!name.length)break;int body;auto end=functionEnd(t,p,p[i],body);if(end<i)break;if(body<0)end=expressionAlternatives(t,p,p[i],end,ranges);
-                result.functions~=Bounds(name,t[start].line+1,t[end].line+1,cls,t[i-1].line+1,unescape(t[i-1].text));
+            case "(":if(p[i]<i)break;auto cls=classes.length?classes[$-1].name:"";int start;auto name=functionName(t,p,boundary,i,cls,start);if(!name.length)break;int body;auto end=functionEnd(t,p,p[i],body);if(end<i)break;
+                if(includeFunctions){if(body<0)end=expressionAlternatives(t,p,p[i],end,ranges);
+                    result.functions~=Bounds(name,t[start].line+1,t[end].line+1,cls,t[i-1].line+1,unescape(t[i-1].text));}
                 if(body>=0){blocks[body]=true;i=body-1;}else{i=p[i];boundary=i+1;}break;
             default:break;
         }
     }
     return result;
+}
+
+unittest {
+    import brace_port_cleaner : Cleaner;
+    import std.array : split;
+    Cleaner cleaner;cleaner.csharp=true;
+    auto facts=cleaner.facts(("class C {\n struct Nested {}\n void Method() { int Local() => 1; }\n int Other() =>\n#if FEATURE\n 1;\n#else\n 2;\n#endif\n}\n").split("\n"));
+    auto full=findCSharp(facts),types=findCSharp(facts,false);
+    assert(full.classes == types.classes && types.classes.length == 2);
+    assert(full.functions.length == 3 && !types.functions.length);
 }

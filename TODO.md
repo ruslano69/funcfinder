@@ -1,10 +1,17 @@
 # TODO
 
+## C# types-only step in D (2026-10-21)
+
+- D `ffd` C# directory `--struct` skips function results/conditional output-end work while retaining recognition/body markers. Polly/Dapper warmed parser allocations fall about 6.7%; repeated parser medians improve 4–6%. Small CLI gains vary. All 2,504 existing CLI checks, 47 C# checks and 30 unit suites pass. [Report](benchmarks/ffd/CSHARP_TYPES_ONLY.md).
+- Roslyn 5.0.0.0/SDK 10.0.100 independently matches all 6,708 active named functions, with correct ends and explicit post-attribute header starts, on 958 accepted files. Full declaration starts remain available; 3,461 raw start differences are the existing attribute convention. Raw inactive rows are analysis-scope differences.
+- Nominal types match 933/950 on Polly and 424/427 on Dapper, unchanged before/after. All 20 misses are legal bodyless declarations; two Polly starts include inactive conditional attributes. Fix those separately with Roslyn regressions, preserving scope/field behavior. Local SDK and evidence stay under `build/csharp-types-only/`; temporary clones are removed.
+- First native D/C++/Go/Java/C# group is complete. Prioritize remaining languages by profiles; Go C++ token reuse and remaining allocation sources stay planned.
+
 ## Java-language types-only step in D (2026-10-21)
 
 - D `ffd` Java-source directory `--struct` omits method/constructor results while preserving recognition/end scans and local/anonymous scope traversal. Gson warmed parser allocations fall 40.6%, repeated parser medians improve about 4%; full CLI changes are small (about 2% serial, near zero at eight workers). [Report](benchmarks/ffd/JAVA_TYPES_ONLY.md).
 - Independent tree-sitter Java grammar matches all 767 named types and 3,492 methods/constructors/elements with exact names/starts/ends on 264 accepted files, without exclusions. All 2,504 existing CLI checks, 42 Java checks and 29 unit suites pass. Shared modules/other language finders are unchanged.
-- Next: C# consumer specialization with independent reference checks.
+- Java shared modules/other language finders remain unchanged by that step.
 
 ## Go-language types-only step in D (2026-10-21)
 
