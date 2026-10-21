@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -8,7 +9,7 @@ import (
 	"github.com/ruslano69/funcfinder/internal"
 )
 
-// editRequest is the input shared by --replace-func and --add-after.
+// editRequest is the input shared by the function edit commands.
 type editRequest struct {
 	inp, source, name string
 	line              int
@@ -25,7 +26,7 @@ func handleReplaceFunc(config internal.Config, req editRequest) {
 	if err != nil {
 		internal.FatalError("%v", err)
 	}
-	report(req, res, fmt.Sprintf("%s: lines %d-%d", req.name, res.Start, res.End))
+	report(req, src, res, fmt.Sprintf("%s: lines %d-%d", req.name, res.Start, res.End))
 }
 
 // handleAddAfter inserts the functions read from withPath after the named function.
@@ -35,7 +36,7 @@ func handleAddAfter(config internal.Config, req editRequest) {
 	if err != nil {
 		internal.FatalError("%v", err)
 	}
-	report(req, res, fmt.Sprintf("new function(s) after %s (line %d)", req.name, res.End))
+	report(req, src, res, fmt.Sprintf("new function(s) after %s (line %d)", req.name, res.End))
 }
 
 // handleRemoveFunc deletes the named function from the file.
@@ -45,10 +46,12 @@ func handleRemoveFunc(config internal.Config, req editRequest) {
 	if err != nil {
 		internal.FatalError("%v", err)
 	}
-	report(req, res, fmt.Sprintf("%s: lines %d-%d", req.name, res.Start, res.End))
+	report(req, src, res, fmt.Sprintf("%s: lines %d-%d", req.name, res.Start, res.End))
 }
 
-// loadEdit reads the language, the file and, unless kind is "remove", the new text. Only "replace" takes --old.
+// loadEdit reads the new text first and the file after it, so the file is as it is when the edit is prepared, not
+// as it was before a long wait on standard input. Unless kind is "remove", it reads the new text; only "replace"
+// takes --old.
 func loadEdit(config internal.Config, req editRequest, kind string) (*internal.LanguageConfig, []byte, []byte, []byte) {
 	if req.inp == "" {
 		internal.FatalError("this edit requires --inp")
@@ -66,10 +69,6 @@ func loadEdit(config internal.Config, req editRequest, kind string) (*internal.L
 	if err != nil {
 		internal.FatalError("%v", err)
 	}
-	src, err := os.ReadFile(req.inp)
-	if err != nil {
-		internal.FatalError("reading %s: %v", req.inp, err)
-	}
 	var replacement []byte
 	if kind != "remove" {
 		if req.withPath == "-" {
@@ -81,6 +80,10 @@ func loadEdit(config internal.Config, req editRequest, kind string) (*internal.L
 			internal.FatalError("reading replacement: %v", err)
 		}
 	}
+	src, err := os.ReadFile(req.inp)
+	if err != nil {
+		internal.FatalError("reading %s: %v", req.inp, err)
+	}
 	var expected []byte
 	if req.oldPath != "" {
 		expected, err = os.ReadFile(req.oldPath)
@@ -91,11 +94,19 @@ func loadEdit(config internal.Config, req editRequest, kind string) (*internal.L
 	return cfg, src, replacement, expected
 }
 
-// report prints the outcome, or writes the file when apply is set.
-func report(req editRequest, res *internal.ReplaceResult, what string) {
+// report prints the outcome, or writes the file when apply is set. Writing happens only if the file still holds
+// the bytes the edit was prepared from; a change made in the meantime is not overwritten.
+func report(req editRequest, src []byte, res *internal.ReplaceResult, what string) {
 	if !req.apply {
 		fmt.Printf("%s: valid, not written. Re-run with --apply to write it.\n", what)
 		return
+	}
+	now, err := os.ReadFile(req.inp)
+	if err != nil {
+		internal.FatalError("%v", err)
+	}
+	if !bytes.Equal(now, src) {
+		internal.FatalError("%s changed while the edit was being prepared; nothing written. Run the command again.", req.inp)
 	}
 	info, err := os.Stat(req.inp)
 	if err != nil {

@@ -198,6 +198,10 @@ func openEdit(cfg *LanguageConfig, src []byte, target FuncTarget) (*editFile, er
 	}
 	e.fn = fn
 	e.fnIndex = idx
+	if err := e.checkOwnLines(); err != nil {
+		e.close()
+		return nil, err
+	}
 	if cfg.LangKey == "go" {
 		if err := checkGoSpanWithAST(e.text, fn, target.Name); err != nil {
 			e.close()
@@ -205,6 +209,43 @@ func openEdit(cfg *LanguageConfig, src []byte, target FuncTarget) (*editFile, er
 		}
 	}
 	return e, nil
+}
+
+// checkOwnLines refuses a function whose first or last line also holds other code. Spans are whole lines, so an
+// edit would delete that code too. The check reads the cleaned lines (strings and comments removed) and is
+// conservative: a one-line function with a ";" or two "}" is refused as well.
+func (e *editFile) checkOwnLines() error {
+	cleaned := NewSanitizer(e.cfg, false).CleanLines(e.lines)
+	if len(cleaned) != len(e.lines) {
+		return nil
+	}
+	first := cleaned[e.fn.Start-1]
+	last := cleaned[e.fn.End-1]
+	oneLine := e.fn.Start == e.fn.End
+	shared := fmt.Sprintf("%s: lines %d-%d hold other code too; edit those lines by hand", e.fn.Name, e.fn.Start, e.fn.End)
+
+	if e.cfg.IndentBased {
+		if strings.Contains(first, ";") || (!oneLine && strings.Contains(last, ";")) {
+			return fmt.Errorf("%s", shared)
+		}
+		return nil
+	}
+	if oneLine {
+		if strings.Contains(first, ";") || strings.Count(first, "}") > 1 {
+			return fmt.Errorf("%s", shared)
+		}
+		return nil
+	}
+	if strings.Contains(first, ";") || strings.Contains(first, "}") {
+		return fmt.Errorf("%s", shared)
+	}
+	// The first "}" on the last line closes the function; anything after it is other code.
+	if i := strings.Index(last, "}"); i >= 0 {
+		if strings.TrimRight(strings.TrimSpace(last[i+1:]), ";,)") != "" {
+			return fmt.Errorf("%s", shared)
+		}
+	}
+	return nil
 }
 
 func (e *editFile) close() {

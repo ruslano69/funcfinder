@@ -70,12 +70,19 @@ func RemoveFunction(cfg *LanguageConfig, src []byte, target FuncTarget) (*Replac
 	return &ReplaceResult{Start: e.fn.Start, End: e.fn.End, Output: e.output(outText)}, nil
 }
 
+// isStatementLine reports whether a line is neither blank nor a comment.
+func isStatementLine(line string) bool {
+	t := strings.TrimSpace(line)
+	return t != "" && !strings.HasPrefix(t, "#")
+}
+
 // checkBlockKeepsBody refuses a removal that leaves the header before lo (a def, class or other ":" block) with no
 // line indented deeper than itself.
 func checkBlockKeepsBody(lines []string, lo int) error {
+	// Comments and blank lines are not statements: a comment between the header and the body does not give it one.
 	prev := -1
 	for i := lo - 1; i >= 0; i-- {
-		if strings.TrimSpace(lines[i]) != "" {
+		if isStatementLine(lines[i]) {
 			prev = i
 			break
 		}
@@ -85,7 +92,7 @@ func checkBlockKeepsBody(lines []string, lo int) error {
 	}
 	headerIndent := indentOf(lines[prev])
 	for i := lo; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) == "" {
+		if !isStatementLine(lines[i]) {
 			continue
 		}
 		if len(indentOf(lines[i])) > len(headerIndent) {
