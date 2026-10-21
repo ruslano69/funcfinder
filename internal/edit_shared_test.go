@@ -16,7 +16,7 @@ func TestEdit_RefusesSharedLines(t *testing.T) {
 		lang, src, name string
 	}{
 		{"c", "int add(int x) {\n    return x;\n} int b(void) { return 2; }\n", "add"},
-		{"c", "int add(int x) { return x; }\nint b(void) { return 2; }\n", "add"},
+		{"c", "int add(int x) { return x; } int b(void) { return 2; }\n", "add"},
 		{"py", "x = 1\ndef add(a):\n    return a; y = 2\n", "add"},
 		{"js", "const a = 1; function add(x) {\n  return x;\n}\n", "add"},
 	}

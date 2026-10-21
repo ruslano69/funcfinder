@@ -286,13 +286,28 @@ func (e *editFile) checkOwnLines() error {
 		}
 		return nil
 	}
-	if strings.Contains(first, ";") || closesBeforeOpen(first) {
+	// Before the body's "{" there is only the header: a ";" there starts another statement. Inside the body a ";"
+	// belongs to the function, so it is not checked.
+	header := first
+	if i := strings.Index(first, "{"); i >= 0 {
+		header = first[:i]
+	}
+	if strings.Contains(header, ";") || closesBeforeOpen(first) {
 		return fmt.Errorf("%s", shared)
 	}
+	// The first "}" on the last line closes the function; anything after it is other code. On a one-line
+	// function the same holds for the line itself.
 	if oneLine {
+		// Two bodies on one line ("} int b() {") are other code. An empty "{}" in a type is not a body.
+		if strings.Count(first, "}")-strings.Count(first, "{}") > 1 {
+			return fmt.Errorf("%s", shared)
+		}
+		// The last } of the line closes the body; a type's "{}" in the header comes before it.
+		if i := strings.LastIndex(first, "}"); i >= 0 && strings.TrimRight(strings.TrimSpace(first[i+1:]), ";,)") != "" {
+			return fmt.Errorf("%s", shared)
+		}
 		return nil
 	}
-	// The first "}" on the last line closes the function; anything after it is other code.
 	if i := strings.Index(last, "}"); i >= 0 && strings.TrimRight(strings.TrimSpace(last[i+1:]), ";,)") != "" {
 		return fmt.Errorf("%s", shared)
 	}
