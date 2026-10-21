@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Experimental D `ffd` skips function recognition/results for Go-source directory `--struct`, retaining local/grouped types and alias handling. Warmed parser allocations fall 55–81% on gin/encoding-json; no consistent full-CLI speedup is established. Native Go AST checks retain exact function/type spans.
+
 - Experimental D `ffd` omits unused function results/header-start calculations for C++ directory `--struct`, retaining function-boundary recognition and existing local-type scope. Warmed parser allocations fall about 8% on fmt/tinyxml2; full-CLI speed gains are inconclusive.
 
 - Experimental D `ffd` avoids function discovery/materialization for D directory `--struct` after its existing shared preparation. arsd/D-YAML serial CLI improves 1.09–1.19x; independent type checks preserve and explicitly report existing union/struct omissions and manifest-constant name errors.

@@ -199,4 +199,5 @@ This is a CLI regression check; real-project accuracy and timing require the ind
 Directory JS/TS `--struct` skips unused function discovery; see the [measured pilot and checks](TYPES_ONLY_PILOT.md).
 Directory D `--struct` also skips function work after shared preparation; see [measurements and accuracy gaps](D_TYPES_ONLY.md).
 Directory C++ `--struct` omits function results while retaining boundary recognition; [allocation savings and timing limits](CPP_TYPES_ONLY.md).
+Directory Go `--struct` skips function recognition while retaining local types/aliases; [native AST checks and allocation measurements](GO_TYPES_ONLY.md).
 Directory modes and their known key differences are described in [AGENTS.md](AGENTS.md).

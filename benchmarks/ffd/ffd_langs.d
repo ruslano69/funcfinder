@@ -360,15 +360,29 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
                 final switch (lang) {
                     case Lang.c: take(r, findC(lines, facts)); break;
                     case Lang.cs: take(r, findCSharp(facts)); break;
-                    case Lang.go:
-                        take(r, findGo(facts));
+                    case Lang.go: {
+                        bool functions = needs.functions || needs.functionContext;
+                        version (FFDReferenceScan) functions = true;
+                        take(r, findGo(facts, functions));
                         r.aliases = findGoAliases(facts);
                         foreach (ref a; r.aliases) {
                             a.name = a.name.idup;
                             a.target = a.target.idup;
                         }
                         r.classes = withoutAliases(r.classes, r.aliases);
+                        version (FFDTypeAudit) {
+                            if (!functions) {
+                                auto fullNeeds = needs;
+                                fullNeeds.functions = true;
+                                fullNeeds.details = false;
+                                auto reference = analyzeSource(path,lang,source,fullNeeds);
+                                assert(!reference.error.length && r.classes == reference.classes && r.aliases == reference.aliases,
+                                    "Go types-only bounds/aliases/order changed: " ~ path);
+                                assert(!r.functions.length);
+                            }
+                        }
                         break;
+                    }
                     case Lang.java: take(r, findJava(facts)); break;
                     case Lang.cpp: {
                         bool functions = needs.functions || needs.functionContext;

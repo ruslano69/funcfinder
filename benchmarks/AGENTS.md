@@ -40,6 +40,10 @@ Measure funcfinder on real projects using independent syntax-tree references.
 
 ## Local Contracts
 
+- `findGo(facts, includeFunctions = true)` retains full behavior by default. Type-only consumers may skip function
+  recognition/results because the token loop still traverses the entire input; preserve local/grouped/alias types.
+  `ffd` alias discovery/separation and file ownership contexts remain independent, required work.
+
 - `findCppTokens(..., includeFunctions = true)` controls function-result emission only. Keep function recognition,
   parameter/end validation and body skipping for type-only requests to preserve local-type analysis scope. Default
   full API behavior and owned `ffd` results remain unchanged; audit complete types against full results.

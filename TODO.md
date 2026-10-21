@@ -1,17 +1,23 @@
 # TODO
 
+## Go-language types-only step in D (2026-10-21)
+
+- D `ffd` Go-source directory `--struct` now skips function recognition/results while retaining token/type traversal and aliases. Parser allocations fall 80.7% on gin and 55.2% on installed encoding/json; parser medians improve about 4%, full-CLI changes are inconclusive. An initial gin all-mode slowdown was not reproduced in 15 additional pairs. [Report](benchmarks/ffd/GO_TYPES_ONLY.md).
+- Independent Go 1.27.1 AST matches all 2,601 functions and 937 TypeSpecs with exact names/starts/ends on 196 accepted files; no parse exclusions/missing/false/wrong spans. Frontend alias classification retains its inherited line-based profile. All 2,504 existing CLI checks, 42 Go checks and 29 unit suites pass.
+- Next: C#/Java consumer specialization. Shared tokenizers/cleaners and other language backends remain unchanged.
+
 ## C++ types-only follow-up (2026-10-21)
 
 - Directory C++ `--struct` now omits function results/header starts, retaining recognition/parameter validation/body skipping to preserve local-type scope. Parser allocations fall 7.9%/8.4% on fmt/tinyxml2; small parser-time changes vary, with no consistent full-CLI speed gain. All 2,504 existing CLI checks, 42 C++ checks and 29 unit suites pass. [Report](benchmarks/ffd/CPP_TYPES_ONLY.md).
 - Independent libclang scoring is unchanged: accepted fmt subset has 89/105 compiled types matched (14 macro-generated types and two typedef-named anonymous C types are unmatched), two existing type-start errors across conditional/export fences, and four inactive raw type rows. tinyxml2 matches all 26 named types. Accepted function scores are 336/338 and 627/627 with no false entries/wrong ends. Sixteen of twenty fmt files are explicit compiler exclusions with local libclang 18/GCC 16 headers; resolve that toolchain compatibility before a full-fmt accuracy claim.
-- Next: Go/C#/Java consumer specialization. For C++ investigate tokenization/required boundary recognition from profiles; function-result allocation alone is a modest memory reduction. Type-start fixes should be separate accuracy work.
+- For C++ investigate tokenization/required boundary recognition from profiles; function-result allocation alone is a modest memory reduction. Type-start fixes should be separate accuracy work.
 
 ## D types-only follow-up (2026-10-21)
 
 - D directory `--struct` skips function work after shared preparation/class discovery. Serial CLI improves 1.09–1.19x on arsd/D-YAML; serial parser improves 1.17–1.23x, allocations fall about 22%. Eight-worker CLI gains are small/variable. All 2,504 existing CLI checks, 36 D checks and 29 unit suites pass. [Evidence](benchmarks/ffd/D_TYPES_ONLY.md).
 - Independent nominal-type scoring is unchanged: arsd matches 2,326/2,365 types (25 structs, 13 unions, one class missing); D-YAML 65/65; matched ends are correct. Five/one grammar-error files are explicit exclusions. Keyword starts exclude preceding attributes.
 - Prioritize separate D accuracy fixes: manifest constants are mixed with type rows (1,395 arsd / 23 D-YAML); 272/2 additional rows capture the manifest's type/expression instead of its declared name. Preserve the distinction between analysis scope and wrong names; union/struct omissions need source/AST regressions. Full findings and pinned grammar hash stay under `build/d-types-only/`.
-- Next performance step: C++ types-only through existing tokens/pairs. D shared preparation stays intact until header-join/contract effects on local types are independently checked.
+- D shared preparation stays intact until header-join/contract effects on local types are independently checked.
 - Repair the historical standalone D batch probe: `main` retains borrowed function names across text-arena resets. Do not trust its current multi-file saved maps. Isolated per-file before/after runtime/compiled D API checks match and independently score all 12,296 accepted functions with zero misses/false/wrong ends; `ffd.toSyms` already copies names and is unaffected. Evidence: `build/d-types-only/api-verification.json`.
 
 ## JS/TS types-only pilot (2026-10-21)
