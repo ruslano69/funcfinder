@@ -24,6 +24,15 @@ when several share the name; `N` is the start line that `--map` reports.
 - Without `--apply` the preview prints the removed lines with `-` and the added lines with `+`, so the change can be
   read before it is written.
 
+## Showing the result
+
+`--show` prints the lines the edit put in place, with their numbers. After `--apply` they are read back from the file,
+so the output is what is on disk; in a preview they come from the new text. A removal says so.
+
+```bash
+funcfinder --inp file.go --source go --replace-func Add --with new.txt --apply --show
+```
+
 ## What is checked
 
 - The finder must find the target exactly once.

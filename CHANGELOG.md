@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `--show` on the edit commands prints the new lines with their numbers, read back from the file after `--apply`.
 - Function and type edits guard against common slips: the `--extract` header and markdown fences are removed from the text; a `--source` that does not match the file extension is refused; a UTF-8 byte order mark is kept; the preview prints `-`/`+` lines.
 
 - `funcfinder --replace-type NAME`, `--add-after-type NAME` and `--remove-type NAME` edit a top-level Go type declaration, with the same checks as the function commands; the struct finder gives the span and go/ast verifies it. Grouped types are refused.
