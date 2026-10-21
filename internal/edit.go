@@ -102,6 +102,9 @@ func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectO
 		}
 	}
 	newLines := strings.Split(newText, "\n")
+	if err := sameDecorators(lines[fn.Start-1:fn.End], newLines); err != nil {
+		return nil, err
+	}
 
 	out := make([]string, 0, len(lines)-(fn.End-fn.Start+1)+len(newLines))
 	out = append(out, lines[:fn.Start-1]...)
@@ -159,6 +162,36 @@ func selectFunction(functions []FunctionBounds, target FuncTarget) (FunctionBoun
 	}
 	return FunctionBounds{}, fmt.Errorf("%d functions named %s start at lines %s: select one with the start line",
 		len(matches), target.Name, strings.Join(starts, ", "))
+}
+
+// sameDecorators requires the replacement to restate the decorators and annotations above the function. The
+// finder's span starts at the first of them, so a replacement that dropped them would silently change behaviour.
+func sameDecorators(old, replacement []string) error {
+	want := leadingDecorators(old)
+	got := leadingDecorators(replacement)
+	if strings.Join(want, "\n") != strings.Join(got, "\n") {
+		return fmt.Errorf("replacement changes the decorators above the function: was [%s], now [%s]; restate them in the replacement",
+			strings.Join(want, " "), strings.Join(got, " "))
+	}
+	return nil
+}
+
+// leadingDecorators returns the lines before the declaration that start with a decorator or annotation (@x) or a
+// Rust attribute (#[x]). Other languages' attribute syntaxes are not recognised.
+func leadingDecorators(lines []string) []string {
+	var out []string
+	for _, line := range lines {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "@") || strings.HasPrefix(t, "#[") {
+			out = append(out, t)
+			continue
+		}
+		if t == "" {
+			continue
+		}
+		break
+	}
+	return out
 }
 
 // sameDeclarations requires the finder to report the same function names and class names, in the same order.
