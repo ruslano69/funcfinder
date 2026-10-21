@@ -3,7 +3,10 @@
 ## Structural editing: Go first operation (2026-10-21)
 
 - Done on branch `structured-edit-go`: `funcfinder --replace-func NAME --source LANG --with FILE|- [--line N] [--old FILE] [--apply]` for all 15 configured languages. The span comes from the finder; the replacement must keep the functions and types the finder reports, in the same order; brace languages must balance brackets; Go also checks against `go/ast`. Tests: `internal/edit_lang_test.go` (14 languages), `internal/edit_go_test.go`. Python does not get a bracket check, only the finder comparison.
-- Not done: other languages; struct/class members and fragment edits inside a function; ownership of comments and attributes above the `func` line (they are not replaced); evaluation on real agent tasks against line/text patches.
+- Not done: ownership of comments and attributes above the `func` line (they are not replaced); evaluation on real agent tasks against line/text patches.
+- Done after that, on the same branch: `--add-after NAME` (insert after a function), `--remove-func NAME` (delete a function with its decorators and nested functions). Limits are in `docs/EDIT.md`.
+- Plan, next: structs and types as targets (`--replace-type`, `--add-after` for types, `--remove-type`), using the same finder checks (the finder's types must stay the same, in order) and the same whole-line rule. Go first (`FindStructs`/struct finder), then the other languages with the same test table. Members of a type (fields, methods) come after the type itself works: a member edit needs the type's span and the member's span inside it.
+- Plan, later: fragment edits inside a function (a line range inside a selected function, checked the same way) and a column-level cut, only if the whole-line rule proves too restrictive in real use.
 
 ## D funcstats (2026-10-21)
 
