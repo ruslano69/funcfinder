@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Experimental D `ffd` omits unused Java method/constructor results for directory `--struct`, retaining local/anonymous-class scope traversal. Warmed parser allocations fall 40.6% on Gson; parser medians improve about 4%, with a small full-CLI effect. Independent grammar checks retain exact method/type spans.
+
 - Experimental D `ffd` skips function recognition/results for Go-source directory `--struct`, retaining local/grouped types and alias handling. Warmed parser allocations fall 55–81% on gin/encoding-json; no consistent full-CLI speedup is established. Native Go AST checks retain exact function/type spans.
 
 - Experimental D `ffd` omits unused function results/header-start calculations for C++ directory `--struct`, retaining function-boundary recognition and existing local-type scope. Warmed parser allocations fall about 8% on fmt/tinyxml2; full-CLI speed gains are inconclusive.

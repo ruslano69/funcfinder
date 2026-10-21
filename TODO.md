@@ -1,10 +1,16 @@
 # TODO
 
+## Java-language types-only step in D (2026-10-21)
+
+- D `ffd` Java-source directory `--struct` omits method/constructor results while preserving recognition/end scans and local/anonymous scope traversal. Gson warmed parser allocations fall 40.6%, repeated parser medians improve about 4%; full CLI changes are small (about 2% serial, near zero at eight workers). [Report](benchmarks/ffd/JAVA_TYPES_ONLY.md).
+- Independent tree-sitter Java grammar matches all 767 named types and 3,492 methods/constructors/elements with exact names/starts/ends on 264 accepted files, without exclusions. All 2,504 existing CLI checks, 42 Java checks and 29 unit suites pass. Shared modules/other language finders are unchanged.
+- Next: C# consumer specialization with independent reference checks.
+
 ## Go-language types-only step in D (2026-10-21)
 
 - D `ffd` Go-source directory `--struct` now skips function recognition/results while retaining token/type traversal and aliases. Parser allocations fall 80.7% on gin and 55.2% on installed encoding/json; parser medians improve about 4%, full-CLI changes are inconclusive. An initial gin all-mode slowdown was not reproduced in 15 additional pairs. [Report](benchmarks/ffd/GO_TYPES_ONLY.md).
 - Independent Go 1.27.1 AST matches all 2,601 functions and 937 TypeSpecs with exact names/starts/ends on 196 accepted files; no parse exclusions/missing/false/wrong spans. Frontend alias classification retains its inherited line-based profile. All 2,504 existing CLI checks, 42 Go checks and 29 unit suites pass.
-- Next: C#/Java consumer specialization. Shared tokenizers/cleaners and other language backends remain unchanged.
+- Shared tokenizers/cleaners and other language backends remain unchanged by the Go step.
 
 ## C++ types-only follow-up (2026-10-21)
 

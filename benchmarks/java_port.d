@@ -46,11 +46,14 @@ int functionEnd(Token[] t,int[] p,int close,int limit,out int body) {
     }
     return -1;
 }
-Result findJava(LineFact[] facts) {
+// Method recognition still supplies traversal boundaries for local/anonymous
+// classes. Type-only consumers omit result materialization, not that context.
+Result findJava(LineFact[] facts,bool includeFunctions = true) {
     Token[] t;int[] p;tokenize(facts,t,p,true);Result result;
     struct Scope {int end;string cls;bool members,record,isEnum;}
     Scope[] scopes=[Scope(cast(int)t.length)];int boundary,functionBody=-1;
     void append(string name,int start,int nameAt,int end,string cls) {
+        if(!includeFunctions)return;
         auto f=Bounds(name,t[start].line+1,t[end].line+1,cls);
         if(nameAt>=0){f.signatureLine=t[nameAt].line+1;f.signatureName=name;}result.functions~=f;
     }
@@ -86,6 +89,11 @@ unittest {
     auto r=findJava(c.facts(("@interface A {int[] value() default {1,2};}\nrecord R(int x) {R {if(x<0)throw new Error();} int f(){return x;}}\nclass C {void outer(){class L {int inner(){return 1;}} Runnable r=new Runnable(){public void run(){}};}}\n").split("\n")));
     string[] names;foreach(f;r.functions)names~=f.name;assert(names==["value","R","f","outer","inner","run"]);
     assert(r.functions[0].end==1 && r.functions[1].signatureLine==0 && r.classes.length==4);
+    c=Cleaner();c.charLiterals=true;
+    auto facts=c.facts(("class C {void outer(){class Local {void inner(){}} Object value=new Object(){class Nested {}};}}\n").split("\n"));
+    auto full=findJava(facts),types=findJava(facts,false);
+    assert(full.classes == types.classes && types.classes.length == 3);
+    assert(full.functions.length == 2 && !types.functions.length);
     c=Cleaner();c.charLiterals=true;
     r=findJava(c.facts(("class C {\n @a.b.A({1,2}) public <T> T[] f(T x) throws Exception {return null;}\n void $name();\n}\n").split("\n")));
     assert(r.functions.length==2 && r.functions[0].name=="f" && r.functions[0].end==2 && r.functions[1].name=="$name");

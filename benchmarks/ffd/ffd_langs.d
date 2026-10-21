@@ -383,7 +383,23 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
                         }
                         break;
                     }
-                    case Lang.java: take(r, findJava(facts)); break;
+                    case Lang.java: {
+                        bool functions = needs.functions || needs.functionContext;
+                        version (FFDReferenceScan) functions = true;
+                        take(r, findJava(facts, functions));
+                        version (FFDTypeAudit) {
+                            if (!functions) {
+                                auto fullNeeds = needs;
+                                fullNeeds.functions = true;
+                                fullNeeds.details = false;
+                                auto reference = analyzeSource(path,lang,source,fullNeeds);
+                                assert(!reference.error.length && r.classes == reference.classes,
+                                    "Java types-only bounds/kind/order changed: " ~ path);
+                                assert(!r.functions.length);
+                            }
+                        }
+                        break;
+                    }
                     case Lang.cpp: {
                         bool functions = needs.functions || needs.functionContext;
                         version (FFDReferenceScan) functions = true;

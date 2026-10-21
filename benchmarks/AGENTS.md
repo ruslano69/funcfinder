@@ -40,6 +40,10 @@ Measure funcfinder on real projects using independent syntax-tree references.
 
 ## Local Contracts
 
+- `findJava(facts, includeFunctions = true)` controls method/constructor-result emission. Type-only requests retain
+  recognition/end scans/scope traversal for local/anonymous classes, records and enum members. Preserve default full
+  behavior and file ownership context; independently verify named type starts/ends and nested visibility.
+
 - `findGo(facts, includeFunctions = true)` retains full behavior by default. Type-only consumers may skip function
   recognition/results because the token loop still traverses the entire input; preserve local/grouped/alias types.
   `ffd` alias discovery/separation and file ownership contexts remain independent, required work.
