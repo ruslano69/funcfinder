@@ -7,8 +7,8 @@ languages (`../*_port.d`). It is experimental: production stays Go, and CI runs 
 Directory mode covers `--dir [--all|--struct] [--json]`, `--workers`, `--recursive`, `--no-gitignore` and `--timing`.
 File mode covers function maps/selection/extraction/JSON, type maps/`--type` selection/extraction/JSON (`--struct`),
 combined output (`--all`) and standalone/parsed `--lines`. `--names` lists file/directory declarations;
-`--doc Name,Other` prints adjacent comments and the first source line. `--tree`, `--split` and the other four tools
-are not implemented and say so.
+`--doc Name,Other` prints adjacent comments and the first source line. `--tree`/`--tree-full` format file declarations
+or directory paths. `--split` and the other four tools are not implemented and say so.
 
 ## Ownership
 
@@ -25,6 +25,8 @@ are not implemented and say so.
   explicit field truth for all 15 language profiles and simple Go parity. `ffd_model.Field` owns name/type/line values.
 - `ffd_docs.d` owns doc-name validation, Go-compatible adjacent-comment/annotation rules and sorted doc output;
   `doc_checks.py` compares file/directory docs and incompatible flags against Go.
+- `ffd_tree.d` owns file function/class containment, full signatures, type/field trees and directory path trees;
+  `tree_checks.py` compares formatting, output priority and incompatible flags against Go.
 - `README.md` owns user-facing build/run examples and file/directory limitations.
 - `genvectors/` (Go) writes `ts_declaration_vectors.jsonl`: 6,000 lines with what Go's TS declaration and declarator patterns
   return, which `ffd_vectors.d` (a unit test) holds the D scanners in `../typescript_header.d` to.
@@ -36,6 +38,14 @@ are not implemented and say so.
 
 ## Local Contracts
 
+- Trees reuse existing native declaration bounds and fields. File function trees merge classes by name, attach methods
+  by class name and use Go's first strict containing function as parent; nested functions get the `method` label.
+  `--tree-full` formats signatures from original lines with Go's display rules, without a second declaration parser.
+  Struct trees list fields; combined trees retain function-finder classes separately from the struct type set.
+  JSON/extraction keep their existing priorities over trees. Reject both tree flags together and named function/type
+  selection with a tree. Directory trees sort path components and preserve Go's current flat directory indentation,
+  connector and absolute-path conventions; both tree flags produce the same directory output. Native parser/field
+  differences remain visible. Ordinary directory JSON/text and worker behavior must remain unchanged.
 - File mode uses the same `analyzeSource` token finders as `analyzeFile`; do not introduce a second parser. `--source`
   is explicit, except for standalone text `--lines`. File function JSON is Go's name-keyed `{name: {end, start}}`
   map (last duplicate wins), with Python decorator metadata; text/extraction retains all overloads. Empty function
@@ -153,6 +163,7 @@ python benchmarks/ffd/type_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/python_range_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/field_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/doc_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/tree_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 go test ./benchmarks/ffd/genconfig ./benchmarks/ffd/genvectors   # ffd_config.json and the vectors are current
 python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe --corpora-root <repo>/build --expect benchmarks/ffd/ffd_deltas.json
 ```
@@ -170,6 +181,8 @@ python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 - Doc checks cover all 15 languages, one/eight directory workers, aliases/overloads, CRLF/Unicode comments, line/block
   adjacency, blank-line separation, decorators/Rust attributes, missing names and incompatible/false flags. Bodies
   and Python body docstrings must not leak beyond the first declaration line.
+- Tree checks cover all 15 languages on controlled fixtures, one/eight directory workers, absolute/relative paths,
+  type/combined output, fields, methods, nested functions, overloads, signatures and output/flag combinations.
 
 ## Child DOX Index
 

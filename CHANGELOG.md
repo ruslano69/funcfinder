@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- D `ffd` adds file/directory `--tree` and `--tree-full`: class/method and nested-function trees, full signatures, type fields and sorted directory paths, preserving Go's output priorities.
 - D `ffd` adds file/directory `--doc Name,Other`: adjacent declaration comments and first source lines for functions, types and Go aliases, using Go-compatible formatting and flag validation.
 - D `ffd` file type maps/JSON now include initial token-derived field profiles for 15 languages: names, normalized type spellings and source lines. Direct-member ownership excludes methods, nested types and locals; complex field syntax remains incremental.
 - D `ffd` Python parsed `--lines` now adjusts to whole scopes with Go-compatible reports, trailing trivia and complete-function filtering. Multiline decorators are retained in file JSON.

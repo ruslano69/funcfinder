@@ -7,7 +7,7 @@ Measure funcfinder on real projects using independent syntax-tree references.
 ## Ownership
 
 - `specsheet.py` compares directory maps with the Go oracle and estimates token savings.
-- `ffd/` is the D port's file/directory executable: all 15 token finders, function/type maps with file field metadata, name selection, extraction, line ranges, `--names`/`--doc`, directory JSON, a worker pool and comparisons with Go; its contracts are in `ffd/AGENTS.md`. `reuse.d` holds the thread-local block reuse the finders and cleaners share.
+- `ffd/` is the D port's file/directory executable: all 15 token finders, function/type maps with file field metadata, name selection, extraction, line ranges, trees, `--names`/`--doc`, directory JSON, a worker pool and comparisons with Go; its contracts are in `ffd/AGENTS.md`. `reuse.d` holds the thread-local block reuse the finders and cleaners share.
 - `python_ast_eval.py` compares Python function locations and ends with Python's native AST.
 - `php_tree_eval.py` compares named PHP functions/methods, including bodyless declarations, with tree-sitter PHP.
 - `scala_d_tree_eval.py` compares Scala definitions/declarations, D functions/constructors/destructors/postblits and Java methods/constructors/annotation elements with their tree-sitter grammars (the historical filename is retained).

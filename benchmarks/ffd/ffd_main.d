@@ -8,6 +8,7 @@ import ffd_walk;
 import ffd_file;
 import ffd_symbols : formatNames;
 import ffd_docs : docNames, formatDocs;
+import ffd_tree : directoryTree;
 import std.conv : to, ConvException;
 import std.datetime.stopwatch : AutoStart, StopWatch;
 import std.file : exists, isDir;
@@ -44,9 +45,9 @@ private struct Options {
 
 /// Go's flag package accepts -name, --name, -name=value and --name value; bool flags take only the first forms.
 private bool parseArgs(string[] args, ref Options o, ref string error) {
-    static immutable boolFlags = ["all", "struct", "names", "json", "no-gitignore", "recursive", "version", "map", "extract", "timing", "timing-alloc"];
+    static immutable boolFlags = ["tree", "tree-full", "all", "struct", "names", "json", "no-gitignore", "recursive", "version", "map", "extract", "timing", "timing-alloc"];
     static immutable valueFlags = ["dir", "workers", "inp", "source", "func", "lines", "type", "doc"];
-    static immutable unsupportedBool = ["tree", "tree-full", "raw", "split", "inc"];
+    static immutable unsupportedBool = ["raw", "split", "inc"];
     static immutable unsupportedValue = ["split-by", "out"];
     for (size_t i = 1; i < args.length; ++i) {
         string a = args[i];
@@ -96,6 +97,8 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
                 continue;
             }
             switch (name) {
+                case "tree": o.file.tree = b; break;
+                case "tree-full": o.file.treeFull = b; break;
                 case "all": o.all = b; break;
                 case "struct": o.structs = b; break;
                 case "json": o.json = b; break;
@@ -178,6 +181,7 @@ int main(string[] args) {
         try { docNames(o.file.doc); } catch (Exception e) { return fatal(e.msg); }
     }
     if (o.dir.length && o.file.path.length) return fatal("--dir and --inp are mutually exclusive");
+    if (o.file.tree && o.file.treeFull) return fatal("--tree and --tree-full are mutually exclusive");
     o.file.json = o.json;
     o.file.structs = o.structs; o.file.all = o.all;
     if (o.file.path.length) {
@@ -238,7 +242,7 @@ int main(string[] args) {
 
     watch.reset();
     string text;
-    try { text = o.file.doc.length ? formatDocs(results,docNames(o.file.doc)) : o.file.namesOnly ? formatNames(results) : o.json ? formatJson(results) : formatGrep(results); }
+    try { text = o.file.doc.length ? formatDocs(results,docNames(o.file.doc)) : o.file.namesOnly ? formatNames(results) : o.json ? formatJson(results) : o.file.tree || o.file.treeFull ? directoryTree(results) : formatGrep(results); }
     catch (Exception e) { return fatal(e.msg); }
     if (o.file.doc.length && !text.length) { stderr.writeln("Error: No declarations named ",o.file.doc," found"); return 2; }
     immutable formatMs = watch.peek.total!"usecs" / 1000.0;

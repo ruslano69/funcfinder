@@ -15,7 +15,8 @@ Implemented: `--dir`, `--all`, `--struct`, `--json`, `--workers` (default 8, at 
 `--no-gitignore`, `--timing`, `--version`. The root `.gitignore`, hidden names and the extension table follow the Go
 tool exactly (the same files, the same "skipped N files" notice on 31 trees). File mode also supports `--inp`, `--source`,
 `--map`, `--func`, `--extract`, `--lines`, `--type`, file `--struct`/`--all` and file/directory `--names`/`--doc` (see below).
-Not yet: `--tree`, `--split`, `funcstats`, `callgraph`, `complexity`, `deps`.
+File/directory `--tree` and `--tree-full` are also supported.
+Not yet: `--split`, `funcstats`, `callgraph`, `complexity`, `deps`.
 
 ## How close to Go
 
@@ -93,7 +94,7 @@ build/ffd/ffd.exe --inp test_examples/test_example.go --source go --names --all
 build/ffd/ffd.exe --dir test_examples --names --all
 ```
 
-`--type` filters types; `--struct A,B` is shorthand. `--all` requires `--map` or `--json`, rejects name selectors,
+`--type` filters types; `--struct A,B` is shorthand. `--all` requires `--map`, `--json` or a tree flag, rejects name selectors,
 and gives JSON priority over extraction. Type/all modes do not support `--lines`. Type maps list field names;
 JSON fields include `name`, normalized `type` and source `line`. Empty fields are omitted in struct JSON and kept
 as an empty array in combined JSON. Native type/span differences from Go remain.
@@ -103,7 +104,19 @@ attributes, Ruby literal attribute declarations, Go grouped named fields and com
 Methods, nested-type contents, local variables and comment/literal contents are excluded. Complex/multiple C-family
 declarators, embeddings, primary/tuple constructors, braceless declarations, attributes/macros and dynamic properties
 remain unsupported or partial. Types are token spellings, without semantic resolution; results can differ from Go's
-more limited regex field profiles. Field extraction runs only for file type maps/JSON.
+more limited regex field profiles. Field extraction runs only for file type maps/JSON/trees.
+
+Display declaration and path trees:
+
+```powershell
+build/ffd/ffd.exe --inp test_examples/test_example.go --source go --tree-full
+build/ffd/ffd.exe --inp test_examples/test_example.go --source go --all --tree
+build/ffd/ffd.exe --dir test_examples --tree --workers 8
+```
+
+File trees group methods under classes and show nested functions; full trees include signatures. Type trees list
+fields. Both directory flags produce Go's current path-tree output. JSON/extraction retain priority; tree flags
+cannot be combined with each other or named function/type selection. Native declaration and field differences remain.
 
 `--names` prints kind, name and `path:line`, separated by tabs. It accepts `--all`/`--struct`, but rejects output,
 selection and range flags, including explicitly supplied false flags. Native type sets/kinds can differ from Go;
@@ -145,6 +158,7 @@ python benchmarks/ffd/type_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/python_range_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/field_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/doc_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/tree_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 ```
 
 This is a CLI regression check; real-project accuracy and timing require the independent benchmark harnesses.

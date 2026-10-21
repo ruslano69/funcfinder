@@ -5,6 +5,7 @@ import ffd_model;
 import ffd_json : putString;
 import ffd_run : applyMode;
 import ffd_symbols : formatNames;
+import ffd_tree : functionTree, typeTree;
 import std.algorithm : canFind, sort;
 import std.array : appender;
 import std.conv : to;
@@ -16,7 +17,7 @@ import std.string : split, strip, join;
 
 struct FileOptions {
     string path, source, names, lines, typeNames, doc;
-    bool map, extract, json, structs, all, namesOnly;
+    bool map, extract, json, structs, all, namesOnly, tree, treeFull;
 }
 
 struct LineRange { int start = 1; int end = -1; }
@@ -140,6 +141,7 @@ int runFile(FileOptions o) {
         bool standalone = o.lines.length && !o.source.length;
         enforce(o.source.length || standalone, "--source parameter is required (or use --lines alone for plain text extraction)");
         if (!standalone) {
+            enforce(!o.tree || !o.treeFull, "--tree and --tree-full are mutually exclusive");
             enforce(!o.structs || !o.all, "--struct and --all are mutually exclusive");
             if (o.doc.length) {
                 import ffd_docs : docNames;
@@ -147,16 +149,16 @@ int runFile(FileOptions o) {
             } else if (o.namesOnly) {
                 // Main validates the allowed flag set; names mode needs no --map.
             } else if (o.all) {
-                enforce(o.map || o.json, "--all requires --map or --json output mode");
+                enforce(o.map || o.json || o.tree || o.treeFull, "--all requires --map, --json or tree output mode");
                 enforce(!o.names.length && !o.typeNames.length, "--func and --type cannot be used with --all");
             } else if (o.structs) {
                 enforce(!o.names.length, "--func cannot be used with --struct");
-                enforce(o.typeNames.length || o.map || o.extract, "either --type, --map or --extract must be specified with --struct");
-                enforce(!o.typeNames.length || !o.map, "--type is mutually exclusive with --map");
+                enforce(o.typeNames.length || o.map || o.extract || o.tree || o.treeFull, "either --type, --map, tree or --extract must be specified with --struct");
+                enforce(!o.typeNames.length || !(o.map || o.tree || o.treeFull), "--type is mutually exclusive with --map or tree");
             } else {
                 enforce(!o.typeNames.length, "--type can only be used with --struct or --all");
-                enforce(o.names.length || o.map, "either --func or --map must be specified");
-                enforce(!o.names.length || !o.map, "--func is mutually exclusive with --map");
+                enforce(o.names.length || o.map || o.tree || o.treeFull, "either --func, --map or tree must be specified");
+                enforce(!o.names.length || !(o.map || o.tree || o.treeFull), "--func is mutually exclusive with --map or tree");
             }
             enforce(!o.lines.length || !o.structs && !o.all, "--lines is not yet supported with --struct or --all");
         }
@@ -199,6 +201,7 @@ int runFile(FileOptions o) {
             stdout.rawWrite(formatNames([result])); return 0;
         }
         if (o.structs || o.all) {
+            auto functionResult = result;
             auto allFunctions = result.functions;
             result = applyMode(result, Mode.structs); // select the same native type set as directory --struct
             // Field ownership needs every nested type and method, even when the user selects one type.
@@ -216,10 +219,13 @@ int runFile(FileOptions o) {
             }
             string text;
             if (o.all && o.json || !o.extract && o.json) text = typesJson(result, o.all);
-            else if (!o.all) text = typesText(result.classes, original, o.extract);
+            else if (!o.all) text = !o.extract && (o.tree || o.treeFull) ? typeTree(result.classes) : typesText(result.classes, original, o.extract);
             else {
-                if (result.functions.length) text = "=== FUNCTIONS ===\n" ~ fileText(result.functions, lang == Lang.py ? raw.split("\n") : original, o.extract) ~ "\n";
-                if (result.classes.length) text ~= (text.length ? "\n" : "") ~ "=== TYPES ===\n" ~ typesText(result.classes, original, o.extract) ~ "\n";
+                auto tree = !o.extract && (o.tree || o.treeFull);
+                if (result.functions.length) {
+                    text = "=== FUNCTIONS ===\n" ~ (tree ? functionTree(functionResult,original,o.treeFull) : fileText(result.functions, lang == Lang.py ? raw.split("\n") : original, o.extract)) ~ "\n";
+                }
+                if (result.classes.length) text ~= (text.length ? "\n" : "") ~ "=== TYPES ===\n" ~ (tree ? typeTree(result.classes) : typesText(result.classes, original, o.extract)) ~ "\n";
                 // The outer write supplies the final newline, as the Go CLI does.
                 if (text.length) text = text[0..$-1];
             }
@@ -231,12 +237,16 @@ int runFile(FileOptions o) {
         foreach (fn; result.functions) {
             if (pythonRange && (fn.start < range.start || range.end != -1 && fn.end > range.end)) continue;
             if (o.lines.length && !pythonRange) { fn.start += range.start-1; fn.end += range.start-1; }
-            if (o.map || requested.canFind(fn.name)) functions ~= fn;
+            if (o.map || o.tree || o.treeFull || requested.canFind(fn.name)) functions ~= fn;
         }
-        if (!functions.length) { stderr.writeln("Error: ", o.map ? "No functions found in file" : "Specified functions not found"); return 2; }
+        if (!functions.length) { stderr.writeln("Error: ", o.map || o.tree || o.treeFull ? "No functions found in file" : "Specified functions not found"); return 2; }
         // Go's dedicated Python reader retains CR bytes; its other readers normalize CRLF.
         auto extractLines = lang == Lang.py ? raw.split("\n") : original;
-        auto text = o.extract ? fileText(functions, extractLines, true) : o.json ? fileJson(functions, lang == Lang.py ? extractLines : original, lang == Lang.py) : fileText(functions, lang == Lang.py ? extractLines : original, false);
+        result.functions = functions;
+        if (o.lines.length && !pythonRange) foreach (ref c; result.classes) {
+            c.start += range.start-1; c.end += range.start-1;
+        }
+        auto text = o.extract ? fileText(functions, extractLines, true) : o.json ? fileJson(functions, lang == Lang.py ? extractLines : original, lang == Lang.py) : o.tree || o.treeFull ? functionTree(result,extractLines,o.treeFull) : fileText(functions, lang == Lang.py ? extractLines : original, false);
         stdout.rawWrite(text); stdout.rawWrite("\n"); return 0;
     } catch (Exception e) { stderr.writeln("Error: ", e.msg); return 1; }
 }
