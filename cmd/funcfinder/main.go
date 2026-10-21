@@ -52,7 +52,8 @@ func main() {
 	removeType := flag.String("remove-type", "", "delete the named top-level type declaration (Go); preview unless --apply")
 	removeFunc := flag.String("remove-func", "", "delete the named function (--inp, --source); preview unless --apply; --line picks one of several")
 	addAfter := flag.String("add-after", "", "insert the function(s) from --with directly after the named function (--inp, --source)")
-	applyEdit := flag.Bool("apply", false,"with --replace-func: write the file (without it, only validate and report)")
+	showEdit := flag.Bool("show", false, "with an edit flag: print the new text of the changed lines, read back from the file after --apply")
+	applyEdit := flag.Bool("apply", false, "with --replace-func: write the file (without it, only validate and report)")
 
 	// Split output flags (for --dir mode)
 	splitMode := flag.Bool("split", false, "split output into manifest + shard files (--dir mode only)")
@@ -99,33 +100,33 @@ func main() {
 
 	// Замена одной функции (--replace-func): только файл и Go
 	if *replaceFunc != "" {
-		handleReplaceFunc(config, editRequest{inp: *inp, source: *source, name: *replaceFunc, line: *replaceLine, withPath: *withFile, oldPath: *oldFile, apply: *applyEdit})
+		handleReplaceFunc(config, editRequest{inp: *inp, source: *source, name: *replaceFunc, line: *replaceLine, withPath: *withFile, oldPath: *oldFile, apply: *applyEdit, show: *showEdit})
 		return
 	}
 
 	// Правка типов (--replace-type, --add-after-type, --remove-type): те же проверки, цель — объявление типа
 	if *replaceType != "" {
-		handleReplaceFunc(config, editRequest{inp: *inp, source: *source, name: *replaceType, kind: "type", withPath: *withFile, apply: *applyEdit})
+		handleReplaceFunc(config, editRequest{inp: *inp, source: *source, name: *replaceType, kind: "type", withPath: *withFile, apply: *applyEdit, show: *showEdit})
 		return
 	}
 	if *addAfterType != "" {
-		handleAddAfter(config, editRequest{inp: *inp, source: *source, name: *addAfterType, kind: "type", withPath: *withFile, apply: *applyEdit})
+		handleAddAfter(config, editRequest{inp: *inp, source: *source, name: *addAfterType, kind: "type", withPath: *withFile, apply: *applyEdit, show: *showEdit})
 		return
 	}
 	if *removeType != "" {
-		handleRemoveFunc(config, editRequest{inp: *inp, source: *source, name: *removeType, kind: "type", apply: *applyEdit})
+		handleRemoveFunc(config, editRequest{inp: *inp, source: *source, name: *removeType, kind: "type", apply: *applyEdit, show: *showEdit})
 		return
 	}
 
 	// Удаление функции (--remove-func)
 	if *removeFunc != "" {
-		handleRemoveFunc(config, editRequest{inp: *inp, source: *source, name: *removeFunc, line: *replaceLine, apply: *applyEdit})
+		handleRemoveFunc(config, editRequest{inp: *inp, source: *source, name: *removeFunc, line: *replaceLine, apply: *applyEdit, show: *showEdit})
 		return
 	}
 
 	// Вставка функций после заданной (--add-after)
 	if *addAfter != "" {
-		handleAddAfter(config, editRequest{inp: *inp, source: *source, name: *addAfter, line: *replaceLine, withPath: *withFile, apply: *applyEdit})
+		handleAddAfter(config, editRequest{inp: *inp, source: *source, name: *addAfter, line: *replaceLine, withPath: *withFile, apply: *applyEdit, show: *showEdit})
 		return
 	}
 

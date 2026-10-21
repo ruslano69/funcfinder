@@ -18,6 +18,7 @@ type editRequest struct {
 	line              int
 	withPath, oldPath string
 	apply             bool
+	show              bool // print the new text after the preview or the write
 }
 
 // handleReplaceFunc replaces one function in a file of the given language. The new function is read from withPath
@@ -113,6 +114,9 @@ func report(req editRequest, src []byte, res *internal.ReplaceResult, what strin
 	}
 	if !req.apply {
 		fmt.Printf("%s: valid, not written. Re-run with --apply to write it.\n", what)
+		if req.show {
+			printNew(req, res, false)
+		}
 		return
 	}
 	now, err := os.ReadFile(req.inp)
@@ -130,6 +134,29 @@ func report(req editRequest, src []byte, res *internal.ReplaceResult, what strin
 		internal.FatalError("writing %s: %v", req.inp, err)
 	}
 	fmt.Printf("%s: written to %s\n", what, req.inp)
+	if req.show {
+		printNew(req, res, true)
+	}
+}
+
+// printNew prints the lines the edit put in place. After --apply they are read back from the file, so the output
+// shows what is on disk; in a preview they come from the new text.
+func printNew(req editRequest, res *internal.ReplaceResult, onDisk bool) {
+	if res.NewStart == 0 {
+		fmt.Println("nothing was added; the lines were removed")
+		return
+	}
+	data := res.Output
+	if onDisk {
+		if read, err := os.ReadFile(req.inp); err == nil {
+			data = read
+		}
+	}
+	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	fmt.Printf("now at lines %d-%d:\n", res.NewStart, res.NewEnd)
+	for i := res.NewStart; i <= res.NewEnd && i <= len(lines); i++ {
+		fmt.Printf("%4d| %s\n", i, lines[i-1])
+	}
 }
 
 // hasExtension reports whether the file name ends with one of the language's extensions.

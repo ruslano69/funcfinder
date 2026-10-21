@@ -26,6 +26,9 @@ type ReplaceResult struct {
 	Output  []byte
 	Removed []string // lines the edit takes out of the span, for the preview
 	Added   []string // lines the edit puts in, for the preview
+	// NewStart and NewEnd are the lines the new text occupies in Output (zero when nothing was added).
+	NewStart int
+	NewEnd   int
 }
 
 // ReplaceFunction replaces one function of any configured language. The span comes from the production finder.
@@ -83,7 +86,8 @@ func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectO
 		}
 	}
 	return &ReplaceResult{Start: e.fn.Start, End: e.fn.End, Output: e.output(outText),
-		Removed: append([]string(nil), e.lines[e.fn.Start-1:e.fn.End]...), Added: newLines}, nil
+		Removed: append([]string(nil), e.lines[e.fn.Start-1:e.fn.End]...), Added: newLines,
+		NewStart: e.fn.Start, NewEnd: e.fn.Start + len(newLines) - 1}, nil
 }
 
 // InsertAfterFunction adds the functions in replacement after the target, with one blank line in between. The
@@ -131,7 +135,9 @@ func InsertAfterFunction(cfg *LanguageConfig, src []byte, target FuncTarget, rep
 			return nil, fmt.Errorf("insertion does not give a valid file: %v", err)
 		}
 	}
-	return &ReplaceResult{Start: e.fn.End, End: e.fn.End, Output: e.output(outText), Added: newLines}, nil
+	// The inserted text follows a blank line after the target's last line.
+	return &ReplaceResult{Start: e.fn.End, End: e.fn.End, Output: e.output(outText), Added: newLines,
+		NewStart: e.fn.End + 2, NewEnd: e.fn.End + 1 + len(newLines)}, nil
 }
 
 // editFile holds the source of one edit and the finder's view of it.
