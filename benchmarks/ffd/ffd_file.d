@@ -17,7 +17,7 @@ import std.string : split, strip, join;
 
 struct FileOptions {
     string path, source, names, lines, typeNames, doc;
-    bool map, extract, json, structs, all, namesOnly, tree, treeFull;
+    bool map, extract, json, structs, all, namesOnly, tree, treeFull, raw;
 }
 
 struct LineRange { int start = 1; int end = -1; }
@@ -179,7 +179,13 @@ int runFile(FileOptions o) {
         initLanguages(); prepareLanguages([lang]);
         bool pythonRange = lang == Lang.py && o.lines.length;
         auto source = o.lines.length && !pythonRange ? original[range.start-1 .. end].join("\n") : raw;
-        auto result = analyzeSource(o.path, lang, source, o.structs || o.all || o.doc.length);
+        auto result = analyzeSource(o.path, lang, source, o.structs || o.all || o.doc.length, o.raw && !o.structs);
+        // Go applies --raw to the function finder only; combined type metadata stays in normal mode.
+        FileResult normalTypes;
+        if (o.raw && o.all) {
+            normalTypes = analyzeSource(o.path, lang, source, true);
+            enforce(!normalTypes.error.length,normalTypes.error);
+        }
         enforce(!result.error.length, result.error);
         if (o.doc.length) {
             import ffd_docs : docNames, formatDocs;
@@ -202,13 +208,19 @@ int runFile(FileOptions o) {
         }
         if (o.structs || o.all) {
             auto functionResult = result;
+            if (o.raw && o.all) {
+                result.classes = normalTypes.classes;
+                result.structTypes = normalTypes.structTypes;
+                result.hasStructTypes = normalTypes.hasStructTypes;
+                result.aliases = normalTypes.aliases;
+            }
             auto allFunctions = result.functions;
             result = applyMode(result, Mode.structs); // select the same native type set as directory --struct
             // Field ownership needs every nested type and method, even when the user selects one type.
-            result.functions = allFunctions;
+            result.functions = o.raw && o.all ? normalTypes.functions : allFunctions;
             import ffd_fields : extractFields;
             if (!o.extract || o.all && o.json) extractFields(result, raw);
-            if (!o.all) result.functions = null;
+            result.functions = o.all ? allFunctions : null;
             if (o.typeNames.length) {
                 auto wanted = o.typeNames.split(","); foreach (ref n; wanted) n = n.strip;
                 Sym[] selected; foreach (t; result.classes) if (wanted.canFind(t.name)) selected ~= t;

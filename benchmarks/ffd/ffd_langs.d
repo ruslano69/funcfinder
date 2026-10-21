@@ -278,7 +278,7 @@ FileResult analyzeFile(string path, Lang lang, bool details = false) {
 }
 
 /// Same token finders for a file or a selected source range; no second parser path.
-FileResult analyzeSource(string path, Lang lang, string source, bool details = false) {
+FileResult analyzeSource(string path, Lang lang, string source, bool details = false, bool useRaw = false) {
     FileResult r;
     r.path = path;
     r.lang = langKey(lang);
@@ -302,6 +302,7 @@ FileResult analyzeSource(string path, Lang lang, string source, bool details = f
             case Lang.java: {
                 auto lines = splitLines(source);
                 bcl.Cleaner cleaner;
+                cleaner.useRaw = useRaw;
                 cleaner.csharp = lang == Lang.cs;
                 cleaner.golang = lang == Lang.go;
                 cleaner.charLiterals = lang == Lang.go || lang == Lang.java;
@@ -337,6 +338,7 @@ FileResult analyzeSource(string path, Lang lang, string source, bool details = f
             case Lang.ts: {
                 auto lines = splitLines(source);
                 jcl.Cleaner cleaner;
+                cleaner.useRaw = useRaw;
                 auto facts = cleaner.facts(lines);
                 if (lang == Lang.js) take(r, findJavaScript(jsConfigs[Lang.js], lines, facts));
                 else take(r, findTypeScript(jsConfigs[Lang.ts], lines, facts));

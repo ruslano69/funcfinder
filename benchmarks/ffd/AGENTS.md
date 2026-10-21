@@ -9,7 +9,8 @@ File mode covers function maps/selection/extraction/JSON, type maps/`--type` sel
 combined output (`--all`) and standalone/parsed `--lines`. `--names` lists file/directory declarations;
 `--doc Name,Other` prints adjacent comments and the first source line. `--tree`/`--tree-full` format file declarations
 or directory paths. Directory `--json --split [--split-by dir|file] [--out PATH] [--inc]` writes shards and a manifest.
-The other four tools and `--raw` are not implemented and say so.
+File `--raw` exposes the existing function-cleaner raw-string controls; `--help`/`-h` lists supported keys.
+The other four tools are not implemented.
 
 ## Ownership
 
@@ -28,6 +29,8 @@ The other four tools and `--raw` are not implemented and say so.
   `doc_checks.py` compares file/directory docs and incompatible flags against Go.
 - `ffd_tree.d` owns file function/class containment, full signatures, type/field trees and directory path trees;
   `tree_checks.py` compares formatting, output priority and incompatible flags against Go.
+- `raw_checks.py` checks raw flag handling, original extraction and controlled raw-string effects;
+  `flag_checks.py` compares all advertised Go CLI keys/types with D help and checks their parsing.
 - `ffd_split.d` owns shard grouping, FNV-1a 128 checksums, manifests, output writing and incremental cache planning;
   `split_checks.py` compares Go output and checksums, and `incremental_checks.py` checks invalidation/repair against fresh D scans.
 - `README.md` owns user-facing build/run examples and file/directory limitations.
@@ -41,6 +44,14 @@ The other four tools and `--raw` are not implemented and say so.
 
 ## Local Contracts
 
+- `--raw` controls function parsing, not output serialization. Pass it only to the existing Go/C#/JS/TS cleaners;
+  retain the single token finder per language. D/Java/Python and the standalone native token lexers retain their
+  literal rules; Go also bypasses its raw sanitizer in several language-specific paths. Do not claim universal
+  Go raw-string grammar parity. Struct-only mode and directory scans ignore it, as Go does; combined mode parses
+  types normally while retaining raw-mode function results. Names/docs reject even explicitly false raw flags.
+  Extraction still uses original lines. No new declaration parser or raw source rewrite is allowed.
+- Help goes to stderr with exit 0 for `--help`/`-h`; list Go's keys plus D's timing extensions and actual D worker
+  defaults. Advertised key names/types must match parser support. Flag coverage is distinct from grammar/output parity.
 - Split output requires directory JSON; defaults are `--split-by dir` and `--out .codemap`. Shard keys are paths
   relative to the scan root, flattened like Go; reject distinct keys sharing a filename and `manifest.json` collisions
   before output mutation. Manifest v1.0 fields, counts, empty_shards and FNV-1a 128 checksums match default Go builds
@@ -184,6 +195,8 @@ python benchmarks/ffd/doc_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/tree_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/split_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/incremental_checks.py --ffd build/ffd/ffd.exe
+python benchmarks/ffd/raw_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/flag_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 go test ./benchmarks/ffd/genconfig ./benchmarks/ffd/genvectors   # ffd_config.json and the vectors are current
 python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe --corpora-root <repo>/build --expect benchmarks/ffd/ffd_deltas.json
 ```
@@ -207,6 +220,9 @@ python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe
   checksums, empty/alias-only shards, paths with spaces/Unicode, collisions, determinism and first/repeated incremental runs.
   Incremental checks compare changed/deleted/empty sources, modes, missing/corrupt cache artifacts and all-files-deleted
   output with fresh D scans; verify unchanged shard bytes and mtimes.
+- Raw checks cover acceptance/output across 15 languages, meaningful Go/C#/JS/TS literal effects, D's unchanged
+  preprocessing, combined JSON, ranges, original extraction, output priorities and invalid flags. Key checks cover
+  every Go help key/type, D timing extensions, accepted bool/value spellings and help aliases.
 
 ## Child DOX Index
 

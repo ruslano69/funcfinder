@@ -17,7 +17,8 @@ tool exactly (the same files, the same "skipped N files" notice on 31 trees). Fi
 `--map`, `--func`, `--extract`, `--lines`, `--type`, file `--struct`/`--all` and file/directory `--names`/`--doc` (see below).
 File/directory `--tree` and `--tree-full` are also supported.
 Directory JSON also supports `--split`, `--split-by dir|file`, `--out` and `--inc`.
-Not yet: `--raw`, `funcstats`, `callgraph`, `complexity`, `deps`.
+`--raw` controls existing function cleaners in file mode; `--help`/`-h` lists the keys.
+Not yet: `funcstats`, `callgraph`, `complexity`, `deps`.
 
 ## How close to Go
 
@@ -167,6 +168,11 @@ are removed using the prior manifest. The private `.ffd-state` stamp invalidates
 mode or scan profile changes; the first D run over an existing Go output therefore performs a full scan. Keep separate
 output folders for Go and D. A normal split leaves unlisted files alone and invalidates the incremental stamp.
 
+`--raw` is a parsing control, not an output format: Go/C#/JS/TS function cleaners can include raw-string contents
+in brace counting. Types and directory scans keep normal parsing, as Go does. Other native lexers keep their literal
+rules; D's preprocessing also ignores the flag in Go. Native raw-string/profile differences remain. Extraction always
+returns original source. Combined output retains normal type metadata alongside raw-mode functions.
+
 Validate the CLI against a specified Go binary:
 
 ```powershell
@@ -178,6 +184,8 @@ python benchmarks/ffd/doc_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/tree_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/split_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/incremental_checks.py --ffd build/ffd/ffd.exe
+python benchmarks/ffd/raw_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/flag_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 ```
 
 This is a CLI regression check; real-project accuracy and timing require the independent benchmark harnesses.

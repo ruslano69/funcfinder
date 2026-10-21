@@ -38,7 +38,7 @@ private int fatal(string text) {
 private struct Options {
     string dir;
     string splitBy = "dir", outDir = ".codemap";
-    bool split, incremental;
+    bool split, incremental, help;
     FileOptions file;
     bool all, structs, json, noGitignore, recursive = true, version_, timing, timingAlloc;
     int workers;
@@ -48,9 +48,9 @@ private struct Options {
 
 /// Go's flag package accepts -name, --name, -name=value and --name value; bool flags take only the first forms.
 private bool parseArgs(string[] args, ref Options o, ref string error) {
-    static immutable boolFlags = ["inc", "split", "tree", "tree-full", "all", "struct", "names", "json", "no-gitignore", "recursive", "version", "map", "extract", "timing", "timing-alloc"];
+    static immutable boolFlags = ["raw", "inc", "split", "tree", "tree-full", "all", "struct", "names", "json", "no-gitignore", "recursive", "version", "map", "extract", "timing", "timing-alloc"];
     static immutable valueFlags = ["split-by", "out", "dir", "workers", "inp", "source", "func", "lines", "type", "doc"];
-    static immutable unsupportedBool = ["raw"];
+    static immutable string[] unsupportedBool = [];
     static immutable string[] unsupportedValue = [];
     for (size_t i = 1; i < args.length; ++i) {
         string a = args[i];
@@ -69,6 +69,7 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
                 break;
             }
         o.given ~= name;
+        if (name == "help" || name == "h") { o.help = true; return true; }
         if (name == "struct" && !hasValue && i+1 < args.length && !args[i+1].startsWith("-")) {
             o.file.typeNames = args[++i];
         }
@@ -100,6 +101,7 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
                 continue;
             }
             switch (name) {
+                case "raw": o.file.raw = b; break;
                 case "split": o.split = b; break;
                 case "inc": o.incremental = b; break;
                 case "tree": o.file.tree = b; break;
@@ -163,13 +165,47 @@ unittest {
     assert(o.file.namesOnly && o.all);
 }
 
+private void printUsage() {
+    stderr.writeln("Usage of ffd:");
+    foreach (row; [
+        ["all", "find functions and types"],
+        ["dir string", "directory to scan"],
+        ["doc string", "adjacent comments and first declaration line for comma-separated names"],
+        ["extract", "extract original declaration bodies"],
+        ["func string", "comma-separated function names"],
+        ["inc", "incremental split update (--dir --split --json)"],
+        ["inp string", "input source file"],
+        ["json", "JSON output"],
+        ["lines string", "line range: N, N:M, :M, N:, or :"],
+        ["map", "map declarations (directory default)"],
+        ["names", "kind, name and file:line rows"],
+        ["no-gitignore", "include gitignore-excluded files"],
+        ["out string", "split output directory (default .codemap)"],
+        ["raw", "include raw string contents in supported function-cleaner profiles"],
+        ["recursive", "scan subdirectories (default true)"],
+        ["source string", "language: go/c/cpp/cs/java/d/js/ts/py/rust/swift/kotlin/php/ruby/scala"],
+        ["split", "write manifest and shards (--dir --json)"],
+        ["split-by string", "dir or file (default dir)"],
+        ["struct", "select types; accepts comma-separated names"],
+        ["timing", "report phase and per-file timings (D extension)"],
+        ["timing-alloc", "report allocations; distorts timings (D extension)"],
+        ["tree", "declaration or directory tree"],
+        ["tree-full", "tree with full signatures in file mode"],
+        ["type string", "comma-separated type names"],
+        ["version", "print version"],
+        ["workers int", "workers (D default 8, maximum 16)"]
+    ]) stderr.writeln("  -",row[0],"\n    \t",row[1]);
+}
+
 int main(string[] args) {
+    version (Windows) { _setmode(1, _O_BINARY); _setmode(2, _O_BINARY); }
     Options o;
     string error;
     if (!parseArgs(args, o, error)) {
         stderr.writeln("ffd: ", error);
         return 2;
     }
+    if (o.help) { printUsage(); return 0; }
     if (o.version_) {
         stdout.writeln("ffd version ", ffdVersion, " (D port; reference funcfinder ", referenceVersion, ")");
         return 0;
@@ -193,7 +229,6 @@ int main(string[] args) {
     o.file.structs = o.structs; o.file.all = o.all;
     if (o.file.path.length) {
         if (o.split) return fatal("--split requires --dir");
-        version (Windows) { _setmode(1, _O_BINARY); _setmode(2, _O_BINARY); }
         return runFile(o.file);
     }
     if (o.dir.length == 0) return fatal("--dir or --inp is required");
@@ -204,11 +239,6 @@ int main(string[] args) {
     if (!isDir(o.dir)) return fatal("path is not a directory: " ~ o.dir);
     if (o.split && !o.json) return fatal("--split requires --json output mode");
     if (o.split && o.splitBy != "dir" && o.splitBy != "file") return fatal("--split-by must be 'dir' or 'file'");
-
-    version (Windows) {
-        _setmode(1, _O_BINARY); // a line ends in LF on both streams, as Go writes it
-        _setmode(2, _O_BINARY);
-    }
 
     try {
         initLanguages();
