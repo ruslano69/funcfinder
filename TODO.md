@@ -1,5 +1,13 @@
 # TODO
 
+## D types-only follow-up (2026-10-21)
+
+- D directory `--struct` skips function work after shared preparation/class discovery. Serial CLI improves 1.09–1.19x on arsd/D-YAML; serial parser improves 1.17–1.23x, allocations fall about 22%. Eight-worker CLI gains are small/variable. All 2,504 existing CLI checks, 36 D checks and 29 unit suites pass. [Evidence](benchmarks/ffd/D_TYPES_ONLY.md).
+- Independent nominal-type scoring is unchanged: arsd matches 2,326/2,365 types (25 structs, 13 unions, one class missing); D-YAML 65/65; matched ends are correct. Five/one grammar-error files are explicit exclusions. Keyword starts exclude preceding attributes.
+- Prioritize separate D accuracy fixes: manifest constants are mixed with type rows (1,395 arsd / 23 D-YAML); 272/2 additional rows capture the manifest's type/expression instead of its declared name. Preserve the distinction between analysis scope and wrong names; union/struct omissions need source/AST regressions. Full findings and pinned grammar hash stay under `build/d-types-only/`.
+- Next performance step: C++ types-only through existing tokens/pairs. D shared preparation stays intact until header-join/contract effects on local types are independently checked.
+- Repair the historical standalone D batch probe: `main` retains borrowed function names across text-arena resets. Do not trust its current multi-file saved maps. Isolated per-file before/after runtime/compiled D API checks match and independently score all 12,296 accepted functions with zero misses/false/wrong ends; `ffd.toSyms` already copies names and is unaffected. Evidence: `build/d-types-only/api-verification.json`.
+
 ## JS/TS types-only pilot (2026-10-21)
 
 - D directory `--struct` now skips unused function discovery for JS/TS through conservative `ScanNeeds`; existing cleaners/hybrid type scanning are reused. File ownership context and other language backends retain full scans.

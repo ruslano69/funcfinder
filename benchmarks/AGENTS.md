@@ -40,6 +40,13 @@ Measure funcfinder on real projects using independent syntax-tree references.
 
 ## Local Contracts
 
+- `dlang_port.find(original, includeFunctions = true)` preserves its full API by default. Types-only requests retain
+  shared preparation and class discovery, skipping subsequent function recognition/materialization/ownership only.
+  Do not remove header joining, hints or contract masking without separate type visibility/span checks.
+- The standalone D batch `main` currently retains borrowed function names across arena resets. Until repaired,
+  isolate each source file when scoring its saved API maps; never treat corrupted multi-file batch output as parser
+  accuracy. `ffd.toSyms` owns names before the next file; preloaded timing consumers must consume/copy results likewise.
+
 - Keep reference-project commits and the tested funcfinder commit in measurement output.
 - Uncommitted parser fixes may be evaluated against a frozen base archive plus an explicit source overlay; record every overlaid source hash and keep the resulting snapshot. Label it as base-plus-overlay, never as results from the clean base revision. Correctness comparisons with older binaries may intentionally change output; retain and verify each variant's own maps before timing.
 - Retain duplicate function names and report missing functions, false positives and wrong ends separately.

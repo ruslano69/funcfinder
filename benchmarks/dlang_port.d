@@ -720,9 +720,12 @@ bool continues(string[] lines, size_t i) {
     return false;
 }
 struct Context { Bounds fn; int depth; Signature sig; bool pending; int sigLast; bool afterBlock, bodyStarted; int bodyDelta; }
-Result find(string[] original) {
+// Type-only consumers retain the complete shared preparation: joining and
+// contract masking can affect type visibility and original end coordinates.
+Result find(string[] original, bool includeFunctions = true) {
     int[int] headerEnds; byte[] hints; auto lines=prepare(original,headerEnds,hints);
     Result result; result.classes=classes(lines); int typeDepth;
+    if (!includeFunctions) return result;
     auto stack=appender!(Context[])();
     auto next=appender!(Context[])();
     Event[] eventScratch; int[] depthScratch;

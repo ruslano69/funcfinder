@@ -89,6 +89,20 @@ private string getString(JSONValue cfg, string key) {
     return "";
 }
 
+unittest {
+    initLanguages(); prepareLanguages([Lang.d]);
+    auto source = "void outer() {\n struct Local { int value; }\n}\nclass C {\n void method() {}\n}\n";
+    auto full = analyzeSource("sample.d",Lang.d,source);
+    auto needs = ScanNeeds.directory(Mode.structs);
+    auto types = analyzeSource("sample.d",Lang.d,source,needs);
+    assert(!full.error.length && !types.error.length);
+    assert(types.classes == full.classes && types.classes.length == 2);
+    version (FFDReferenceScan) assert(types.functions.length == full.functions.length);
+    else assert(!types.functions.length);
+    needs.functionContext = true;
+    assert(analyzeSource("sample.d",Lang.d,source,needs).functions == full.functions);
+}
+
 private bool getFlag(JSONValue cfg, string key) {
     if (auto p = key in cfg.object) return p.type == JSONType.true_;
     return false;
@@ -411,7 +425,19 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
                 break;
             }
             case Lang.d: {
-                take(r, dp.find(splitLines(source)));
+                bool functions = needs.functions || needs.functionContext;
+                version (FFDReferenceScan) functions = true;
+                take(r, dp.find(splitLines(source), functions));
+                version (FFDTypeAudit) {
+                    if (!functions) {
+                        auto fullNeeds = needs;
+                        fullNeeds.functions = true;
+                        auto reference = analyzeSource(path,lang,source,fullNeeds);
+                        assert(!reference.error.length && r.classes == reference.classes,
+                            "D types-only bounds/kind/order changed: " ~ path);
+                        assert(!r.functions.length);
+                    }
+                }
                 break;
             }
         }

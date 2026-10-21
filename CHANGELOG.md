@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Experimental D `ffd` avoids function discovery/materialization for D directory `--struct` after its existing shared preparation. arsd/D-YAML serial CLI improves 1.09–1.19x; independent type checks preserve and explicitly report existing union/struct omissions and manifest-constant name errors.
+
 - Experimental D `ffd` skips unused function discovery for JavaScript/TypeScript directory `--struct`, reusing its existing type scanner. The measured Express/Zod CLI gain is 1.21–1.81x; type output and file ownership behavior are preserved.
 
 - Accuracy fixes: Go C++ excludes expression/initializer headers while preserving real prototypes and constructors; Go Ruby reports singleton method names after their receivers. D C skips attribute argument lists during function discovery, and D Kotlin no longer includes a preceding property's `.value` in the next declaration's start. Minimal regressions are checked with independent syntax trees.
