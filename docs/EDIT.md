@@ -15,6 +15,15 @@ funcfinder --inp file.go --source go --remove-func Add --apply
 `--with -` reads the new text from standard input, so no shell quoting is involved. `--line N` picks one function
 when several share the name; `N` is the start line that `--map` reports.
 
+## Guards against common slips
+
+- A first line that `--extract` prints (`// name: start-end` or `# name: start-end`) is removed from `--with` and
+  from `--old`. A markdown fence (```` ``` ````) around the code is removed; a fence line inside the code is refused.
+- `--source` must match the file's extension. A `.py` file with `--source go` is refused before anything runs.
+- A UTF-8 byte order mark at the start of the file is kept, including when line 1 is the one replaced.
+- Without `--apply` the preview prints the removed lines with `-` and the added lines with `+`, so the change can be
+  read before it is written.
+
 ## What is checked
 
 - The finder must find the target exactly once.
