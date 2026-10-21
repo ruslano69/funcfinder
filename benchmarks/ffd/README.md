@@ -16,7 +16,8 @@ Implemented: `--dir`, `--all`, `--struct`, `--json`, `--workers` (default 8, at 
 tool exactly (the same files, the same "skipped N files" notice on 31 trees). File mode also supports `--inp`, `--source`,
 `--map`, `--func`, `--extract`, `--lines`, `--type`, file `--struct`/`--all` and file/directory `--names`/`--doc` (see below).
 File/directory `--tree` and `--tree-full` are also supported.
-Not yet: `--split`, `funcstats`, `callgraph`, `complexity`, `deps`.
+Directory JSON also supports `--split`, `--split-by dir|file`, `--out` and `--inc`.
+Not yet: `--raw`, `funcstats`, `callgraph`, `complexity`, `deps`.
 
 ## How close to Go
 
@@ -150,7 +151,23 @@ including with `--json`; the selected-range notice goes to stderr. Standalone te
 Ordinary file/directory Python maps retain the native D significant ends; underlying parser differences remain.
 Extraction uses original source text, with Go-compatible newline handling (CRLF normalized except for Python).
 
-Validate the file CLI against a specified Go binary:
+Write split output and update changed shards:
+
+```powershell
+build/ffd/ffd.exe --dir src --all --json --split --out .codemap
+build/ffd/ffd.exe --dir src --all --json --split --split-by file --out .codemap-files --inc
+```
+
+Split defaults to one shard per directory and `.codemap` output. The v1.0 manifest and raw-byte FNV-1a 128 checksums
+match default Go builds; empty source files contribute to checksums. Alias-only files do not populate shards.
+Ambiguous flattened shard names are rejected before writing. Native declaration differences remain.
+
+`--inc` skips parsing/writing unchanged shards and repairs missing or invalid shard JSON. Deleted/emptied shards
+are removed using the prior manifest. The private `.ffd-state` stamp invalidates cached results when the executable,
+mode or scan profile changes; the first D run over an existing Go output therefore performs a full scan. Keep separate
+output folders for Go and D. A normal split leaves unlisted files alone and invalidates the incremental stamp.
+
+Validate the CLI against a specified Go binary:
 
 ```powershell
 python benchmarks/ffd/file_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
@@ -159,6 +176,8 @@ python benchmarks/ffd/python_range_checks.py --ffd build/ffd/ffd.exe --go funcfi
 python benchmarks/ffd/field_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/doc_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/tree_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/split_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/incremental_checks.py --ffd build/ffd/ffd.exe
 ```
 
 This is a CLI regression check; real-project accuracy and timing require the independent benchmark harnesses.

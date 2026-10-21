@@ -8,7 +8,8 @@ Directory mode covers `--dir [--all|--struct] [--json]`, `--workers`, `--recursi
 File mode covers function maps/selection/extraction/JSON, type maps/`--type` selection/extraction/JSON (`--struct`),
 combined output (`--all`) and standalone/parsed `--lines`. `--names` lists file/directory declarations;
 `--doc Name,Other` prints adjacent comments and the first source line. `--tree`/`--tree-full` format file declarations
-or directory paths. `--split` and the other four tools are not implemented and say so.
+or directory paths. Directory `--json --split [--split-by dir|file] [--out PATH] [--inc]` writes shards and a manifest.
+The other four tools and `--raw` are not implemented and say so.
 
 ## Ownership
 
@@ -27,6 +28,8 @@ or directory paths. `--split` and the other four tools are not implemented and s
   `doc_checks.py` compares file/directory docs and incompatible flags against Go.
 - `ffd_tree.d` owns file function/class containment, full signatures, type/field trees and directory path trees;
   `tree_checks.py` compares formatting, output priority and incompatible flags against Go.
+- `ffd_split.d` owns shard grouping, FNV-1a 128 checksums, manifests, output writing and incremental cache planning;
+  `split_checks.py` compares Go output and checksums, and `incremental_checks.py` checks invalidation/repair against fresh D scans.
 - `README.md` owns user-facing build/run examples and file/directory limitations.
 - `genvectors/` (Go) writes `ts_declaration_vectors.jsonl`: 6,000 lines with what Go's TS declaration and declarator patterns
   return, which `ffd_vectors.d` (a unit test) holds the D scanners in `../typescript_header.d` to.
@@ -38,6 +41,21 @@ or directory paths. `--split` and the other four tools are not implemented and s
 
 ## Local Contracts
 
+- Split output requires directory JSON; defaults are `--split-by dir` and `--out .codemap`. Shard keys are paths
+  relative to the scan root, flattened like Go; reject distinct keys sharing a filename and `manifest.json` collisions
+  before output mutation. Manifest v1.0 fields, counts, empty_shards and FNV-1a 128 checksums match default Go builds
+  (not the optional xxh3 build). Hash sorted original paths plus per-file raw-byte checksums; all scanned files count
+  toward checksums, but only files with functions/classes populate shards (alias-only files stay empty, as in Go).
+  Sort shard/file rows for deterministic D output; Go worker/map ordering can differ. Full split leaves old unlisted
+  files alone. Do not alter normal directory output or finder behavior.
+- Incremental split computes checksums before worker setup, parses changed shards only and retains unchanged shard
+  files/timestamps and dependency metadata. `.ffd-state` fingerprints the executable, root, split mode and scan profile;
+  absent/incompatible state forces a full scan, including when using an existing Go manifest. This prevents stale caches
+  after mode/compiler/parser changes without changing the public manifest schema. Missing/unparseable shard files
+  trigger repair. Reconcile deleted/emptied shards and remove only safe direct shard names listed in a compatible prior
+  manifest; do not trust paths outside the output folder. Invalid manifests are rebuilt without using their ownership
+  list for deletion. Empty directories and empty shards must match fresh D scans. Non-incremental split invalidates
+  `.ffd-state`. A Go incremental reader does not know D's profile stamp; do not share one output folder between tools.
 - Trees reuse existing native declaration bounds and fields. File function trees merge classes by name, attach methods
   by class name and use Go's first strict containing function as parent; nested functions get the `method` label.
   `--tree-full` formats signatures from original lines with Go's display rules, without a second declaration parser.
@@ -164,6 +182,8 @@ python benchmarks/ffd/python_range_checks.py --ffd build/ffd/ffd.exe --go funcfi
 python benchmarks/ffd/field_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/doc_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 python benchmarks/ffd/tree_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/split_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/incremental_checks.py --ffd build/ffd/ffd.exe
 go test ./benchmarks/ffd/genconfig ./benchmarks/ffd/genvectors   # ffd_config.json and the vectors are current
 python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe --corpora-root <repo>/build --expect benchmarks/ffd/ffd_deltas.json
 ```
@@ -183,6 +203,10 @@ python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe
   and Python body docstrings must not leak beyond the first declaration line.
 - Tree checks cover all 15 languages on controlled fixtures, one/eight directory workers, absolute/relative paths,
   type/combined output, fields, methods, nested functions, overloads, signatures and output/flag combinations.
+- Split checks cover all 15 languages, directory/file grouping, modes, one/eight workers, ignore/recursion rules,
+  checksums, empty/alias-only shards, paths with spaces/Unicode, collisions, determinism and first/repeated incremental runs.
+  Incremental checks compare changed/deleted/empty sources, modes, missing/corrupt cache artifacts and all-files-deleted
+  output with fresh D scans; verify unchanged shard bytes and mtimes.
 
 ## Child DOX Index
 

@@ -9,6 +9,7 @@ import ffd_file;
 import ffd_symbols : formatNames;
 import ffd_docs : docNames, formatDocs;
 import ffd_tree : directoryTree;
+import ffd_split : writeSplit, SplitCache, prepareIncremental;
 import std.conv : to, ConvException;
 import std.datetime.stopwatch : AutoStart, StopWatch;
 import std.file : exists, isDir;
@@ -36,6 +37,8 @@ private int fatal(string text) {
 
 private struct Options {
     string dir;
+    string splitBy = "dir", outDir = ".codemap";
+    bool split, incremental;
     FileOptions file;
     bool all, structs, json, noGitignore, recursive = true, version_, timing, timingAlloc;
     int workers;
@@ -45,10 +48,10 @@ private struct Options {
 
 /// Go's flag package accepts -name, --name, -name=value and --name value; bool flags take only the first forms.
 private bool parseArgs(string[] args, ref Options o, ref string error) {
-    static immutable boolFlags = ["tree", "tree-full", "all", "struct", "names", "json", "no-gitignore", "recursive", "version", "map", "extract", "timing", "timing-alloc"];
-    static immutable valueFlags = ["dir", "workers", "inp", "source", "func", "lines", "type", "doc"];
-    static immutable unsupportedBool = ["raw", "split", "inc"];
-    static immutable unsupportedValue = ["split-by", "out"];
+    static immutable boolFlags = ["inc", "split", "tree", "tree-full", "all", "struct", "names", "json", "no-gitignore", "recursive", "version", "map", "extract", "timing", "timing-alloc"];
+    static immutable valueFlags = ["split-by", "out", "dir", "workers", "inp", "source", "func", "lines", "type", "doc"];
+    static immutable unsupportedBool = ["raw"];
+    static immutable string[] unsupportedValue = [];
     for (size_t i = 1; i < args.length; ++i) {
         string a = args[i];
         if (!a.startsWith("-") || a == "-" || a == "--") {
@@ -97,6 +100,8 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
                 continue;
             }
             switch (name) {
+                case "split": o.split = b; break;
+                case "inc": o.incremental = b; break;
                 case "tree": o.file.tree = b; break;
                 case "tree-full": o.file.treeFull = b; break;
                 case "all": o.all = b; break;
@@ -118,6 +123,8 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
             return false;
         }
         switch (name) {
+            case "split-by": o.splitBy = value; break;
+            case "out": o.outDir = value; break;
             case "dir": o.dir = value; break;
             case "inp": o.file.path = value; break;
             case "source": o.file.source = value; break;
@@ -185,6 +192,7 @@ int main(string[] args) {
     o.file.json = o.json;
     o.file.structs = o.structs; o.file.all = o.all;
     if (o.file.path.length) {
+        if (o.split) return fatal("--split requires --dir");
         version (Windows) { _setmode(1, _O_BINARY); _setmode(2, _O_BINARY); }
         return runFile(o.file);
     }
@@ -194,6 +202,8 @@ int main(string[] args) {
     if (o.structs && o.all) return fatal("--struct and --all are mutually exclusive");
     if (!exists(o.dir)) return fatal("directory does not exist: " ~ o.dir);
     if (!isDir(o.dir)) return fatal("path is not a directory: " ~ o.dir);
+    if (o.split && !o.json) return fatal("--split requires --json output mode");
+    if (o.split && o.splitBy != "dir" && o.splitBy != "file") return fatal("--split-by must be 'dir' or 'file'");
 
     version (Windows) {
         _setmode(1, _O_BINARY); // a line ends in LF on both streams, as Go writes it
@@ -215,6 +225,14 @@ int main(string[] args) {
     immutable walkMs = watch.peek.total!"usecs" / 1000.0;
     immutable notice = skippedNotice(collected.skipped);
     if (notice.length) stderr.writeln("INFO: ", notice);
+    SplitCache cache;
+    if (o.split && o.incremental) {
+        try {
+            cache = prepareIncremental(collected.jobs,o.outDir,o.dir,o.splitBy,modeName(mode) ~ ":" ~ o.recursive.to!string ~ ":" ~ o.noGitignore.to!string);
+            collected.jobs = cache.pending;
+            stderr.writefln("INFO: Incremental: %s shards changed, %s unchanged",cache.changedCount,cache.unchangedCount);
+        } catch (Exception e) { return fatal(e.msg); }
+    }
 
     // Threads are not free here: the D allocator is shared, and past eight workers the run got slower, not faster
     // (OmniRoute: 559 ms at 8, 870 at 16, 1463 at 32). The default is therefore eight, and no run uses more than sixteen.
@@ -242,6 +260,10 @@ int main(string[] args) {
 
     watch.reset();
     string text;
+    if (o.split) {
+        try { stdout.writeln(writeSplit(cache is null ? results : results ~ cache.placeholders,o.outDir,o.dir,o.splitBy,cache)); return 0; }
+        catch (Exception e) { return fatal("writing split output: " ~ e.msg); }
+    }
     try { text = o.file.doc.length ? formatDocs(results,docNames(o.file.doc)) : o.file.namesOnly ? formatNames(results) : o.json ? formatJson(results) : o.file.tree || o.file.treeFull ? directoryTree(results) : formatGrep(results); }
     catch (Exception e) { return fatal(e.msg); }
     if (o.file.doc.length && !text.length) { stderr.writeln("Error: No declarations named ",o.file.doc," found"); return 2; }
