@@ -148,6 +148,33 @@ the actual project root. A shard graph that comes back all-leaves (no
 
 ---
 
+## Phase 6 — Edit one function
+
+Edit a function with `--replace-func`, not with `sed` or a text patch. The span comes from the same finder, so the edit stays inside the function, and the tool checks the result before it writes anything.
+
+```bash
+# 1. The function's current text: this is the --old the edit must still find.
+#    --extract prints a "// name: start-end" header first; drop it with tail -n +2
+funcfinder --inp internal/edit.go --source go --func ReplaceFunction --extract | tail -n +2 > old.txt
+# 2. Write the new function to new.txt without that header (or pipe it with --with -)
+# 3. Preview: validates and writes nothing
+funcfinder --inp internal/edit.go --source go --replace-func ReplaceFunction --with new.txt --old old.txt
+# 4. Apply
+funcfinder --inp internal/edit.go --source go --replace-func ReplaceFunction --with new.txt --old old.txt --apply
+```
+
+The tool enforces these rules. Do not work around them:
+- Several functions share the name: add `--line N`, the start line from `--map`.
+- The replacement keeps every function and type the finder reports, in the same order. A rename, an extra function or a missing one is refused. A nested helper inside the function belongs in the replacement.
+- Decorators and annotations above the function (`@x`, `#[x]`) are kept when the replacement omits them. A different set is refused.
+- Brace languages must balance their brackets in the replacement. Python has no bracket check, only the finder comparison.
+- Comments above the `func` line are not replaced.
+- "is not the expected text" means the file changed since you read it. Re-run `--extract` and rebuild the replacement. Do not drop `--old`.
+
+Why this is cheaper than grep and read: `--extract` of one function was 3466 bytes against 9001 for the whole file, and `callgraph --reverse` answers "who calls this" in one call, where `grep` returns every textual mention.
+
+---
+
 ## Supporting tools
 
 ```bash
@@ -216,6 +243,9 @@ callgraph --dir . -l go --reverse --func AuthenticateUser
 | Loading full JSON for large project | Use `--split`, read manifest first |
 | `deps`/`callgraph` misses `cmd/` | Add `--no-gitignore` |
 | `--split` without `--json` | Always pair: `--json --split` |
+| Patching a function with `sed` or a text replace | `--replace-func` with `--old`; preview first, then `--apply` |
+| `--replace-func` refused: "not the expected text" | Re-run `--extract | tail -n +2`, rebuild the replacement; do not drop `--old` |
+| `callgraph --inp` lists `fmt.Errorf`, `strings.Count` and other library calls | Use `callgraph --reverse` for impact; the library names are noise there |
 | Calling `--extract` without knowing the line | Use `--names` or `--map` first, then `--func Name --extract` |
 | Wanting the purpose of a function from its body | Use `--doc Name`: it shows the comment above the declaration |
 | Expecting Go methods as `method` in `--names`/`--doc` | They show as `function` for now: the receiver is not recorded |
@@ -240,6 +270,9 @@ funcfinder --inp <file> --source <lang> --doc <Name>    # comment + first line, 
 
 # Impact
 callgraph --dir . -l <lang> --reverse --func <Name>
+
+# Edit one function (preview, then --apply)
+funcfinder --inp <file> --source <lang> --replace-func <Name> --with <new-file|-> [--old <old-file>] [--line N] [--apply]
 
 # Architecture
 deps . -l <lang> --shards --no-gitignore --update-manifest .codemap/manifest.json
