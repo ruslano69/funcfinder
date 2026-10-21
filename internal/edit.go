@@ -60,6 +60,9 @@ func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectO
 	if err := sameDecorators(e.lines[e.fn.Start-1:e.fn.End], newLines); err != nil {
 		return nil, err
 	}
+	if err := e.checkIndent(newLines); err != nil {
+		return nil, err
+	}
 
 	out := make([]string, 0, len(e.lines)-(e.fn.End-e.fn.Start+1)+len(newLines))
 	out = append(out, e.lines[:e.fn.Start-1]...)
@@ -94,6 +97,9 @@ func InsertAfterFunction(cfg *LanguageConfig, src []byte, target FuncTarget, rep
 
 	newLines, err := e.newLines(replacement)
 	if err != nil {
+		return nil, err
+	}
+	if err := e.checkIndent(newLines); err != nil {
 		return nil, err
 	}
 	out := make([]string, 0, len(e.lines)+len(newLines)+1)
@@ -221,6 +227,87 @@ func (e *editFile) newLines(replacement []byte) ([]string, error) {
 		}
 	}
 	return strings.Split(text, "\n"), nil
+}
+
+// checkIndent keeps indentation-based code (Python) in its block. The new text must start at the target's indentation
+// and no line of it may be less indented than that, or the code moves out of its class or body. Tabs and spaces
+// may not be mixed in one indentation. Lines inside a triple-quoted string are exempt: their indentation is content.
+func (e *editFile) checkIndent(lines []string) error {
+	if !e.cfg.IndentBased {
+		return nil
+	}
+	base := indentOf(e.lines[e.fn.Start-1])
+	first := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			first = i
+			break
+		}
+	}
+	if first < 0 {
+		return nil
+	}
+	if got := indentOf(lines[first]); got != base {
+		return fmt.Errorf("replacement starts at indentation %q, the function is at %q", got, base)
+	}
+	inString := false
+	header := -1      // index of the def/class line
+	needBody := false // the header ends with ":", so the next code line must be indented deeper
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if !inString {
+			ind := indentOf(line)
+			t := strings.TrimSpace(line)
+			if !strings.HasPrefix(ind, base) {
+				return fmt.Errorf("replacement line %d is less indented than the function (%q): it would leave its block", i+1, ind)
+			}
+			if strings.Contains(ind, "\t") && strings.Contains(ind, " ") {
+				return fmt.Errorf("replacement line %d mixes tabs and spaces in its indentation", i+1)
+			}
+			switch {
+			case header < 0 && !isDecorator(t):
+				header = i
+				needBody = strings.HasSuffix(t, ":")
+			case header >= 0:
+				if needBody {
+					if len(ind) <= len(base) {
+						return fmt.Errorf("replacement line %d: the def has no indented body", header+1)
+					}
+					needBody = false
+				}
+				if ind == base && !startsBlock(t) {
+					return fmt.Errorf("replacement line %d is at the function's indentation but is not a declaration", i+1)
+				}
+			}
+		}
+		if strings.Count(line, `"""`)%2 == 1 || strings.Count(line, `'''`)%2 == 1 {
+			inString = !inString
+		}
+	}
+	return nil
+}
+
+// isDecorator reports whether a trimmed line is a decorator or annotation above a declaration.
+func isDecorator(t string) bool {
+	return strings.HasPrefix(t, "@") || strings.HasPrefix(t, "#[")
+}
+
+// startsBlock reports whether a trimmed line can sit at the indentation of a function: a declaration, a decorator
+// of the next one, or a comment.
+func startsBlock(t string) bool {
+	for _, p := range []string{"def ", "async def ", "class ", "@", "#"} {
+		if strings.HasPrefix(t, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// indentOf returns the leading spaces and tabs of a line.
+func indentOf(line string) string {
+	return line[:len(line)-len(strings.TrimLeft(line, " \t"))]
 }
 
 // join returns the lines as the file text, with the original final newline.
