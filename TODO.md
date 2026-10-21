@@ -2,6 +2,13 @@
 
 Known issues and follow-up work, tracked here until they become GitHub issues.
 
+## Full CLI performance on i3-12100 (2026-10-21)
+
+- 16 pinned projects, current source 69545b7, Go 1.27.1/current and official 1.15.10/Go 1.25.0, LDC 1.43.0. Seven shuffled warm-cache full-CLI samples per case, 3 modes and 1/8/default workers; 3,024 timed runs. Median-ratio geometric means versus current Go: D functions 1.86x serial / 1.42x at eight workers; all 2.02x / 1.50x. Equal all-mode output keys on four projects give 1.33x at eight workers. These are different algorithms/profiles/compilers, not isolated language speed claims.
+- D struct-only mode is about 7% slower serially / 14% at eight workers: it currently computes functions and discards them. Add a type-only native path while retaining independent accuracy checks before estimating further gains.
+- On fmt, current Go is ~20% slower serially / ~14% at eight workers than the prior local accuracy baseline, which was itself slower than the release. Investigate sharing/reusing the C++ token pass; preserve expression false-positive fixes. Large D speedups versus current Go partly reflect this Go cost.
+- Full per-project/mode numbers and methodology: benchmarks/ffd/PERFORMANCE_20261021.md; raw samples, binary/source hashes, maps and fmt follow-up: build/performance-20261021/. Historical results and ffd_deltas.json remain unchanged. Cold-disk, file extraction/docs/fields and other tools were not timed.
+
 ## Independent accuracy fixes (2026-10-21)
 
 - Go C++ token evidence removes 11 confirmed expression/initializer false functions from local kanzi-cpp and three from the saved fmt commit; preserve default arguments, ellipses, repeated names and multiline return types. This is not a complete C++ parser. D C now excludes nested attribute calls such as `aligned(16)` from declaration discovery; Lua function keys are unchanged.

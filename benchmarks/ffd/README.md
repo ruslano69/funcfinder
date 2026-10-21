@@ -74,6 +74,13 @@ byte in most finders; what is left is the JS finder's phases on small files, C++
 
 ## File mode
 
+Fresh measurements on the user's i3-12100 (4 cores/8 threads), 16 pinned projects and seven shuffled full-CLI samples
+are in [PERFORMANCE_20261021.md](PERFORMANCE_20261021.md). Against current Go, geometric-mean D speedups are 2.02×
+serial / 1.50× at eight workers for `--all`, and 1.86× / 1.42× for functions. Type-only mode is about 7% / 14% slower.
+The four `--all` projects with equal output keys give 1.33× at eight workers. These are implementation comparisons,
+with remaining accuracy differences; they do not isolate the programming language. The historical table above is a
+different machine/baseline. The report also separates an observed C++ slowdown in current Go from D's advantage.
+
 Map one file or select functions:
 
 ```powershell

@@ -34,6 +34,7 @@ The other four tools are not implemented.
 - `ffd_split.d` owns shard grouping, FNV-1a 128 checksums, manifests, output writing and incremental cache planning;
   `split_checks.py` compares Go output and checksums, and `incremental_checks.py` checks invalidation/repair against fresh D scans.
 - `README.md` owns user-facing build/run examples and file/directory limitations.
+- `PERFORMANCE_20261021.md` records the i3-12100 full-CLI comparison on 16 pinned corpora, including current/released Go, equal-key subsets, struct-mode limitations and C++ accuracy-check overhead. Keep it distinct from historical measurements on the 16-core host.
 - `genvectors/` (Go) writes `ts_declaration_vectors.jsonl`: 6,000 lines with what Go's TS declaration and declarator patterns
   return, which `ffd_vectors.d` (a unit test) holds the D scanners in `../typescript_header.d` to.
 - `genconfig/` (Go) writes `ffd_config.json`, the resolved configuration of every language; `ffd_config.json` is
