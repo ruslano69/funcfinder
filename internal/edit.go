@@ -102,6 +102,10 @@ func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectO
 		}
 	}
 	newLines := strings.Split(newText, "\n")
+	// A replacement without decorators keeps the old ones, so omitting them never loses them.
+	if len(leadingDecorators(newLines)) == 0 {
+		newLines = append(rawLeadingDecorators(lines[fn.Start-1:fn.End]), newLines...)
+	}
 	if err := sameDecorators(lines[fn.Start-1:fn.End], newLines); err != nil {
 		return nil, err
 	}
@@ -176,14 +180,24 @@ func sameDecorators(old, replacement []string) error {
 	return nil
 }
 
-// leadingDecorators returns the lines before the declaration that start with a decorator or annotation (@x) or a
-// Rust attribute (#[x]). Other languages' attribute syntaxes are not recognised.
+// leadingDecorators returns the trimmed decorator lines of rawLeadingDecorators.
 func leadingDecorators(lines []string) []string {
+	raw := rawLeadingDecorators(lines)
+	out := make([]string, len(raw))
+	for i, line := range raw {
+		out[i] = strings.TrimSpace(line)
+	}
+	return out
+}
+
+// rawLeadingDecorators returns the lines before the declaration that start with a decorator or annotation (@x) or a
+// Rust attribute (#[x]), as written. Other languages' attribute syntaxes are not recognised.
+func rawLeadingDecorators(lines []string) []string {
 	var out []string
 	for _, line := range lines {
 		t := strings.TrimSpace(line)
 		if strings.HasPrefix(t, "@") || strings.HasPrefix(t, "#[") {
-			out = append(out, t)
+			out = append(out, line)
 			continue
 		}
 		if t == "" {

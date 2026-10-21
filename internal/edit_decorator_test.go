@@ -36,18 +36,22 @@ func TestReplaceFunction_DecoratorsAreRestated(t *testing.T) {
 			if err != nil {
 				t.Fatalf("config: %v", err)
 			}
-			// Dropping the decorators is refused, even though the rest of the file stays valid.
-			if _, err := ReplaceFunction(lc, []byte(tc.src), FuncTarget{Name: "add"}, nil, []byte(tc.body)); err == nil || !strings.Contains(err.Error(), "decorators") {
-				t.Fatalf("dropped decorators accepted: %v", err)
-			}
-			// Restating them is accepted and the output keeps them.
-			res, err := ReplaceFunction(lc, []byte(tc.src), FuncTarget{Name: "add"}, nil, []byte(tc.decorators+tc.body))
+			// A replacement without decorators keeps the old ones: they are never lost by omission.
+			res, err := ReplaceFunction(lc, []byte(tc.src), FuncTarget{Name: "add"}, nil, []byte(tc.body))
 			if err != nil {
-				t.Fatalf("restated decorators refused: %v", err)
+				t.Fatalf("replacement without decorators refused: %v", err)
 			}
 			want := strings.Replace(tc.src, tc.old, tc.decorators+tc.body, 1)
 			if string(res.Output) != want {
-				t.Fatalf("output mismatch:\n%s\nwant:\n%s", res.Output, want)
+				t.Fatalf("decorators lost or changed:\n%s\nwant:\n%s", res.Output, want)
+			}
+			// Restating the same decorators is accepted too.
+			if _, err := ReplaceFunction(lc, []byte(tc.src), FuncTarget{Name: "add"}, nil, []byte(tc.decorators+tc.body)); err != nil {
+				t.Fatalf("restated decorators refused: %v", err)
+			}
+			// Different decorators are refused, so a change of decorators is never silent.
+			if _, err := ReplaceFunction(lc, []byte(tc.src), FuncTarget{Name: "add"}, nil, []byte(strings.Replace(tc.decorators, "@", "@Other", 1)+tc.body)); err == nil || !strings.Contains(err.Error(), "decorators") {
+				t.Fatalf("different decorators accepted: %v", err)
 			}
 		})
 	}
