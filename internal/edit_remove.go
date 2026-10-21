@@ -62,7 +62,8 @@ func RemoveFunction(cfg *LanguageConfig, src []byte, target FuncTarget) (*Replac
 			return nil, fmt.Errorf("removal changes the top-level declarations from %d to %d", len(before), len(left))
 		}
 	}
-	return &ReplaceResult{Start: e.fn.Start, End: e.fn.End, Output: e.output(outText)}, nil
+	return &ReplaceResult{Start: e.fn.Start, End: e.fn.End, Output: e.output(outText),
+		Removed: append([]string(nil), e.lines[lo:hi]...)}, nil
 }
 
 // isStatementLine reports whether a line is neither blank nor a comment.

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/ruslano69/funcfinder/internal"
 )
@@ -70,6 +72,10 @@ func loadEdit(config internal.Config, req editRequest, kind string) (*internal.L
 	if err != nil {
 		internal.FatalError("%v", err)
 	}
+	// A wrong --source for the file is the most common slip; the extension is the cheap check against it.
+	if !hasExtension(cfg, req.inp) {
+		internal.FatalError("%s does not have an extension of --source %s (%s); check --source", req.inp, req.source, strings.Join(cfg.Extensions, ", "))
+	}
 	var replacement []byte
 	if kind != "remove" {
 		if req.withPath == "-" {
@@ -98,6 +104,13 @@ func loadEdit(config internal.Config, req editRequest, kind string) (*internal.L
 // report prints the outcome, or writes the file when apply is set. Writing happens only if the file still holds
 // the bytes the edit was prepared from; a change made in the meantime is not overwritten.
 func report(req editRequest, src []byte, res *internal.ReplaceResult, what string) {
+	// The preview shows what leaves the file and what enters it, so the change can be read before --apply.
+	for _, line := range res.Removed {
+		fmt.Printf("- %s\n", line)
+	}
+	for _, line := range res.Added {
+		fmt.Printf("+ %s\n", line)
+	}
 	if !req.apply {
 		fmt.Printf("%s: valid, not written. Re-run with --apply to write it.\n", what)
 		return
@@ -117,4 +130,15 @@ func report(req editRequest, src []byte, res *internal.ReplaceResult, what strin
 		internal.FatalError("writing %s: %v", req.inp, err)
 	}
 	fmt.Printf("%s: written to %s\n", what, req.inp)
+}
+
+// hasExtension reports whether the file name ends with one of the language's extensions.
+func hasExtension(cfg *internal.LanguageConfig, path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	for _, e := range cfg.Extensions {
+		if strings.ToLower(e) == ext {
+			return true
+		}
+	}
+	return false
 }

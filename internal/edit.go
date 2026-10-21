@@ -21,9 +21,11 @@ type FuncTarget struct {
 // End are the replaced lines (1-based, inclusive) for a replacement; for an insertion they are both the line the
 // new text follows.
 type ReplaceResult struct {
-	Start  int
-	End    int
-	Output []byte
+	Start   int
+	End     int
+	Output  []byte
+	Removed []string // lines the edit takes out of the span, for the preview
+	Added   []string // lines the edit puts in, for the preview
 }
 
 // ReplaceFunction replaces one function of any configured language. The span comes from the production finder.
@@ -47,11 +49,11 @@ func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectO
 	}
 	defer e.close()
 
-	if expectOld != nil && e.oldText() != strings.TrimSuffix(strings.ReplaceAll(string(expectOld), "\r\n", "\n"), "\n") {
+	if expectOld != nil && e.oldText() != stripExtractHeader(strings.TrimSuffix(strings.ReplaceAll(string(expectOld), "\r\n", "\n"), "\n"), target.Name) {
 		return nil, fmt.Errorf("function %s at lines %d-%d is not the expected text (it changed since it was read)",
 			target.Name, e.fn.Start, e.fn.End)
 	}
-	newLines, err := e.newLines(replacement)
+	newLines, err := e.newLines(replacement, target.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +82,8 @@ func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectO
 			return nil, err
 		}
 	}
-	return &ReplaceResult{Start: e.fn.Start, End: e.fn.End, Output: e.output(outText)}, nil
+	return &ReplaceResult{Start: e.fn.Start, End: e.fn.End, Output: e.output(outText),
+		Removed: append([]string(nil), e.lines[e.fn.Start-1:e.fn.End]...), Added: newLines}, nil
 }
 
 // InsertAfterFunction adds the functions in replacement after the target, with one blank line in between. The
@@ -93,7 +96,7 @@ func InsertAfterFunction(cfg *LanguageConfig, src []byte, target FuncTarget, rep
 	}
 	defer e.close()
 
-	newLines, err := e.newLines(replacement)
+	newLines, err := e.newLines(replacement, target.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +131,7 @@ func InsertAfterFunction(cfg *LanguageConfig, src []byte, target FuncTarget, rep
 			return nil, fmt.Errorf("insertion does not give a valid file: %v", err)
 		}
 	}
-	return &ReplaceResult{Start: e.fn.End, End: e.fn.End, Output: e.output(outText)}, nil
+	return &ReplaceResult{Start: e.fn.End, End: e.fn.End, Output: e.output(outText), Added: newLines}, nil
 }
 
 // editFile holds the source of one edit and the finder's view of it.
@@ -145,6 +148,7 @@ type editFile struct {
 	fn            FunctionBounds
 	fnIndex       int // index of fn among the target kind (functions, or types for a type edit)
 	unit          string
+	bom           bool     // the file began with a UTF-8 byte order mark, written back on output
 	beforePrimary []string // names of the target kind before the edit, in order
 	beforeOther   []string // names of the other kind (types for a function edit, functions for a type edit)
 }
@@ -163,6 +167,11 @@ func openEdit(cfg *LanguageConfig, src []byte, target FuncTarget) (*editFile, er
 		e.eol = "\r\n"
 	}
 	e.text = strings.ReplaceAll(string(src), "\r\n", "\n")
+	// A UTF-8 byte order mark is not code: it is kept out of the line text and written back in front.
+	if strings.HasPrefix(e.text, utf8BOM) {
+		e.bom = true
+		e.text = strings.TrimPrefix(e.text, utf8BOM)
+	}
 	if e.text == "" {
 		return nil, fmt.Errorf("source is empty")
 	}
@@ -277,8 +286,11 @@ func (e *editFile) oldText() string {
 }
 
 // newLines normalises the replacement text and checks its brackets.
-func (e *editFile) newLines(replacement []byte) ([]string, error) {
-	text := strings.TrimSuffix(strings.ReplaceAll(string(replacement), "\r\n", "\n"), "\n")
+func (e *editFile) newLines(replacement []byte, name string) ([]string, error) {
+	text, err := cleanReplacement(strings.TrimSuffix(strings.ReplaceAll(string(replacement), "\r\n", "\n"), "\n"), name)
+	if err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(text) == "" {
 		return nil, fmt.Errorf("replacement is empty")
 	}
@@ -385,8 +397,14 @@ func (e *editFile) join(lines []string) string {
 
 // output converts LF text back to the file's line endings.
 func (e *editFile) output(text string) []byte {
-	return []byte(strings.ReplaceAll(text, "\n", e.eol))
+	out := strings.ReplaceAll(text, "\n", e.eol)
+	if e.bom {
+		out = utf8BOM + out
+	}
+	return []byte(out)
 }
+
+const utf8BOM = "\xef\xbb\xbf"
 
 // findIn writes text to a scratch file and runs the finder on it.
 func (e *editFile) findIn(name, text string) (*FindResult, error) {
