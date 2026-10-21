@@ -47,6 +47,7 @@ func main() {
 	replaceLine := flag.Int("line", 0, "with --replace-func: start line of the function, when its name is not unique")
 	withFile := flag.String("with", "", "with --replace-func: file holding the new function, or - for stdin")
 	oldFile := flag.String("old", "", "with --replace-func: file with the function text you expect to replace; fail if it differs")
+	removeFunc := flag.String("remove-func", "", "delete the named function (--inp, --source); preview unless --apply; --line picks one of several")
 	addAfter := flag.String("add-after", "", "insert the function(s) from --with directly after the named function (--inp, --source)")
 	applyEdit := flag.Bool("apply", false,"with --replace-func: write the file (without it, only validate and report)")
 
@@ -96,6 +97,12 @@ func main() {
 	// Замена одной функции (--replace-func): только файл и Go
 	if *replaceFunc != "" {
 		handleReplaceFunc(config, editRequest{inp: *inp, source: *source, name: *replaceFunc, line: *replaceLine, withPath: *withFile, oldPath: *oldFile, apply: *applyEdit})
+		return
+	}
+
+	// Удаление функции (--remove-func)
+	if *removeFunc != "" {
+		handleRemoveFunc(config, editRequest{inp: *inp, source: *source, name: *removeFunc, line: *replaceLine, apply: *applyEdit})
 		return
 	}
 
