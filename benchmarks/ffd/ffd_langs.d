@@ -59,6 +59,31 @@ private string[] getStrings(JSONValue cfg, string key) {
     return r;
 }
 
+unittest {
+    import ffd_run : applyMode;
+    initLanguages(); prepareLanguages([Lang.js,Lang.ts]);
+    string source = "function f() {\n class Local {}\n}\nclass C {\n method() { return `class Fake {}`; }\n}\n";
+    foreach (lang; [Lang.js,Lang.ts]) {
+        auto full = analyzeSource("sample",lang,source);
+        auto fast = analyzeSource("sample",lang,source,ScanNeeds.directory(Mode.structs));
+        assert(!full.error.length && !fast.error.length);
+        assert(applyMode(full,Mode.structs).classes == applyMode(fast,Mode.structs).classes);
+        version (FFDReferenceScan) assert(fast.functions.length);
+        else assert(!fast.functions.length && !fast.classes.length);
+        version (FFDScanStats) {
+            version (FFDReferenceScan) assert(fast.scanStats.nativeCalls == 1);
+            else assert(fast.scanStats.nativeCalls == 0 && fast.scanStats.functionBounds == 0);
+            assert(fast.scanStats.hybridCalls == 1);
+            assert(full.scanStats.nativeCalls == 1 && full.scanStats.functionBounds > 0);
+        }
+        // Field/ownership consumers still require the full native context.
+        auto contextNeeds = ScanNeeds.directory(Mode.structs);
+        contextNeeds.functionContext = true;
+        auto context = analyzeSource("sample",lang,source,contextNeeds);
+        assert(context.functions.length == full.functions.length);
+    }
+}
+
 private string getString(JSONValue cfg, string key) {
     if (auto p = key in cfg.object) return p.type == JSONType.string ? p.str : "";
     return "";
@@ -270,8 +295,13 @@ private void take(R)(ref FileResult r, R found) {
 
 /// Finds the functions and types of one file with the finder of its language. Errors are returned in the result.
 FileResult analyzeFile(string path, Lang lang, bool details = false) {
+    ScanNeeds needs; needs.details = details;
+    return analyzeFile(path, lang, needs);
+}
+
+FileResult analyzeFile(string path, Lang lang, ScanNeeds needs) {
     try {
-        return analyzeSource(path, lang, readSource(path), details);
+        return analyzeSource(path, lang, readSource(path), needs);
     } catch (Exception e) {
         FileResult r; r.path = path; r.lang = langKey(lang); r.error = e.msg; return r;
     }
@@ -279,6 +309,12 @@ FileResult analyzeFile(string path, Lang lang, bool details = false) {
 
 /// Same token finders for a file or a selected source range; no second parser path.
 FileResult analyzeSource(string path, Lang lang, string source, bool details = false, bool useRaw = false) {
+    ScanNeeds needs; needs.details = details; needs.useRaw = useRaw;
+    return analyzeSource(path,lang,source,needs);
+}
+
+FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs) {
+    immutable details = needs.details, useRaw = needs.useRaw;
     FileResult r;
     r.path = path;
     r.lang = langKey(lang);
@@ -339,11 +375,39 @@ FileResult analyzeSource(string path, Lang lang, string source, bool details = f
                 auto lines = splitLines(source);
                 jcl.Cleaner cleaner;
                 cleaner.useRaw = useRaw;
+                version (FFDScanStats) {
+                    import std.datetime.stopwatch : StopWatch, AutoStart;
+                    auto phase = StopWatch(AutoStart.yes);
+                }
                 auto facts = cleaner.facts(lines);
-                if (lang == Lang.js) take(r, findJavaScript(jsConfigs[Lang.js], lines, facts));
-                else take(r, findTypeScript(jsConfigs[Lang.ts], lines, facts));
-                r.structTypes = hybridTypes(facts, lang == Lang.js);
-                r.hasStructTypes = true;
+                version (FFDScanStats) { r.scanStats.cleanMicros = phase.peek.total!"usecs"; phase.reset(); }
+                bool native = needs.needsNative;
+                version (FFDReferenceScan) native = true; // diagnostics: original full scan, same finders
+                if (native) {
+                    if (lang == Lang.js) take(r, findJavaScript(jsConfigs[Lang.js], lines, facts));
+                    else take(r, findTypeScript(jsConfigs[Lang.ts], lines, facts));
+                    version (FFDScanStats) {
+                        r.scanStats.nativeCalls = 1;
+                        r.scanStats.functionBounds = r.functions.length;
+                        r.scanStats.nativeTypeBounds = r.classes.length;
+                    }
+                }
+                version (FFDScanStats) { r.scanStats.nativeMicros = phase.peek.total!"usecs"; phase.reset(); }
+                if (needs.structTypes) {
+                    r.structTypes = hybridTypes(facts, lang == Lang.js);
+                    r.hasStructTypes = true;
+                    version (FFDScanStats) { r.scanStats.hybridCalls = 1; r.scanStats.hybridTypeBounds = r.structTypes.length; }
+                }
+                version (FFDScanStats) r.scanStats.hybridMicros = phase.peek.total!"usecs";
+                version (FFDTypeAudit) {
+                    if (!native) {
+                        auto fullNeeds = needs;
+                        fullNeeds.functions = true;
+                        auto reference = analyzeSource(path,lang,source,fullNeeds);
+                        assert(!reference.error.length && r.structTypes == reference.structTypes,
+                            "types-only bounds/kind/order changed: " ~ path);
+                    }
+                }
                 break;
             }
             case Lang.d: {

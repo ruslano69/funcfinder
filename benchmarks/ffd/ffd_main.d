@@ -302,6 +302,17 @@ int main(string[] args) {
     if (!o.file.namesOnly && !o.file.doc.length) stdout.rawWrite("\n"); // names/docs already end in LF
     stdout.flush();
     if (o.timing) {
+        version (FFDScanStats) {
+            ScanStats scan;
+            foreach (ref r; results) {
+                foreach (member; __traits(allMembers, ScanStats)) {
+                    static if (__traits(compiles, mixin("scan." ~ member ~ " += r.scanStats." ~ member)))
+                        mixin("scan." ~ member ~ " += r.scanStats." ~ member ~ ";");
+                }
+            }
+            stderr.writefln("INFO: js/ts scan: clean=%s us native=%s us hybrid=%s us native_calls=%s hybrid_calls=%s function_bounds=%s native_type_bounds=%s hybrid_type_bounds=%s",
+                scan.cleanMicros,scan.nativeMicros,scan.hybridMicros,scan.nativeCalls,scan.hybridCalls,scan.functionBounds,scan.nativeTypeBounds,scan.hybridTypeBounds);
+        }
         long sum;
         foreach (ref r; results) sum += r.micros;
         stderr.writefln("INFO: timing: per-file times add up to %.1f ms", sum / 1000.0);

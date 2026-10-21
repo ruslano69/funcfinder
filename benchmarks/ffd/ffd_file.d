@@ -179,7 +179,14 @@ int runFile(FileOptions o) {
         initLanguages(); prepareLanguages([lang]);
         bool pythonRange = lang == Lang.py && o.lines.length;
         auto source = o.lines.length && !pythonRange ? original[range.start-1 .. end].join("\n") : raw;
-        auto result = analyzeSource(o.path, lang, source, o.structs || o.all || o.doc.length, o.raw && !o.structs);
+        ScanNeeds needs;
+        needs.functions = !o.structs;
+        // File fields/ownership still need the complete native context. Only
+        // directory JS/TS types are specialized in the first pilot.
+        needs.functionContext = true;
+        needs.details = o.structs || o.all || o.doc.length;
+        needs.useRaw = o.raw && !o.structs;
+        auto result = analyzeSource(o.path, lang, source, needs);
         // Go applies --raw to the function finder only; combined type metadata stays in normal mode.
         FileResult normalTypes;
         if (o.raw && o.all) {

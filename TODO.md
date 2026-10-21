@@ -1,9 +1,17 @@
 # TODO
 
+## JS/TS types-only pilot (2026-10-21)
+
+- D directory `--struct` now skips unused function discovery for JS/TS through conservative `ScanNeeds`; existing cleaners/hybrid type scanning are reused. File ownership context and other language backends retain full scans.
+- Express/Zod full CLI improves 1.21–1.81x (1/8 workers); warmed serial parser improves 2.69–2.74x. Function/all medians remain within 2.3%. Exact corpus output/bounds audit passes on 658 files; 64 new fixture checks include independent AST names/lines, alongside 2,504 existing CLI checks and 29 module unit suites.
+- Evidence and limitations: [pilot report](benchmarks/ffd/TYPES_ONLY_PILOT.md). This preserves the existing type profile, not a new full-grammar accuracy claim. Next: D/C++ native types-only scans with independent oracles.
+
+
 Known issues and follow-up work, tracked here until they become GitHub issues.
 
 ## Full CLI performance on i3-12100 (2026-10-21)
 
+- Implementation order and acceptance criteria: [D/Go optimization plan](benchmarks/ffd/OPTIMIZATION_PLAN.md). Reuse proven function-scanner infrastructure; begin with consumer needs and the existing JS/TS type finder before extending types-only paths language by language. Preserve scope dependencies for local types/fields, and optimize Go C++ token reuse separately.
 - 16 pinned projects, current source 69545b7, Go 1.27.1/current and official 1.15.10/Go 1.25.0, LDC 1.43.0. Seven shuffled warm-cache full-CLI samples per case, 3 modes and 1/8/default workers; 3,024 timed runs. Median-ratio geometric means versus current Go: D functions 1.86x serial / 1.42x at eight workers; all 2.02x / 1.50x. Equal all-mode output keys on four projects give 1.33x at eight workers. These are different algorithms/profiles/compilers, not isolated language speed claims.
 - D struct-only mode is about 7% slower serially / 14% at eight workers: it currently computes functions and discards them. Add a type-only native path while retaining independent accuracy checks before estimating further gains.
 - On fmt, current Go is ~20% slower serially / ~14% at eight workers than the prior local accuracy baseline, which was itself slower than the release. Investigate sharing/reusing the C++ token pass; preserve expression false-positive fixes. Large D speedups versus current Go partly reflect this Go cost.

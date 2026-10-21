@@ -35,6 +35,7 @@ The other four tools are not implemented.
   `split_checks.py` compares Go output and checksums, and `incremental_checks.py` checks invalidation/repair against fresh D scans.
 - `README.md` owns user-facing build/run examples and file/directory limitations.
 - `PERFORMANCE_20261021.md` records the i3-12100 full-CLI comparison on 16 pinned corpora, including current/released Go, equal-key subsets, struct-mode limitations and C++ accuracy-check overhead. Keep it distinct from historical measurements on the 16-core host.
+- `OPTIMIZATION_PLAN.md` owns the staged optimization plan: reuse validated function lexers/scanners/pools, propagate consumer needs, pilot JS/TS types-only, specialize other native finders, share Go C++ tokens, then profile allocations/scheduling. Independent accuracy gates apply to every stage.
 - `genvectors/` (Go) writes `ts_declaration_vectors.jsonl`: 6,000 lines with what Go's TS declaration and declarator patterns
   return, which `ffd_vectors.d` (a unit test) holds the D scanners in `../typescript_header.d` to.
 - `genconfig/` (Go) writes `ffd_config.json`, the resolved configuration of every language; `ffd_config.json` is
@@ -44,6 +45,13 @@ The other four tools are not implemented.
 - `../reuse.d` is the thread-local block reuse the finders and cleaners share.
 
 ## Local Contracts
+
+- `ScanNeeds` carries consumer requirements before analysis. Defaults preserve full scans. Directory JS/TS `--struct`
+  skips native discovery only when functions, ownership context and native types are unneeded; reuse the existing
+  cleaner/hybrid scanner. Other backends retain full scans until verified. File fields retain ownership context.
+  `FFDReferenceScan`, `FFDTypeAudit` and `FFDScanStats` are build-time diagnostics, not CLI flags; exclude them from
+  release timings. Audit compares complete type bounds/kinds/order. `TYPES_ONLY_PILOT.md` owns measured results;
+  `types_only_checks.py` checks frozen output, independent fixture AST names/lines and audit behavior.
 
 - `--raw` controls function parsing, not output serialization. Pass it only to the existing Go/C#/JS/TS cleaners;
   retain the single token finder per language. D/Java/Python and the standalone native token lexers retain their

@@ -23,6 +23,37 @@ struct Alias {
     string target;
 }
 
+/// Internal consumer requirements. Bounds needed for ownership are distinct
+/// from function rows requested in the output. Defaults preserve full scans.
+struct ScanNeeds {
+    bool functions = true;
+    bool functionContext = true;
+    bool nativeTypes = true;
+    bool structTypes = true;
+    bool details;
+    bool useRaw;
+
+    static ScanNeeds directory(Mode mode, bool details = false) {
+        ScanNeeds needs;
+        needs.details = details;
+        if (mode == Mode.structs) {
+            needs.functions = false;
+            needs.functionContext = false;
+            needs.nativeTypes = false;
+        }
+        return needs;
+    }
+
+    bool needsNative() const { return functions || functionContext || nativeTypes; }
+}
+
+// Available only in diagnostic builds; native time includes tokenization and
+// result conversion. The phases do not overlap and are never timed as release work.
+version (FFDScanStats) struct ScanStats {
+    long cleanMicros, nativeMicros, hybridMicros;
+    size_t nativeCalls, hybridCalls, functionBounds, nativeTypeBounds, hybridTypeBounds;
+}
+
 /// What one file gave. `error` is set when the file could not be read or parsed; the symbols are then empty.
 struct FileResult {
     string path;
@@ -36,6 +67,7 @@ struct FileResult {
     long micros; // time spent on the file (for --timing)
     long size;   // bytes of source (for --timing)
     long allocated; // bytes the finder allocated (for --timing)
+    version (FFDScanStats) ScanStats scanStats;
 }
 
 /// The work modes of `funcfinder --dir`: functions only (the default), types only (--struct), both (--all).

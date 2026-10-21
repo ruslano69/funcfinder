@@ -196,4 +196,5 @@ python benchmarks/ffd/flag_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 ```
 
 This is a CLI regression check; real-project accuracy and timing require the independent benchmark harnesses.
+Directory JS/TS `--struct` skips unused function discovery; see the [measured pilot and checks](TYPES_ONLY_PILOT.md).
 Directory modes and their known key differences are described in [AGENTS.md](AGENTS.md).

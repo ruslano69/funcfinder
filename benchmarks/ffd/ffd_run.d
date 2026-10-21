@@ -40,13 +40,14 @@ FileResult applyMode(FileResult r, Mode mode) {
 
 /// Processes every job with `workers` threads (one means no pool) and returns the results in path order.
 FileResult[] processFiles(Job[] jobs, int workers, Mode mode, bool details = false) {
+    immutable needs = ScanNeeds.directory(mode, details);
     auto order = jobs.dup;
     order.sort!((a, b) => a.size > b.size, SwapStrategy.stable);
     auto results = new FileResult[order.length];
     void one(size_t i) {
         immutable before = trackAllocations ? GC.stats().allocatedInCurrentThread : 0;
         auto watch = StopWatch(AutoStart.yes);
-        results[i] = applyMode(analyzeFile(order[i].path, order[i].lang, details), mode);
+        results[i] = applyMode(analyzeFile(order[i].path, order[i].lang, needs), mode);
         results[i].micros = watch.peek.total!"usecs";
         results[i].size = order[i].size;
         if (trackAllocations) results[i].allocated = GC.stats().allocatedInCurrentThread - before;
