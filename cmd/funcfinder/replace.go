@@ -8,21 +8,21 @@ import (
 	"github.com/ruslano69/funcfinder/internal"
 )
 
-// handleReplaceFunc replaces one top-level Go function in a file. The new function is read from withPath ("-" for
+// handleReplaceFunc replaces one function in a file of the given language. The new function is read from withPath ("-" for
 // stdin), so the replacement never passes through a shell. oldPath, when given, holds the function text the caller
 // expects to replace; the edit is refused if the file differs. Without apply it only validates and reports.
 func handleReplaceFunc(config internal.Config, inp, source, name string, line int, withPath, oldPath string, apply bool) {
 	if inp == "" {
 		internal.FatalError("--replace-func requires --inp")
 	}
-	if source != "go" {
-		internal.FatalError("--replace-func supports only --source go for now")
+	if source == "" {
+		internal.FatalError("--replace-func requires --source <language>")
 	}
 	if withPath == "" {
 		internal.FatalError("--replace-func requires --with <file> (or - for stdin)")
 	}
 
-	cfg, err := config.GetLanguageConfig("go")
+	cfg, err := config.GetLanguageConfig(source)
 	if err != nil {
 		internal.FatalError("%v", err)
 	}
@@ -47,7 +47,7 @@ func handleReplaceFunc(config internal.Config, inp, source, name string, line in
 		}
 	}
 
-	res, err := internal.ReplaceGoFunction(cfg, src, internal.GoFuncTarget{Name: name, Line: line}, expected, replacement)
+	res, err := internal.ReplaceFunction(cfg, src, internal.FuncTarget{Name: name, Line: line}, expected, replacement)
 	if err != nil {
 		internal.FatalError("%v", err)
 	}
