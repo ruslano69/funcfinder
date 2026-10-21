@@ -12,6 +12,7 @@ import (
 // editRequest is the input shared by the function edit commands.
 type editRequest struct {
 	inp, source, name string
+	kind              string // "type" for a type declaration; empty for a function
 	line              int
 	withPath, oldPath string
 	apply             bool
@@ -22,7 +23,7 @@ type editRequest struct {
 // caller expects to replace; the edit is refused if the file differs. Without apply it only validates and reports.
 func handleReplaceFunc(config internal.Config, req editRequest) {
 	cfg, src, replacement, expected := loadEdit(config, req, "replace")
-	res, err := internal.ReplaceFunction(cfg, src, internal.FuncTarget{Name: req.name, Line: req.line}, expected, replacement)
+	res, err := internal.ReplaceFunction(cfg, src, internal.FuncTarget{Name: req.name, Line: req.line, Kind: req.kind}, expected, replacement)
 	if err != nil {
 		internal.FatalError("%v", err)
 	}
@@ -32,7 +33,7 @@ func handleReplaceFunc(config internal.Config, req editRequest) {
 // handleAddAfter inserts the functions read from withPath after the named function.
 func handleAddAfter(config internal.Config, req editRequest) {
 	cfg, src, replacement, _ := loadEdit(config, req, "add")
-	res, err := internal.InsertAfterFunction(cfg, src, internal.FuncTarget{Name: req.name, Line: req.line}, replacement)
+	res, err := internal.InsertAfterFunction(cfg, src, internal.FuncTarget{Name: req.name, Line: req.line, Kind: req.kind}, replacement)
 	if err != nil {
 		internal.FatalError("%v", err)
 	}
@@ -42,7 +43,7 @@ func handleAddAfter(config internal.Config, req editRequest) {
 // handleRemoveFunc deletes the named function from the file.
 func handleRemoveFunc(config internal.Config, req editRequest) {
 	cfg, src, _, _ := loadEdit(config, req, "remove")
-	res, err := internal.RemoveFunction(cfg, src, internal.FuncTarget{Name: req.name, Line: req.line})
+	res, err := internal.RemoveFunction(cfg, src, internal.FuncTarget{Name: req.name, Line: req.line, Kind: req.kind})
 	if err != nil {
 		internal.FatalError("%v", err)
 	}

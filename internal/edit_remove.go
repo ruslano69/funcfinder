@@ -35,23 +35,18 @@ func RemoveFunction(cfg *LanguageConfig, src []byte, target FuncTarget) (*Replac
 	outText := e.join(out)
 
 	// The removed span holds the target and any functions nested in it; they are contiguous in the finder's order.
-	removed := 0
-	for _, fn := range e.before.Functions {
-		if fn.Start >= e.fn.Start && fn.Start <= e.fn.End {
-			removed++
+	removed := 1
+	if e.unit == "func" {
+		removed = 0
+		for _, fn := range e.before.Functions {
+			if fn.Start >= e.fn.Start && fn.Start <= e.fn.End {
+				removed++
+			}
 		}
 	}
-	after, err := e.findIn("removed", outText)
-	if err != nil {
-		return nil, err
-	}
-	names := funcNames(e.before)
+	names := e.beforePrimary
 	want := append(append([]string{}, names[:e.fnIndex]...), names[e.fnIndex+removed:]...)
-	if !sameNames(want, funcNames(after)) {
-		return nil, fmt.Errorf("removal changes the other functions in the file: want [%s], got [%s]",
-			strings.Join(want, ", "), strings.Join(funcNames(after), ", "))
-	}
-	if err := sameTypes(e.before, after); err != nil {
+	if err := e.checkDecls("removed", outText, want); err != nil {
 		return nil, err
 	}
 	if e.cfg.LangKey == "go" {

@@ -13,6 +13,8 @@ import (
 type FuncTarget struct {
 	Name string
 	Line int
+	// Kind is "type" to target a top-level type declaration (Go only so far); empty targets a function.
+	Kind string
 }
 
 // ReplaceResult is a validated edit. Output is the complete new file, with the original line endings. Start and
@@ -70,11 +72,7 @@ func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectO
 	out = append(out, e.lines[e.fn.End:]...)
 	outText := e.join(out)
 
-	after, err := e.findIn("replaced", outText)
-	if err != nil {
-		return nil, err
-	}
-	if err := sameDeclarations(e.before, after); err != nil {
+	if err := e.checkDecls("replaced", outText, e.beforePrimary); err != nil {
 		return nil, err
 	}
 	if e.cfg.LangKey == "go" {
@@ -109,21 +107,21 @@ func InsertAfterFunction(cfg *LanguageConfig, src []byte, target FuncTarget, rep
 	out = append(out, e.lines[e.fn.End:]...)
 	outText := e.join(out)
 
-	after, err := e.findIn("inserted", outText)
+	primary, other, err := e.declsIn("inserted", outText)
 	if err != nil {
 		return nil, err
 	}
-	if err := sameTypes(e.before, after); err != nil {
-		return nil, err
+	if !sameNames(other, e.beforeOther) {
+		return nil, fmt.Errorf("replacement changes the %s in the file", e.otherKind())
 	}
-	added := len(after.Functions) - len(e.before.Functions)
+	added := len(primary) - len(e.beforePrimary)
 	if added < 1 {
-		return nil, fmt.Errorf("replacement defines no function")
+		return nil, fmt.Errorf("replacement defines no %s", e.unitName())
 	}
 	next := e.fnIndex + 1
-	if !sameNames(funcNames(e.before)[:next], funcNames(after)[:next]) ||
-		!sameNames(funcNames(e.before)[next:], funcNames(after)[next+added:]) {
-		return nil, fmt.Errorf("the new functions are not directly after %s", target.Name)
+	if !sameNames(e.beforePrimary[:next], primary[:next]) ||
+		!sameNames(e.beforePrimary[next:], primary[next+added:]) {
+		return nil, fmt.Errorf("the new %ss are not directly after %s", e.unitName(), target.Name)
 	}
 	if e.cfg.LangKey == "go" {
 		if _, err := goDeclSignatures(outText); err != nil {
@@ -135,17 +133,20 @@ func InsertAfterFunction(cfg *LanguageConfig, src []byte, target FuncTarget, rep
 
 // editFile holds the source of one edit and the finder's view of it.
 type editFile struct {
-	cfg          *LanguageConfig
-	text         string // LF line endings, without the final newline in lines
-	lines        []string
-	eol          string
-	finalNewline bool
-	finder       LanguageFinder
-	dir          string
-	ext          string
-	before       *FindResult
-	fn           FunctionBounds
-	fnIndex      int // index of fn in before.Functions
+	cfg           *LanguageConfig
+	text          string // LF line endings, without the final newline in lines
+	lines         []string
+	eol           string
+	finalNewline  bool
+	finder        LanguageFinder
+	dir           string
+	ext           string
+	before        *FindResult
+	fn            FunctionBounds
+	fnIndex       int // index of fn among the target kind (functions, or types for a type edit)
+	unit          string
+	beforePrimary []string // names of the target kind before the edit, in order
+	beforeOther   []string // names of the other kind (types for a function edit, functions for a type edit)
 }
 
 // openEdit validates the source and locates the target function.
@@ -183,7 +184,22 @@ func openEdit(cfg *LanguageConfig, src []byte, target FuncTarget) (*editFile, er
 		return nil, err
 	}
 	e.before = before
-	fn, idx, err := selectFunction(before.Functions, target)
+	e.unit = "func"
+	candidates := before.Functions
+	if target.Kind == "type" {
+		e.unit = "type"
+		candidates, err = e.typeSpans(e.lines)
+		if err != nil {
+			e.close()
+			return nil, err
+		}
+		e.beforePrimary = funcNames(&FindResult{Functions: candidates})
+		e.beforeOther = funcNames(before)
+	} else {
+		e.beforePrimary = funcNames(before)
+		e.beforeOther = classNames(before)
+	}
+	fn, idx, err := selectFunction(candidates, target)
 	if err != nil {
 		e.close()
 		return nil, err
@@ -203,7 +219,11 @@ func openEdit(cfg *LanguageConfig, src []byte, target FuncTarget) (*editFile, er
 		return nil, err
 	}
 	if cfg.LangKey == "go" {
-		if err := checkGoSpanWithAST(e.text, fn, target.Name); err != nil {
+		check := checkGoSpanWithAST
+		if e.unit == "type" {
+			check = checkGoTypeSpanWithAST
+		}
+		if err := check(e.text, fn, target.Name); err != nil {
 			e.close()
 			return nil, err
 		}
