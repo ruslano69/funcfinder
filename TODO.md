@@ -2,7 +2,7 @@
 
 ## Structural editing: Go first operation (2026-10-21)
 
-- Done on branch `structured-edit-go`: `funcfinder --replace-func NAME --with FILE|- [--line N] [--old FILE] [--apply]`. The span comes from the finder and is checked against `go/ast`; the replacement must keep the top-level declarations; line endings are kept. Covered by `internal/edit_go_test.go`.
+- Done on branch `structured-edit-go`: `funcfinder --replace-func NAME --source LANG --with FILE|- [--line N] [--old FILE] [--apply]` for all 15 configured languages. The span comes from the finder; the replacement must keep the functions and types the finder reports, in the same order; brace languages must balance brackets; Go also checks against `go/ast`. Tests: `internal/edit_lang_test.go` (14 languages), `internal/edit_go_test.go`. Python does not get a bracket check, only the finder comparison.
 - Not done: other languages; struct/class members and fragment edits inside a function; ownership of comments and attributes above the `func` line (they are not replaced); evaluation on real agent tasks against line/text patches.
 
 ## D funcstats (2026-10-21)

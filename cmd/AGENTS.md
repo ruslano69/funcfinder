@@ -33,7 +33,7 @@ CLI entrypoints for the funcfinder toolkit. Each subdirectory contains a single 
 ## Child DOX Index
 
 - `cmd/funcfinder/` — primary tool: function/type mapping, extraction, split-shard output
-  (also `--replace-func NAME --with FILE|- [--line N] [--old FILE] [--apply]`: one Go function replaced by file, without a shell; preview unless `--apply`)
+  (also `--replace-func NAME --source LANG --with FILE|- [--line N] [--old FILE] [--apply]`: one function replaced by file, without a shell; preview unless `--apply`)
 - `cmd/funcstats/` — call counts and file statistics; `--uncalled` lists candidates to delete. See [docs/FUNCSTATS.md](../docs/FUNCSTATS.md)
 - `cmd/deps/` — import dependency and inter-shard graph
 - `cmd/callgraph/` — forward/reverse call graph traversal
