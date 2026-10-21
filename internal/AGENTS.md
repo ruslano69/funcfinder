@@ -13,6 +13,7 @@ Core parsing engine. Implements function/struct discovery, body extraction, call
 ## Local Contracts
 
 - Public API surface: `FindFunctions`, `FindStructs`, `ProcessDirectory`, `BuildCallGraph`, `WriteSplitOutput`, `WriteSplitOutputIncremental`, `ForEachParallel`, `FindFunctionsInFile`, `LanguageConfig.FuncSubmatch`.
+- Structural edit: `ReplaceGoFunction` (`edit_go.go`) replaces one top-level Go function. It takes its span from `FindFunctionsInLines` and checks it against `go/ast`; it refuses unless the old text matches (when given), the replacement keeps the same top-level declarations, and the new file parses. Line endings are kept; mixed endings are refused.
 - Language dispatch is handled by `finder_factory.go` (functions) and `struct_finder_factory.go` (structs); new languages must register here.
 - `languages.json` is the canonical list of supported file extensions → language identifiers.
 - Go `exclude_words` lists all reserved keywords so `funcstats` does not count parenthesized control/return expressions as calls. Predeclared functions and type conversions remain eligible; do not exclude them as keywords. `cmd/funcstats` pins this with a syntax-checked Go regression.

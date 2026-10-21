@@ -42,6 +42,13 @@ func main() {
 	rawMode := flag.Bool("raw", false, "include raw strings in brace counting")
 	linesRange := flag.String("lines", "", "extract specific line range (format: start:end, :end, start:, or single line)")
 
+	// Structural edit: replace one top-level Go function (file mode, --source go)
+	replaceFunc := flag.String("replace-func", "", "replace the named top-level function (--inp, --source go); --with gives the new text")
+	replaceLine := flag.Int("line", 0, "with --replace-func: start line of the function, when its name is not unique")
+	withFile := flag.String("with", "", "with --replace-func: file holding the new function, or - for stdin")
+	oldFile := flag.String("old", "", "with --replace-func: file with the function text you expect to replace; fail if it differs")
+	applyEdit := flag.Bool("apply", false, "with --replace-func: write the file (without it, only validate and report)")
+
 	// Split output flags (for --dir mode)
 	splitMode := flag.Bool("split", false, "split output into manifest + shard files (--dir mode only)")
 	splitBy := flag.String("split-by", "dir", "split granularity: 'dir' (one shard per directory) or 'file' (one shard per file)")
@@ -82,6 +89,12 @@ func main() {
 	// Документация (--doc): комментарий над объявлением и его первая строка, без тела
 	if *docNames != "" {
 		handleDocMode(config, *inp, *dir, *source, *workers, *recursive, !*noGitignore, *docNames)
+		return
+	}
+
+	// Замена одной функции (--replace-func): только файл и Go
+	if *replaceFunc != "" {
+		handleReplaceFunc(config, *inp, *source, *replaceFunc, *replaceLine, *withFile, *oldFile, *applyEdit)
 		return
 	}
 
