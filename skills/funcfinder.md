@@ -163,6 +163,12 @@ funcfinder --inp internal/edit.go --source go --replace-func ReplaceFunction --w
 funcfinder --inp internal/edit.go --source go --replace-func ReplaceFunction --with new.txt --old old.txt --apply
 ```
 
+To add a new function after an existing one, use `--add-after` with the same flags minus `--old`. The new text is inserted after the target with one blank line in between:
+
+```bash
+funcfinder --inp internal/edit.go --source go --add-after ReplaceFunction --with new.txt --apply
+```
+
 The tool enforces these rules. Do not work around them:
 - Several functions share the name: add `--line N`, the start line from `--map`.
 - The replacement keeps every function and type the finder reports, in the same order. A rename, an extra function or a missing one is refused. A nested helper inside the function belongs in the replacement.
