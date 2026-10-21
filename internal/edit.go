@@ -259,28 +259,86 @@ func (e *editFile) checkOwnLines() error {
 	oneLine := e.fn.Start == e.fn.End
 	shared := fmt.Sprintf("%s: lines %d-%d hold other code too; edit those lines by hand", e.fn.Name, e.fn.Start, e.fn.End)
 
+	// A ';' that ends a line is the terminator of a bodyless declaration, not other code.
+	first = strings.TrimRight(first, "; \t")
+	last = strings.TrimRight(last, "; \t")
+
+	// A declaration that starts or ends on the target's first or last line shares that line. Containers and nested
+	// declarations are not sharing: a class around a method, or a function inside the target.
+	for _, other := range e.declarationSpans() {
+		if other.Name == e.fn.Name && other.Start == e.fn.Start && other.End == e.fn.End {
+			continue
+		}
+		if other.Start <= e.fn.Start && other.End >= e.fn.End {
+			continue
+		}
+		if other.Start >= e.fn.Start && other.End <= e.fn.End {
+			continue
+		}
+		if other.Start == e.fn.Start || other.Start == e.fn.End || other.End == e.fn.Start || other.End == e.fn.End {
+			return fmt.Errorf("%s", shared)
+		}
+	}
+
 	if e.cfg.IndentBased {
 		if strings.Contains(first, ";") || (!oneLine && strings.Contains(last, ";")) {
 			return fmt.Errorf("%s", shared)
 		}
 		return nil
 	}
-	if oneLine {
-		if strings.Contains(first, ";") || strings.Count(first, "}") > 1 {
-			return fmt.Errorf("%s", shared)
-		}
-		return nil
-	}
-	if strings.Contains(first, ";") || strings.Contains(first, "}") {
+	if strings.Contains(first, ";") || closesBeforeOpen(first) {
 		return fmt.Errorf("%s", shared)
 	}
+	if oneLine {
+		return nil
+	}
 	// The first "}" on the last line closes the function; anything after it is other code.
-	if i := strings.Index(last, "}"); i >= 0 {
-		if strings.TrimRight(strings.TrimSpace(last[i+1:]), ";,)") != "" {
-			return fmt.Errorf("%s", shared)
-		}
+	if i := strings.Index(last, "}"); i >= 0 && strings.TrimRight(strings.TrimSpace(last[i+1:]), ";,)") != "" {
+		return fmt.Errorf("%s", shared)
 	}
 	return nil
+}
+
+// declarationSpan is a function or type with its lines, for the shared-line check.
+type declarationSpan struct {
+	Name       string
+	Start, End int
+}
+
+// declarationSpans returns the functions and types the finder reports, with their lines.
+func (e *editFile) declarationSpans() []declarationSpan {
+	var spans []declarationSpan
+	for _, fn := range e.before.Functions {
+		spans = append(spans, declarationSpan{fn.Name, fn.Start, fn.End})
+	}
+	for _, c := range e.before.Classes {
+		spans = append(spans, declarationSpan{c.Name, c.Start, c.End})
+	}
+	if e.cfg.LangKey == "go" {
+		if types, err := e.typeSpans(e.lines); err == nil {
+			for _, t := range types {
+				spans = append(spans, declarationSpan{t.Name, t.Start, t.End})
+			}
+		}
+	}
+	return spans
+}
+
+// closesBeforeOpen reports whether a line closes a brace that was opened before it, so the line starts with other code.
+func closesBeforeOpen(line string) bool {
+	depth := 0
+	for _, r := range line {
+		switch r {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth < 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (e *editFile) close() {
@@ -329,14 +387,23 @@ func (e *editFile) checkIndent(lines []string) error {
 	if got := indentOf(lines[first]); got != base {
 		return fmt.Errorf("replacement starts at indentation %q, the function is at %q", got, base)
 	}
+	// Brackets are counted on the cleaned lines (strings and comments removed). A line that starts inside an open
+	// bracket continues a statement, so its indentation is not checked.
+	cleaned := NewSanitizer(e.cfg, false).CleanLines(lines)
+	if len(cleaned) != len(lines) {
+		cleaned = lines
+	}
 	inString := false
-	header := -1      // index of the def/class line
-	needBody := false // the header ends with ":", so the next code line must be indented deeper
+	depth := 0
+	header := -1 // index of the def/class line
+	headerOpen := false
+	needBody := false // the header closed on a line ending with ":", so the next code line must be indented deeper
 	for i, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		if !inString {
+		code := strings.TrimSpace(cleaned[i])
+		if !inString && depth == 0 {
 			ind := indentOf(line)
 			t := strings.TrimSpace(line)
 			if !strings.HasPrefix(ind, base) {
@@ -348,8 +415,8 @@ func (e *editFile) checkIndent(lines []string) error {
 			switch {
 			case header < 0 && !isDecorator(t):
 				header = i
-				needBody = strings.HasSuffix(t, ":")
-			case header >= 0:
+				headerOpen = true
+			case header >= 0 && !headerOpen:
 				if needBody {
 					if len(ind) <= len(base) {
 						return fmt.Errorf("replacement line %d: the def has no indented body", header+1)
@@ -361,6 +428,14 @@ func (e *editFile) checkIndent(lines []string) error {
 				}
 			}
 		}
+		depth += bracketDelta(code)
+		if depth < 0 {
+			depth = 0
+		}
+		if header >= 0 && headerOpen && depth == 0 {
+			headerOpen = false
+			needBody = strings.HasSuffix(code, ":")
+		}
 		if strings.Count(line, `"""`)%2 == 1 || strings.Count(line, `'''`)%2 == 1 {
 			inString = !inString
 		}
@@ -369,6 +444,20 @@ func (e *editFile) checkIndent(lines []string) error {
 		return fmt.Errorf("replacement line %d: the def has no indented body", header+1)
 	}
 	return nil
+}
+
+// bracketDelta returns how many brackets a cleaned line opens minus how many it closes.
+func bracketDelta(code string) int {
+	delta := 0
+	for _, r := range code {
+		switch r {
+		case '(', '[', '{':
+			delta++
+		case ')', ']', '}':
+			delta--
+		}
+	}
+	return delta
 }
 
 // isDecorator reports whether a trimmed line is a decorator or annotation above a declaration.
