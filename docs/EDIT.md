@@ -36,6 +36,14 @@ when several share the name; `N` is the start line that `--map` reports.
 - `--old` must match the current text, ignoring line endings and one trailing newline. A mismatch means the file
   changed since it was read.
 
+## Types (Go only so far)
+
+`--replace-type NAME --with FILE|-`, `--add-after-type NAME --with FILE|-` and `--remove-type NAME` do the same for
+a top-level Go type declaration (`type X struct {...}`, `type X interface {...}`, `type X int`). The span comes from
+the struct finder and is checked against `go/ast`. The same rules apply: the functions must not change, the types
+must stay the same in order, and lines that hold other code are refused. A type inside a parenthesised group
+(`type ( ... )`) is refused: edit the group by hand.
+
 ## Limitations
 
 These are the limits of the checks. Most of them are not checked at all.

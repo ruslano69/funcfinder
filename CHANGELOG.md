@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `funcfinder --replace-type NAME`, `--add-after-type NAME` and `--remove-type NAME` edit a top-level Go type declaration, with the same checks as the function commands; the struct finder gives the span and go/ast verifies it. Grouped types are refused.
+
 - `funcfinder --remove-func NAME --source LANG` deletes one function with its decorators and nested functions, after the same finder checks; a Python class left without a body is refused. Limits are listed in `docs/EDIT.md`.
 - Python edits keep indentation: the replacement or insertion must start at the function's indentation, no line may be less indented than it, the def must have an indented body, and tabs and spaces may not be mixed. Before, a method replaced by a column-0 def, or a body at the def's level, was accepted and the file was left invalid.
 - `funcfinder --add-after NAME --source LANG --with FILE|-` inserts the function(s) from the file directly after the named function, after the same finder checks; types must not change. Also fixes `--replace-func` on the last function of a Python file, where the finder reports a line past the end.
