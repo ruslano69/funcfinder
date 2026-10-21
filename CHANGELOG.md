@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `funcfinder --remove-func NAME --source LANG` deletes one function with its decorators and nested functions, after the same finder checks; a Python class left without a body is refused. Limits are listed in `docs/EDIT.md`.
 - Python edits keep indentation: the replacement or insertion must start at the function's indentation, no line may be less indented than it, the def must have an indented body, and tabs and spaces may not be mixed. Before, a method replaced by a column-0 def, or a body at the def's level, was accepted and the file was left invalid.
 - `funcfinder --add-after NAME --source LANG --with FILE|-` inserts the function(s) from the file directly after the named function, after the same finder checks; types must not change. Also fixes `--replace-func` on the last function of a Python file, where the finder reports a line past the end.
 - `funcfinder --replace-func NAME --source LANG --with FILE|-` replaces one function in a file of any configured language. Its span comes from the finder; Go spans are also checked against `go/ast`. Options: `--line N` picks one of several functions with the same name, `--old FILE` refuses the edit if the current text differs from the expected text, and `--apply` writes the file (without it, the change is only validated). The replacement must keep the same top-level declarations, so renames, extra functions and imports are refused. Line endings are kept.

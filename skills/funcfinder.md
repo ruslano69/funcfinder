@@ -169,6 +169,8 @@ To add a new function after an existing one, use `--add-after` with the same fla
 funcfinder --inp internal/edit.go --source go --add-after ReplaceFunction --with new.txt --apply
 ```
 
+To delete a function, run `callgraph --dir . -l <lang> --reverse --func <Name>` first, then `--remove-func <Name> --apply`. Callers are not checked by the tool.
+
 The tool enforces these rules. Do not work around them:
 - Several functions share the name: add `--line N`, the start line from `--map`.
 - The replacement keeps every function and type the finder reports, in the same order. A rename, an extra function or a missing one is refused. A nested helper inside the function belongs in the replacement.
