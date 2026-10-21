@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Experimental D `ffd` omits unused function results/header-start calculations for C++ directory `--struct`, retaining function-boundary recognition and existing local-type scope. Warmed parser allocations fall about 8% on fmt/tinyxml2; full-CLI speed gains are inconclusive.
+
 - Experimental D `ffd` avoids function discovery/materialization for D directory `--struct` after its existing shared preparation. arsd/D-YAML serial CLI improves 1.09–1.19x; independent type checks preserve and explicitly report existing union/struct omissions and manifest-constant name errors.
 
 - Experimental D `ffd` skips unused function discovery for JavaScript/TypeScript directory `--struct`, reusing its existing type scanner. The measured Express/Zod CLI gain is 1.21–1.81x; type output and file ownership behavior are preserved.

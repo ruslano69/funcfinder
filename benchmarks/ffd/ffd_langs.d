@@ -371,12 +371,25 @@ FileResult analyzeSource(string path, Lang lang, string source, ScanNeeds needs)
                         break;
                     case Lang.java: take(r, findJava(facts)); break;
                     case Lang.cpp: {
-                        auto found = findCppTokens(braceConfigs[Lang.cpp], lines, facts);
+                        bool functions = needs.functions || needs.functionContext;
+                        version (FFDReferenceScan) functions = true;
+                        auto found = findCppTokens(braceConfigs[Lang.cpp], lines, facts, functions);
                         // Go starts a function on the line of its header proper, after a template prefix; the token
                         // finder starts it at the prefix (the declaration, as libclang counts it).
                         foreach (ref f; found.functions)
                             if (f.signatureLine > f.start) f.start = f.signatureLine;
                         take(r, found);
+                        version (FFDTypeAudit) {
+                            if (!functions) {
+                                auto fullNeeds = needs;
+                                fullNeeds.functions = true;
+                                fullNeeds.details = false; // compare before either result is annotated
+                                auto reference = analyzeSource(path,lang,source,fullNeeds);
+                                assert(!reference.error.length && r.classes == reference.classes,
+                                    "C++ types-only bounds/kind/order changed: " ~ path);
+                                assert(!r.functions.length);
+                            }
+                        }
                         break;
                     }
                     case Lang.d, Lang.js, Lang.kotlin, Lang.php, Lang.py, Lang.ruby, Lang.rust, Lang.scala, Lang.swift, Lang.ts:

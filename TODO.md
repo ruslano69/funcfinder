@@ -1,5 +1,11 @@
 # TODO
 
+## C++ types-only follow-up (2026-10-21)
+
+- Directory C++ `--struct` now omits function results/header starts, retaining recognition/parameter validation/body skipping to preserve local-type scope. Parser allocations fall 7.9%/8.4% on fmt/tinyxml2; small parser-time changes vary, with no consistent full-CLI speed gain. All 2,504 existing CLI checks, 42 C++ checks and 29 unit suites pass. [Report](benchmarks/ffd/CPP_TYPES_ONLY.md).
+- Independent libclang scoring is unchanged: accepted fmt subset has 89/105 compiled types matched (14 macro-generated types and two typedef-named anonymous C types are unmatched), two existing type-start errors across conditional/export fences, and four inactive raw type rows. tinyxml2 matches all 26 named types. Accepted function scores are 336/338 and 627/627 with no false entries/wrong ends. Sixteen of twenty fmt files are explicit compiler exclusions with local libclang 18/GCC 16 headers; resolve that toolchain compatibility before a full-fmt accuracy claim.
+- Next: Go/C#/Java consumer specialization. For C++ investigate tokenization/required boundary recognition from profiles; function-result allocation alone is a modest memory reduction. Type-start fixes should be separate accuracy work.
+
 ## D types-only follow-up (2026-10-21)
 
 - D directory `--struct` skips function work after shared preparation/class discovery. Serial CLI improves 1.09–1.19x on arsd/D-YAML; serial parser improves 1.17–1.23x, allocations fall about 22%. Eight-worker CLI gains are small/variable. All 2,504 existing CLI checks, 36 D checks and 29 unit suites pass. [Evidence](benchmarks/ffd/D_TYPES_ONLY.md).

@@ -40,6 +40,10 @@ Measure funcfinder on real projects using independent syntax-tree references.
 
 ## Local Contracts
 
+- `findCppTokens(..., includeFunctions = true)` controls function-result emission only. Keep function recognition,
+  parameter/end validation and body skipping for type-only requests to preserve local-type analysis scope. Default
+  full API behavior and owned `ffd` results remain unchanged; audit complete types against full results.
+
 - `dlang_port.find(original, includeFunctions = true)` preserves its full API by default. Types-only requests retain
   shared preparation and class discovery, skipping subsequent function recognition/materialization/ownership only.
   Do not remove header joining, hints or contract masking without separate type visibility/span checks.

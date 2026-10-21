@@ -148,7 +148,9 @@ struct CppScan {
     }
 }
 
-Result findCppTokens(ref Config config,string[] lines,LineFact[] facts) {
+// Function recognition still supplies traversal boundaries: dropping it would
+// expose local types inside function bodies and change the existing type set.
+Result findCppTokens(ref Config config,string[] lines,LineFact[] facts,bool includeFunctions = true) {
     version(AuditCppTokens) assert(!config.patterns.length,"C++ token scan must not compile regex patterns");
     auto tokens=tokenizeCpp(facts,lines);CppScan scan=CppScan(tokens.items,tokens.pairs,lines);auto t=scan.t;auto p=scan.pair;
     Result result;struct Scope {string name;int end;}Scope[] scopes;int boundary;
@@ -163,8 +165,10 @@ Result findCppTokens(ref Config config,string[] lines,LineFact[] facts) {
         else if(scan.at(i,"(")) {
             if(p[i]<i)continue;auto cls=scopes.length?scopes[$-1].name:"";int nameAt;auto name=scan.functionName(boundary,i,cls,nameAt);if(!name.length){i=p[i];continue;}
             int body;auto end=scan.functionEnd(p[i],body);if(end<i || !scan.parameters(i,p[i]))continue;
-            auto start=scan.headerStart(boundary,nameAt);
-            result.functions~=Bounds(name,t[start].line+1,t[end].line+1,cls,t[nameAt].line+1,name);
+            if(includeFunctions) {
+                auto start=scan.headerStart(boundary,nameAt);
+                result.functions~=Bounds(name,t[start].line+1,t[end].line+1,cls,t[nameAt].line+1,name);
+            }
             i=end;boundary=i+1;
         }
     }
@@ -174,7 +178,11 @@ Result findCppTokens(ref Config config,string[] lines,LineFact[] facts) {
 unittest {
     import brace_port_cleaner : Cleaner;
     import std.array : split;
-    Result parse(string source) {Cleaner cleaner;Config config;auto lines=source.split("\n");return findCppTokens(config,lines,cleaner.facts(lines));}
+    Result parse(string source, bool functions = true) {Cleaner cleaner;Config config;auto lines=source.split("\n");return findCppTokens(config,lines,cleaner.facts(lines),functions);}
+    auto typesSource="struct Outer {\n struct Nested {};\n void method() { struct Hidden {}; }\n};\nvoid outside() { struct Local {}; }\n";
+    auto fullTypes=parse(typesSource),onlyTypes=parse(typesSource,false);
+    assert(fullTypes.classes == onlyTypes.classes && fullTypes.classes.length == 2);
+    assert(fullTypes.functions.length == 2 && !onlyTypes.functions.length);
     auto r=parse("struct C {\n C() : x{1}, y(2) {}\n ~C() = default;\n operator unsigned() const {return 1;}\n int operator()(int v) const {return v;}\n int operator[](int v) const {return v;}\n int x,y;\n};");
     string[] names;foreach(f;r.functions)names~=f.name;
     assert(names==["C","~C","operator unsigned int","operator()","operator[]"]);
