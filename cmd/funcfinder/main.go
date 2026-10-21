@@ -47,7 +47,8 @@ func main() {
 	replaceLine := flag.Int("line", 0, "with --replace-func: start line of the function, when its name is not unique")
 	withFile := flag.String("with", "", "with --replace-func: file holding the new function, or - for stdin")
 	oldFile := flag.String("old", "", "with --replace-func: file with the function text you expect to replace; fail if it differs")
-	applyEdit := flag.Bool("apply", false, "with --replace-func: write the file (without it, only validate and report)")
+	addAfter := flag.String("add-after", "", "insert the function(s) from --with directly after the named function (--inp, --source)")
+	applyEdit := flag.Bool("apply", false,"with --replace-func: write the file (without it, only validate and report)")
 
 	// Split output flags (for --dir mode)
 	splitMode := flag.Bool("split", false, "split output into manifest + shard files (--dir mode only)")
@@ -94,7 +95,13 @@ func main() {
 
 	// Замена одной функции (--replace-func): только файл и Go
 	if *replaceFunc != "" {
-		handleReplaceFunc(config, *inp, *source, *replaceFunc, *replaceLine, *withFile, *oldFile, *applyEdit)
+		handleReplaceFunc(config, editRequest{inp: *inp, source: *source, name: *replaceFunc, line: *replaceLine, withPath: *withFile, oldPath: *oldFile, apply: *applyEdit})
+		return
+	}
+
+	// Вставка функций после заданной (--add-after)
+	if *addAfter != "" {
+		handleAddAfter(config, editRequest{inp: *inp, source: *source, name: *addAfter, line: *replaceLine, withPath: *withFile, apply: *applyEdit})
 		return
 	}
 

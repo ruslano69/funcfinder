@@ -8,33 +8,142 @@ import (
 	"strings"
 )
 
-// FuncTarget selects one function to replace. Line is the 1-based line of its start as the finder reports it;
+// FuncTarget selects one function to edit. Line is the 1-based line of its start as the finder reports it;
 // zero selects by name, which must then match exactly one function.
 type FuncTarget struct {
 	Name string
 	Line int
 }
 
-// ReplaceResult is a validated replacement. Output is the complete new file, with the original line endings.
+// ReplaceResult is a validated edit. Output is the complete new file, with the original line endings. Start and
+// End are the replaced lines (1-based, inclusive) for a replacement; for an insertion they are both the line the
+// new text follows.
 type ReplaceResult struct {
-	Start  int // first replaced line (1-based)
-	End    int // last replaced line (1-based, inclusive)
+	Start  int
+	End    int
 	Output []byte
 }
 
 // ReplaceFunction replaces one function of any configured language. The span comes from the production finder.
 // Nothing is returned unless every check passes:
 //   - the target is found exactly once (trailing blank lines are not part of its span);
-//   - the current text equals expectOld when expectOld is non-nil (line endings are ignored);
+//   - the current text equals expectOld when expectOld is non-nil (line endings and one trailing newline ignored);
 //   - the replacement is not empty and its brackets balance (languages with brackets; the check ignores strings
 //     and comments through the language's cleaner);
-//   - the finder finds the same functions and classes, in the same order, in the new file as in the old one, so a
-//     replacement cannot add, remove or rename a declaration;
+//   - decorators above the function are kept: a replacement without them keeps the old ones, a different set is
+//     refused;
+//   - the finder finds the same functions and types in the same order in the new file, so a replacement cannot
+//     add, remove or rename a declaration;
 //   - for Go, the span also agrees with go/ast and the new file parses (see edit_go.go).
 //
 // Lines outside the span are kept byte for byte. Mixed line endings are refused, because the file is rewritten
 // with one line ending.
 func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectOld []byte, replacement []byte) (*ReplaceResult, error) {
+	e, err := openEdit(cfg, src, target)
+	if err != nil {
+		return nil, err
+	}
+	defer e.close()
+
+	if expectOld != nil && e.oldText() != strings.TrimSuffix(strings.ReplaceAll(string(expectOld), "\r\n", "\n"), "\n") {
+		return nil, fmt.Errorf("function %s at lines %d-%d is not the expected text (it changed since it was read)",
+			target.Name, e.fn.Start, e.fn.End)
+	}
+	newLines, err := e.newLines(replacement)
+	if err != nil {
+		return nil, err
+	}
+	// A replacement without decorators keeps the old ones, so omitting them never loses them.
+	if len(leadingDecorators(newLines)) == 0 {
+		newLines = append(rawLeadingDecorators(e.lines[e.fn.Start-1:e.fn.End]), newLines...)
+	}
+	if err := sameDecorators(e.lines[e.fn.Start-1:e.fn.End], newLines); err != nil {
+		return nil, err
+	}
+
+	out := make([]string, 0, len(e.lines)-(e.fn.End-e.fn.Start+1)+len(newLines))
+	out = append(out, e.lines[:e.fn.Start-1]...)
+	out = append(out, newLines...)
+	out = append(out, e.lines[e.fn.End:]...)
+	outText := e.join(out)
+
+	after, err := e.findIn("replaced", outText)
+	if err != nil {
+		return nil, err
+	}
+	if err := sameDeclarations(e.before, after); err != nil {
+		return nil, err
+	}
+	if e.cfg.LangKey == "go" {
+		if err := checkGoDeclarationsKept(e.text, outText, target.Name); err != nil {
+			return nil, err
+		}
+	}
+	return &ReplaceResult{Start: e.fn.Start, End: e.fn.End, Output: e.output(outText)}, nil
+}
+
+// InsertAfterFunction adds the functions in replacement after the target, with one blank line in between. The
+// finder must report the new functions directly after the target, and the types must not change. Decorators in
+// the replacement belong to the new function and are not compared with the target's.
+func InsertAfterFunction(cfg *LanguageConfig, src []byte, target FuncTarget, replacement []byte) (*ReplaceResult, error) {
+	e, err := openEdit(cfg, src, target)
+	if err != nil {
+		return nil, err
+	}
+	defer e.close()
+
+	newLines, err := e.newLines(replacement)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(e.lines)+len(newLines)+1)
+	out = append(out, e.lines[:e.fn.End]...)
+	out = append(out, "")
+	out = append(out, newLines...)
+	out = append(out, e.lines[e.fn.End:]...)
+	outText := e.join(out)
+
+	after, err := e.findIn("inserted", outText)
+	if err != nil {
+		return nil, err
+	}
+	if err := sameTypes(e.before, after); err != nil {
+		return nil, err
+	}
+	added := len(after.Functions) - len(e.before.Functions)
+	if added < 1 {
+		return nil, fmt.Errorf("replacement defines no function")
+	}
+	next := e.fnIndex + 1
+	if !sameNames(funcNames(e.before)[:next], funcNames(after)[:next]) ||
+		!sameNames(funcNames(e.before)[next:], funcNames(after)[next+added:]) {
+		return nil, fmt.Errorf("the new functions are not directly after %s", target.Name)
+	}
+	if e.cfg.LangKey == "go" {
+		if _, err := goDeclSignatures(outText); err != nil {
+			return nil, fmt.Errorf("insertion does not give a valid file: %v", err)
+		}
+	}
+	return &ReplaceResult{Start: e.fn.End, End: e.fn.End, Output: e.output(outText)}, nil
+}
+
+// editFile holds the source of one edit and the finder's view of it.
+type editFile struct {
+	cfg          *LanguageConfig
+	text         string // LF line endings, without the final newline in lines
+	lines        []string
+	eol          string
+	finalNewline bool
+	finder       LanguageFinder
+	dir          string
+	ext          string
+	before       *FindResult
+	fn           FunctionBounds
+	fnIndex      int // index of fn in before.Functions
+}
+
+// openEdit validates the source and locates the target function.
+func openEdit(cfg *LanguageConfig, src []byte, target FuncTarget) (*editFile, error) {
 	if target.Name == "" {
 		return nil, fmt.Errorf("function name is empty")
 	}
@@ -42,129 +151,127 @@ func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectO
 	if crlf > 0 && crlf != bytes.Count(src, []byte("\n")) {
 		return nil, fmt.Errorf("mixed line endings: refusing to rewrite the file")
 	}
-	eol := "\n"
+	e := &editFile{cfg: cfg, eol: "\n"}
 	if crlf > 0 {
-		eol = "\r\n"
+		e.eol = "\r\n"
 	}
-	text := strings.ReplaceAll(string(src), "\r\n", "\n")
-	if text == "" {
+	e.text = strings.ReplaceAll(string(src), "\r\n", "\n")
+	if e.text == "" {
 		return nil, fmt.Errorf("source is empty")
 	}
-	finalNewline := strings.HasSuffix(text, "\n")
-	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+	e.finalNewline = strings.HasSuffix(e.text, "\n")
+	e.lines = strings.Split(strings.TrimSuffix(e.text, "\n"), "\n")
 
 	dir, err := os.MkdirTemp("", "funcfinder-edit-")
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(dir)
-	ext := ""
+	e.dir = dir
 	if len(cfg.Extensions) > 0 {
-		ext = cfg.Extensions[0]
+		e.ext = cfg.Extensions[0]
 	}
-	origPath := filepath.Join(dir, "original"+ext)
-	if err := os.WriteFile(origPath, []byte(text), 0o600); err != nil {
+	e.finder = CreateFinder(cfg, "", "map", false, false)
+	before, err := e.findIn("original", e.text)
+	if err != nil {
+		e.close()
 		return nil, err
 	}
-
-	finder := CreateFinder(cfg, "", "map", false, false)
-	before, err := finder.FindFunctions(origPath)
+	e.before = before
+	fn, idx, err := selectFunction(before.Functions, target)
 	if err != nil {
-		return nil, fmt.Errorf("finding functions: %v", err)
-	}
-	fn, err := selectFunction(before.Functions, target)
-	if err != nil {
+		e.close()
 		return nil, err
 	}
-	// Some finders (Python) end a function after its trailing blank lines; those are not part of the function.
-	for fn.End > fn.Start && strings.TrimSpace(lines[fn.End-1]) == "" {
+	// A function that ends the file can be reported one line past the end; clamp it. Some finders (Python) end a
+	// function after its trailing blank lines; those are not part of the function.
+	if fn.End > len(e.lines) {
+		fn.End = len(e.lines)
+	}
+	for fn.End > fn.Start && strings.TrimSpace(e.lines[fn.End-1]) == "" {
 		fn.End--
 	}
+	e.fn = fn
+	e.fnIndex = idx
 	if cfg.LangKey == "go" {
-		if err := checkGoSpanWithAST(text, fn, target.Name); err != nil {
+		if err := checkGoSpanWithAST(e.text, fn, target.Name); err != nil {
+			e.close()
 			return nil, err
 		}
 	}
-
-	oldText := strings.Join(lines[fn.Start-1:fn.End], "\n")
-	if expectOld != nil && oldText != strings.TrimSuffix(strings.ReplaceAll(string(expectOld), "\r\n", "\n"), "\n") {
-		return nil, fmt.Errorf("function %s at lines %d-%d is not the expected text (it changed since it was read)",
-			target.Name, fn.Start, fn.End)
-	}
-
-	newText := strings.TrimSuffix(strings.ReplaceAll(string(replacement), "\r\n", "\n"), "\n")
-	if strings.TrimSpace(newText) == "" {
-		return nil, fmt.Errorf("replacement is empty")
-	}
-	if !cfg.IndentBased {
-		if err := checkBracketsBalance(cfg, newText); err != nil {
-			return nil, err
-		}
-	}
-	newLines := strings.Split(newText, "\n")
-	// A replacement without decorators keeps the old ones, so omitting them never loses them.
-	if len(leadingDecorators(newLines)) == 0 {
-		newLines = append(rawLeadingDecorators(lines[fn.Start-1:fn.End]), newLines...)
-	}
-	if err := sameDecorators(lines[fn.Start-1:fn.End], newLines); err != nil {
-		return nil, err
-	}
-
-	out := make([]string, 0, len(lines)-(fn.End-fn.Start+1)+len(newLines))
-	out = append(out, lines[:fn.Start-1]...)
-	out = append(out, newLines...)
-	out = append(out, lines[fn.End:]...)
-	outText := strings.Join(out, "\n")
-	if finalNewline {
-		outText += "\n"
-	}
-
-	newPath := filepath.Join(dir, "replaced"+ext)
-	if err := os.WriteFile(newPath, []byte(outText), 0o600); err != nil {
-		return nil, err
-	}
-	after, err := finder.FindFunctions(newPath)
-	if err != nil {
-		return nil, fmt.Errorf("replacement does not give a file the finder can read: %v", err)
-	}
-	if err := sameDeclarations(before, after); err != nil {
-		return nil, err
-	}
-	if cfg.LangKey == "go" {
-		if err := checkGoDeclarationsKept(text, outText, target.Name); err != nil {
-			return nil, err
-		}
-	}
-
-	return &ReplaceResult{
-		Start:  fn.Start,
-		End:    fn.End,
-		Output: []byte(strings.ReplaceAll(outText, "\n", eol)),
-	}, nil
+	return e, nil
 }
 
-// selectFunction returns the one function the target selects.
-func selectFunction(functions []FunctionBounds, target FuncTarget) (FunctionBounds, error) {
-	var matches []FunctionBounds
-	for _, fn := range functions {
+func (e *editFile) close() {
+	os.RemoveAll(e.dir)
+}
+
+func (e *editFile) oldText() string {
+	return strings.Join(e.lines[e.fn.Start-1:e.fn.End], "\n")
+}
+
+// newLines normalises the replacement text and checks its brackets.
+func (e *editFile) newLines(replacement []byte) ([]string, error) {
+	text := strings.TrimSuffix(strings.ReplaceAll(string(replacement), "\r\n", "\n"), "\n")
+	if strings.TrimSpace(text) == "" {
+		return nil, fmt.Errorf("replacement is empty")
+	}
+	if !e.cfg.IndentBased {
+		if err := checkBracketsBalance(e.cfg, text); err != nil {
+			return nil, err
+		}
+	}
+	return strings.Split(text, "\n"), nil
+}
+
+// join returns the lines as the file text, with the original final newline.
+func (e *editFile) join(lines []string) string {
+	text := strings.Join(lines, "\n")
+	if e.finalNewline {
+		text += "\n"
+	}
+	return text
+}
+
+// output converts LF text back to the file's line endings.
+func (e *editFile) output(text string) []byte {
+	return []byte(strings.ReplaceAll(text, "\n", e.eol))
+}
+
+// findIn writes text to a scratch file and runs the finder on it.
+func (e *editFile) findIn(name, text string) (*FindResult, error) {
+	path := filepath.Join(e.dir, name+e.ext)
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		return nil, err
+	}
+	result, err := e.finder.FindFunctions(path)
+	if err != nil {
+		return nil, fmt.Errorf("the finder cannot read the %s file: %v", name, err)
+	}
+	return result, nil
+}
+
+// selectFunction returns the one function the target selects, and its index in functions.
+func selectFunction(functions []FunctionBounds, target FuncTarget) (FunctionBounds, int, error) {
+	var matches []int
+	for i, fn := range functions {
 		if fn.Name == target.Name && (target.Line == 0 || fn.Start == target.Line) {
-			matches = append(matches, fn)
+			matches = append(matches, i)
 		}
 	}
 	switch len(matches) {
 	case 0:
 		if target.Line != 0 {
-			return FunctionBounds{}, fmt.Errorf("no function %s starts at line %d", target.Name, target.Line)
+			return FunctionBounds{}, 0, fmt.Errorf("no function %s starts at line %d", target.Name, target.Line)
 		}
-		return FunctionBounds{}, fmt.Errorf("no function named %s", target.Name)
+		return FunctionBounds{}, 0, fmt.Errorf("no function named %s", target.Name)
 	case 1:
-		return matches[0], nil
+		return functions[matches[0]], matches[0], nil
 	}
 	starts := make([]string, len(matches))
-	for i, fn := range matches {
-		starts[i] = fmt.Sprint(fn.Start)
+	for i, idx := range matches {
+		starts[i] = fmt.Sprint(functions[idx].Start)
 	}
-	return FunctionBounds{}, fmt.Errorf("%d functions named %s start at lines %s: select one with the start line",
+	return FunctionBounds{}, 0, fmt.Errorf("%d functions named %s start at lines %s: select one with the start line",
 		len(matches), target.Name, strings.Join(starts, ", "))
 }
 
@@ -208,17 +315,26 @@ func rawLeadingDecorators(lines []string) []string {
 	return out
 }
 
-// sameDeclarations requires the finder to report the same function names and class names, in the same order.
+// sameDeclarations requires the finder to report the same function names and type names, in the same order.
 func sameDeclarations(before, after *FindResult) error {
-	if want, got := funcNames(before), funcNames(after); strings.Join(want, ",") != strings.Join(got, ",") {
+	if !sameNames(funcNames(before), funcNames(after)) {
 		return fmt.Errorf("replacement changes the functions in the file: was [%s], now [%s]",
-			strings.Join(want, ", "), strings.Join(got, ", "))
+			strings.Join(funcNames(before), ", "), strings.Join(funcNames(after), ", "))
 	}
-	if want, got := classNames(before), classNames(after); strings.Join(want, ",") != strings.Join(got, ",") {
+	return sameTypes(before, after)
+}
+
+// sameTypes requires the finder to report the same type names, in the same order.
+func sameTypes(before, after *FindResult) error {
+	if !sameNames(classNames(before), classNames(after)) {
 		return fmt.Errorf("replacement changes the types in the file: was [%s], now [%s]",
-			strings.Join(want, ", "), strings.Join(got, ", "))
+			strings.Join(classNames(before), ", "), strings.Join(classNames(after), ", "))
 	}
 	return nil
+}
+
+func sameNames(a, b []string) bool {
+	return strings.Join(a, "\x00") == strings.Join(b, "\x00")
 }
 
 func funcNames(r *FindResult) []string {
@@ -237,7 +353,7 @@ func classNames(r *FindResult) []string {
 	return names
 }
 
-// checkBracketsBalance refuses a replacement whose code (strings and comments removed) does not close what it opens.
+// checkBracketsBalance refuses text whose code (strings and comments removed) does not close what it opens.
 func checkBracketsBalance(cfg *LanguageConfig, text string) error {
 	code := NewSanitizer(cfg, false).CleanCode(text)
 	for _, pair := range [][2]string{{"(", ")"}, {"[", "]"}, {"{", "}"}} {
