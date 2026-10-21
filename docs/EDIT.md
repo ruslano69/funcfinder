@@ -28,6 +28,11 @@ when several share the name; `N` is the start line that `--map` reports.
   mixed. Lines inside triple-quoted strings are exempt.
 - Go: the span must agree with `go/ast`, and the new file must parse with the same top-level declarations.
 - Line endings are kept. A file that mixes `\r\n` and `\n` is refused.
+- The unit is the whole line. A function whose first or last line holds other code is refused, because the edit
+  would delete that code too: `int b() { return 2; }` before a function on its first line, or `} int b() {` after
+  it. A one-line function with a `;` or two `}` is refused too. Edit those lines by hand.
+- The input is read before the file, so the file is as it is when the edit is prepared. Before `--apply` the file
+  is read again, and the command writes only if it is unchanged.
 - `--old` must match the current text, ignoring line endings and one trailing newline. A mismatch means the file
   changed since it was read.
 
@@ -58,3 +63,6 @@ These are the limits of the checks. Most of them are not checked at all.
 - **Other attribute syntaxes are not recognised.** C# `[Attr]` and TypeScript decorators without a leading `@` are
   not kept when a replacement omits them.
 - **Not atomic across files.** Each command edits one file.
+- **A window remains before the write.** The file is re-read just before writing, but another process can still
+  change it between that read and the write. There is no file lock.
+- **Columns are not cut.** The tool never cuts inside a line; a shared line is refused instead.
