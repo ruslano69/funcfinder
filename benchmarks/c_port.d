@@ -78,6 +78,9 @@ Result findC(string[] lines,LineFact[] facts) {
     auto tokens=tokenizeCpp(facts,lines);auto s=Scan(tokens.items,tokens.pairs);auto t=s.t;
     Result result;int boundary,executableEnd=-1;
     for(int i=0;i<t.length;++i) {
+        // Attribute argument lists are syntax attached to a declaration, not declarators.
+        // Skip the complete list so nested aligned(16) cannot become a function.
+        if(s.attribute(i) && s.at(i+1,"(") && s.pair[i+1]>i+1) {i=s.pair[i+1];continue;}
         if(s.at(i,";") || s.at(i,"}") || s.at(i,"{")){boundary=i+1;continue;}
         while(boundary<i && t[boundary].segment<t[i].segment)++boundary;
         // In executable scope a bare word(args); is an invocation, even when
@@ -141,6 +144,8 @@ unittest {
     string[] names;foreach(f;r.functions)names~=f.name;
     assert(names==["f","g","factory","make"],names.to!string);
     assert(r.functions[0].start==1 && r.functions[0].end==1 && r.functions[2].end==2);
+    r=parse("struct S { int x; } __attribute__((aligned(16)));\n__attribute__((format(printf,1,2))) int logmsg(const char *fmt, ...);\nint f(void) __attribute__((unused));\n");
+    assert(r.functions.length==2 && r.functions[0].name=="logmsg" && r.functions[1].name=="f");
     r=parse("#define FAKE() \\\n int hidden(void) {}\nextern int\nreal(int (*cb)(int)) __attribute__((unused));\n");
     assert(r.functions.length==1 && r.functions[0].name=="real" && r.functions[0].start==3 && r.functions[0].end==4);
     r=parse("typedef int Fn(int);\nstruct S {int (*callback)(int);};\nint f(void) {if(1){return call(2);}return 0;} int g(void);\n");

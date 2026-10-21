@@ -2,6 +2,13 @@
 
 Known issues and follow-up work, tracked here until they become GitHub issues.
 
+## Independent accuracy fixes (2026-10-21)
+
+- Go C++ token evidence removes 11 confirmed expression/initializer false functions from local kanzi-cpp and three from the saved fmt commit; preserve default arguments, ellipses, repeated names and multiline return types. This is not a complete C++ parser. D C now excludes nested attribute calls such as `aligned(16)` from declaration discovery; Lua function keys are unchanged.
+- D Kotlin fixes two Seal start-line errors caused by treating `.value` in the preceding getter as a modifier. Go Ruby correctly names singleton methods (`logger.warn` -> `warn`) and discovers four additional instance-variable receiver methods in Huginn. Source/name/line accuracy is the criterion, not agreement with the other executable.
+- Four minimal regressions pass independent tree-sitter AST checks (runtime 0.25.2; C 0.24.1, C++ 0.23.4, Kotlin 1.1.0, Ruby 0.23.1). This does not replace full compiler/PSI corpus scoring. Existing full C++/Kotlin/Ruby accuracy claims must be rerun with their pinned independent oracles before changing historical measurements.
+- Next: C++ `schedule` with dependent return types, Go legacy recognition of `decltype` parameter types, classification of Rust macro-template declarations and impl rows, and independent assessment of remaining extra Go/D entries. Macros, inactive preprocessing branches and instantiations need explicit analysis-scope rules.
+
 ## D file CLI follow-up (2026-10-20)
 
 - `ffd` now supports `--inp`, explicit `--source`, `--map`, `--func`, `--extract`, file JSON and standalone/parsed `--lines`. The file CLI has 135 comparisons against the current local Go build across all 15 languages; this does not replace pinned real-project oracle coverage or establish exact span parity on arbitrary sources.

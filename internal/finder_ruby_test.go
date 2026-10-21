@@ -2,8 +2,31 @@ package internal
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestRubySingletonReceiverNames(t *testing.T) {
+	src := "def logger.warn(_event)\n  sleep 30\nend\ndef self.[](key)\n key\nend\ndef Store::save(value)\n value\nend\n"
+	got := spans(mapFunctions(t, "ruby", src))
+	want := []string{"[]:4-6", "save:7-9", "warn:1-3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.GetLanguageConfig("ruby")
+	if err != nil {
+		t.Fatal(err)
+	}
+	finder := NewFinder(cfg, []string{"warn"}, false, true, false)
+	result, err := finder.FindFunctionsInLines(strings.Split(src, "\n"), 11, "singleton.rb")
+	if err != nil || len(result.Functions) != 1 || result.Functions[0].Start != 11 || result.Functions[0].Lines[0] != "def logger.warn(_event)" {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+}
 
 // Ruby operator methods are methods too: their names are not identifiers, so the
 // name pattern has to allow them. The span of each runs to its own end.

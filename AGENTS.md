@@ -422,6 +422,7 @@ Default section order:
 
 - The project is transitioning to token-based parsing. Develop new parser work toward tokenization and migrate existing recognition incrementally; existing regex implementations describe the current state, not the target architecture.
 - When comparing implementations, distinguish the tokenization algorithm from the implementation language and evaluate correctness, performance and CLI completeness separately.
+- Prioritize independent accuracy of both Go and D over agreement between them. Classify differences as missed declarations, false positives, name/span errors or intentional analysis-scope differences; validate against language AST/compiler references and source truth, never treat either implementation as the universal oracle.
 
 ## Child DOX Index
 

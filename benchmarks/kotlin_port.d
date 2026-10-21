@@ -80,7 +80,11 @@ private struct Scan {
     }
     int annotationEnd(int i){++i;if(word(i))++i;if(at(i,":")){++i;if(word(i))++i;}while(at(i,".") && word(i+1))i+=2;if(at(i,"(") && p[i]>i)i=p[i]+1;return i;}
     int angleEnd(int start){int depth=1;for(int i=start+1;i<t.length;++i){if(at(i,"<"))++depth;else if(at(i,">") && --depth==0)return i+1;else if(at(i,"(") || at(i,"[")){if(p[i]<i)return -1;i=p[i];}else if(at(i,"{") || at(i,";") || at(i,"="))return -1;}return -1;}
-    int prefix(int keyword){auto i=keyword;while(i>0 && modifiers.canFind(t[i-1].text))--i;return i;}
+    int prefix(int keyword){auto i=keyword;while(i>0 && modifiers.canFind(t[i-1].text)) {
+        // Soft modifier words can also end the preceding property expression.
+        if(i>1 && [".","?.","::"].canFind(t[i-2].text))break;
+        --i;
+    }return i;}
     int parameters(int start,out int name) {
         name=-1;
         for(int i=start;i<t.length;++i) {
@@ -173,6 +177,8 @@ Result findKotlin(string source) {
 }
 
 unittest {
+    auto prefixResult=findKotlin("class C {\n val state get() = flow.value\n fun f() {}\n val other get() = flow?.value\n suspend fun g() {}\n}\n");
+    assert(prefixResult.functions.length==2 && prefixResult.functions[0].start==3 && prefixResult.functions[1].start==5);
     auto r=findKotlin("interface I {\n fun f(x: Int): Int\n fun g(): String\n}\nfun outer() {\n fun counters() = value.toInt()\n if (ready) { use() }\n}\nfun String.ext() = length\n");
     assert(r.functions.length==5 && r.functions[0].end==2 && r.functions[2].end==8 && r.functions[3].end==6 && r.functions[4].end==9);
     r=findKotlin("fun f() = if (ok)\n  foo()\nelse\n  bar()\nfun g() = run { x() }\n .let { y() }\nfun h() = \"\"\"multi\n} fun fake() {}\n\"\"\"\n");

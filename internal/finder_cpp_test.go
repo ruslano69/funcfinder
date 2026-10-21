@@ -6,6 +6,58 @@ import (
 	"testing"
 )
 
+func TestCppExpressionHeadersDoNotHideRealDeclarations(t *testing.T) {
+	src := `void outer() {
+ ss << uint(double(read) / delta);
+ Event evt(Event::BEFORE, id,
+   int64(size), timer.getCurrentTime());
+ auto task = std::bind(std::forward<F>(f));
+ }
+ class Null : public Stream<int> {
+ Null() :
+   Stream<int>(&_buffer)
+ { init(); }
+ };
+ void valid(int x = timer.getCurrentTime());
+ void callback(void (*cb)(int));
+ Foo::Foo() {}
+ `
+	got := spans(mapFunctions(t, "cpp", src))
+	want := []string{"Foo:14-14", "Null:8-10", "callback:13-13", "outer:1-6", "valid:12-12"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestCppExpressionChecksPreserveRepeatedNamesAndSplitReturnTypes(t *testing.T) {
+	src := `struct V {
+ static auto map(const T& arg) -> decltype(map(arg.value));
+ V(const T& arg) : V(arg.value) {}
+ };
+ Reporter*
+ Unit::reporter() {return ptr;}
+ `
+	got := spans(mapFunctions(t, "cpp", src))
+	want := []string{"V:3-3", "map:2-2", "reporter:6-6"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.GetLanguageConfig("cpp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The legacy recognizer does not yet accept this parameter form. This check
+	// pins only that the new exclusion layer does not classify it as a call.
+	rejected := cppExpressionHeaders(NewSanitizer(cfg, false).CleanLinesFacts([]string{"void type_query(decltype(obj.value) arg);"}))
+	if rejected[0]["type_query"] {
+		t.Fatal("decltype parameter treated as an expression")
+	}
+}
+
 func TestCppTokenMembersAndNestedConstructors(t *testing.T) {
 	src := `class Outer {
  class Inner {

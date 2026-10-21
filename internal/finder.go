@@ -621,6 +621,10 @@ func (f *Finder) findFunctionsInPreparedLines(lines []string, facts []LineFacts,
 
 // findFunctionsSimple - старая логика для языков без вложенных функций
 func (f *Finder) findFunctionsSimple(lines []string, facts []LineFacts, lineOffset int, classes []ClassBounds, result *FindResult) (*FindResult, error) {
+	var cppExpressions map[int]map[string]bool
+	if f.config.LangKey == "cpp" {
+		cppExpressions = cppExpressionHeaders(facts)
+	}
 	var currentFunc *FunctionBounds
 	var sig *sigScanner // the current function's signature, until its body opens
 	var sigLast int     // where that signature ends if it never gets a body
@@ -759,6 +763,9 @@ func (f *Finder) findFunctionsSimple(lines []string, facts []LineFacts, lineOffs
 			}
 			if matches != nil {
 				funcName := ExtractFuncName(matches)
+				if cppExpressions[lineNum][funcName] {
+					continue
+				}
 
 				// Проверяем, нужно ли нам эту функцию
 				if (f.mapMode || f.funcNames[funcName]) && !f.isKeywordName(funcName) {

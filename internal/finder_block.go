@@ -73,7 +73,7 @@ func (f *Finder) findFunctionsByBlockEnd(lines []string, lineOffset int, classes
 			continue
 		}
 
-		matches := funcRegex.FindStringSubmatch(cleaned)
+		matches := funcRegex.FindStringSubmatch(rubyMethodHeader(cleaned))
 		if matches == nil {
 			continue
 		}
@@ -104,4 +104,30 @@ func (f *Finder) findFunctionsByBlockEnd(lines []string, lineOffset int, classes
 	}
 
 	return result, nil
+}
+
+// A singleton receiver is not the method name. Reuse the configured method-name
+// grammar after walking the receiver; source lines and extraction stay untouched.
+func rubyMethodHeader(line string) string {
+	header := strings.TrimSpace(line)
+	for _, visibility := range []string{"private ", "protected ", "public "} {
+		header = strings.TrimPrefix(header, visibility)
+	}
+	if !strings.HasPrefix(header, "def ") {
+		return line
+	}
+	tail := strings.TrimSpace(header[4:])
+	end := strings.IndexAny(tail, " \t(;\r\n")
+	if end < 0 {
+		end = len(tail)
+	}
+	name := tail[:end]
+	separator, width := strings.LastIndex(name, "."), 1
+	if colon := strings.LastIndex(name, "::"); colon > separator {
+		separator, width = colon, 2
+	}
+	if separator < 0 || separator+width == len(name) {
+		return line
+	}
+	return "def " + tail[separator+width:]
 }

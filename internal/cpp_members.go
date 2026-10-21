@@ -5,6 +5,119 @@ import (
 	"strings"
 )
 
+// Conservative token evidence that a regex header is an expression. Default
+// arguments are skipped: their expressions are legal inside declarations.
+func cppExpressionHeaders(facts []LineFacts) map[int]map[string]bool {
+	t, pairs := braceTokens(facts, false)
+	rejected := make(map[int]map[string]bool)
+	seen := make(map[int]map[string]bool)
+	for i := 0; i+1 < len(t); i++ {
+		if !csIdentifier(t[i].text) {
+			continue
+		}
+		open := i + 1
+		if t[open].text == "<" {
+			depth := 0
+			for ; open < len(t); open++ {
+				if t[open].text == "<" {
+					depth++
+				}
+				if t[open].text == ">" {
+					depth--
+					if depth == 0 {
+						open++
+						break
+					}
+				}
+				if t[open].text == ";" || t[open].text == "{" || t[open].text == "}" {
+					break
+				}
+			}
+		}
+		if open >= len(t) || t[open].text != "(" || pairs[open] <= open {
+			continue
+		}
+		if seen[t[i].line][t[i].text] {
+			continue
+		}
+		if seen[t[i].line] == nil {
+			seen[t[i].line] = make(map[string]bool)
+		}
+		seen[t[i].line][t[i].text] = true
+		close := pairs[open]
+		bad := false
+		for j := open + 1; j < close; j++ {
+			if (t[j].text == "decltype" || t[j].text == "typeof" || t[j].text == "__typeof__") && j+1 < close && t[j+1].text == "(" && pairs[j+1] > j+1 {
+				j = pairs[j+1]
+				continue
+			}
+			if t[j].text == "=" {
+				for j++; j < close && t[j].text != ","; j++ {
+					if (t[j].text == "(" || t[j].text == "[" || t[j].text == "{") && pairs[j] > j {
+						j = pairs[j]
+					}
+				}
+				continue
+			}
+			if t[j].text == "." && !(j+1 < close && t[j+1].text == "." || j > open+1 && t[j-1].text == ".") || j == open+1 && t[j].text == "&" {
+				bad = true
+				break
+			}
+		}
+		first := i
+		for first > 0 && t[first-1].line == t[i].line {
+			first--
+		}
+		for j := first; j+1 < i; j++ {
+			if t[j].text == "<" && t[j+1].text == "<" {
+				stream := j > first
+				for k := first; k < j; k++ {
+					if !csIdentifier(t[k].text) && t[k].text != ":" {
+						stream = false
+					}
+				}
+				if stream {
+					bad = true
+				}
+			}
+		}
+		// A qualified call with no return type is not a declaration. Qualified
+		// constructors retain their repeated terminal type name.
+		if i >= first+3 && t[i-1].text == ":" && t[i-2].text == ":" {
+			qualified := true
+			for j := first; j < i; {
+				if !csIdentifier(t[j].text) {
+					qualified = false
+					break
+				}
+				j++
+				if j < i {
+					if j+1 >= i || t[j].text != ":" || t[j+1].text != ":" {
+						qualified = false
+						break
+					}
+					j += 2
+				}
+			}
+			continuedType := false
+			if t[i].line > 0 {
+				prev := strings.TrimSpace(facts[t[i].line-1].Cleaned)
+				continuedType = prev != "" && !strings.ContainsAny(prev, "=();{}.") && prev != "return" && prev != "throw"
+			}
+			if qualified && !continuedType && t[i-3].text != t[i].text {
+				bad = true
+			}
+		}
+		if bad {
+			if rejected[t[i].line] == nil {
+				rejected[t[i].line] = make(map[string]bool)
+			}
+			rejected[t[i].line][t[i].text] = true
+		}
+	}
+	return rejected
+}
+
 // cppNestedClasses adds inner type scopes omitted by the legacy outer-class walk.
 func cppNestedClasses(facts []LineFacts, startLine int, classes []ClassBounds) []ClassBounds {
 	t, pairs := braceTokens(facts, false)
