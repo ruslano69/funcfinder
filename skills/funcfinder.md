@@ -173,7 +173,7 @@ The tool enforces these rules. Do not work around them:
 - Several functions share the name: add `--line N`, the start line from `--map`.
 - The replacement keeps every function and type the finder reports, in the same order. A rename, an extra function or a missing one is refused. A nested helper inside the function belongs in the replacement.
 - Decorators and annotations above the function (`@x`, `#[x]`) are kept when the replacement omits them. A different set is refused.
-- Brace languages must balance their brackets in the replacement. Python has no bracket check, only the finder comparison.
+- Brace languages must balance their brackets in the replacement. Python has no bracket check; instead the replacement must start at the function's indentation, its def must have an indented body, and no line may leave the block (lines inside triple-quoted strings excepted).
 - Comments above the `func` line are not replaced.
 - "is not the expected text" means the file changed since you read it. Re-run `--extract` and rebuild the replacement. Do not drop `--old`.
 
