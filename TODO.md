@@ -5,7 +5,11 @@ Known issues and follow-up work, tracked here until they become GitHub issues.
 ## D file CLI follow-up (2026-10-20)
 
 - `ffd` now supports `--inp`, explicit `--source`, `--map`, `--func`, `--extract`, file JSON and standalone/parsed `--lines`. The file CLI has 135 comparisons against the current local Go build across all 15 languages; this does not replace pinned real-project oracle coverage or establish exact span parity on arbitrary sources.
-- Remaining file-mode parity: Go's Python automatic scope expansion/report for parsed `--lines`, file type/all modes, tree/names/doc modes, and parser-specific differences in declaration spans/trailing trivia. Directory selection/output contracts stay unchanged.
+- `--names`, file `--struct`/`--all` and `--type` now have 360 controlled CLI comparisons across 15 languages: 357 exact matches and three explicitly verified inherited C default-name profile differences. Ordinary directory JSON remains byte-identical in the 12 local mode/worker checks.
+- Python parsed `--lines` now uses Go-compatible scope adjustment/reporting and whole-file filtering; 648 controlled comparisons match Go's stdout/exit status and successful stderr. Its CLI adapter extends native significant ends through trailing trivia. Ordinary file/directory spans stay native. Multiline decorator JSON is retained. Real-project parser differences are still outside this CLI parity claim.
+- Initial token-derived field profiles now cover direct members across all 15 languages, with 63 explicit-truth/simple-Go checks for map/selected/combined arrays and extraction. Go grouped fields, C-family pointers/arrays/properties, colon/inferred properties, Python annotations and Ruby literal attributes are covered. Field types are normalized token spellings; Go's limited regex output is not the universal oracle.
+- `--doc` now covers files/directories with 340 controlled comparisons across 15 languages, including aliases, overloads, comment adjacency, annotations, Unicode/CRLF and invalid combinations. It prints the first source line, not Python body docstrings; native declaration differences remain.
+- Remaining field work: multi-declarator C-family syntax, function pointers, embeddings, primary/tuple constructors, braceless fields, complex attributes/macros, dynamic properties and wider real-project oracle coverage. Remaining CLI work: richer type-kind metadata, tree mode and parser-specific declaration spans/trailing trivia. Directory selection/output contracts stay unchanged.
 
 ## Go C++ token migration (2026-10-20)
 

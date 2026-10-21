@@ -14,8 +14,8 @@ build/ffd/ffd --dir . --all --json --workers 4 --timing
 Implemented: `--dir`, `--all`, `--struct`, `--json`, `--workers` (default 8, at most 16), `--recursive=false`,
 `--no-gitignore`, `--timing`, `--version`. The root `.gitignore`, hidden names and the extension table follow the Go
 tool exactly (the same files, the same "skipped N files" notice on 31 trees). File mode also supports `--inp`, `--source`,
-`--map`, `--func`, `--extract` and `--lines` (see below). Not yet: `--tree`, `--names`,
-`--doc`, `--split`, `funcstats`, `callgraph`, `complexity`, `deps`.
+`--map`, `--func`, `--extract`, `--lines`, `--type`, file `--struct`/`--all` and file/directory `--names`/`--doc` (see below).
+Not yet: `--tree`, `--split`, `funcstats`, `callgraph`, `complexity`, `deps`.
 
 ## How close to Go
 
@@ -82,7 +82,45 @@ build/ffd/ffd.exe --inp test_examples/test_edge_cases.cpp --source cpp --func "o
 
 File mode requires `--source` and either `--map` or `--func`. `--func` accepts comma-separated names and keeps
 every overload; name-keyed JSON retains the last overload, as Go does. `--extract` takes precedence over `--json`.
-File type/all modes are not yet supported.
+Type and combined modes:
+
+```powershell
+build/ffd/ffd.exe --inp test_examples/test_example.ts --source ts --struct --map --json
+build/ffd/ffd.exe --inp test_examples/test_example.ts --source ts --struct --type User --extract
+build/ffd/ffd.exe --inp test_examples/test_example.ts --source ts --struct "User,UserService" --extract
+build/ffd/ffd.exe --inp test_examples/test_example.go --source go --all --json
+build/ffd/ffd.exe --inp test_examples/test_example.go --source go --names --all
+build/ffd/ffd.exe --dir test_examples --names --all
+```
+
+`--type` filters types; `--struct A,B` is shorthand. `--all` requires `--map` or `--json`, rejects name selectors,
+and gives JSON priority over extraction. Type/all modes do not support `--lines`. Type maps list field names;
+JSON fields include `name`, normalized `type` and source `line`. Empty fields are omitted in struct JSON and kept
+as an empty array in combined JSON. Native type/span differences from Go remain.
+
+Initial field profiles cover direct named members in all 15 languages: Python class annotations/annotated `self`
+attributes, Ruby literal attribute declarations, Go grouped named fields and common C-family/colon-style members.
+Methods, nested-type contents, local variables and comment/literal contents are excluded. Complex/multiple C-family
+declarators, embeddings, primary/tuple constructors, braceless declarations, attributes/macros and dynamic properties
+remain unsupported or partial. Types are token spellings, without semantic resolution; results can differ from Go's
+more limited regex field profiles. Field extraction runs only for file type maps/JSON.
+
+`--names` prints kind, name and `path:line`, separated by tabs. It accepts `--all`/`--struct`, but rejects output,
+selection and range flags, including explicitly supplied false flags. Native type sets/kinds can differ from Go;
+in particular the default C profile includes type rows Go omits. Aliases appear in type/all names modes.
+
+Read declaration comments and the first source line:
+
+```powershell
+build/ffd/ffd.exe --inp test_examples/test_example.go --source go --doc SimpleFunction,Server
+build/ffd/ffd.exe --dir test_examples --doc SimpleFunction,Server --workers 8
+```
+
+`--doc` searches functions, types and Go aliases, preserving overloads and ordering by path/source line. Each entry
+contains `path:line: kind name`, the directly adjacent comment, and the first source line. Blank lines break comment
+attachment; decorators and Rust attributes are skipped with Go's rules. Inline bodies can occur on the first line;
+Python body docstrings are not read. `--doc` accepts worker/walk flags but rejects output/selection/range modes,
+including explicitly false incompatible flags. A wholly missing selection exits 2. Native parser differences remain.
 
 Read text lines without a language or parse a source range with global line coordinates:
 
@@ -93,14 +131,20 @@ build/ffd/ffd.exe --inp test_examples/test_example.go --source go --map --lines 
 ```
 
 Ranges accept `N`, `N:M`, `:M`, `N:` and `:`; numbering starts at 1 and an end past EOF is clipped.
-Parsed ranges can cut declarations or lose their enclosing scope. Python ranges currently use the literal slice,
-without Go's automatic scope expansion/report. Underlying D and Go parser span/trailing-trivia differences remain.
+Non-Python parsed ranges can cut declarations or lose their enclosing scope. Python ranges adjust to whole scopes
+using Go's rules, then filter complete functions. If adjusted, the same text report precedes the result on stdout,
+including with `--json`; the selected-range notice goes to stderr. Standalone text ranges never expand.
+Ordinary file/directory Python maps retain the native D significant ends; underlying parser differences remain.
 Extraction uses original source text, with Go-compatible newline handling (CRLF normalized except for Python).
 
 Validate the file CLI against a specified Go binary:
 
 ```powershell
 python benchmarks/ffd/file_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/type_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/python_range_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/field_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/doc_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 ```
 
 This is a CLI regression check; real-project accuracy and timing require the independent benchmark harnesses.

@@ -173,7 +173,8 @@ Sym[] hybridTypes(const(LineFact)[] facts, bool js) {
             foreach (kind; kindOrder) {
                 string name;
                 if (!matchKind(kind, line, js, name)) continue;
-                current = Sym(name.idup, cast(int) n + 1, 0, "");
+                static immutable string[4] kinds = ["class", "enum", "interface", "type_alias"];
+                current = Sym(name.idup, cast(int) n + 1, 0, "", kinds[kind]);
                 immutable braces = countBraces(line);
                 if (braces > 0) {
                     depth = braces;

@@ -269,16 +269,16 @@ private void take(R)(ref FileResult r, R found) {
 }
 
 /// Finds the functions and types of one file with the finder of its language. Errors are returned in the result.
-FileResult analyzeFile(string path, Lang lang) {
+FileResult analyzeFile(string path, Lang lang, bool details = false) {
     try {
-        return analyzeSource(path, lang, readSource(path));
+        return analyzeSource(path, lang, readSource(path), details);
     } catch (Exception e) {
         FileResult r; r.path = path; r.lang = langKey(lang); r.error = e.msg; return r;
     }
 }
 
 /// Same token finders for a file or a selected source range; no second parser path.
-FileResult analyzeSource(string path, Lang lang, string source) {
+FileResult analyzeSource(string path, Lang lang, string source, bool details = false) {
     FileResult r;
     r.path = path;
     r.lang = langKey(lang);
@@ -355,6 +355,10 @@ FileResult analyzeSource(string path, Lang lang, string source) {
         r.aliases = null;
         r.structTypes = null;
         r.error = e.msg;
+    }
+    if (details && !r.error.length) {
+        import ffd_symbols : annotateTypes;
+        annotateTypes(r, source);
     }
     return r;
 }

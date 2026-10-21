@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-- Experimental D `ffd` adds single-file function maps and JSON, comma-separated `--func` selection, original-source `--extract`, and standalone/parsed `--lines` ranges. It uses all 15 existing token finders; file type/all modes and Python range scope expansion remain unsupported.
+- D `ffd` adds file/directory `--doc Name,Other`: adjacent declaration comments and first source lines for functions, types and Go aliases, using Go-compatible formatting and flag validation.
+- D `ffd` file type maps/JSON now include initial token-derived field profiles for 15 languages: names, normalized type spellings and source lines. Direct-member ownership excludes methods, nested types and locals; complex field syntax remains incremental.
+- D `ffd` Python parsed `--lines` now adjusts to whole scopes with Go-compatible reports, trailing trivia and complete-function filtering. Multiline decorators are retained in file JSON.
+- Experimental D `ffd` adds file/directory `--names`, file `--struct`/`--all` output and `--type`/named `--struct` selection with native type metadata.
+- Experimental D `ffd` adds single-file function maps and JSON, comma-separated `--func` selection, original-source `--extract`, and standalone/parsed `--lines` ranges using all 15 existing token finders.
 - Go C++ discovery now retains nested-class constructors and recovers builtin conversion operators, ref-qualified methods and conditional `noexcept` methods with a token pass. Selection, source offsets and original extraction are preserved.
 
 ## v1.15.10 - 2026-10-19

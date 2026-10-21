@@ -5,8 +5,9 @@
 `ffd` is the D port of funcfinder's file and directory discovery: one executable with the token finders of all 15
 languages (`../*_port.d`). It is experimental: production stays Go, and CI runs only the `genconfig` Go test.
 Directory mode covers `--dir [--all|--struct] [--json]`, `--workers`, `--recursive`, `--no-gitignore` and `--timing`.
-File mode covers `--inp --source (--map|--func names) [--json|--extract] [--lines range]` and standalone
-`--inp --lines range [--json]`. File type/all modes, `--tree`, `--names`, `--doc`, `--split` and the other four tools
+File mode covers function maps/selection/extraction/JSON, type maps/`--type` selection/extraction/JSON (`--struct`),
+combined output (`--all`) and standalone/parsed `--lines`. `--names` lists file/directory declarations;
+`--doc Name,Other` prints adjacent comments and the first source line. `--tree`, `--split` and the other four tools
 are not implemented and say so.
 
 ## Ownership
@@ -15,8 +16,15 @@ are not implemented and say so.
   `ffd_run.d` the worker pool and mode filter; `ffd_langs.d` language registry, configuration checks and the finder of
   each language; `ffd_json.d` output; `ffd_model.d` the neutral result; `ffd_goalias.d` Go aliases; `ffd_hybrid.d` the
   JavaScript/TypeScript types of Go's struct finder.
-- `ffd_file.d` file-mode validation, name selection, line ranges, source extraction and file-specific JSON/text;
-  `file_checks.py` compares file CLI contracts with Go using generated fixtures under ignored `build/`.
+- `ffd_file.d` file-mode validation, function/type selection, line ranges, extraction and file-specific JSON/text;
+  `ffd_symbols.d` type-kind metadata and sorted name rows. `file_checks.py` and `type_checks.py` compare CLI contracts
+  with Go using generated fixtures under ignored `build/`.
+- `ffd_python_ranges.d` adapts native Python bounds to Go's parsed-range scope/trailing-trivia convention and formats
+  range adjustment reports; `python_range_checks.py` compares the Python range CLI with Go.
+- `ffd_fields.d` derives direct-member field metadata from the existing native tokenizers; `field_checks.py` verifies
+  explicit field truth for all 15 language profiles and simple Go parity. `ffd_model.Field` owns name/type/line values.
+- `ffd_docs.d` owns doc-name validation, Go-compatible adjacent-comment/annotation rules and sorted doc output;
+  `doc_checks.py` compares file/directory docs and incompatible flags against Go.
 - `README.md` owns user-facing build/run examples and file/directory limitations.
 - `genvectors/` (Go) writes `ts_declaration_vectors.jsonl`: 6,000 lines with what Go's TS declaration and declarator patterns
   return, which `ffd_vectors.d` (a unit test) holds the D scanners in `../typescript_header.d` to.
@@ -31,12 +39,47 @@ are not implemented and say so.
 - File mode uses the same `analyzeSource` token finders as `analyzeFile`; do not introduce a second parser. `--source`
   is explicit, except for standalone text `--lines`. File function JSON is Go's name-keyed `{name: {end, start}}`
   map (last duplicate wins), with Python decorator metadata; text/extraction retains all overloads. Empty function
-  results exit 2, argument/IO failures exit 1, flag syntax failures exit 2. `--extract` takes precedence over `--json`.
+  results exit 2, argument/IO failures exit 1, flag syntax failures exit 2. `--extract` takes precedence over `--json`
+  for functions/types; combined `--all` gives JSON priority, as Go does.
+- File `--struct` selects the directory struct-mode native type set; `--all` combines those types with functions,
+  without a second parser run. `--type A,B` and `--struct A,B` select type names; `--type`/`--map` and function/type
+  selectors in `--all` are mutually exclusive. Type/all modes reject parsed `--lines`, as Go does. Type metadata
+  comes from declaration-header tokens on existing native bounds; JS/TS hybrid types retain their known kinds.
+  Native type/span differences remain. File type maps list field names; struct JSON includes nonempty `fields`, and
+  combined JSON always includes the array, each field carrying `name`, normalized token `type`, and original `line`.
+- Fields are a file map/JSON detail, not a second type finder. Reuse native tokenizers and existing type bounds;
+  scan immediate type bodies, skip nested type/method bodies and preserve all scopes before name selection.
+  Python includes class annotations and explicitly annotated `self` attributes, excluding annotated method locals;
+  Ruby includes literal `attr_reader`/`attr_writer`/`attr_accessor` names outside methods, deduplicated per class.
+  Go grouped named fields, C-family single declarators/pointers/arrays/properties, colon-typed/inferred properties and
+  Rust named fields have initial profiles. Names/types must own their storage. Normal directory and names modes
+  do not extract fields, nor does body-only extraction. Field-type spelling is normalized, not semantically resolved.
+- Field coverage is incremental: C-family multi-declarators and function pointers, embeddings, primary/tuple
+  constructors, braceless fields, complex attributes/macros/dynamic Ruby attributes and complete language grammars
+  remain unsupported or partial. Do not claim Go field parity: its regex profiles often omit types and can include
+  nested/local declarations. Preserve explicit truth tests for exclusions rather than copying those false positives.
+- `--names` writes `kind\tname\tpath:line` ordered by path/line, preserving duplicates, with alias rows in type/all modes.
+  It accepts only Go's names flag set, including rejection of explicitly supplied incompatible false flags. File and
+  directory names share `applyMode` and `formatNames`. Default native class metadata remains `class` (like Go's finder
+  class fallback); type/all modes request kind annotation. Known native C default names include types Go omits.
+  Ordinary directory JSON/text does not request kind annotation or serialize it.
+- `--doc` uses the all-mode native declaration set (functions, types and Go aliases), never field extraction. It accepts
+  only `--inp`/`--dir`, `--source`, worker/walk flags and a comma-separated nonempty name list; reject incompatible
+  flags even when explicitly false. Match Go's `path:line: kind name` header, trimmed adjacent line/block comments,
+  annotation skipping (Rust multiline attributes capped at 20 lines) and first raw source line. Separate entries
+  with a blank line, retain overloads and source/path order, and exit 2 if no selected declaration is found.
+  Python body docstrings are not read; inline declaration bodies can appear on that first source line. Native
+  name/kind/start differences remain visible. File docs reuse already-read source; directory docs read selected files.
 - Read file source once and retain original lines independently of reusable parsing buffers. Extraction normalizes
   CRLF like Go's generic reader; Python retains CR as Go's dedicated reader does. Standalone `--lines` handles
   `N`, `N:M`, `:M`, `N:` and `:`, clips ends to EOF, rejects empty selections and needs no language/configuration.
-  Parsed `--lines` parses the literal selected slice and restores global line coordinates. It does not implement
-  Go's Python-specific automatic scope expansion/report; underlying D/Go span differences remain visible.
+  Non-Python parsed `--lines` parses the selected slice and restores global line coordinates. Python uses the
+  whole-file native bounds and tokenized logical statements to adjust to enclosing/following scopes, retain trailing
+  trivia and filter complete functions as Go does. Scope-boundary indentation uses Go's four-spaces-per-tab rule.
+  Preserve the `:EOF` behavior and physical-EOF validation after adjustment. Reports precede the result on stdout
+  (even JSON), followed by the range notice on stderr, matching Go; standalone text ranges never adjust scopes.
+  Whole-file/directory Python maps keep their native significant ends. Multiline decorator JSON retains original
+  source text through the next logical statement. Other native D/Go parser differences remain visible.
 - **Keys, not bytes, are the contract.** The JSON has the Go tool's shape (`files[].path/functions[]/classes[]/aliases[]`,
   `total_*`, two-space indent, `\n\n` at the end, strings escaped as `encoding/json` does; `ffd_json.d` unit tests pin
   the escapes against Go 1.25) and `ffd_compare.py` compares `(name, line)` per file. Functions must match Go's; types
@@ -106,6 +149,10 @@ finder adds kinds the D finders do not list). The exact counts are in `ffd_delta
 python benchmarks/ffd/build.py --test        # unit tests of all modules, compiled in
 python benchmarks/ffd/build.py               # release build: build/ffd/ffd
 python benchmarks/ffd/file_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/type_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/python_range_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/field_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
+python benchmarks/ffd/doc_checks.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 go test ./benchmarks/ffd/genconfig ./benchmarks/ffd/genvectors   # ffd_config.json and the vectors are current
 python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe --corpora-root <repo>/build --expect benchmarks/ffd/ffd_deltas.json
 ```
@@ -113,6 +160,16 @@ python benchmarks/ffd/ffd_compare.py --ffd build/ffd/ffd.exe --go funcfinder.exe
 - File checks cover all 15 languages, multi-name selection, duplicate overloads, JSON, original extraction,
   CRLF/Unicode/long lines, standalone and parsed ranges, missing functions/files and invalid flags/ranges.
   Directory regression checks must retain the existing maps and compare one/eight-worker outputs after file-mode changes.
+- Type/names checks use fieldless fixtures in all 15 languages for type selection, extraction, combined output,
+  names at one/eight workers and invalid combinations. Three default-C names comparisons explicitly verify the
+  inherited extra native type row; other controlled comparisons must match Go exactly.
+- Python range checks compare stdout/exit status and successful stderr with Go across global/class/function/nested
+  scopes, async/multiline decorators and signatures, literals/continuations, tabs/CRLF, Unicode, EOF and empty results.
+- Field checks compare map/selected/combined field arrays with explicit name/type/line truth across 15 profiles;
+  simple Go arrays also match Go. Keep nested-type/method/local/comment/literal exclusions and source extraction checks.
+- Doc checks cover all 15 languages, one/eight directory workers, aliases/overloads, CRLF/Unicode comments, line/block
+  adjacency, blank-line separation, decorators/Rust attributes, missing names and incompatible/false flags. Bodies
+  and Python body docstrings must not leak beyond the first declaration line.
 
 ## Child DOX Index
 

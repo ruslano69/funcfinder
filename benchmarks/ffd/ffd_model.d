@@ -10,7 +10,11 @@ struct Sym {
     int start;
     int end;
     string className;
+    string kind; // optional metadata for --names and file type output; directory JSON is unchanged
+    Field[] fields; // file type output only
 }
+
+struct Field { string name, type; int line; }
 
 /// A Go type alias: `type name = target`, listed apart from the types.
 struct Alias {

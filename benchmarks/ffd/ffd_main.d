@@ -6,6 +6,8 @@ import ffd_model;
 import ffd_run;
 import ffd_walk;
 import ffd_file;
+import ffd_symbols : formatNames;
+import ffd_docs : docNames, formatDocs;
 import std.conv : to, ConvException;
 import std.datetime.stopwatch : AutoStart, StopWatch;
 import std.file : exists, isDir;
@@ -37,14 +39,15 @@ private struct Options {
     bool all, structs, json, noGitignore, recursive = true, version_, timing, timingAlloc;
     int workers;
     string unsupported;
+    string[] given;
 }
 
 /// Go's flag package accepts -name, --name, -name=value and --name value; bool flags take only the first forms.
 private bool parseArgs(string[] args, ref Options o, ref string error) {
-    static immutable boolFlags = ["all", "struct", "json", "no-gitignore", "recursive", "version", "map", "extract", "timing", "timing-alloc"];
-    static immutable valueFlags = ["dir", "workers", "inp", "source", "func", "lines"];
-    static immutable unsupportedBool = ["tree", "tree-full", "names", "raw", "split", "inc"];
-    static immutable unsupportedValue = ["type", "doc", "split-by", "out"];
+    static immutable boolFlags = ["all", "struct", "names", "json", "no-gitignore", "recursive", "version", "map", "extract", "timing", "timing-alloc"];
+    static immutable valueFlags = ["dir", "workers", "inp", "source", "func", "lines", "type", "doc"];
+    static immutable unsupportedBool = ["tree", "tree-full", "raw", "split", "inc"];
+    static immutable unsupportedValue = ["split-by", "out"];
     for (size_t i = 1; i < args.length; ++i) {
         string a = args[i];
         if (!a.startsWith("-") || a == "-" || a == "--") {
@@ -61,6 +64,10 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
                 hasValue = true;
                 break;
             }
+        o.given ~= name;
+        if (name == "struct" && !hasValue && i+1 < args.length && !args[i+1].startsWith("-")) {
+            o.file.typeNames = args[++i];
+        }
         bool isBool, isValue;
         foreach (f; boolFlags) isBool = isBool || f == name;
         foreach (f; valueFlags ~ unsupportedValue) isValue = isValue || f == name;
@@ -99,6 +106,7 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
                 case "timing-alloc": o.timingAlloc = b; o.timing = o.timing || b; break;
                 case "map": o.file.map = b; break;
                 case "extract": o.file.extract = b; break;
+                case "names": o.file.namesOnly = b; break;
                 default: break; // --map is the default of --dir
             }
             continue;
@@ -112,6 +120,8 @@ private bool parseArgs(string[] args, ref Options o, ref string error) {
             case "source": o.file.source = value; break;
             case "func": o.file.names = value; break;
             case "lines": o.file.lines = value; break;
+            case "type": o.file.typeNames = value; break;
+            case "doc": o.file.doc = value; break;
             case "workers":
                 try {
                     o.workers = value.to!int;
@@ -135,6 +145,12 @@ unittest {
     assert(!o.file.map && !o.file.extract);
     assert(!parseArgs(["ffd", "--source"], o, error));
     assert(!parseArgs(["ffd", "--extract=maybe"], o, error));
+    o = Options.init;
+    assert(parseArgs(["ffd", "--inp", "a.ts", "--source", "ts", "--struct", "A,B", "--extract"], o, error));
+    assert(o.structs && o.file.typeNames == "A,B" && o.file.extract);
+    o = Options.init;
+    assert(parseArgs(["ffd", "--dir", ".", "--names", "--all"], o, error));
+    assert(o.file.namesOnly && o.all);
 }
 
 int main(string[] args) {
@@ -149,15 +165,27 @@ int main(string[] args) {
         return 0;
     }
     if (o.unsupported.length) return fatal(o.unsupported ~ " is not implemented in ffd yet");
+    if (o.file.namesOnly) {
+        import std.algorithm : canFind;
+        foreach (name; o.given) if (!["names", "inp", "dir", "source", "workers", "recursive", "no-gitignore", "struct", "all"].canFind(name))
+            return fatal("--names cannot be combined with --" ~ name);
+        if (o.file.typeNames.length) return fatal("--names cannot be combined with named --struct selection");
+    }
+    if (o.file.doc.length) {
+        import std.algorithm : canFind;
+        foreach (name; o.given) if (!["doc", "inp", "dir", "source", "workers", "recursive", "no-gitignore"].canFind(name))
+            return fatal("--doc cannot be combined with --" ~ name);
+        try { docNames(o.file.doc); } catch (Exception e) { return fatal(e.msg); }
+    }
     if (o.dir.length && o.file.path.length) return fatal("--dir and --inp are mutually exclusive");
     o.file.json = o.json;
+    o.file.structs = o.structs; o.file.all = o.all;
     if (o.file.path.length) {
-        if (o.all || o.structs) return fatal("--all and --struct in file mode are not implemented in ffd yet");
         version (Windows) { _setmode(1, _O_BINARY); _setmode(2, _O_BINARY); }
         return runFile(o.file);
     }
     if (o.dir.length == 0) return fatal("--dir or --inp is required");
-    if (o.file.source.length || o.file.names.length || o.file.lines.length || o.file.extract)
+    if (o.file.names.length || o.file.lines.length || o.file.extract || o.file.typeNames.length || o.file.source.length && !o.file.namesOnly && !o.file.doc.length)
         return fatal("--source, --func, --lines and --extract require --inp");
     if (o.structs && o.all) return fatal("--struct and --all are mutually exclusive");
     if (!exists(o.dir)) return fatal("directory does not exist: " ~ o.dir);
@@ -173,7 +201,7 @@ int main(string[] args) {
     } catch (Exception e) {
         return fatal("loading config: " ~ e.msg);
     }
-    immutable mode = o.structs ? Mode.structs : o.all ? Mode.all : Mode.functions;
+    immutable mode = o.file.doc.length ? Mode.all : o.structs ? Mode.structs : o.all ? Mode.all : Mode.functions;
     stderr.writeln("INFO: Scanning directory: ", o.dir, " (mode=", modeName(mode), ", recursive=", o.recursive,
                    ", workers=", o.workers, ", gitignore=", !o.noGitignore, ")");
 
@@ -203,16 +231,19 @@ int main(string[] args) {
     prepareLanguages(used);
     immutable setupMs = watch.peek.total!"usecs" / 1000.0;
     watch.reset();
-    auto results = processFiles(collected.jobs, workers, mode);
+    auto results = processFiles(collected.jobs, workers, mode, o.file.doc.length || o.file.namesOnly && mode != Mode.functions);
     immutable parseMs = watch.peek.total!"usecs" / 1000.0;
     foreach (ref r; results)
         if (r.error.length) stderr.writeln("Warning: ", r.path, ": ", r.error);
 
     watch.reset();
-    immutable text = o.json ? formatJson(results) : formatGrep(results);
+    string text;
+    try { text = o.file.doc.length ? formatDocs(results,docNames(o.file.doc)) : o.file.namesOnly ? formatNames(results) : o.json ? formatJson(results) : formatGrep(results); }
+    catch (Exception e) { return fatal(e.msg); }
+    if (o.file.doc.length && !text.length) { stderr.writeln("Error: No declarations named ",o.file.doc," found"); return 2; }
     immutable formatMs = watch.peek.total!"usecs" / 1000.0;
     stdout.rawWrite(text);
-    stdout.rawWrite("\n"); // fmt.Println adds one after the formatter's own text
+    if (!o.file.namesOnly && !o.file.doc.length) stdout.rawWrite("\n"); // names/docs already end in LF
     stdout.flush();
     if (o.timing) {
         long sum;
