@@ -327,6 +327,9 @@ func (e *editFile) checkIndent(lines []string) error {
 			inString = !inString
 		}
 	}
+	if needBody {
+		return fmt.Errorf("replacement line %d: the def has no indented body", header+1)
+	}
 	return nil
 }
 

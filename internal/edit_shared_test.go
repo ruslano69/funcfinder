@@ -49,3 +49,11 @@ func TestRemoveFunction_CommentDoesNotCountAsBody(t *testing.T) {
 		t.Fatalf("comment counted as a body: %v", err)
 	}
 }
+
+func TestReplaceFunction_CommentDoesNotCountAsBody(t *testing.T) {
+	lc := pyConfig(t)
+	src := "class Demo:\n    # note\n    def add(self):\n        return 1\n"
+	if _, err := ReplaceFunction(lc, []byte(src), FuncTarget{Name: "add"}, nil, []byte("    def add(self):\n")); err == nil {
+		t.Fatalf("header without body accepted")
+	}
+}
