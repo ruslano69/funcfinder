@@ -11,7 +11,11 @@ import (
 func FormatGrepStyle(result *FindResult) string {
 	var parts []string
 	for _, fn := range result.Functions {
-		parts = append(parts, fmt.Sprintf("%s: %d-%d", fn.Name, fn.Start, fn.End))
+		label := fmt.Sprintf("%s: %d-%d", fn.Name, fn.Start, fn.End)
+		if fn.Start > 0 && fn.Start == fn.End {
+			label += " [one-line]"
+		}
+		parts = append(parts, label)
 	}
 	if len(parts) == 0 {
 		return ""
@@ -30,6 +34,9 @@ func FormatJSON(result *FindResult) (string, error) {
 		fnData := map[string]interface{}{
 			"start": fn.Start,
 			"end":   fn.End,
+		}
+		if fn.Start > 0 && fn.Start == fn.End {
+			fnData["single_line"] = true
 		}
 		// Добавляем декораторы, если они есть
 		if len(fn.Decorators) > 0 {

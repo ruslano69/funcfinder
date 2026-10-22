@@ -46,6 +46,13 @@ type ReplaceResult struct {
 // Lines outside the span are kept byte for byte. Mixed line endings are refused, because the file is rewritten
 // with one line ending.
 func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectOld []byte, replacement []byte) (*ReplaceResult, error) {
+	if target.Kind == "type" {
+		return editGoType(cfg, src, target, expectOld, replacement, "replace")
+	}
+	if res, handled, err := editSharedGo(cfg, src, target, expectOld, replacement, "replace"); handled {
+		return res, err
+	}
+
 	e, err := openEdit(cfg, src, target)
 	if err != nil {
 		return nil, err
@@ -94,6 +101,13 @@ func ReplaceFunction(cfg *LanguageConfig, src []byte, target FuncTarget, expectO
 // finder must report the new functions directly after the target, and the types must not change. Decorators in
 // the replacement belong to the new function and are not compared with the target's.
 func InsertAfterFunction(cfg *LanguageConfig, src []byte, target FuncTarget, replacement []byte) (*ReplaceResult, error) {
+	if target.Kind == "type" {
+		return editGoType(cfg, src, target, nil, replacement, "insert")
+	}
+	if res, handled, err := editSharedGo(cfg, src, target, nil, replacement, "insert"); handled {
+		return res, err
+	}
+
 	e, err := openEdit(cfg, src, target)
 	if err != nil {
 		return nil, err

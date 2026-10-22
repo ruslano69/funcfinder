@@ -10,6 +10,13 @@ import (
 // then report the remaining functions and types in the same order. For a Python block, removing the last statement
 // of a def or class is refused, because that leaves the block without a body. Go also re-parses the file.
 func RemoveFunction(cfg *LanguageConfig, src []byte, target FuncTarget) (*ReplaceResult, error) {
+	if target.Kind == "type" {
+		return editGoType(cfg, src, target, nil, nil, "remove")
+	}
+	if res, handled, err := editSharedGo(cfg, src, target, nil, nil, "remove"); handled {
+		return res, err
+	}
+
 	e, err := openEdit(cfg, src, target)
 	if err != nil {
 		return nil, err

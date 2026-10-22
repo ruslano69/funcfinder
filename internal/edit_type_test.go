@@ -69,15 +69,15 @@ func TestTypeEdits_Refusals_Go(t *testing.T) {
 		[]byte("type Point struct {\n\tX, Y int\n}\n\nfunc New() Point { return Point{} }")); err == nil {
 		t.Errorf("function added by a type edit accepted")
 	}
-	// A type inside a group is part of the group, not a line of its own.
+	// A grouped member is removed without deleting the wrapper or its neighbor.
 	grouped := "package demo\n\ntype (\n\tA int\n\tB string\n)\n"
-	if _, err := RemoveFunction(lc, []byte(grouped), FuncTarget{Name: "A", Kind: "type"}); err == nil || !strings.Contains(err.Error(), "grouped") {
-		t.Errorf("grouped type accepted: %v", err)
+	if res, err := RemoveFunction(lc, []byte(grouped), FuncTarget{Name: "A", Kind: "type"}); err != nil || !strings.Contains(string(res.Output), "B string") {
+		t.Errorf("grouped type removal failed: %v", err)
 	}
-	// A type that shares its line with another declaration is refused.
+	// A shared-line type owns only its declaration and explicit separator.
 	shared := "package demo\n\ntype Pair struct{ A, B int }; type Q int\n"
-	if _, err := RemoveFunction(lc, []byte(shared), FuncTarget{Name: "Pair", Kind: "type"}); err == nil {
-		t.Errorf("type sharing its line accepted")
+	if res, err := RemoveFunction(lc, []byte(shared), FuncTarget{Name: "Pair", Kind: "type"}); err != nil || string(res.Output) != "package demo\n\n type Q int\n" {
+		t.Errorf("shared type removal failed: %v", err)
 	}
 	// The go/ast check still applies: an unbalanced brace is refused.
 	if _, err := ReplaceFunction(lc, []byte(goTypesSource), FuncTarget{Name: "Point", Kind: "type"}, nil,

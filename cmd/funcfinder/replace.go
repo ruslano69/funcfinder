@@ -67,7 +67,7 @@ func loadEdit(config internal.Config, req editRequest, kind string) (*internal.L
 		internal.FatalError("this edit requires --with <file> (or - for stdin)")
 	}
 	if kind != "replace" && req.oldPath != "" {
-		internal.FatalError("--old applies to --replace-func only")
+		internal.FatalError("--old applies to --replace-func and --replace-type only")
 	}
 	cfg, err := config.GetLanguageConfig(req.source)
 	if err != nil {

@@ -466,6 +466,10 @@ func (f *Finder) FindFunctions(filename string) (*FindResult, error) {
 // FindFunctionsInLines ищет функции в предварительно прочитанных строках
 // startLine - номер первой строки в lines (1-based) относительно оригинального файла
 func (f *Finder) FindFunctionsInLines(lines []string, startLine int, filename string) (*FindResult, error) {
+	if result, handled, err := f.sharedLineFunctions(lines, startLine, filename); handled {
+		return result, err
+	}
+
 	var prepared []string
 	var dHeaderEnds map[int]int
 	var preparedFacts []LineFacts

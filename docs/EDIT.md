@@ -46,9 +46,12 @@ funcfinder --inp file.go --source go --replace-func Add --with new.txt --apply -
   mixed. Lines inside triple-quoted strings are exempt.
 - Go: the span must agree with `go/ast`, and the new file must parse with the same top-level declarations.
 - Line endings are kept. A file that mixes `\r\n` and `\n` is refused.
-- The unit is the whole line. A function whose first or last line holds other code is refused, because the edit
-  would delete that code too: `int b() { return 2; }` before a function on its first line, or `} int b() {` after
-  it. A one-line function with a `;` or two `}` is refused too. Edit those lines by hand.
+- Go functions sharing a physical line use exact AST byte spans. Replace, insert and remove preserve neighboring
+  bytes, including comments; removal consumes only the following explicit separator semicolon, if present.
+  The lexer skips literals and comments. The resulting file must parse and retain declaration order and method
+  receivers. `--old` accepts either the exact function fragment or its complete covering physical lines.
+  Duplicate names on the same line remain ambiguous and are refused.
+- Other languages still require complete lines without neighboring code.
 - The input is read before the file, so the file is as it is when the edit is prepared. Before `--apply` the file
   is read again, and the command writes only if it is unchanged.
 - `--old` must match the current text, ignoring line endings and one trailing newline. A mismatch means the file
@@ -56,11 +59,20 @@ funcfinder --inp file.go --source go --replace-func Add --with new.txt --apply -
 
 ## Types (Go only so far)
 
-`--replace-type NAME --with FILE|-`, `--add-after-type NAME --with FILE|-` and `--remove-type NAME` do the same for
-a top-level Go type declaration (`type X struct {...}`, `type X interface {...}`, `type X int`). The span comes from
-the struct finder and is checked against `go/ast`. The same rules apply: the functions must not change, the types
-must stay the same in order, and lines that hold other code are refused. A type inside a parenthesised group
-(`type ( ... )`) is refused: edit the group by hand.
+`--replace-type NAME --with FILE|-`, `--add-after-type NAME --with FILE|-` and `--remove-type NAME`
+edit a top-level Go type selected by AST, including structs, interfaces, named types, aliases and generics.
+`--line N` selects the declaration start; `--old FILE` guards replacement exactly as for functions.
+Other languages are refused. Insertion accepts only types and rejects duplicate top-level names.
+
+Types sharing a line and members of `type ( ... )` groups use exact byte spans. A grouped edit preserves the
+surrounding `type` keyword, parentheses and neighboring specs. Supply replacement/insertion text as complete
+`type Name ...` declarations; the editor converts them to specs inside a group. For grouped replacement,
+`--old` accepts the original spec without `type`, or the complete covering physical lines. Comments outside
+replacement specs are refused when converting into a group, to avoid silently relocating or discarding them.
+Existing comments outside the selected span remain unchanged.
+
+The edited file must parse and preserve neighboring declarations. This does not check compatibility of fields,
+methods, type parameters, aliases or callers: compile the project and run its behavioral tests afterward.
 
 ## Limitations
 
@@ -91,4 +103,10 @@ These are the limits of the checks. Most of them are not checked at all.
 - **Not atomic across files.** Each command edits one file.
 - **A window remains before the write.** The file is re-read just before writing, but another process can still
   change it between that read and the write. There is no file lock.
-- **Columns are not cut.** The tool never cuts inside a line; a shared line is refused instead.
+- **One-line labels.** Single-file function maps print `[one-line]` when start and end are equal; their JSON
+  includes `single_line: true`. The label describes the span, not whether neighboring code shares the line.
+  Extraction headers retain their original format for `--old`.
+- **Discovery and editing have different limits.** Mapping can report multiple functions on one line in other
+  languages too. Extraction still returns their covering physical lines, which can include neighbors.
+- **Shared-line editing is Go only.** Go functions and top-level types support exact spans; other languages still refuse shared lines.
+  Go validation checks syntax and declaration identity, not type correctness or runtime behavior; run project tests.

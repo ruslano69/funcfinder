@@ -49,7 +49,7 @@ func TestFormatGrepStyle(t *testing.T) {
 					{Name: "OneLiner", Start: 10, End: 10},
 				},
 			},
-			expected: "OneLiner: 10-10;",
+			expected: "OneLiner: 10-10 [one-line];",
 		},
 		{
 			name: "functions with large line numbers",

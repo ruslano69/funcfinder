@@ -44,9 +44,9 @@ func main() {
 
 	// Structural edit: replace one top-level Go function (file mode, --source go)
 	replaceFunc := flag.String("replace-func", "", "replace the named top-level function (--inp, --source go); --with gives the new text")
-	replaceLine := flag.Int("line", 0, "with --replace-func: start line of the function, when its name is not unique")
+	replaceLine := flag.Int("line", 0, "with function/type edits: start line of the declaration")
 	withFile := flag.String("with", "", "with --replace-func: file holding the new function, or - for stdin")
-	oldFile := flag.String("old", "", "with --replace-func: file with the function text you expect to replace; fail if it differs")
+	oldFile := flag.String("old", "", "with replacement edits: file with the declaration text you expect; fail if it differs")
 	replaceType := flag.String("replace-type", "", "replace the named top-level type declaration (Go; --with gives the new text)")
 	addAfterType := flag.String("add-after-type", "", "insert the declaration(s) from --with directly after the named type (Go)")
 	removeType := flag.String("remove-type", "", "delete the named top-level type declaration (Go); preview unless --apply")
@@ -106,15 +106,15 @@ func main() {
 
 	// Правка типов (--replace-type, --add-after-type, --remove-type): те же проверки, цель — объявление типа
 	if *replaceType != "" {
-		handleReplaceFunc(config, editRequest{inp: *inp, source: *source, name: *replaceType, kind: "type", withPath: *withFile, apply: *applyEdit, show: *showEdit})
+		handleReplaceFunc(config, editRequest{inp: *inp, source: *source, name: *replaceType, kind: "type", line: *replaceLine, oldPath: *oldFile, withPath: *withFile, apply: *applyEdit, show: *showEdit})
 		return
 	}
 	if *addAfterType != "" {
-		handleAddAfter(config, editRequest{inp: *inp, source: *source, name: *addAfterType, kind: "type", withPath: *withFile, apply: *applyEdit, show: *showEdit})
+		handleAddAfter(config, editRequest{inp: *inp, source: *source, name: *addAfterType, kind: "type", line: *replaceLine, oldPath: *oldFile, withPath: *withFile, apply: *applyEdit, show: *showEdit})
 		return
 	}
 	if *removeType != "" {
-		handleRemoveFunc(config, editRequest{inp: *inp, source: *source, name: *removeType, kind: "type", apply: *applyEdit, show: *showEdit})
+		handleRemoveFunc(config, editRequest{inp: *inp, source: *source, name: *removeType, kind: "type", line: *replaceLine, oldPath: *oldFile, apply: *applyEdit, show: *showEdit})
 		return
 	}
 

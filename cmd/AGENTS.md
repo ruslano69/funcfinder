@@ -19,6 +19,7 @@ CLI entrypoints for the funcfinder toolkit. Each subdirectory contains a single 
 ## Work Guidance
 
 - When adding a flag, add it to the tool's `main.go` only; propagate to `internal` via an existing config struct.
+- Type edit commands forward `--line` and `--old` to the shared edit request. `--old` is valid for replacement only; insertion/removal reject it. Type selection/validation remains in `internal`, restricted to Go.
 - Keep `main.go` files thin: parse flags → call internal → handle error → exit.
 - Do not add business logic to `main.go`.
 - `funcstats` consumes the finder's signature coordinates/token for C#, Java and JavaScript, excluding only the declaration occurrence from call counts; the configured-pattern fallback applies to other languages. A real recursive call must still count, including on a split header's name line or the declaration's own line. JS anonymous variable function/arrow values have no name/parenthesis declaration token and must not lose recursive calls on their header line.
