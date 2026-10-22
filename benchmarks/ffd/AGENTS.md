@@ -48,6 +48,8 @@ The remaining two tools (`deps`, `complexity`) are not implemented in D.
   is its Go AST reference (copied under ignored build/ to compile, never a Go package in the source tree).
   `FUNCSTATS_PORT.md` owns supported scope, deliberate differences and validation evidence.
   `STATS_BUFFERS.md` owns scratch-reuse measurements, independent Go count scoring and allocation/GC limits.
+  `FUNCSTATS_PERFORMANCE_20261021.md` owns the initial nine-case full-CLI measurement, independent Go call audit,
+  startup checks and measured limits. Keep per-variant output stability and accuracy separate from speed.
 - `ffd_docs.d` owns doc-name validation, Go-compatible adjacent-comment/annotation rules and sorted doc output;
   `doc_checks.py` compares file/directory docs and incompatible flags against Go.
 - `ffd_tree.d` owns file function/class containment, full signatures, type/field trees and directory path trees;

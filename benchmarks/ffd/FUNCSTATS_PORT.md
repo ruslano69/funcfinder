@@ -53,6 +53,7 @@ parser is not a target for silently accepting typos.
   establish full grammar accuracy. Parser and token passes still run separately. CLI use-map analysis now runs
   only for `--uncalled`; returned maps retain owned distinct names. See [buffer measurements](STATS_BUFFERS.md)
   for scratch reuse, independent Go count checks and measured corpus-specific gains.
+  Historical full-CLI timings before those optimizations are in [the initial performance report](FUNCSTATS_PERFORMANCE_20261021.md).
 
 ## Verification on 2026-10-21
 
