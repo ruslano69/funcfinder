@@ -1,6 +1,6 @@
 # Editing code objects and declarations
 
-## Agent JSON protocol (Go functions and types)
+## Agent JSON protocol (Go and Rust functions/types)
 
 Read a declaration as a complete editable object, change only `source`, then send that object back:
 
@@ -16,7 +16,7 @@ funcfinder --edit-object object.json --apply
 `--read-object NAME` returns the object directly, without a wrapper or extraction header. `--object-kind type`
 selects a top-level type (including aliases, generics and grouped members); the default is `function`.
 `--line N` and `--column N` select a declaration by physical start line and 1-based UTF-8 byte column.
-Go is currently the only supported language. Legacy map/JSON formats remain unchanged.
+Go and Rust are supported. Rust uses token/scoped-item validation rather than Go AST validation; see the Rust section below. Legacy map/JSON formats remain unchanged.
 
 The v1 object contains `protocol: "funcfinder.code/v1"`, opaque `id`, absolute `path`, `language`, `kind`, `name`,
 `line`, `column`, `end_line`, whole-file SHA-256 `revision`, and editable `source`. Source uses LF and contains
@@ -55,7 +55,7 @@ obj = applied["object"]  # Current identity/revision for the next edit.
 Replacement reads a JSON file, or stdin for `--edit-object -`. It rejects unknown JSON fields, extra documents,
 unsupported protocols, altered identities, stale revisions, mixed endings and invalid replacement syntax.
 No other editing/output modes can be combined with object mode; `--json` is optional because output is always JSON.
-Functions retain their name and receiver type; types retain their name. These checks do not enforce parameter,
+Go functions retain their name and receiver type; types retain their name. Rust retains item name, kind and outer attributes. These checks do not enforce parameter,
 field, return-type or behavioral compatibility. Run project compilation/tests for that contract.
 
 Success returns `status: "preview"|"applied"`, `changed`, the resulting `object`, and
@@ -78,7 +78,7 @@ Client decisions should use `error.code`, not parse `message`:
 | `invalid_identity` | Read a new object instead of reconstructing metadata. |
 | `invalid_json`, `invalid_options` | Fix the JSON envelope or incompatible flags. |
 | `invalid_source`, `invalid_replacement`, `invalid_result`, `contract_changed` | Inspect the code/diagnostic; nothing was written. |
-| `unsupported_language`, `unsupported_protocol`, `invalid_kind` | Use supported Go v1 function/type objects. |
+| `unsupported_language`, `unsupported_protocol`, `invalid_kind` | Use supported Go/Rust v1 function/type objects. |
 | `mixed_endings`, `invalid_path`, `io_error` | Correct the file/environment before retrying. |
 
 Application stages and syncs a temporary file in the source directory, rechecks the original bytes, then renames
@@ -87,7 +87,7 @@ not a cross-process lock: coordinate simultaneous writers. Original BOM, EOL sty
 span are preserved. Doc comments outside the span remain untouched; grouped conversion refuses declaration
 comments outside the replacement spec rather than silently losing them.
 
-## Insert, remove and batch edits (Go)
+## Insert, remove and batch edits (Go and Rust)
 
 The same `--edit-object FILE|- [--apply]` command also accepts an operation wrapper:
 
@@ -130,7 +130,7 @@ replace/remove operations, overlapping spans, or multiple separate insertions at
 insertion declarations into one source. Inserted top-level names must not introduce duplicates. These are syntax/name
 checks, not full compiler resolution of receivers, aliases, imports or references.
 
-The complete resulting file is parsed and its declaration order checked before any write. A bad operation anywhere
+The complete resulting file is checked with its language backend and its declaration order verified before any write. A bad operation anywhere
 rejects the **whole** batch; apply writes once through the staged-file mechanism above. This guarantee is for one file
 only: batches spanning multiple files are refused. No automatic call-site updates or project tests are performed.
 
@@ -142,6 +142,48 @@ single `object` response for compatibility. Preview results describe proposed st
 
 Additional error codes: `invalid_operation` for malformed wrappers; `empty_batch`; `multiple_files`;
 `overlapping_edits`; `duplicate_declaration`. All use the same JSON error envelope and nonzero exit code.
+
+## Rust JSON objects
+
+```bash
+funcfinder --inp src/lib.rs --source rust --read-object format
+funcfinder --inp src/lib.rs --source rust --read-object Data --object-kind type
+# Change source, then preview/apply the same object, operation or batch:
+funcfinder --edit-object request.json
+funcfinder --edit-object request.json --apply
+```
+
+Rust uses the same `funcfinder.code/v1` objects, revisions, ambiguity candidates and single-file
+`funcfinder.edits/v1` transaction envelopes. Coordinates are original UTF-8 byte positions; an item with outer attributes starts at its first attribute. Named items in
+modules, inherent/trait `impl` blocks, traits and `extern` blocks are supported. Function declarations ending
+in `;` are accepted in trait/extern context; methods with bodies and ordinary functions are supported.
+Type objects cover structs (named/tuple/unit), enums, unions, traits and type aliases, including associated aliases.
+Raw identifiers retain their `r#` spelling. Generics/lifetimes and same-line neighbors retain original spans.
+
+Outer `#[...]` attributes belong to the object; replacement must preserve their token content. Preceding doc
+comments remain outside the object. Literals (including raw/byte/C strings and chars) and nested block comments
+are lexed before delimiter pairing. Macro token trees are opaque: definitions generated by macros are not
+objects. Function bodies are opaque for item discovery, so local items inside a function are not selectable.
+External `mod name;` source files must be read separately. Module/impl containers themselves are not editable
+objects. A trait object owns its nested declarations; editing it and a nested method in one batch is an overlap.
+Insertion into impl/trait/extern contexts must respect their item kinds; type definitions such as structs cannot
+be inserted into associated-item lists. Macro expansion, cfg evaluation and receiver/type resolution are not performed.
+
+Rust success reports `validation: "rust_tokens_and_declaration_identity"`. This backend verifies lexical delimiter
+balance, recognized item boundaries, scope and the final item catalogue. **It is not a complete Rust grammar or
+compiler check**, and unsupported shapes can be refused as `invalid_source`/`invalid_replacement`. Balanced but
+invalid body expressions, type errors, visibility/edition constraints and macro semantics can still pass these
+structural checks. Run `cargo check`/project tests, or `rustc --edition=2024` on a standalone example afterward.
+Go responses retain `validation: "go_syntax_and_declaration_identity"`.
+
+Verification includes token/scope regressions (`go test ./internal -run TestRustCodeObject`), a five-operation
+Rust 2024 transaction compiled before/after with runtime output 20 -> 22, and a real itoa `Buffer::format`
+local-variable rename compiled as a library before/after with six formatting cases (including u128/i128 bounds).
+These examples establish their tested behavior, not full Rust-language coverage. The legacy text-edit commands
+and navigation parser keep their existing limits; use Rust JSON mode for exact structural edits.
+
+Grammar/token reference: [Rust functions](https://doc.rust-lang.org/reference/items/functions.html) and
+[Rust tokens](https://doc.rust-lang.org/reference/tokens.html).
 
 ## Legacy text commands
 
@@ -202,7 +244,7 @@ funcfinder --inp file.go --source go --replace-func Add --with new.txt --apply -
 - `--old` must match the current text, ignoring line endings and one trailing newline. A mismatch means the file
   changed since it was read.
 
-## Types (Go only so far)
+## Legacy type commands (Go only)
 
 `--replace-type NAME --with FILE|-`, `--add-after-type NAME --with FILE|-` and `--remove-type NAME`
 edit a top-level Go type selected by AST, including structs, interfaces, named types, aliases and generics.
@@ -253,5 +295,5 @@ These are the limits of the checks. Most of them are not checked at all.
   Extraction headers retain their original format for `--old`.
 - **Discovery and editing have different limits.** Mapping can report multiple functions on one line in other
   languages too. Extraction still returns their covering physical lines, which can include neighbors.
-- **Shared-line editing is Go only.** Go functions and top-level types support exact spans; other languages still refuse shared lines.
+- **Shared-line JSON editing supports Go and Rust.** Legacy text commands retain their language-specific restrictions.
   Go validation checks syntax and declaration identity, not type correctness or runtime behavior; run project tests.

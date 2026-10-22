@@ -96,7 +96,11 @@ func handleObjectCLI(read, edit, path, language, kind string, line, column int, 
 		}
 		status = "applied"
 	}
-	response := map[string]any{"status": status, "changed": changed, "results": results, "validation": "go_syntax_and_declaration_identity"}
+	validation := "go_syntax_and_declaration_identity"
+	if obj.Language == "rust" {
+		validation = "rust_tokens_and_declaration_identity"
+	}
+	response := map[string]any{"status": status, "changed": changed, "results": results, "validation": validation}
 	if legacy {
 		response["object"] = results[0].Objects[0]
 		delete(response, "results")

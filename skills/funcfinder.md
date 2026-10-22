@@ -152,14 +152,14 @@ the actual project root. A shard graph that comes back all-leaves (no
 
 ## Phase 6 — Edit one function
 
-For Go replacement, prefer code objects: `funcfinder --inp FILE --source go --read-object NAME`
+For Go/Rust replacement, prefer code objects (use `--source rust` for Rust): `funcfinder --inp FILE --source go --read-object NAME`
 (`--object-kind type` for types). Modify only the returned JSON `source`, then send the object to
 `funcfinder --edit-object -` for preview and to `funcfinder --edit-object - --apply` to write.
 Keep metadata unchanged; on `stale_revision`, read again and reconsider the edit. Ambiguity returns editable
 `error.candidates`. Apply the original request after preview; only the applied response's `object` is reusable
 for subsequent edits. Validation checks syntax/identity, so still run project tests. See [protocol](../docs/EDIT.md).
 
-Go JSON also accepts operation wrappers (`replace`, `insert_after`, `remove`) and one-file `funcfinder.edits/v1` batches. Keep all anchors at one original revision, preview/apply the whole request once, and consume final objects from `results`. See [installable skill](funcfinder/SKILL.md) for envelope details.
+Go/Rust JSON also accepts operation wrappers (`replace`, `insert_after`, `remove`) and one-file `funcfinder.edits/v1` batches. Keep all anchors at one original revision, preview/apply the whole request once, and consume final objects from `results`. See [installable skill](funcfinder/SKILL.md) for envelope details.
 
 For other languages or legacy workflows:
 

@@ -55,6 +55,9 @@ func codeCatalog(src []byte) ([]string, error) {
 // There are no intermediate writes or revisions; overlap/invalid final syntax
 // refuses the entire batch. Results follow request order, not source order.
 func PlanCodeEdits(edits []CodeEdit, src []byte) ([]byte, []CodeEditResult, error) {
+	if len(edits) > 0 && edits[0].Object.Language == "rust" {
+		return planRustCodeEdits(edits, src)
+	}
 	if len(edits) == 0 {
 		return nil, nil, objectError("empty_batch", "at least one edit is required")
 	}

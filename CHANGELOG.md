@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add Rust JSON code objects and transactional replace/insert_after/remove for functions, scoped methods, trait/extern declarations and named types. Byte-token recognition preserves outer attributes and neighbors, skips macro token trees, and handles raw/byte/C literals, lifetimes and nested comments. Rust validation is explicitly structural, not a full grammar/type check. Rust 2024 compiler/runtime and real itoa formatting checks complement token regressions.
+
 - JSON editing now accepts replace/insert_after/remove wrappers and `funcfinder.edits/v1` batches for one Go file. All operations use one original revision; overlap, duplicate names, stale objects and invalid final syntax reject the whole transaction before its single write. Results return refreshed objects at the final revision; direct object replacement remains compatible.
 
 - Add a portable installable funcfinder skill with current binary discovery, versioned Go JSON editing, ambiguity/stale handling and bundled editing reference for independent sessions.
