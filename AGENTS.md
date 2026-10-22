@@ -435,7 +435,7 @@ Default section order:
 - `internal/` → Core parsing engine: language finders, formatters, call graph, shard logic — see [internal/AGENTS.md](internal/AGENTS.md)
 - `docs/` → User-facing documentation and usage examples — see [docs/AGENTS.md](docs/AGENTS.md)
 - `examples/` → Shell script usage examples and swe-agent integration workflows — see [examples/AGENTS.md](examples/AGENTS.md)
-- `skills/` → Claude Code skill definition for funcfinder — see [skills/AGENTS.md](skills/AGENTS.md)
+- `skills/` → Portable installable funcfinder skill and expanded navigation guide — see [skills/AGENTS.md](skills/AGENTS.md)
 - `internal/knowledge/` → SQLite knowledge base package (FTS5 + vector hybrid) — see [internal/knowledge/AGENTS.md](internal/knowledge/AGENTS.md)
 - `test_examples/` → Multi-language source fixtures used by parser tests — see [test_examples/AGENTS.md](test_examples/AGENTS.md)
 - `test_files/` → Edge-case source fixtures (raw strings, docstrings, verbatim literals) — see [test_files/AGENTS.md](test_files/AGENTS.md)

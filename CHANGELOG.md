@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a portable installable funcfinder skill with current binary discovery, versioned Go JSON editing, ambiguity/stale handling and bundled editing reference for independent sessions.
+
 - Add the Go JSON code-object protocol: `--read-object NAME` returns exact function/type source with identity and whole-file revision; `--edit-object FILE|-` validates an edited object and previews or applies it. Ambiguity returns editable candidates; stale revisions, altered metadata and invalid declaration edits are refused. Applied results include the next object revision. Writes stage and sync before replacement; existing map formats are unchanged.
 
 - Go type edits select exact AST spans, including generics, aliases, group members and shared lines. Type CLI commands now honor `--line` and replacement `--old`; insertion rejects non-type payloads and duplicate names, and non-Go type editing is explicitly refused. Group wrappers and neighboring bytes are preserved; project compilation is still required for compatibility checks.

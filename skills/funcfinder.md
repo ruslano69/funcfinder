@@ -1,5 +1,7 @@
 # Skill: funcfinder — Codebase Investigation
 
+Installable skill for Codex and other sessions: [funcfinder/SKILL.md](funcfinder/SKILL.md). This document retains the expanded navigation recipes.
+
 Use this skill when you need to navigate, analyze, or understand an unfamiliar codebase without wasting tokens reading source files directly.
 
 ---
