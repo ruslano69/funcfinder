@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- JSON editing now accepts replace/insert_after/remove wrappers and `funcfinder.edits/v1` batches for one Go file. All operations use one original revision; overlap, duplicate names, stale objects and invalid final syntax reject the whole transaction before its single write. Results return refreshed objects at the final revision; direct object replacement remains compatible.
+
 - Add a portable installable funcfinder skill with current binary discovery, versioned Go JSON editing, ambiguity/stale handling and bundled editing reference for independent sessions.
 
 - Add the Go JSON code-object protocol: `--read-object NAME` returns exact function/type source with identity and whole-file revision; `--edit-object FILE|-` validates an edited object and previews or applies it. Ambiguity returns editable candidates; stale revisions, altered metadata and invalid declaration edits are refused. Applied results include the next object revision. Writes stage and sync before replacement; existing map formats are unchanged.

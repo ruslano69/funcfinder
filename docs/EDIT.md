@@ -87,6 +87,62 @@ not a cross-process lock: coordinate simultaneous writers. Original BOM, EOL sty
 span are preserved. Doc comments outside the span remain untouched; grouped conversion refuses declaration
 comments outside the replacement spec rather than silently losing them.
 
+## Insert, remove and batch edits (Go)
+
+The same `--edit-object FILE|- [--apply]` command also accepts an operation wrapper:
+
+```python
+insert = {"operation": "insert_after", "object": anchor,
+          "source": "func Helper() int { return 42 }"}
+remove = {"operation": "remove", "object": old_object}
+replace = {"operation": "replace", "object": edited_object}
+```
+
+`insert_after` and `remove` take an **unchanged** object read from disk. Insertion source belongs on the wrapper;
+replacement source belongs in `object.source`. Removal takes no wrapper source. An insertion may contain multiple
+functions/types after a top-level declaration; inside a type group it may contain only types. Original surrounding
+bytes and group wrappers remain intact. Ordinary declarations get blank-line separation; shared lines use explicit
+separators. Removal consumes the declaration and its following explicit semicolon, keeping surrounding comments
+and whitespace. Leading doc comments remain outside the object. Check callers before deleting declarations.
+
+For a refactoring within one file, read all anchors from the same file revision, construct a batch and submit it once:
+
+```python
+original = run(["--inp", "file.go", "--source", "go", "--read-object", "Count"])
+edited = dict(original)
+edited["source"] = "func Count() int { return Helper() }"
+batch = {
+    "protocol": "funcfinder.edits/v1",
+    "edits": [
+        {"operation": "replace", "object": edited},
+        {"operation": "insert_after", "object": original,
+         "source": "func Helper() int { return 42 }"},
+    ],
+}
+preview = run(["--edit-object", "-"], batch)
+applied = run(["--edit-object", "-", "--apply"], batch)
+```
+
+All objects must name the same absolute file and current whole-file revision. Edits refer to the original snapshot,
+not intermediate results. Request order does not determine splice order: the tool orders original byte spans itself.
+One anchor can be replaced and receive an insertion in the same transaction. Duplicate replacements, conflicting
+replace/remove operations, overlapping spans, or multiple separate insertions at one anchor are refused; combine
+insertion declarations into one source. Inserted top-level names must not introduce duplicates. These are syntax/name
+checks, not full compiler resolution of receivers, aliases, imports or references.
+
+The complete resulting file is parsed and its declaration order checked before any write. A bad operation anywhere
+rejects the **whole** batch; apply writes once through the staged-file mechanism above. This guarantee is for one file
+only: batches spanning multiple files are refused. No automatic call-site updates or project tests are performed.
+
+Wrapped and batch responses return `status`, `changed`, `validation`, and `results` in **request order**. Each result
+contains its `operation`, original anchor `id`, final file `revision`, and `objects`: one refreshed object for replacement,
+all newly inserted objects for insertion, or an empty array for removal. All returned objects share the final revision.
+Other objects read before the batch are now stale; read those again. Direct unwrapped replacement retains its existing
+single `object` response for compatibility. Preview results describe proposed state, so still apply the original request.
+
+Additional error codes: `invalid_operation` for malformed wrappers; `empty_batch`; `multiple_files`;
+`overlapping_edits`; `duplicate_declaration`. All use the same JSON error envelope and nonzero exit code.
+
 ## Legacy text commands
 
 These commands change one function in a file. The span comes from the same finder as `--extract`, so an edit does

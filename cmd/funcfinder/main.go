@@ -56,7 +56,7 @@ func main() {
 	applyEdit := flag.Bool("apply", false, "with --replace-func: write the file (without it, only validate and report)")
 
 	readObject := flag.String("read-object", "", "read a Go declaration as an editable JSON object")
-	editObject := flag.String("edit-object", "", "preview/apply an edited JSON object from FILE or - for stdin")
+	editObject := flag.String("edit-object", "", "preview/apply a JSON object, edit operation or single-file batch from FILE or -")
 	objectKind := flag.String("object-kind", "function", "with --read-object: function or type")
 	objectColumn := flag.Int("column", 0, "with --read-object: declaration byte column (1-based)")
 

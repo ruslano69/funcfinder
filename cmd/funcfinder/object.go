@@ -66,16 +66,11 @@ func handleObjectCLI(read, edit, path, language, kind string, line, column int, 
 		defer f.Close()
 		reader = f
 	}
-	decoder := json.NewDecoder(reader)
-	decoder.DisallowUnknownFields()
-	var obj internal.CodeObject
-	if err := decoder.Decode(&obj); err != nil {
-		return fail(&internal.ObjectError{Code: "invalid_json", Message: err.Error()})
+	edits, legacy, err := decodeCodeEdits(reader)
+	if err != nil {
+		return fail(err)
 	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		return fail(&internal.ObjectError{Code: "invalid_json", Message: "expected exactly one JSON object"})
-	}
+	obj := edits[0].Object
 	info, err := os.Lstat(obj.Path)
 	if err != nil {
 		return fail(err)
@@ -87,7 +82,7 @@ func handleObjectCLI(read, edit, path, language, kind string, line, column int, 
 	if err != nil {
 		return fail(err)
 	}
-	out, updated, err := internal.ReplaceCodeObject(obj, src)
+	out, results, err := internal.PlanCodeEdits(edits, src)
 	if err != nil {
 		return fail(err)
 	}
@@ -101,7 +96,12 @@ func handleObjectCLI(read, edit, path, language, kind string, line, column int, 
 		}
 		status = "applied"
 	}
-	if err := json.NewEncoder(os.Stdout).Encode(map[string]any{"status": status, "changed": changed, "object": updated, "validation": "go_syntax_and_declaration_identity"}); err != nil {
+	response := map[string]any{"status": status, "changed": changed, "results": results, "validation": "go_syntax_and_declaration_identity"}
+	if legacy {
+		response["object"] = results[0].Objects[0]
+		delete(response, "results")
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(response); err != nil {
 		return 1
 	}
 	return 0

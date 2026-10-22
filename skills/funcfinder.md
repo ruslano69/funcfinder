@@ -159,6 +159,8 @@ Keep metadata unchanged; on `stale_revision`, read again and reconsider the edit
 `error.candidates`. Apply the original request after preview; only the applied response's `object` is reusable
 for subsequent edits. Validation checks syntax/identity, so still run project tests. See [protocol](../docs/EDIT.md).
 
+Go JSON also accepts operation wrappers (`replace`, `insert_after`, `remove`) and one-file `funcfinder.edits/v1` batches. Keep all anchors at one original revision, preview/apply the whole request once, and consume final objects from `results`. See [installable skill](funcfinder/SKILL.md) for envelope details.
+
 For other languages or legacy workflows:
 
 Edit a function with `--replace-func`, not with `sed` or a text patch. The span comes from the same finder, so the edit stays inside the function, and the tool checks the result before it writes anything.

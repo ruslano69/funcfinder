@@ -94,6 +94,33 @@ Object modes reject incompatible legacy flags. `--json` is optional; output is a
 JSON filename. For the complete schema, in-memory automation example and error codes, read
 [references/edit.md](references/edit.md) when implementing a client or diagnosing a refusal.
 
+## Go insertion, removal and transactions
+
+Check `--edit-object` help for single-file batch support before using these newer envelopes. Do not change read
+object metadata. For insertion/removal, keep the anchor object unchanged:
+
+```python
+insert = {"operation": "insert_after", "object": anchor, "source": "func Helper() {}"}
+remove = {"operation": "remove", "object": anchor}
+replace = {"operation": "replace", "object": edited_object}
+batch = {"protocol": "funcfinder.edits/v1", "edits": [replace, insert]}
+```
+
+Send an operation or batch to the same `--edit-object -` command; preview, then send the original request with
+`--apply`. Read all batch anchors from one file snapshot. Do not apply each edit sequentially or update revisions
+by hand: the tool validates all edits together and writes once. Cross-file batches and overlapping/conflicting
+edits are refused. A replaced anchor can receive an insertion in the same batch. Combine multiple insertions
+after one anchor into one source. Groups accept inserted types only; top-level insertion accepts functions/types.
+Check reverse callers before removal; documentation comments outside the AST span are retained.
+
+Results are in request order: each has `operation`, original anchor `id`, final file `revision` and `objects`.
+Replacement returns one updated object, insertion returns the new objects, removal returns an empty list.
+All objects use the final revision; previously read unrelated objects are stale and must be re-read. Direct
+unwrapped replacement keeps its single `object` response. A failed batch writes nothing. Run project tests after
+successful application; this transaction checks syntax/declarations, not call-site or type compatibility.
+Use explicit UTF-8 for subprocess JSON input/output on Windows. For complete examples/error codes read
+[references/edit.md](references/edit.md).
+
 ## Legacy editing and other languages
 
 If object mode is unavailable, disclose that capability limit and use guarded text editing where supported:
