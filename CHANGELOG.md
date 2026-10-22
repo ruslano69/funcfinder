@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add JS/TS JSON code objects and single-file replace/insert_after/remove transactions for supported named functions, direct function-valued bindings/members and types. Byte tokens preserve shared-line neighbors, JSX/literals, decorators and list separators; variable bindings expose complete synthetic declarations for editing. Structural validation remains separate from compiler/type checks. TypeScript AST comparison matched 3698 objects across all 465 tracked hr_gemini files in the documented profile; mixed-EOL edit refusals and independent runtime/copy checks are explicit in `docs/EDIT.md`.
+
+- Add D JSON code objects and transactional replacement/insertion/removal for supported functions, methods, constructors and named types/modern aliases. Byte tokens preserve shared-line neighbors, nested comments, D string forms, attributes, contracts and template headers. Overloads return candidates; conditional/mixin declaration scopes refuse editing. Validation remains structural, with compiler/runtime checks and bounded arsd/D-YAML reference samples documented in `docs/EDIT.md`.
+
 - Add C# JSON code objects and transactional replacement/insertion/removal for named-type methods and nominal types. Exact byte spans preserve shared-line neighbors, attributes and consistent EOL/BOM. Overloads return candidates; structural checks preserve scope, interface qualification and constructor category. C# and Rust share a token transaction planner. C# validation is explicitly not full grammar or compiler checking; conditional directives and unsupported targets refuse editing. Roslyn source-span comparisons, a compiled runtime transaction and bounded Dapper/Polly samples complement Go regressions; see `docs/EDIT.md` for scope and measurement limits.
 
 ## v1.16.0 - 2026-10-22

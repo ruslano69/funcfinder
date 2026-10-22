@@ -1,6 +1,6 @@
 # Editing code objects and declarations
 
-## Agent JSON protocol (Go, Rust and C# functions/types)
+## Agent JSON protocol (Go, Rust, C#, D, JavaScript and TypeScript functions/types)
 
 Read a declaration as a complete editable object, change only `source`, then send that object back:
 
@@ -16,12 +16,12 @@ funcfinder --edit-object object.json --apply
 `--read-object NAME` returns the object directly, without a wrapper or extraction header. `--object-kind type`
 selects a named type (Go includes top-level aliases, generics and grouped members); the default is `function`.
 `--line N` and `--column N` select a declaration by physical start line and 1-based UTF-8 byte column.
-Go, Rust and C# (`--source cs`) are supported. Rust/C# use token/scoped-item validation rather than Go AST validation; see their backend sections below. Legacy map/JSON formats remain unchanged.
+Go, Rust, C# (`--source cs`), D (`--source d`), JavaScript (`--source js`) and TypeScript (`--source ts`) are supported. Rust/C#/D/JS/TS use token/scoped-item validation rather than Go AST validation; see their backend sections below. Legacy map/JSON formats remain unchanged.
 
 The v1 object contains `protocol: "funcfinder.code/v1"`, opaque `id`, absolute `path`, `language`, `kind`, `name`,
 `line`, `column`, `end_line`, whole-file SHA-256 `revision`, and editable `source`. Source uses LF and contains
 exactly the declaration, excluding preceding doc comments and neighboring code. A grouped type is returned as
-a complete `type Name ...` declaration; replacement converts it back into its original group. Keep all metadata
+a complete `type Name ...` declaration; replacement converts it back into its original group. JS/TS variable-bound function objects similarly expose a complete synthetic variable declaration; see below. Keep all metadata
 unchanged. No separate `--old`, range manipulation or temporary source files are needed.
 
 A client can perform the entire read/preview/apply cycle in memory. This example assumes `file.go` contains
@@ -53,7 +53,7 @@ obj = applied["object"]  # Current identity/revision for the next edit.
 ```
 
 Replacement reads a JSON file, or stdin for `--edit-object -`. It rejects unknown JSON fields, extra documents,
-unsupported protocols, altered identities, stale revisions, mixed endings and invalid replacement syntax.
+unsupported protocols, altered identities, stale revisions, mixed endings and structurally invalid replacements. Full grammar validation depends on the backend.
 No other editing/output modes can be combined with object mode; `--json` is optional because output is always JSON.
 Go functions retain their name and receiver type; types retain their name. Rust retains item name, kind and outer attributes. These checks do not enforce parameter,
 field, return-type or behavioral compatibility. Run project compilation/tests for that contract.
@@ -78,7 +78,7 @@ Client decisions should use `error.code`, not parse `message`:
 | `invalid_identity` | Read a new object instead of reconstructing metadata. |
 | `invalid_json`, `invalid_options` | Fix the JSON envelope or incompatible flags. |
 | `invalid_source`, `invalid_replacement`, `invalid_result`, `contract_changed` | Inspect the code/diagnostic; nothing was written. |
-| `unsupported_language`, `unsupported_protocol`, `invalid_kind` | Use supported Go/Rust/C# v1 function/type objects. |
+| `unsupported_language`, `unsupported_protocol`, `invalid_kind` | Use supported Go/Rust/C#/D/JS/TS v1 function/type objects. |
 | `mixed_endings`, `invalid_path`, `io_error` | Correct the file/environment before retrying. |
 
 Application stages and syncs a temporary file in the source directory, rechecks the original bytes, then renames
@@ -87,7 +87,7 @@ not a cross-process lock: coordinate simultaneous writers. Original BOM, EOL sty
 span are preserved. Doc comments outside the span remain untouched; grouped conversion refuses declaration
 comments outside the replacement spec rather than silently losing them.
 
-## Insert, remove and batch edits (Go, Rust and C#)
+## Insert, remove and batch edits (Go, Rust, C#, D, JavaScript and TypeScript)
 
 The same `--edit-object FILE|- [--apply]` command also accepts an operation wrapper:
 
@@ -225,6 +225,93 @@ and execution changed output from 2 to 20. A source-order sample of ten Dapper f
 (47 objects) matched Roslyn source/coordinates and unchanged replacement previews. This is a bounded sample, not
 whole-project or full-language editing coverage. Local logs are under ignored `build/_csharp-objects-20261022/`.
 
+## D JSON objects
+
+```bash
+funcfinder --inp source.d --source d --read-object count
+funcfinder --inp source.d --source d --read-object Buffer --object-kind type
+funcfinder --edit-object request.json
+funcfinder --edit-object request.json --apply
+```
+
+D uses the same versioned objects, operation wrappers and one-file transactions. Module functions, aggregate methods,
+constructors/destructors (`this`/`~this`), property functions, templated functions and bodyless declarations are supported.
+Type objects cover named structs, classes, interfaces, unions, enums and `alias Name = ...` declarations. Manifest
+constants (`enum value = ...`) are not types. Explicit templates and attribute/access blocks or sections retain lexical
+ownership as noneditable catalogue entries; their supported nested declarations remain selectable.
+
+Exact byte spans retain neighbors on one line, outer declaration prefixes/UDAs, contracts (`in`/`out`, `body`/`do`),
+template constraints, expression bodies, BOM and consistent EOL style. Prefixes and post-parameter attributes must be
+preserved on replacement. Doc comments remain outside. Overloads return candidates selected by physical line/byte
+column or returned identity. Duplicate checks use syntactic parameter/template arity and qualifier keys, not resolved
+aliases, equivalent types, template specialization or semantic constraint evaluation.
+
+The lexer handles nested `/+ +/` comments, ordinary comments, escaped/character/raw/backtick/hex strings, token strings
+`q{...}` and paired/identifier/delimited `q"..."` strings before structural delimiter pairing. Function and `unittest`
+bodies are opaque for object discovery: their local functions, local types and declarations generated there are not
+selectable. Variables, explicit template containers, mixin-generated declarations, invariants and unit tests are not
+editable objects. Legacy alias forms are not type objects. Conditional/mixin declaration scopes (`version`, `debug`,
+`static if`, `mixin`) and line directives refuse the file; this backend does not expand or select their branches.
+
+Success reports `validation: "d_tokens_and_declaration_identity"`: lexical/scope/catalogue checks, **not full D grammar,
+compiler semantics or template instantiation**. Balanced invalid expressions can pass. Compile with LDC/DMD and run
+project tests after applying edits. Scope nesting over 128 and literal nesting over 64 are refused. The common
+transaction planner and Go/Rust/C# response contracts remain unchanged.
+
+Verification: `go test ./internal -run TestDCodeObjects` covers spans, constructors, overloads, contracts/templates,
+literal forms, type operations, opaque scopes, stale/forged identities, no-mutation failures and EOL preservation.
+LDC 1.43.0 (DMD frontend 2.113.0), `-mcpu=x86-64` and the initialized VS2022 x64 environment compiled a standalone
+program before/after a three-operation transaction; output changed from 2 to 20. Compiler JSON verified 20 function
+end coordinates and the presence of seven named types/aliases in each version; this does not establish independent
+type-end accuracy. A bounded tree-sitter D sample checked 35 arsd functions and 17 D-YAML functions across eight
+accepted files per project, with unchanged replacement previews and no span mismatches. Nine arsd files and one
+D-YAML file were excluded for grammar errors, unsupported scopes or the 200 KiB sample limit; local functions in
+opaque bodies were explicitly excluded. These samples are not full-project/full-language coverage. Corpus pins,
+grammar/binary hashes, exclusions and local logs are in ignored `build/_d-objects-20261022/`.
+
+## JavaScript and TypeScript JSON objects
+
+Use `--source js` or `--source ts` with the same read/edit objects and single-file transactions. Supported objects
+include named function declarations, direct variable-bound arrows/function expressions, named class/interface
+methods and signatures, constructors, getters/setters, private/string-named methods and direct function-valued
+fields or object properties. Classes, interfaces, enums and type aliases are type objects. Namespaces, ambient
+global augmentations, top-level control blocks and directly assigned object literals retain lexical ownership as
+noneditable containers. Decorators and declaration prefixes belong to the selected span and must be retained.
+
+Variable-bound objects use the binding name, including a named function-expression initializer. In
+`const a=()=>1, b=()=>2, c=()=>3;`, reading `b` returns `source: "const b=()=>2;"` with physical coordinates at `b`.
+This complete declaration is synthetic: replacement strips the keyword/terminal semicolon and splices only the
+selected binding. Keep its original `const`/`let`/`var`. Insertion accepts compatible same-keyword bindings and
+adds commas; removal preserves the remaining list and removes its outer declaration only for a sole binding.
+Object methods/properties similarly preserve comma separators. Never calculate splice offsets from the length
+of synthetic `source`. Adjacent removals whose separator spans overlap are refused as one batch.
+
+Byte tokens handle comments, quoted/template/regexp literals and nested JSX before pairing structural delimiters.
+UTF-8 columns, shared-line neighbors, BOM and consistent EOL style are preserved. Function bodies and call/new
+arguments are opaque for object discovery: local declarations and callbacks are outside this profile. Anonymous
+declarations, computed member names, class expressions, destructured bindings and arrows wrapped in assertions or
+other expressions are not selectable objects; unsupported enclosing shapes may refuse a file. This backend does
+not resolve imports/types, evaluate decorators or macros, or validate semantics. TypeScript overload candidates
+use syntactic signatures; duplicate checks are not compiler overload resolution.
+
+Success reports `javascript_typescript_tokens_and_declaration_identity`: structural lexical/scope/catalogue
+checks, **not complete JavaScript/TypeScript grammar or type checking**. Balanced invalid expressions can pass.
+Run the target project's compiler, lint and tests after edits. Scope nesting over 128 and JSX nesting over 64 are
+refused. Navigation finders retain their existing behavior; these checks apply to JSON editing.
+
+Verification: `go test ./internal -run TestScriptCodeObjects` covers spans, shared-line binding/member CRUD,
+TSX, type syntax, ambient scopes/imports/re-exports, stale/forged metadata, no-mutation refusals and EOL/BOM.
+An independent TypeScript 5.8.3 AST comparison on hr_gemini revision
+`8c6f613c04b2502fc2672f2494d5dc8a49b06907` matched all 3698 objects across 465 tracked JS/TS/JSX/TSX files
+in the stated profile, with no missed/extra/span differences or excluded files. All-object identity replacements
+produced 3674 unchanged previews; 24 were explicitly refused for mixed EOL in three files. Separate CLI transactions
+for standalone JS and TS changed runtime output from 2 to 20, preserved a third same-line arrow and refused stale
+reapplication. Actual comment edits on disposable copies of `scripts/audit-code.ts` and `src/App.tsx` passed
+TypeScript parsing/transpilation; the application repository and its database were not modified or executed.
+These measurements describe the unreleased working-tree implementation and this corpus/profile, not universal
+language coverage, full type checking or application test success. The reproducible oracle is
+`benchmarks/script_objects_oracle.cjs`; hashes, reports and CLI logs are in ignored `build/_js-objects-20261022/`.
+
 ## Legacy text commands
 
 These commands change one function in a file. The span comes from the same finder as `--extract`, so an edit does
@@ -316,7 +403,7 @@ These limits describe legacy text commands; the JSON backend sections above defi
 - **Comments above the `func` line are not part of the span.** A removed function leaves its doc comment behind;
   a replacement keeps it. Doc comments are not edited by these commands.
 - **One target per legacy command.** Changing two targets needs two commands. Fields and fragments inside a
-  function are not targets. Go/Rust/C# JSON batches can edit multiple supported declarations in one file.
+  function are not targets. Go/Rust/C#/D/JS/TS JSON batches can edit multiple supported declarations in one file.
 - **Nested functions go with their parent on removal.** Replacing a parent does not keep its nested functions
   unless the new text contains them, so the finder check refuses that case.
 - **Decorators cannot be removed by a replacement.** A replacement can only restate the old set or keep it. Drop
@@ -335,5 +422,5 @@ These limits describe legacy text commands; the JSON backend sections above defi
   Extraction headers retain their original format for `--old`.
 - **Discovery and editing have different limits.** Mapping can report multiple functions on one line in other
   languages too. Extraction still returns their covering physical lines, which can include neighbors.
-- **Shared-line JSON editing supports Go, Rust and C#.** Legacy text commands retain their language-specific restrictions.
+- **Shared-line JSON editing supports Go, Rust, C#, D, JavaScript and TypeScript.** Legacy text commands retain their language-specific restrictions.
   Go validation checks syntax and declaration identity, not type correctness or runtime behavior; run project tests.

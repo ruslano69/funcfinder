@@ -53,6 +53,13 @@ func planTokenCodeEdits(edits []CodeEdit, src []byte, language string, catalog f
 			if e.Source != "" || e.Object.Source != s.object.Source {
 				return nil, nil, objectError("invalid_operation", "removal takes an unchanged object and no source")
 			}
+			if language == "js" || language == "ts" {
+				var err error
+				patch.start, patch.end, patch.text, err = scriptObjectPatch(s, "", nil, e.Operation, language, src)
+				if err != nil {
+					return nil, nil, err
+				}
+			}
 		case "replace", "insert_after":
 			payload := e.Object.Source
 			if e.Operation == "insert_after" {
@@ -79,7 +86,7 @@ func planTokenCodeEdits(edits []CodeEdit, src []byte, language string, catalog f
 				return nil, nil, objectError("invalid_replacement", "source defines no named item")
 			}
 			tokens, _ := tokenize([]byte(payload))
-			if len(tokens) == 0 || roots[0].start != tokens[0].start {
+			if len(tokens) == 0 || roots[0].start != tokens[0].start && !((language == "js" || language == "ts") && strings.HasPrefix(roots[0].context, "binding:") && tokens[0].text == strings.TrimPrefix(roots[0].context, "binding:")) {
 				return nil, nil, objectError("invalid_replacement", "inner attributes outside the edited item are refused")
 			}
 			for _, n := range roots {
@@ -91,6 +98,18 @@ func planTokenCodeEdits(edits []CodeEdit, src []byte, language string, catalog f
 				return nil, nil, objectError("contract_changed", "replacement must preserve item name, kind and outer attributes")
 			}
 			patch.items = parsed
+			if language == "js" || language == "ts" {
+				patch.start, patch.end, patch.text, err = scriptObjectPatch(s, payload, parsed, e.Operation, language, src)
+				if err != nil {
+					return nil, nil, err
+				}
+				if bytes.Contains(src, []byte("\r\n")) {
+					patch.text = strings.ReplaceAll(patch.text, "\n", "\r\n")
+				}
+				patches = append(patches, patch)
+				continue
+			}
+
 			if bytes.Contains(src, []byte("\r\n")) {
 				payload = strings.ReplaceAll(payload, "\n", "\r\n")
 			}
@@ -172,7 +191,7 @@ func planTokenCodeEdits(edits []CodeEdit, src []byte, language string, catalog f
 		for _, n := range items {
 			if n.object.Kind != "" {
 				key := n.scope + "/" + n.object.Kind + ":" + n.object.Name
-				if language == "cs" {
+				if language == "cs" || language == "d" || language == "js" || language == "ts" {
 					key = n.key
 				}
 				m[key]++

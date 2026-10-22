@@ -1,6 +1,6 @@
 ---
 name: funcfinder
-description: Map repositories, locate and extract functions/types, trace calls and dependencies, and edit Go/Rust/C# declarations through versioned JSON code objects. Use for code navigation, impact analysis and function/type replacement with the funcfinder toolkit.
+description: Map repositories, locate and extract functions/types, trace calls and dependencies, and edit Go/Rust/C#/D/JS/TS declarations through versioned JSON code objects. Use for code navigation, impact analysis and function/type replacement with the funcfinder toolkit.
 ---
 
 # funcfinder
@@ -55,7 +55,7 @@ Language keys: `go`, `c`, `cpp`, `cs`, `java`, `d`, `js`, `ts`, `py`, `rust`, `s
 Finding neighbors on one line does not imply exact editing support in that language. `[one-line]` means equal
 start/end lines, not necessarily shared code. Text extraction returns covering physical lines and may include neighbors.
 
-## Go/Rust/C# replacement: JSON objects first
+## Go/Rust/C#/D/JS/TS replacement: JSON objects first
 
 ```bash
 funcfinder --inp file.go --source go --read-object Name
@@ -72,7 +72,7 @@ funcfinder --edit-object -          # Edited object on stdin; validates without 
 funcfinder --edit-object - --apply  # Send the SAME request after preview.
 ```
 
-Go, Rust and C# declarations are supported by this protocol (`--source go|rust|cs`). Read the backend scope/validation limits below. Go aliases, generics and grouped
+Go, Rust, C#, D, JavaScript and TypeScript declarations are supported by this protocol (`--source go|rust|cs|d|js|ts`). Read the backend scope/validation limits below. Go aliases, generics and grouped
 types work; a group member's `source` includes a synthetic `type` keyword and is converted back automatically.
 Leading doc comments remain outside the object. The tool preserves BOM, EOL style and surrounding bytes.
 Function names/receiver types and type names must remain unchanged. Syntax/identity checks do not prove that
@@ -94,7 +94,7 @@ Object modes reject incompatible legacy flags. `--json` is optional; output is a
 JSON filename. For the complete schema, in-memory automation example and error codes, read
 [references/edit.md](references/edit.md) when implementing a client or diagnosing a refusal.
 
-## Go/Rust/C# insertion, removal and transactions
+## Go/Rust/C#/D/JS/TS insertion, removal and transactions
 
 Check `--edit-object` help for single-file batch support before using these newer envelopes. Do not change read
 object metadata. For insertion/removal, keep the anchor object unchanged:
@@ -146,6 +146,30 @@ directives and assembly/module attributes refuse the file; nonconditional nullab
 retained outside editable objects. No identifier-escape or semantic overload/type resolution is performed.
 `csharp_tokens_and_declaration_identity` means structural checks, not complete C# grammar or Roslyn validation.
 Run `dotnet build` and project tests. See [references/edit.md](references/edit.md) for limits and measured examples.
+
+## D backend limits
+
+Use `--source d` and the same objects/operations/batches for module functions, aggregate methods, constructors,
+destructors, property/template functions and named aggregate/enum/modern alias declarations. Prefixes/UDAs and
+post-parameter attributes must remain unchanged. Contracts and literal/comment forms retain exact byte spans;
+overloads return candidates. Attribute/access scopes and explicit templates are noneditable containers. Function
+and unittest bodies are opaque; their local declarations are not targets. Variables, legacy aliases, manifest
+constants, invariants and unittest/mixin containers are not objects. Conditional/mixin declaration scopes and
+line directives refuse the file. No template expansion, semantic overload/type resolution or full D grammar check
+is performed. `d_tokens_and_declaration_identity` is structural validation: compile with LDC/DMD and run project
+tests. See [references/edit.md](references/edit.md) for the supported profile and independent measurements.
+
+## JS/TS backend limits
+
+Use `--source js|ts` for named functions, direct variable arrows/function expressions, named methods/accessors,
+constructors and direct function-valued fields/object properties, plus class/interface/enum/type-alias objects.
+Preserve decorators/prefixes. Variable objects expose synthetic complete declarations: for `const a=()=>1,b=()=>2;`,
+`b` has source `const b=()=>2;`, but coordinates point at the original binding. Keep the original const/let/var;
+the backend handles list commas and sole-binding removal. Do not derive physical offsets from this synthetic source.
+Function bodies/call arguments are opaque; local functions/callbacks, computed names, anonymous declarations and
+wrapped function values are outside the selectable profile. JSX/templates/regex are lexical islands. Mixed EOL
+refuses writes. `javascript_typescript_tokens_and_declaration_identity` is structural, not a complete parser or
+type checker: run project compilation/tests. Read [references/edit.md](references/edit.md) for exact limits/evidence.
 
 ## Legacy editing and other languages
 
