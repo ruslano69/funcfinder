@@ -6,7 +6,7 @@ Claude Code skill definitions that teach the agent how to use the funcfinder too
 
 ## Ownership
 
-- `funcfinder.md` defines the invocation pattern and workflow steps for code navigation (map/extract/callgraph/deps/complexity).
+- `funcfinder.md` defines the invocation pattern and workflow steps for code navigation (map/extract/callgraph/deps/complexity) and guarded source editing (JSON objects and legacy text commands).
 
 ## Local Contracts
 

@@ -150,6 +150,15 @@ the actual project root. A shard graph that comes back all-leaves (no
 
 ## Phase 6 — Edit one function
 
+For Go replacement, prefer code objects: `funcfinder --inp FILE --source go --read-object NAME`
+(`--object-kind type` for types). Modify only the returned JSON `source`, then send the object to
+`funcfinder --edit-object -` for preview and to `funcfinder --edit-object - --apply` to write.
+Keep metadata unchanged; on `stale_revision`, read again and reconsider the edit. Ambiguity returns editable
+`error.candidates`. Apply the original request after preview; only the applied response's `object` is reusable
+for subsequent edits. Validation checks syntax/identity, so still run project tests. See [protocol](../docs/EDIT.md).
+
+For other languages or legacy workflows:
+
 Edit a function with `--replace-func`, not with `sed` or a text patch. The span comes from the same finder, so the edit stays inside the function, and the tool checks the result before it writes anything.
 
 ```bash

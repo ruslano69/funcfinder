@@ -2,7 +2,7 @@
 
 ## Purpose
 
-User-facing documentation: CI/CD integration guide (`CI_CD.md`), Windows setup guide (`WINDOWS.md`), the complexity guide (`COMPLEXITY.md`) and the funcstats guide (`FUNCSTATS.md`), and the function editing guide with its limitations (`EDIT.md`).
+User-facing documentation: CI/CD integration guide (`CI_CD.md`), Windows setup guide (`WINDOWS.md`), the complexity guide (`COMPLEXITY.md`) and the funcstats guide (`FUNCSTATS.md`), and the code-object and declaration editing guide with its limitations (`EDIT.md`).
 
 ## Ownership
 
@@ -27,4 +27,4 @@ No automated check. Manually verify that commands in shell scripts match current
 ## Child DOX Index
 
 - `docs/examples/` — runnable shell script demos; keep in sync with current CLI flags
-- `EDIT.md` is not a child AGENTS.md: it documents `--replace-func`, `--add-after` and `--remove-func`, including their limits
+- `EDIT.md` is not a child AGENTS.md: it documents the JSON code-object protocol and text function/type editing, including their limits

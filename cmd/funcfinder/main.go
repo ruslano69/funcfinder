@@ -55,6 +55,11 @@ func main() {
 	showEdit := flag.Bool("show", false, "with an edit flag: print the new text of the changed lines, read back from the file after --apply")
 	applyEdit := flag.Bool("apply", false, "with --replace-func: write the file (without it, only validate and report)")
 
+	readObject := flag.String("read-object", "", "read a Go declaration as an editable JSON object")
+	editObject := flag.String("edit-object", "", "preview/apply an edited JSON object from FILE or - for stdin")
+	objectKind := flag.String("object-kind", "function", "with --read-object: function or type")
+	objectColumn := flag.Int("column", 0, "with --read-object: declaration byte column (1-based)")
+
 	// Split output flags (for --dir mode)
 	splitMode := flag.Bool("split", false, "split output into manifest + shard files (--dir mode only)")
 	splitBy := flag.String("split-by", "dir", "split granularity: 'dir' (one shard per directory) or 'file' (one shard per file)")
@@ -65,6 +70,10 @@ func main() {
 	// transforms "--struct Names --extract" into "--struct --type Names --extract"
 	// before standard flag parsing (flag package stops at first non-flag positional arg).
 	flag.CommandLine.Parse(preprocessStructArg(os.Args[1:])) //nolint:errcheck
+
+	if *readObject != "" || *editObject != "" {
+		os.Exit(handleObjectCLI(*readObject, *editObject, *inp, *source, *objectKind, *replaceLine, *objectColumn, *applyEdit))
+	}
 
 	// Обработка флага --version
 	if *version {

@@ -1,4 +1,93 @@
-# Editing one function: `--replace-func`, `--add-after`, `--remove-func`
+# Editing code objects and declarations
+
+## Agent JSON protocol (Go functions and types)
+
+Read a declaration as a complete editable object, change only `source`, then send that object back:
+
+```bash
+funcfinder --inp utils.go --source go --read-object joinPaths > object.json
+# Edit only object.json's source string using a JSON-aware client.
+funcfinder --edit-object object.json
+funcfinder --edit-object object.json --apply
+# A client can stream the object directly instead:
+# funcfinder --edit-object - --apply
+```
+
+`--read-object NAME` returns the object directly, without a wrapper or extraction header. `--object-kind type`
+selects a top-level type (including aliases, generics and grouped members); the default is `function`.
+`--line N` and `--column N` select a declaration by physical start line and 1-based UTF-8 byte column.
+Go is currently the only supported language. Legacy map/JSON formats remain unchanged.
+
+The v1 object contains `protocol: "funcfinder.code/v1"`, opaque `id`, absolute `path`, `language`, `kind`, `name`,
+`line`, `column`, `end_line`, whole-file SHA-256 `revision`, and editable `source`. Source uses LF and contains
+exactly the declaration, excluding preceding doc comments and neighboring code. A grouped type is returned as
+a complete `type Name ...` declaration; replacement converts it back into its original group. Keep all metadata
+unchanged. No separate `--old`, range manipulation or temporary source files are needed.
+
+A client can perform the entire read/preview/apply cycle in memory. This example assumes `file.go` contains
+`func Count() int { return 0 }` and intentionally replaces its implementation:
+
+```python
+import json
+import subprocess
+
+exe = "./funcfinder"  # Use "./funcfinder.exe" on Windows.
+
+def run(args, obj=None):
+    result = subprocess.run(
+        [exe, *args],
+        input=None if obj is None else json.dumps(obj),
+        capture_output=True, text=True, encoding="utf-8",
+    )
+    response = json.loads(result.stdout)
+    if result.returncode:
+        raise RuntimeError(response["error"])
+    return response
+
+obj = run(["--inp", "file.go", "--source", "go", "--read-object", "Count"])
+obj["source"] = "func Count() int { return 42 }"
+preview = run(["--edit-object", "-"], obj)
+# Inspect preview["object"]["source"]. Apply the SAME request after review.
+applied = run(["--edit-object", "-", "--apply"], obj)
+obj = applied["object"]  # Current identity/revision for the next edit.
+```
+
+Replacement reads a JSON file, or stdin for `--edit-object -`. It rejects unknown JSON fields, extra documents,
+unsupported protocols, altered identities, stale revisions, mixed endings and invalid replacement syntax.
+No other editing/output modes can be combined with object mode; `--json` is optional because output is always JSON.
+Functions retain their name and receiver type; types retain their name. These checks do not enforce parameter,
+field, return-type or behavioral compatibility. Run project compilation/tests for that contract.
+
+Success returns `status: "preview"|"applied"`, `changed`, the resulting `object`, and
+`validation: "go_syntax_and_declaration_identity"`. Preview never writes. Its returned object describes the
+**proposed** file: apply the original edited request, not the preview response. After application, use the returned
+`object` as the starting point for the next edit. Saving an unchanged object returns `changed: false`.
+
+Errors return `status: "error"` and `error: {code, message}` with a nonzero exit status. `ambiguous` also returns
+`error.candidates`: complete objects that can be edited directly, including same-name methods on one line.
+`stale_revision` requires reading again and reconsidering the change; do not replace the revision to bypass it.
+The whole-file revision deliberately invalidates the object even after an unrelated edit elsewhere in the file.
+
+Client decisions should use `error.code`, not parse `message`:
+
+| Code | Client action |
+|---|---|
+| `ambiguous` | Select an object from `error.candidates`; inspect its source before changing it. |
+| `stale_revision` | Read again and reconcile with the new file; do not retry with a fabricated revision. |
+| `not_found`, `invalid_selector` | Correct the name, kind or physical coordinates. |
+| `invalid_identity` | Read a new object instead of reconstructing metadata. |
+| `invalid_json`, `invalid_options` | Fix the JSON envelope or incompatible flags. |
+| `invalid_source`, `invalid_replacement`, `invalid_result`, `contract_changed` | Inspect the code/diagnostic; nothing was written. |
+| `unsupported_language`, `unsupported_protocol`, `invalid_kind` | Use supported Go v1 function/type objects. |
+| `mixed_endings`, `invalid_path`, `io_error` | Correct the file/environment before retrying. |
+
+Application stages and syncs a temporary file in the source directory, rechecks the original bytes, then renames
+it over the source. Regular files only; symlink targets are refused. This protects against partial writes but is
+not a cross-process lock: coordinate simultaneous writers. Original BOM, EOL style and bytes outside the selected
+span are preserved. Doc comments outside the span remain untouched; grouped conversion refuses declaration
+comments outside the replacement spec rather than silently losing them.
+
+## Legacy text commands
 
 These commands change one function in a file. The span comes from the same finder as `--extract`, so an edit does
 not touch the code around the function. Every command previews by default and writes only with `--apply`.
