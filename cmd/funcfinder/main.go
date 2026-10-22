@@ -55,9 +55,9 @@ func main() {
 	showEdit := flag.Bool("show", false, "with an edit flag: print the new text of the changed lines, read back from the file after --apply")
 	applyEdit := flag.Bool("apply", false, "with --replace-func: write the file (without it, only validate and report)")
 
-	readObject := flag.String("read-object", "", "read a Go/Rust/C#/D/JS/TS declaration as an editable JSON object")
+	readObject := flag.String("read-object", "", "read a Go/Rust/C#/D/JS/TS/Kotlin declaration as an editable JSON object")
 	editObject := flag.String("edit-object", "", "preview/apply a JSON object, edit operation or single-file batch from FILE or -")
-	objectKind := flag.String("object-kind", "function", "with --read-object: function or type")
+	objectKind := flag.String("object-kind", "function", "with --read-object: function/type; Kotlin also property/accessor")
 	objectColumn := flag.Int("column", 0, "with --read-object: declaration byte column (1-based)")
 
 	// Split output flags (for --dir mode)

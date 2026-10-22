@@ -91,7 +91,7 @@ func planTokenCodeEdits(edits []CodeEdit, src []byte, language string, catalog f
 			}
 			for _, n := range roots {
 				if n.object.Kind == "" {
-					return nil, nil, objectError("invalid_replacement", "only named functions and types can be inserted/replaced")
+					return nil, nil, objectError("invalid_replacement", "only named editable declarations can be inserted/replaced")
 				}
 			}
 			if e.Operation == "replace" && (len(roots) != 1 || roots[0].object.Kind != s.object.Kind || roots[0].object.Name != s.object.Name || roots[0].attributes != s.attributes) {
@@ -191,7 +191,7 @@ func planTokenCodeEdits(edits []CodeEdit, src []byte, language string, catalog f
 		for _, n := range items {
 			if n.object.Kind != "" {
 				key := n.scope + "/" + n.object.Kind + ":" + n.object.Name
-				if language == "cs" || language == "d" || language == "js" || language == "ts" {
+				if language == "kotlin" || language == "cs" || language == "d" || language == "js" || language == "ts" {
 					key = n.key
 				}
 				m[key]++

@@ -96,6 +96,9 @@ func goCodeObjects(path string, src []byte) ([]objectSpan, error) {
 // ReadCodeObject returns exact declaration source, never neighboring line text.
 // Ambiguity supplies complete candidates rather than choosing a declaration.
 func ReadCodeObject(path, language, kind, name string, line, column int, src []byte) (*CodeObject, error) {
+	if language == "kotlin" {
+		return readKotlinCodeObject(path, kind, name, line, column, src)
+	}
 	if language == "js" || language == "ts" {
 		return readScriptCodeObject(path, language, kind, name, line, column, src)
 	}
@@ -109,7 +112,7 @@ func ReadCodeObject(path, language, kind, name string, line, column int, src []b
 		return readRustCodeObject(path, kind, name, line, column, src)
 	}
 	if language != "go" {
-		return nil, objectError("unsupported_language", "code objects currently support Go, Rust, C#, D, JavaScript and TypeScript")
+		return nil, objectError("unsupported_language", "code objects currently support Go, Rust, C#, D, JavaScript, TypeScript and Kotlin")
 	}
 	if kind != "function" && kind != "type" {
 		return nil, objectError("invalid_kind", "kind must be function or type")
@@ -140,6 +143,13 @@ func ReadCodeObject(path, language, kind, name string, line, column int, src []b
 // ReplaceCodeObject validates the envelope and grammar, then splices only its
 // original byte span. It never writes; the caller owns preview/application.
 func ReplaceCodeObject(object CodeObject, src []byte) ([]byte, *CodeObject, error) {
+	if object.Language == "kotlin" {
+		out, results, err := PlanCodeEdits([]CodeEdit{{Operation: "replace", Object: object}}, src)
+		if err != nil {
+			return nil, nil, err
+		}
+		return out, &results[0].Objects[0], nil
+	}
 	if object.Language == "js" || object.Language == "ts" {
 		out, results, err := PlanCodeEdits([]CodeEdit{{Operation: "replace", Object: object}}, src)
 		if err != nil {
@@ -172,7 +182,7 @@ func ReplaceCodeObject(object CodeObject, src []byte) ([]byte, *CodeObject, erro
 		return nil, nil, objectError("unsupported_protocol", "expected funcfinder.code/v1")
 	}
 	if object.Language != "go" {
-		return nil, nil, objectError("unsupported_language", "code objects currently support Go, Rust, C#, D, JavaScript and TypeScript")
+		return nil, nil, objectError("unsupported_language", "code objects currently support Go, Rust, C#, D, JavaScript, TypeScript and Kotlin")
 	}
 	if object.Revision != codeRevision(src) {
 		return nil, nil, objectError("stale_revision", "file changed since the object was read; read it again before editing")

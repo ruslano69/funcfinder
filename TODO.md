@@ -1,5 +1,10 @@
 # TODO
 
+## Kotlin JSON structural editing (2026-10-22)
+
+- Done locally: named functions/member/extensions and named class/interface/object/companion/typealias CRUD through the token transaction planner. Kotlin 2.2 PSI matched 3786 exact objects (including 1385 properties and 88 accessors) and unchanged previews across 311 tracked NekoBox/Seal files, with zero exclusions or differences in the documented file/type declaration-list profile. Compiled JVM transaction: output 2 → 20. Evidence: `docs/EDIT.md`, `benchmarks/kotlin_objects_eval.py` and ignored `build/_kotlin-objects-20261022/`.
+- Done locally: separate property (`val`/`var`) and explicit get/set objects, scoped insertion, overlapping parent/child refusal and compiled getter/setter transaction (2/40 → 20/4). Evidence: ignored `build/_kotlin-properties-20261022/`. Secondary constructors, initializers, enum entries and local/anonymous declarations are not standalone targets; full Kotlin grammar/type checking remains a compiler responsibility.
+
 ## Structural editing: Go first operation (2026-10-21)
 
 - Done on branch `structured-edit-go`: `funcfinder --replace-func NAME --source LANG --with FILE|- [--line N] [--old FILE] [--apply]` for all 15 configured languages. The span comes from the finder; the replacement must keep the functions and types the finder reports, in the same order; brace languages must balance brackets; Go also checks against `go/ast`. Tests: `internal/edit_lang_test.go` (14 languages), `internal/edit_go_test.go`. Python does not get a bracket check, only the finder comparison.
