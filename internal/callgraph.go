@@ -113,6 +113,19 @@ func buildFileCallGraph(
 	}
 	sort.Slice(ranges, func(i, j int) bool { return ranges[i].start < ranges[j].start })
 
+	// A physical line can belong to several Go declarations. Resolve those
+	// bodies by AST positions instead of assigning every match to one owner.
+	if langConfig.LangKey == "go" {
+		for i := 1; i < len(ranges); i++ {
+			if ranges[i].start <= ranges[i-1].end {
+				if graph, ok := goSharedLineCallGraph(path, lines, funcs, knownFuncs, importAliases); ok {
+					return graph
+				}
+				break
+			}
+		}
+	}
+
 	callerAt := func(lineNo int) string {
 		if langConfig.LangKey == "cs" || langConfig.LangKey == "java" || langConfig.LangKey == "js" {
 			for i := len(ranges) - 1; i >= 0; i-- {

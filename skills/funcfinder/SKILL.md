@@ -15,8 +15,8 @@ The five tools are `funcfinder`, `funcstats`, `deps`, `callgraph`, `complexity` 
 Check `funcfinder --help` for `--read-object` and `--edit-object` before choosing the JSON workflow.
 Do not infer capability from the version number alone or use an older learning snapshot.
 
-On this user's Windows machine, the maintained checkout is `D:\Dev\Go\funcfinder` and the binary is
-`D:\Dev\Go\funcfinder\funcfinder.exe`. Use this absolute binary while working in another repository.
+Prefer the binary from the active maintained checkout. On this user's Windows machine it is currently
+`G:\DEV\Go\funcfinder\funcfinder.exe`. Verify this path before using it from another repository.
 If rebuilding is needed, build the active funcfinder checkout with `build.ps1` on Windows or `build.sh` on Unix.
 Do not run a funcfinder build inside the target application's repository. JSON editing may not yet exist in
 the remote default branch; check actual help rather than silently substituting an older installed binary.

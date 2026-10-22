@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix Go call graphs for functions sharing a physical line: neighboring declarations no longer become false calls, and genuine calls/recursion are attributed to the correct body. Shared-line files use AST body ownership while preserving known-function filtering, aliases and physical call-site lines; file and directory regressions cover methods, closures and generic calls.
+
 - Add Rust JSON code objects and transactional replace/insert_after/remove for functions, scoped methods, trait/extern declarations and named types. Byte-token recognition preserves outer attributes and neighbors, skips macro token trees, and handles raw/byte/C literals, lifetimes and nested comments. Rust validation is explicitly structural, not a full grammar/type check. Rust 2024 compiler/runtime and real itoa formatting checks complement token regressions.
 
 - JSON editing now accepts replace/insert_after/remove wrappers and `funcfinder.edits/v1` batches for one Go file. All operations use one original revision; overlap, duplicate names, stale objects and invalid final syntax reject the whole transaction before its single write. Results return refreshed objects at the final revision; direct object replacement remains compatible.

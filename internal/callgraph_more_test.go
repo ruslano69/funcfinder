@@ -126,6 +126,77 @@ func TestBuildFileCallGraph_DirectRecursionRecorded(t *testing.T) {
 	}
 }
 
+func TestBuildFileCallGraph_GoSharedLineOwnership(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		source string
+		want   []CallEdge
+	}{
+		{"declarations are not calls", "package p\nfunc first() {}; func second() {}\n", nil},
+		{"each body owns its calls", "package p\nfunc first() { second(); second() }; func second() { first() }\n",
+			[]CallEdge{{Caller: "first", Callee: "second", Line: 2}, {Caller: "second", Callee: "first", Line: 2}}},
+		{"field receivers and methods", "package p\ntype Box struct{}; func (b Box) first() { b.worker.Run(); b.second() }; func (b Box) second() {}\n",
+			[]CallEdge{{Caller: "first", Callee: "b.second", Line: 2}, {Caller: "first", Callee: "worker.Run", Line: 2}}},
+		{"recursion in both bodies", "package p\nfunc first() { first() }; func second() { second() }\n",
+			[]CallEdge{{Caller: "first", Callee: "first", Line: 2}, {Caller: "second", Callee: "second", Line: 2}}},
+		{"closing and opening mid line", "package p\nfunc first() {\n second() }; func second() {\n first()\n}\n",
+			[]CallEdge{{Caller: "first", Callee: "second", Line: 3}, {Caller: "second", Callee: "first", Line: 4}}},
+		{"literals globals and closures", "package p\nvar note = first(); func first() { _ = \"second()\"; /* second() */ func() { second() }() }; func second() {}\n",
+			[]CallEdge{{Caller: "first", Callee: "second", Line: 2}}},
+		{"aliases and known neighbors", "package p\nfunc first() { ext.Run(); Neighbor(); Unknown() }; func second() {}\n",
+			[]CallEdge{{Caller: "first", Callee: "Neighbor", Line: 2}, {Caller: "first", Callee: "external.Run", Line: 2}}},
+		{"generic and parenthesized calls", "package p\nfunc first() { second[int](); (first)() }; func second[T any]() {}\n",
+			[]CallEdge{{Caller: "first", Callee: "first", Line: 2}, {Caller: "first", Callee: "second", Line: 2}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "shared.go")
+			if err := os.WriteFile(path, []byte(tc.source), 0600); err != nil {
+				t.Fatal(err)
+			}
+			got, err := BuildFileCallGraph(path, getGoConfig(t), map[string]bool{"Neighbor": true}, map[string]string{"ext": "external"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got.Calls, tc.want) {
+				t.Fatalf("calls = %#v; want %#v", got.Calls, tc.want)
+			}
+			config, err := LoadConfig()
+			if err != nil {
+				t.Fatal(err)
+			}
+			results, err := NewDirProcessor(config, 0, true, false, "functions").ProcessDirectory(filepath.Dir(path))
+			if err != nil {
+				t.Fatal(err)
+			}
+			directory := BuildDirCallGraph(results, config, map[string]map[string]string{path: {"ext": "external"}})
+			// Directory mode only knows declarations in the scanned files.
+			wantDirectory := make([]CallEdge, 0, len(tc.want))
+			for _, edge := range tc.want {
+				if edge.Callee != "Neighbor" {
+					wantDirectory = append(wantDirectory, edge)
+				}
+			}
+			if len(wantDirectory) == 0 {
+				if directory.TotalCalls != 0 || len(directory.Files) != 0 {
+					t.Fatalf("unexpected directory calls: %#v", directory)
+				}
+				return
+			}
+			if len(directory.Files) != 1 || len(directory.Files[0].Calls) != len(wantDirectory) {
+				t.Fatalf("directory calls: %#v; want %#v", directory, wantDirectory)
+			}
+			for i, edge := range directory.Files[0].Calls {
+				if edge != wantDirectory[i] {
+					t.Fatalf("directory edge = %#v; want %#v", edge, wantDirectory[i])
+				}
+			}
+			if len(tc.want) == 0 && len(ReverseCallers(ReverseCallGraph(&CallGraphResult{Files: []FileCallGraph{*got}}), "second")) != 0 {
+				t.Fatal("declaration produced a reverse caller")
+			}
+		})
+	}
+}
+
 func TestBuildFileCallGraph_SignatureLineSelfMatchNotRecorded(t *testing.T) {
 	// The signature line's own "name(" token (e.g. "func Recurse(n int) int {")
 	// also matches the bare-call regex against the function's own name, but
