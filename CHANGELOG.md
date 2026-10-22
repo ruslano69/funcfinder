@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v1.16.0 - 2026-10-22
+
+Structural editing raises the toolkit from source navigation to declaration-level CRUD. Go and Rust support
+versioned JSON objects and single-file transactions; legacy guarded function editing covers all 15 configured
+languages. The five Go tools remain the published release artifacts. D tools remain experimental benchmark material.
+
+Validation limits: syntax/identity checks do not prove type compatibility or behavior. Rust object validation is
+token-based and structural, without full grammar checking, macro expansion or type resolution. Exact shared-line
+JSON editing is supported for Go/Rust; other-language legacy edits retain span restrictions. Published accuracy and
+performance figures apply only to their named benchmark profiles and revisions; no universal accuracy or speed claim
+is made for 1.16.0. Run the target project's compiler and tests after applying edits.
+
 - Fix Go call graphs for functions sharing a physical line: neighboring declarations no longer become false calls, and genuine calls/recursion are attributed to the correct body. Shared-line files use AST body ownership while preserving known-function filtering, aliases and physical call-site lines; file and directory regressions cover methods, closures and generic calls.
 
 - Add Rust JSON code objects and transactional replace/insert_after/remove for functions, scoped methods, trait/extern declarations and named types. Byte-token recognition preserves outer attributes and neighbors, skips macro token trees, and handles raw/byte/C literals, lifetimes and nested comments. Rust validation is explicitly structural, not a full grammar/type check. Rust 2024 compiler/runtime and real itoa formatting checks complement token regressions.
