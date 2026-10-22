@@ -97,6 +97,9 @@ func handleObjectCLI(read, edit, path, language, kind string, line, column int, 
 		status = "applied"
 	}
 	validation := "go_syntax_and_declaration_identity"
+	if obj.Language == "cs" {
+		validation = "csharp_tokens_and_declaration_identity"
+	}
 	if obj.Language == "rust" {
 		validation = "rust_tokens_and_declaration_identity"
 	}

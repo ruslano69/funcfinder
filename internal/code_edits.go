@@ -55,6 +55,9 @@ func codeCatalog(src []byte) ([]string, error) {
 // There are no intermediate writes or revisions; overlap/invalid final syntax
 // refuses the entire batch. Results follow request order, not source order.
 func PlanCodeEdits(edits []CodeEdit, src []byte) ([]byte, []CodeEditResult, error) {
+	if len(edits) > 0 && edits[0].Object.Language == "cs" {
+		return planTokenCodeEdits(edits, src, "cs", csharpCodeItems, csharpObjectTokens)
+	}
 	if len(edits) > 0 && edits[0].Object.Language == "rust" {
 		return planRustCodeEdits(edits, src)
 	}
@@ -68,7 +71,7 @@ func PlanCodeEdits(edits []CodeEdit, src []byte) ([]byte, []CodeEditResult, erro
 			return nil, nil, objectError("unsupported_protocol", "expected funcfinder.code/v1 objects")
 		}
 		if e.Object.Language != "go" {
-			return nil, nil, objectError("unsupported_language", "code edits currently support Go only")
+			return nil, nil, objectError("unsupported_language", "code edits currently support Go, Rust and C#")
 		}
 		if e.Object.Path != path {
 			return nil, nil, objectError("multiple_files", "a batch must target one file")

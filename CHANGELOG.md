@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add C# JSON code objects and transactional replacement/insertion/removal for named-type methods and nominal types. Exact byte spans preserve shared-line neighbors, attributes and consistent EOL/BOM. Overloads return candidates; structural checks preserve scope, interface qualification and constructor category. C# and Rust share a token transaction planner. C# validation is explicitly not full grammar or compiler checking; conditional directives and unsupported targets refuse editing. Roslyn source-span comparisons, a compiled runtime transaction and bounded Dapper/Polly samples complement Go regressions; see `docs/EDIT.md` for scope and measurement limits.
+
 ## v1.16.0 - 2026-10-22
 
 Structural editing raises the toolkit from source navigation to declaration-level CRUD. Go and Rust support

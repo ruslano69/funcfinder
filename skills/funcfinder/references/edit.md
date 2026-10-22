@@ -1,6 +1,6 @@
 # Editing code objects and declarations
 
-## Agent JSON protocol (Go and Rust functions/types)
+## Agent JSON protocol (Go, Rust and C# functions/types)
 
 Read a declaration as a complete editable object, change only `source`, then send that object back:
 
@@ -14,9 +14,9 @@ funcfinder --edit-object object.json --apply
 ```
 
 `--read-object NAME` returns the object directly, without a wrapper or extraction header. `--object-kind type`
-selects a top-level type (including aliases, generics and grouped members); the default is `function`.
+selects a named type (Go includes top-level aliases, generics and grouped members); the default is `function`.
 `--line N` and `--column N` select a declaration by physical start line and 1-based UTF-8 byte column.
-Go and Rust are supported. Rust uses token/scoped-item validation rather than Go AST validation; see the Rust section below. Legacy map/JSON formats remain unchanged.
+Go, Rust and C# (`--source cs`) are supported. Rust/C# use token/scoped-item validation rather than Go AST validation; see their backend sections below. Legacy map/JSON formats remain unchanged.
 
 The v1 object contains `protocol: "funcfinder.code/v1"`, opaque `id`, absolute `path`, `language`, `kind`, `name`,
 `line`, `column`, `end_line`, whole-file SHA-256 `revision`, and editable `source`. Source uses LF and contains
@@ -78,7 +78,7 @@ Client decisions should use `error.code`, not parse `message`:
 | `invalid_identity` | Read a new object instead of reconstructing metadata. |
 | `invalid_json`, `invalid_options` | Fix the JSON envelope or incompatible flags. |
 | `invalid_source`, `invalid_replacement`, `invalid_result`, `contract_changed` | Inspect the code/diagnostic; nothing was written. |
-| `unsupported_language`, `unsupported_protocol`, `invalid_kind` | Use supported Go/Rust v1 function/type objects. |
+| `unsupported_language`, `unsupported_protocol`, `invalid_kind` | Use supported Go/Rust/C# v1 function/type objects. |
 | `mixed_endings`, `invalid_path`, `io_error` | Correct the file/environment before retrying. |
 
 Application stages and syncs a temporary file in the source directory, rechecks the original bytes, then renames
@@ -87,7 +87,7 @@ not a cross-process lock: coordinate simultaneous writers. Original BOM, EOL sty
 span are preserved. Doc comments outside the span remain untouched; grouped conversion refuses declaration
 comments outside the replacement spec rather than silently losing them.
 
-## Insert, remove and batch edits (Go and Rust)
+## Insert, remove and batch edits (Go, Rust and C#)
 
 The same `--edit-object FILE|- [--apply]` command also accepts an operation wrapper:
 
@@ -185,6 +185,46 @@ and navigation parser keep their existing limits; use Rust JSON mode for exact s
 Grammar/token reference: [Rust functions](https://doc.rust-lang.org/reference/items/functions.html) and
 [Rust tokens](https://doc.rust-lang.org/reference/tokens.html).
 
+## C# JSON objects
+
+```bash
+funcfinder --inp Counter.cs --source cs --read-object Count
+funcfinder --inp Counter.cs --source cs --read-object Counter --object-kind type
+funcfinder --edit-object request.json
+funcfinder --edit-object request.json --apply
+```
+
+C# uses the same objects, revision checks, operation wrappers and single-file batches. Methods, constructors,
+destructors, operators, conversion operators and bodyless interface/abstract declarations are selectable inside
+named types. Named types cover classes, structs, interfaces, records (including bodyless records) and enums,
+including nested types. Block/file-scoped namespaces retain lexical ownership. Expression bodies include their
+terminating semicolon. Exact UTF-8 byte spans preserve neighbors on the same line, BOM and consistent EOL style.
+
+Attributes belong to the object and must retain their token content on replacement. Explicit interface qualification
+and static-constructor category are preserved. Leading doc comments remain outside. Overloads return ambiguity
+candidates; choose a returned object or its physical line/byte column. Duplicate checks distinguish syntactic
+parameter types and generic arity, ignoring parameter names/default values; they do not resolve aliases, equivalent
+CLR signatures or generic type-parameter renamings. Semantic overload validity remains a compiler responsibility.
+
+Member fields, properties, indexers, events, delegates, accessors, local functions and top-level statements are not
+editable objects in this backend. Method bodies/property bodies are opaque for item discovery. Conditional and
+unsupported directives (including `#if`/`#define`) and assembly/module attributes refuse the file. Nonconditional
+`#nullable`, `#pragma`, `#region`, `#endregion` and `#line` directives are retained as noneditable catalogue entries;
+an insertion cannot introduce a directive outside its new declaration. Unicode identifier escapes are not resolved.
+Normal/verbatim/raw/interpolated strings, chars and comments are lexed before pairing structural delimiters.
+
+Success reports `validation: "csharp_tokens_and_declaration_identity"`. This is structural validation, **not a full
+C# grammar, Roslyn compilation or type check**. Balanced invalid expressions may pass. Run `dotnet build` and project
+tests after editing. Scope nesting over 128 and literal nesting over 64 are refused. No reference updates or multi-file
+transactions are performed. Go/Rust response contracts and legacy C# text commands retain their existing behavior.
+
+Verification: `go test ./internal -run TestCSharpCodeObjects` covers source spans, attributes, overload selection,
+transactions, stale/forged identities, overlap, directives, literals and EOL preservation. Independent .NET SDK 9.0.308 /
+Roslyn 4.14 checks matched all 21 objects in a standalone program before/after a three-operation transaction; compilation
+and execution changed output from 2 to 20. A source-order sample of ten Dapper files (42 objects) and ten Polly files
+(47 objects) matched Roslyn source/coordinates and unchanged replacement previews. This is a bounded sample, not
+whole-project or full-language editing coverage. Local logs are under ignored `build/_csharp-objects-20261022/`.
+
 ## Legacy text commands
 
 These commands change one function in a file. The span comes from the same finder as `--extract`, so an edit does
@@ -263,7 +303,7 @@ methods, type parameters, aliases or callers: compile the project and run its be
 
 ## Limitations
 
-These are the limits of the checks. Most of them are not checked at all.
+These limits describe legacy text commands; the JSON backend sections above define their separate contracts.
 
 - **Only the finder's view is validated, except for Go.** For languages other than Go the tool trusts the finder's
   spans and its list of functions and types. A wrong span from the finder carries over into the edit. The known
@@ -275,8 +315,8 @@ These are the limits of the checks. Most of them are not checked at all.
   `callgraph --dir . -l <lang> --reverse --func <Name>` first.
 - **Comments above the `func` line are not part of the span.** A removed function leaves its doc comment behind;
   a replacement keeps it. Doc comments are not edited by these commands.
-- **Only one function per edit.** Changing two functions needs two commands. Members of a class or struct, fields
-  and fragments inside a function are not targets yet.
+- **One target per legacy command.** Changing two targets needs two commands. Fields and fragments inside a
+  function are not targets. Go/Rust/C# JSON batches can edit multiple supported declarations in one file.
 - **Nested functions go with their parent on removal.** Replacing a parent does not keep its nested functions
   unless the new text contains them, so the finder check refuses that case.
 - **Decorators cannot be removed by a replacement.** A replacement can only restate the old set or keep it. Drop
@@ -295,5 +335,5 @@ These are the limits of the checks. Most of them are not checked at all.
   Extraction headers retain their original format for `--old`.
 - **Discovery and editing have different limits.** Mapping can report multiple functions on one line in other
   languages too. Extraction still returns their covering physical lines, which can include neighbors.
-- **Shared-line JSON editing supports Go and Rust.** Legacy text commands retain their language-specific restrictions.
+- **Shared-line JSON editing supports Go, Rust and C#.** Legacy text commands retain their language-specific restrictions.
   Go validation checks syntax and declaration identity, not type correctness or runtime behavior; run project tests.

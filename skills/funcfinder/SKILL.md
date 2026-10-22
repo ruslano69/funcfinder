@@ -1,6 +1,6 @@
 ---
 name: funcfinder
-description: Map repositories, locate and extract functions/types, trace calls and dependencies, and edit Go/Rust declarations through versioned JSON code objects. Use for code navigation, impact analysis and function/type replacement with the funcfinder toolkit.
+description: Map repositories, locate and extract functions/types, trace calls and dependencies, and edit Go/Rust/C# declarations through versioned JSON code objects. Use for code navigation, impact analysis and function/type replacement with the funcfinder toolkit.
 ---
 
 # funcfinder
@@ -55,7 +55,7 @@ Language keys: `go`, `c`, `cpp`, `cs`, `java`, `d`, `js`, `ts`, `py`, `rust`, `s
 Finding neighbors on one line does not imply exact editing support in that language. `[one-line]` means equal
 start/end lines, not necessarily shared code. Text extraction returns covering physical lines and may include neighbors.
 
-## Go/Rust replacement: JSON objects first
+## Go/Rust/C# replacement: JSON objects first
 
 ```bash
 funcfinder --inp file.go --source go --read-object Name
@@ -72,7 +72,7 @@ funcfinder --edit-object -          # Edited object on stdin; validates without 
 funcfinder --edit-object - --apply  # Send the SAME request after preview.
 ```
 
-Go and Rust declarations are supported by this protocol. For Rust, use `--source rust` and read the scope/validation limits below. Go aliases, generics and grouped
+Go, Rust and C# declarations are supported by this protocol (`--source go|rust|cs`). Read the backend scope/validation limits below. Go aliases, generics and grouped
 types work; a group member's `source` includes a synthetic `type` keyword and is converted back automatically.
 Leading doc comments remain outside the object. The tool preserves BOM, EOL style and surrounding bytes.
 Function names/receiver types and type names must remain unchanged. Syntax/identity checks do not prove that
@@ -94,7 +94,7 @@ Object modes reject incompatible legacy flags. `--json` is optional; output is a
 JSON filename. For the complete schema, in-memory automation example and error codes, read
 [references/edit.md](references/edit.md) when implementing a client or diagnosing a refusal.
 
-## Go/Rust insertion, removal and transactions
+## Go/Rust/C# insertion, removal and transactions
 
 Check `--edit-object` help for single-file batch support before using these newer envelopes. Do not change read
 object metadata. For insertion/removal, keep the anchor object unchanged:
@@ -134,6 +134,18 @@ item boundaries and lexical scopes; it does not fully parse Rust expressions/gra
 evaluate cfg, or expand macros. Run cargo/project checks. Unsupported shapes are refused; do not bypass the
 revision/identity guards or interpret a successful preview as a compilation guarantee. Insertion must respect its
 impl/trait/extern context. Parent type/trait and child-method edits overlap and cannot share a batch.
+
+## C# backend limits
+
+Use `--source cs` and the same JSON objects/operations/batches for methods, constructors, destructors, operators,
+conversions and bodyless declarations in named types, plus class/struct/interface/record/enum type objects.
+Namespaces, nested types, overload ambiguity, attributes and same-line neighbors retain byte spans. Select overloads
+by returned candidate or line/byte column; preserve attributes, explicit interface qualification and constructor category.
+Properties/fields/accessors/events/delegates, local functions and top-level statements are not objects. Conditional
+directives and assembly/module attributes refuse the file; nonconditional nullable/pragma/region/line directives are
+retained outside editable objects. No identifier-escape or semantic overload/type resolution is performed.
+`csharp_tokens_and_declaration_identity` means structural checks, not complete C# grammar or Roslyn validation.
+Run `dotnet build` and project tests. See [references/edit.md](references/edit.md) for limits and measured examples.
 
 ## Legacy editing and other languages
 
