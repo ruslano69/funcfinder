@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Shell script usage examples and swe-agent integration workflows showing end-to-end funcfinder usage patterns.
+Usage examples and swe-agent integration workflows showing end-to-end funcfinder usage patterns.
 
 ## Ownership
 
@@ -11,6 +11,7 @@ Shell script usage examples and swe-agent integration workflows showing end-to-e
 
 ## Local Contracts
 
+- Standalone compression applications belong to the separate lz78-goose repository, not this toolkit.
 - Scripts must reference binaries by their short names (`./funcfinder`, `./funcstats`, etc.) and assume `build.sh` has been run.
 - `swe-agent/miniswe-config.yaml` configures the mini-SWE-agent integration; update it when the funcfinder CLI interface changes.
 
@@ -26,5 +27,6 @@ Shell script usage examples and swe-agent integration workflows showing end-to-e
 ```
 
 ## Child DOX Index
+
 
 - `examples/swe-agent/` — SWE-agent config and bug-fix / refactor workflow scripts

@@ -1,6 +1,6 @@
 # funcfinder
 
-[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://github.com/ruslano69/funcfinder)
 
@@ -15,7 +15,7 @@ Map codebases, extract functions, trace calls — 99% fewer tokens than reading 
 | Without funcfinder | With funcfinder |
 |---|---|
 | AI reads full files (expensive) | Map once, extract targeted |
-| grep + ctags + manual work | One binary, 15 languages, zero setup |
+| grep + ctags + manual work | One binary, 16 languages, zero setup |
 | 80% budget on exploration | 99% token reduction |
 
 ## Installation
@@ -40,7 +40,13 @@ Produces 5 binaries: `funcfinder`, `funcstats`, `deps`, `callgraph`, `complexity
 
 ## Languages
 
-C, C++, Go, Rust, D, Java, Kotlin, Scala, JavaScript, TypeScript, PHP, Python, Ruby, Swift, C#
+**v1.16.1** adds token-based Goose support to the five Go tools. Scope, examples and
+independent checks: [Goose guide](docs/GOOSE.md).
+
+C, C++, Go, Rust, D, Java, Kotlin, Scala, JavaScript, TypeScript, PHP, Python, Ruby, Swift, C#, [Goose](docs/GOOSE.md)
+
+Goose top-level functions and types also support [JSON editing](docs/EDIT.md#goose-json-objects):
+`--source goose --read-object NAME`, then preview/apply through `--edit-object`.
 
 ## Quick Start
 
@@ -65,7 +71,7 @@ cat .codemap/manifest.json                        # 2KB overview
 ```
 cmd/            CLI entrypoints (thin wrappers)
 internal/       Parser engine: finders, sanitizer, formatter, shard logic
-languages.json  15 language patterns (embedded)
+languages.json  16 language configurations (embedded)
 ```
 
 Parser uses a state-machine sanitizer (not regex) to correctly handle Go raw strings, Python docstrings, C# verbatim literals, nested comments — at 3.4 million lines/sec on a 1.63M-line TypeScript/JavaScript project (`funcfinder --dir --all --json`, whole run, v1.15.9, 16-core machine).

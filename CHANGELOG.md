@@ -1,6 +1,30 @@
 # Changelog
 
-## Unreleased
+## v1.16.1 - 2026-10-23
+
+Goose becomes the sixteenth language supported by the five shipped Go tools:
+token-based navigation, extraction, lexical analysis and JSON declaration editing.
+Goose editing validation is structural; it does not replace compiler/type/lifetime
+checks. Nested functions and extern-block members are navigation-only targets;
+the experimental D tools do not yet support Goose. See [Goose scope](docs/GOOSE.md).
+
+- Add Goose JSON function/type objects and transactional replace/insert_after/remove through the existing protocol. Strict byte tokens and a full declaration catalogue protect shared-line neighbors, namespaces, globals and opaque extern blocks; modifiers and extern/export bindings must survive replacement. Independent upstream grammar matched all 7478 top-level objects and unchanged previews on 855 accepted files (four grammar-error exclusions); native BWT/SA-IS/LZ78 edit checks passed. Nested functions and extern-block members remain navigation-only. Structural validation limits and reproduction are documented in `docs/EDIT.md`.
+
+- Add Goose (`.goose`, `--source goose`) token-based function/type mapping and extraction, including nested/shared-line/generic/extern functions, struct/enum/alias declarations and nested comments/triple strings. Integrate Go toolkit discovery, lexical calls/imports and complexity configuration; funcstats excludes declaration occurrences. Upstream Goose grammar matched all 6384 functions and 1498 types on 855 accepted files (four grammar-error exclusions). D tools do not yet support Goose; limits and reproducible verification are in `docs/GOOSE.md`.
+
+- Keep generated D configuration current with the Go language registry while preserving
+  the D scanners' frozen Unicode 15.0.0 metadata across generator Go toolchains.
+  Goose settings in generated tables do not add Goose support to the D tools.
+
+- Fix C++ raw-string masking for `R`, `u8R`, `uR`, `UR` and `LR` prefixes with exact user-defined delimiters. Quotes, comments and declaration-like text inside raw payloads no longer become functions; code following the matching terminator remains visible. On the documented 52-file Goose syntax subset this removes all 168 false function entries without losing any previously matched function; 15 grammar-error files remain excluded.
+
+- Add Kotlin JSON objects and transactional replace/insert_after/remove for supported named functions, extension/member methods and types. Byte spans preserve shared-line neighbors, modifiers/annotations/receiver prefixes and Kotlin literal/comment forms. Properties and explicit get/set are independently editable with parent/child overlap protection, scoped insertion and val/var/receiver/attribute guards. Constructor parameters, secondary constructors and local/anonymous declarations remain outside the selectable profile. Independent Kotlin 2.2 PSI matched 3786 objects and unchanged replacement previews across all 311 NekoBox/Seal files; compiled JVM CRUD changed output from 2 to 20. Structural validation and measurement limits are documented in `docs/EDIT.md`.
+
+- Add JS/TS JSON code objects and single-file replace/insert_after/remove transactions for supported named functions, direct function-valued bindings/members and types. Byte tokens preserve shared-line neighbors, JSX/literals, decorators and list separators; variable bindings expose complete synthetic declarations for editing. Structural validation remains separate from compiler/type checks. TypeScript AST comparison matched 3698 objects across all 465 tracked hr_gemini files in the documented profile; mixed-EOL edit refusals and independent runtime/copy checks are explicit in `docs/EDIT.md`.
+
+- Add D JSON code objects and transactional replacement/insertion/removal for supported functions, methods, constructors and named types/modern aliases. Byte tokens preserve shared-line neighbors, nested comments, D string forms, attributes, contracts and template headers. Overloads return candidates; conditional/mixin declaration scopes refuse editing. Validation remains structural, with compiler/runtime checks and bounded arsd/D-YAML reference samples documented in `docs/EDIT.md`.
+
+- Add C# JSON code objects and transactional replacement/insertion/removal for named-type methods and nominal types. Exact byte spans preserve shared-line neighbors, attributes and consistent EOL/BOM. Overloads return candidates; structural checks preserve scope, interface qualification and constructor category. C# and Rust share a token transaction planner. C# validation is explicitly not full grammar or compiler checking; conditional directives and unsupported targets refuse editing. Roslyn source-span comparisons, a compiled runtime transaction and bounded Dapper/Polly samples complement Go regressions; see `docs/EDIT.md` for scope and measurement limits.
 
 ## v1.16.0 - 2026-10-22
 

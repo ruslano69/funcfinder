@@ -55,6 +55,26 @@ func codeCatalog(src []byte) ([]string, error) {
 // There are no intermediate writes or revisions; overlap/invalid final syntax
 // refuses the entire batch. Results follow request order, not source order.
 func PlanCodeEdits(edits []CodeEdit, src []byte) ([]byte, []CodeEditResult, error) {
+	if len(edits) > 0 && edits[0].Object.Language == "goose" {
+		return planTokenCodeEdits(edits, src, "goose", gooseCodeItems, gooseObjectTokens)
+	}
+	if len(edits) > 0 && edits[0].Object.Language == "kotlin" {
+		return planTokenCodeEdits(edits, src, "kotlin", kotlinCodeItems, kotlinObjectTokens)
+	}
+	if len(edits) > 0 && (edits[0].Object.Language == "js" || edits[0].Object.Language == "ts") {
+		language := edits[0].Object.Language
+		catalog := func(path string, data []byte, scope, context string) ([]rustObjectItem, error) {
+			return scriptCodeItems(path, data, scope, context, language)
+		}
+		tokenize := func(data []byte) ([]rustObjectToken, error) { return scriptObjectTokens(data, language) }
+		return planTokenCodeEdits(edits, src, language, catalog, tokenize)
+	}
+	if len(edits) > 0 && edits[0].Object.Language == "d" {
+		return planTokenCodeEdits(edits, src, "d", dCodeItems, dObjectTokens)
+	}
+	if len(edits) > 0 && edits[0].Object.Language == "cs" {
+		return planTokenCodeEdits(edits, src, "cs", csharpCodeItems, csharpObjectTokens)
+	}
 	if len(edits) > 0 && edits[0].Object.Language == "rust" {
 		return planRustCodeEdits(edits, src)
 	}
@@ -68,7 +88,7 @@ func PlanCodeEdits(edits []CodeEdit, src []byte) ([]byte, []CodeEditResult, erro
 			return nil, nil, objectError("unsupported_protocol", "expected funcfinder.code/v1 objects")
 		}
 		if e.Object.Language != "go" {
-			return nil, nil, objectError("unsupported_language", "code edits currently support Go only")
+			return nil, nil, objectError("unsupported_language", "code edits currently support Go, Rust, C#, D, JavaScript, TypeScript, Kotlin and Goose")
 		}
 		if e.Object.Path != path {
 			return nil, nil, objectError("multiple_files", "a batch must target one file")

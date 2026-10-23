@@ -28,6 +28,10 @@ The D `funcstats` and `callgraph` are also available (below). Not yet: `complexi
 
 The three D tools read immutable settings compiled from `ffd_config_data.d`, with allocation-free table lookup.
 They do not parse an embedded JSON configuration at startup. Go's configuration remains the source of truth:
+Generated tables may contain settings for Go-only languages (Goose since 1.16.1);
+the D registry/finders still support the original 15 languages. Table presence is not D parser support.
+Unicode metadata is pinned to the D scanners' frozen 15.0.0 categories, rather than
+the host Go toolchain's Unicode release. The generator tests check that contract.
 
 ```powershell
 go run ./benchmarks/ffd/genconfig > benchmarks/ffd/ffd_config.json

@@ -1,6 +1,6 @@
 ---
 name: funcfinder
-description: Map repositories, locate and extract functions/types, trace calls and dependencies, and edit Go/Rust declarations through versioned JSON code objects. Use for code navigation, impact analysis and function/type replacement with the funcfinder toolkit.
+description: Map repositories, locate and extract functions/types, trace calls and dependencies, and edit Go/Rust/C#/D/JS/TS/Kotlin/Goose declarations through versioned JSON code objects. Use for code navigation, impact analysis and function/type replacement with the funcfinder toolkit.
 ---
 
 # funcfinder
@@ -16,7 +16,7 @@ Check `funcfinder --help` for `--read-object` and `--edit-object` before choosin
 Do not infer capability from the version number alone or use an older learning snapshot.
 
 Prefer the binary from the active maintained checkout. On this user's Windows machine it is currently
-`G:\DEV\Go\funcfinder\funcfinder.exe`. Verify this path before using it from another repository.
+`D:\Dev\Go\funcfinder\funcfinder.exe`. Verify this path before using it from another repository.
 If rebuilding is needed, build the active funcfinder checkout with `build.ps1` on Windows or `build.sh` on Unix.
 Do not run a funcfinder build inside the target application's repository. JSON editing may not yet exist in
 the remote default branch; check actual help rather than silently substituting an older installed binary.
@@ -51,11 +51,11 @@ callgraph --inp file.go -l go --func Name --depth 2
 ```
 
 `--dir` defaults to mapping; ordinary `--inp` mode needs `--source` and an operation.
-Language keys: `go`, `c`, `cpp`, `cs`, `java`, `d`, `js`, `ts`, `py`, `rust`, `swift`, `kotlin`, `php`, `ruby`, `scala`.
+Language keys: `go`, `c`, `cpp`, `cs`, `java`, `d`, `js`, `ts`, `py`, `rust`, `swift`, `kotlin`, `php`, `ruby`, `scala`, `goose`.
 Finding neighbors on one line does not imply exact editing support in that language. `[one-line]` means equal
 start/end lines, not necessarily shared code. Text extraction returns covering physical lines and may include neighbors.
 
-## Go/Rust replacement: JSON objects first
+## Go/Rust/C#/D/JS/TS/Kotlin/Goose replacement: JSON objects first
 
 ```bash
 funcfinder --inp file.go --source go --read-object Name
@@ -72,7 +72,7 @@ funcfinder --edit-object -          # Edited object on stdin; validates without 
 funcfinder --edit-object - --apply  # Send the SAME request after preview.
 ```
 
-Go and Rust declarations are supported by this protocol. For Rust, use `--source rust` and read the scope/validation limits below. Go aliases, generics and grouped
+Go, Rust, C#, D, JavaScript, TypeScript, Kotlin and Goose declarations are supported by this protocol (`--source go|rust|cs|d|js|ts|kotlin|goose`). Read the backend scope/validation limits below. Go aliases, generics and grouped
 types work; a group member's `source` includes a synthetic `type` keyword and is converted back automatically.
 Leading doc comments remain outside the object. The tool preserves BOM, EOL style and surrounding bytes.
 Function names/receiver types and type names must remain unchanged. Syntax/identity checks do not prove that
@@ -94,7 +94,7 @@ Object modes reject incompatible legacy flags. `--json` is optional; output is a
 JSON filename. For the complete schema, in-memory automation example and error codes, read
 [references/edit.md](references/edit.md) when implementing a client or diagnosing a refusal.
 
-## Go/Rust insertion, removal and transactions
+## Go/Rust/C#/D/JS/TS/Kotlin/Goose insertion, removal and transactions
 
 Check `--edit-object` help for single-file batch support before using these newer envelopes. Do not change read
 object metadata. For insertion/removal, keep the anchor object unchanged:
@@ -134,6 +134,68 @@ item boundaries and lexical scopes; it does not fully parse Rust expressions/gra
 evaluate cfg, or expand macros. Run cargo/project checks. Unsupported shapes are refused; do not bypass the
 revision/identity guards or interpret a successful preview as a compilation guarantee. Insertion must respect its
 impl/trait/extern context. Parent type/trait and child-method edits overlap and cannot share a batch.
+
+## C# backend limits
+
+Use `--source cs` and the same JSON objects/operations/batches for methods, constructors, destructors, operators,
+conversions and bodyless declarations in named types, plus class/struct/interface/record/enum type objects.
+Namespaces, nested types, overload ambiguity, attributes and same-line neighbors retain byte spans. Select overloads
+by returned candidate or line/byte column; preserve attributes, explicit interface qualification and constructor category.
+Properties/fields/accessors/events/delegates, local functions and top-level statements are not objects. Conditional
+directives and assembly/module attributes refuse the file; nonconditional nullable/pragma/region/line directives are
+retained outside editable objects. No identifier-escape or semantic overload/type resolution is performed.
+`csharp_tokens_and_declaration_identity` means structural checks, not complete C# grammar or Roslyn validation.
+Run `dotnet build` and project tests. See [references/edit.md](references/edit.md) for limits and measured examples.
+
+## D backend limits
+
+Use `--source d` and the same objects/operations/batches for module functions, aggregate methods, constructors,
+destructors, property/template functions and named aggregate/enum/modern alias declarations. Prefixes/UDAs and
+post-parameter attributes must remain unchanged. Contracts and literal/comment forms retain exact byte spans;
+overloads return candidates. Attribute/access scopes and explicit templates are noneditable containers. Function
+and unittest bodies are opaque; their local declarations are not targets. Variables, legacy aliases, manifest
+constants, invariants and unittest/mixin containers are not objects. Conditional/mixin declaration scopes and
+line directives refuse the file. No template expansion, semantic overload/type resolution or full D grammar check
+is performed. `d_tokens_and_declaration_identity` is structural validation: compile with LDC/DMD and run project
+tests. See [references/edit.md](references/edit.md) for the supported profile and independent measurements.
+
+## JS/TS backend limits
+
+Use `--source js|ts` for named functions, direct variable arrows/function expressions, named methods/accessors,
+constructors and direct function-valued fields/object properties, plus class/interface/enum/type-alias objects.
+Preserve decorators/prefixes. Variable objects expose synthetic complete declarations: for `const a=()=>1,b=()=>2;`,
+`b` has source `const b=()=>2;`, but coordinates point at the original binding. Keep the original const/let/var;
+the backend handles list commas and sole-binding removal. Do not derive physical offsets from this synthetic source.
+Function bodies/call arguments are opaque; local functions/callbacks, computed names, anonymous declarations and
+wrapped function values are outside the selectable profile. JSX/templates/regex are lexical islands. Mixed EOL
+refuses writes. `javascript_typescript_tokens_and_declaration_identity` is structural, not a complete parser or
+type checker: run project compilation/tests. Read [references/edit.md](references/edit.md) for exact limits/evidence.
+
+## Kotlin backend limits
+
+Use `--source kotlin` for named top-level/member/extension `fun` declarations and named classes/interfaces/objects/
+companions/typealiases. Block/expression bodies, generic/suspend/operator functions and bodyless signatures use
+exact code-token spans. Preserve annotations, modifiers and context/extension/generic receiver prefixes. Select
+overloads by candidate or physical line/byte column. Unnamed companions are scopes with selectable named members.
+Kotlin also accepts `--object-kind property` for named val/var (including delegates) and `--object-kind accessor`
+for explicit get/set, including a written visibility-only setter. Properties own their accessors: parent/child edits
+overlap. Replace a property to add its first accessor. Accessor insertion accepts only get/set in that property;
+val refuses setters, duplicates are rejected, and repeated get/set names require candidate/coordinate selection.
+Preserve val/var, receiver prefixes, annotations and accessor visibility. Primary-constructor property parameters,
+destructuring, secondary constructors, initializers and enum entries are not separate objects. Initializer/function/
+accessor and enum-entry bodies are opaque; local declarations and anonymous-object members there are outside this profile. Leading KDoc/comments stay outside source. Mixed EOL refuses edits; literal/scope nesting is
+bounded. `kotlin_tokens_and_declaration_identity` is structural, not complete grammar/type/compiler validation.
+Run kotlinc/Gradle and project tests. See [references/edit.md](references/edit.md) for exact scope and PSI evidence.
+
+## Goose backend limits
+
+Use `--source goose` for top-level fn/thread_fn, standalone extern signatures and struct/enum/type aliases.
+Keep the written name/qualification, declaration category, function modifiers and extern/export symbols.
+Nested functions, fields/globals and extern-block members are not individual objects; edit the owning function/type.
+Navigation has a broader scope. Namespace/import/global/extern-block entries protect neighbors in transactions.
+The usual JSON read → change only source → preview → apply workflow works without new flags or span preparation.
+`goose_tokens_and_declaration_identity` is structural: run `goose check FILE` and relevant tests after applying.
+See [references/edit.md](references/edit.md#goose-json-objects) for scope, exact-byte evidence and native checks.
 
 ## Legacy editing and other languages
 

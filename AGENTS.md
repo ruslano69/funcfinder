@@ -14,6 +14,9 @@ Builds 5 binaries: `funcfinder`, `funcstats`, `deps`, `complexity`, `callgraph`.
 
 ## Releases
 
+- 1.16.1 adds Goose to all five Go tools; docs/GOOSE.md owns the supported profile.
+  Standalone compressors live in the separate lz78-goose repository; retain only tooling fixtures/evaluators here.
+
 - `VERSION` is the version source for local build scripts and release tags;
   record user-visible changes in root `CHANGELOG.md`.
 - Verify the integrated release revision with tests, builds and CI before
@@ -21,6 +24,9 @@ Builds 5 binaries: `funcfinder`, `funcstats`, `deps`, `complexity`, `callgraph`.
 - `.github/workflows/release.yml` builds all five tools for Linux/macOS
   amd64/arm64 and Windows amd64 on tag push, checks the version file, and
   publishes archives plus `checksums.txt`. Verify the workflow and assets.
+- Keep generated Go harnesses outside the source module or isolated by an ignored
+  `build/go.mod`; full `go test ./...` must enumerate project packages only. Tests
+  of module discovery require TMP/TEMP outside every Go module.
 
 ---
 
@@ -195,7 +201,7 @@ deps frontend -l ts --shards --update-manifest .codemap/manifest.json
 - `--dir` mode: `--map` is DEFAULT
 - `--inp` mode: requires `--source <lang>` AND (`--map` or `--func` or `--tree` or `--extract`)
 - `--struct "TypeA,TypeB"` — shorthand for `--struct --type "TypeA,TypeB"`
-- Languages: `go`, `py`, `js`, `ts`, `java`, `cs`, `cpp`, `c`, `rust`, `swift`, `kotlin`, `php`, `ruby`, `scala`, `d`
+- Languages: `go`, `py`, `js`, `ts`, `java`, `cs`, `cpp`, `c`, `rust`, `swift`, `kotlin`, `php`, `ruby`, `scala`, `d`, `goose` (shipped Go tools; scope in [docs/GOOSE.md](docs/GOOSE.md))
 
 ---
 
@@ -420,9 +426,9 @@ Default section order:
 
 ## User Preferences
 
-- For Go/Rust replacement, prefer JSON code objects: `--read-object NAME` (or `--object-kind type`), change only `source`, preview with `--edit-object FILE|-`, then apply the same request with `--apply`. Reuse the applied response object for the next edit. Never bypass `stale_revision`; read again. See [JSON object workflow](docs/EDIT.md). For Go/Rust insertion/removal use JSON operation wrappers; group related edits to one file in a `funcfinder.edits/v1` batch from a common revision. Use legacy guarded edits for other languages.
+- For Go/Rust/C#/D/JS/TS/Kotlin/Goose replacement, prefer JSON code objects: `--read-object NAME` (or `--object-kind type`), change only `source`, preview with `--edit-object FILE|-`, then apply the same request with `--apply`. Reuse the applied response object for the next edit. Never bypass `stale_revision`; read again. See [JSON object workflow](docs/EDIT.md). For Go/Rust/C#/D/JS/TS/Kotlin/Goose insertion/removal use JSON operation wrappers; group related edits to one file in a `funcfinder.edits/v1` batch from a common revision. Use legacy guarded edits for other languages.
 
-- Use the active checkout's edit-capable `funcfinder` for source changes; on this machine it is `G:\DEV\Go\funcfinder\funcfinder.exe`. Build the active checkout and check `--help` before use; branch names and version numbers alone do not establish editing capabilities. `build/structured-edit-learning/funcfinder-edit.exe` is an older learning snapshot. Prefer the JSON workflow above for Go/Rust; legacy commands include `--replace-func`, `--add-after`, `--remove-func` and Go type equivalents. See [the editing guide](docs/EDIT.md).
+- Use the active checkout's edit-capable `funcfinder` for source changes; on this machine it is `D:\Dev\Go\funcfinder\funcfinder.exe`. Build the active checkout and check `--help` before use; branch names and version numbers alone do not establish editing capabilities. `build/structured-edit-learning/funcfinder-edit.exe` is an older learning snapshot. Prefer the JSON workflow above for Go/Rust/C#/D/JS/TS/Kotlin/Goose; legacy commands include `--replace-func`, `--add-after`, `--remove-func` and Go type equivalents. See [the editing guide](docs/EDIT.md).
 - Legacy text editing workflow: map the target, read/extract its current span, keep that exact text in `--old` for replacement, preview, then `--apply --show`. Use `--line` for duplicate names and `--with -` for stdin. Check reverse callers before removal. Never drop `--old` to bypass a stale-text refusal; re-read the mapped source span, clipping to physical EOF if extraction added blank lines. Run the language/project checks after applying: non-Go guards do not establish compiler correctness.
 - The project is transitioning to token-based parsing. Develop new parser work toward tokenization and migrate existing recognition incrementally; existing regex implementations describe the current state, not the target architecture.
 - When comparing implementations, distinguish the tokenization algorithm from the implementation language and evaluate correctness, performance and CLI completeness separately.
@@ -434,7 +440,7 @@ Default section order:
 - `cmd/` → CLI entrypoints for all 5 tools (funcfinder, funcstats, deps, callgraph, complexity) — see [cmd/AGENTS.md](cmd/AGENTS.md)
 - `internal/` → Core parsing engine: language finders, formatters, call graph, shard logic — see [internal/AGENTS.md](internal/AGENTS.md)
 - `docs/` → User-facing documentation and usage examples — see [docs/AGENTS.md](docs/AGENTS.md)
-- `examples/` → Shell script usage examples and swe-agent integration workflows — see [examples/AGENTS.md](examples/AGENTS.md)
+- `examples/` → Usage workflows and swe-agent integration — see [examples/AGENTS.md](examples/AGENTS.md)
 - `skills/` → Portable installable funcfinder skill and expanded navigation guide — see [skills/AGENTS.md](skills/AGENTS.md)
 - `internal/knowledge/` → SQLite knowledge base package (FTS5 + vector hybrid) — see [internal/knowledge/AGENTS.md](internal/knowledge/AGENTS.md)
 - `test_examples/` → Multi-language source fixtures used by parser tests — see [test_examples/AGENTS.md](test_examples/AGENTS.md)

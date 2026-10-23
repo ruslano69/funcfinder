@@ -1,6 +1,6 @@
 # Editing code objects and declarations
 
-## Agent JSON protocol (Go and Rust functions/types)
+## Agent JSON protocol
 
 Read a declaration as a complete editable object, change only `source`, then send that object back:
 
@@ -14,14 +14,15 @@ funcfinder --edit-object object.json --apply
 ```
 
 `--read-object NAME` returns the object directly, without a wrapper or extraction header. `--object-kind type`
-selects a top-level type (including aliases, generics and grouped members); the default is `function`.
+selects a named type (Go includes top-level aliases, generics and grouped members); the default is `function`.
+Kotlin additionally supports `--object-kind property` for val/var and `--object-kind accessor` for explicit get/set.
 `--line N` and `--column N` select a declaration by physical start line and 1-based UTF-8 byte column.
-Go and Rust are supported. Rust uses token/scoped-item validation rather than Go AST validation; see the Rust section below. Legacy map/JSON formats remain unchanged.
+Go, Rust, C# (`--source cs`), D (`--source d`), JavaScript (`--source js`), TypeScript (`--source ts`), Kotlin (`--source kotlin`) and Goose (`--source goose`) are supported. Rust/C#/D/JS/TS/Kotlin/Goose use token/scoped-item validation rather than Go AST validation; see their backend sections below. Legacy map/JSON formats remain unchanged.
 
 The v1 object contains `protocol: "funcfinder.code/v1"`, opaque `id`, absolute `path`, `language`, `kind`, `name`,
 `line`, `column`, `end_line`, whole-file SHA-256 `revision`, and editable `source`. Source uses LF and contains
 exactly the declaration, excluding preceding doc comments and neighboring code. A grouped type is returned as
-a complete `type Name ...` declaration; replacement converts it back into its original group. Keep all metadata
+a complete `type Name ...` declaration; replacement converts it back into its original group. JS/TS variable-bound function objects similarly expose a complete synthetic variable declaration; see below. Keep all metadata
 unchanged. No separate `--old`, range manipulation or temporary source files are needed.
 
 A client can perform the entire read/preview/apply cycle in memory. This example assumes `file.go` contains
@@ -53,7 +54,7 @@ obj = applied["object"]  # Current identity/revision for the next edit.
 ```
 
 Replacement reads a JSON file, or stdin for `--edit-object -`. It rejects unknown JSON fields, extra documents,
-unsupported protocols, altered identities, stale revisions, mixed endings and invalid replacement syntax.
+unsupported protocols, altered identities, stale revisions, mixed endings and structurally invalid replacements. Full grammar validation depends on the backend.
 No other editing/output modes can be combined with object mode; `--json` is optional because output is always JSON.
 Go functions retain their name and receiver type; types retain their name. Rust retains item name, kind and outer attributes. These checks do not enforce parameter,
 field, return-type or behavioral compatibility. Run project compilation/tests for that contract.
@@ -78,7 +79,7 @@ Client decisions should use `error.code`, not parse `message`:
 | `invalid_identity` | Read a new object instead of reconstructing metadata. |
 | `invalid_json`, `invalid_options` | Fix the JSON envelope or incompatible flags. |
 | `invalid_source`, `invalid_replacement`, `invalid_result`, `contract_changed` | Inspect the code/diagnostic; nothing was written. |
-| `unsupported_language`, `unsupported_protocol`, `invalid_kind` | Use supported Go/Rust v1 function/type objects. |
+| `unsupported_language`, `unsupported_protocol`, `invalid_kind` | Use supported v1 kinds for the backend: function/type; Kotlin also property/accessor. |
 | `mixed_endings`, `invalid_path`, `io_error` | Correct the file/environment before retrying. |
 
 Application stages and syncs a temporary file in the source directory, rechecks the original bytes, then renames
@@ -87,7 +88,7 @@ not a cross-process lock: coordinate simultaneous writers. Original BOM, EOL sty
 span are preserved. Doc comments outside the span remain untouched; grouped conversion refuses declaration
 comments outside the replacement spec rather than silently losing them.
 
-## Insert, remove and batch edits (Go and Rust)
+## Insert, remove and batch edits (Go, Rust, C#, D, JavaScript, TypeScript, Kotlin and Goose)
 
 The same `--edit-object FILE|- [--apply]` command also accepts an operation wrapper:
 
@@ -100,7 +101,7 @@ replace = {"operation": "replace", "object": edited_object}
 
 `insert_after` and `remove` take an **unchanged** object read from disk. Insertion source belongs on the wrapper;
 replacement source belongs in `object.source`. Removal takes no wrapper source. An insertion may contain multiple
-functions/types after a top-level declaration; inside a type group it may contain only types. Original surrounding
+named declarations supported by the backend after a top-level declaration; inside a Go type group it may contain only types. Original surrounding
 bytes and group wrappers remain intact. Ordinary declarations get blank-line separation; shared lines use explicit
 separators. Removal consumes the declaration and its following explicit semicolon, keeping surrounding comments
 and whitespace. Leading doc comments remain outside the object. Check callers before deleting declarations.
@@ -185,6 +186,271 @@ and navigation parser keep their existing limits; use Rust JSON mode for exact s
 Grammar/token reference: [Rust functions](https://doc.rust-lang.org/reference/items/functions.html) and
 [Rust tokens](https://doc.rust-lang.org/reference/tokens.html).
 
+## C# JSON objects
+
+```bash
+funcfinder --inp Counter.cs --source cs --read-object Count
+funcfinder --inp Counter.cs --source cs --read-object Counter --object-kind type
+funcfinder --edit-object request.json
+funcfinder --edit-object request.json --apply
+```
+
+C# uses the same objects, revision checks, operation wrappers and single-file batches. Methods, constructors,
+destructors, operators, conversion operators and bodyless interface/abstract declarations are selectable inside
+named types. Named types cover classes, structs, interfaces, records (including bodyless records) and enums,
+including nested types. Block/file-scoped namespaces retain lexical ownership. Expression bodies include their
+terminating semicolon. Exact UTF-8 byte spans preserve neighbors on the same line, BOM and consistent EOL style.
+
+Attributes belong to the object and must retain their token content on replacement. Explicit interface qualification
+and static-constructor category are preserved. Leading doc comments remain outside. Overloads return ambiguity
+candidates; choose a returned object or its physical line/byte column. Duplicate checks distinguish syntactic
+parameter types and generic arity, ignoring parameter names/default values; they do not resolve aliases, equivalent
+CLR signatures or generic type-parameter renamings. Semantic overload validity remains a compiler responsibility.
+
+Member fields, properties, indexers, events, delegates, accessors, local functions and top-level statements are not
+editable objects in this backend. Method bodies/property bodies are opaque for item discovery. Conditional and
+unsupported directives (including `#if`/`#define`) and assembly/module attributes refuse the file. Nonconditional
+`#nullable`, `#pragma`, `#region`, `#endregion` and `#line` directives are retained as noneditable catalogue entries;
+an insertion cannot introduce a directive outside its new declaration. Unicode identifier escapes are not resolved.
+Normal/verbatim/raw/interpolated strings, chars and comments are lexed before pairing structural delimiters.
+
+Success reports `validation: "csharp_tokens_and_declaration_identity"`. This is structural validation, **not a full
+C# grammar, Roslyn compilation or type check**. Balanced invalid expressions may pass. Run `dotnet build` and project
+tests after editing. Scope nesting over 128 and literal nesting over 64 are refused. No reference updates or multi-file
+transactions are performed. Go/Rust response contracts and legacy C# text commands retain their existing behavior.
+
+Verification: `go test ./internal -run TestCSharpCodeObjects` covers source spans, attributes, overload selection,
+transactions, stale/forged identities, overlap, directives, literals and EOL preservation. Independent .NET SDK 9.0.308 /
+Roslyn 4.14 checks matched all 21 objects in a standalone program before/after a three-operation transaction; compilation
+and execution changed output from 2 to 20. A source-order sample of ten Dapper files (42 objects) and ten Polly files
+(47 objects) matched Roslyn source/coordinates and unchanged replacement previews. This is a bounded sample, not
+whole-project or full-language editing coverage. Local logs are under ignored `build/_csharp-objects-20261022/`.
+
+## D JSON objects
+
+```bash
+funcfinder --inp source.d --source d --read-object count
+funcfinder --inp source.d --source d --read-object Buffer --object-kind type
+funcfinder --edit-object request.json
+funcfinder --edit-object request.json --apply
+```
+
+D uses the same versioned objects, operation wrappers and one-file transactions. Module functions, aggregate methods,
+constructors/destructors (`this`/`~this`), property functions, templated functions and bodyless declarations are supported.
+Type objects cover named structs, classes, interfaces, unions, enums and `alias Name = ...` declarations. Manifest
+constants (`enum value = ...`) are not types. Explicit templates and attribute/access blocks or sections retain lexical
+ownership as noneditable catalogue entries; their supported nested declarations remain selectable.
+
+Exact byte spans retain neighbors on one line, outer declaration prefixes/UDAs, contracts (`in`/`out`, `body`/`do`),
+template constraints, expression bodies, BOM and consistent EOL style. Prefixes and post-parameter attributes must be
+preserved on replacement. Doc comments remain outside. Overloads return candidates selected by physical line/byte
+column or returned identity. Duplicate checks use syntactic parameter/template arity and qualifier keys, not resolved
+aliases, equivalent types, template specialization or semantic constraint evaluation.
+
+The lexer handles nested `/+ +/` comments, ordinary comments, escaped/character/raw/backtick/hex strings, token strings
+`q{...}` and paired/identifier/delimited `q"..."` strings before structural delimiter pairing. Function and `unittest`
+bodies are opaque for object discovery: their local functions, local types and declarations generated there are not
+selectable. Variables, explicit template containers, mixin-generated declarations, invariants and unit tests are not
+editable objects. Legacy alias forms are not type objects. Conditional/mixin declaration scopes (`version`, `debug`,
+`static if`, `mixin`) and line directives refuse the file; this backend does not expand or select their branches.
+
+Success reports `validation: "d_tokens_and_declaration_identity"`: lexical/scope/catalogue checks, **not full D grammar,
+compiler semantics or template instantiation**. Balanced invalid expressions can pass. Compile with LDC/DMD and run
+project tests after applying edits. Scope nesting over 128 and literal nesting over 64 are refused. The common
+transaction planner and Go/Rust/C# response contracts remain unchanged.
+
+Verification: `go test ./internal -run TestDCodeObjects` covers spans, constructors, overloads, contracts/templates,
+literal forms, type operations, opaque scopes, stale/forged identities, no-mutation failures and EOL preservation.
+LDC 1.43.0 (DMD frontend 2.113.0), `-mcpu=x86-64` and the initialized VS2022 x64 environment compiled a standalone
+program before/after a three-operation transaction; output changed from 2 to 20. Compiler JSON verified 20 function
+end coordinates and the presence of seven named types/aliases in each version; this does not establish independent
+type-end accuracy. A bounded tree-sitter D sample checked 35 arsd functions and 17 D-YAML functions across eight
+accepted files per project, with unchanged replacement previews and no span mismatches. Nine arsd files and one
+D-YAML file were excluded for grammar errors, unsupported scopes or the 200 KiB sample limit; local functions in
+opaque bodies were explicitly excluded. These samples are not full-project/full-language coverage. Corpus pins,
+grammar/binary hashes, exclusions and local logs are in ignored `build/_d-objects-20261022/`.
+
+## JavaScript and TypeScript JSON objects
+
+Use `--source js` or `--source ts` with the same read/edit objects and single-file transactions. Supported objects
+include named function declarations, direct variable-bound arrows/function expressions, named class/interface
+methods and signatures, constructors, getters/setters, private/string-named methods and direct function-valued
+fields or object properties. Classes, interfaces, enums and type aliases are type objects. Namespaces, ambient
+global augmentations, top-level control blocks and directly assigned object literals retain lexical ownership as
+noneditable containers. Decorators and declaration prefixes belong to the selected span and must be retained.
+
+Variable-bound objects use the binding name, including a named function-expression initializer. In
+`const a=()=>1, b=()=>2, c=()=>3;`, reading `b` returns `source: "const b=()=>2;"` with physical coordinates at `b`.
+This complete declaration is synthetic: replacement strips the keyword/terminal semicolon and splices only the
+selected binding. Keep its original `const`/`let`/`var`. Insertion accepts compatible same-keyword bindings and
+adds commas; removal preserves the remaining list and removes its outer declaration only for a sole binding.
+Object methods/properties similarly preserve comma separators. Never calculate splice offsets from the length
+of synthetic `source`. Adjacent removals whose separator spans overlap are refused as one batch.
+
+Byte tokens handle comments, quoted/template/regexp literals and nested JSX before pairing structural delimiters.
+UTF-8 columns, shared-line neighbors, BOM and consistent EOL style are preserved. Function bodies and call/new
+arguments are opaque for object discovery: local declarations and callbacks are outside this profile. Anonymous
+declarations, computed member names, class expressions, destructured bindings and arrows wrapped in assertions or
+other expressions are not selectable objects; unsupported enclosing shapes may refuse a file. This backend does
+not resolve imports/types, evaluate decorators or macros, or validate semantics. TypeScript overload candidates
+use syntactic signatures; duplicate checks are not compiler overload resolution.
+
+Success reports `javascript_typescript_tokens_and_declaration_identity`: structural lexical/scope/catalogue
+checks, **not complete JavaScript/TypeScript grammar or type checking**. Balanced invalid expressions can pass.
+Run the target project's compiler, lint and tests after edits. Scope nesting over 128 and JSX nesting over 64 are
+refused. Navigation finders retain their existing behavior; these checks apply to JSON editing.
+
+Verification: `go test ./internal -run TestScriptCodeObjects` covers spans, shared-line binding/member CRUD,
+TSX, type syntax, ambient scopes/imports/re-exports, stale/forged metadata, no-mutation refusals and EOL/BOM.
+An independent TypeScript 5.8.3 AST comparison on hr_gemini revision
+`8c6f613c04b2502fc2672f2494d5dc8a49b06907` matched all 3698 objects across 465 tracked JS/TS/JSX/TSX files
+in the stated profile, with no missed/extra/span differences or excluded files. All-object identity replacements
+produced 3674 unchanged previews; 24 were explicitly refused for mixed EOL in three files. Separate CLI transactions
+for standalone JS and TS changed runtime output from 2 to 20, preserved a third same-line arrow and refused stale
+reapplication. Actual comment edits on disposable copies of `scripts/audit-code.ts` and `src/App.tsx` passed
+TypeScript parsing/transpilation; the application repository and its database were not modified or executed.
+These measurements describe the unreleased working-tree implementation and this corpus/profile, not universal
+language coverage, full type checking or application test success. The reproducible oracle is
+`benchmarks/script_objects_oracle.cjs`; hashes, reports and CLI logs are in ignored `build/_js-objects-20261022/`.
+
+## Kotlin JSON objects
+
+Use `--source kotlin` with the same versioned objects, replace/insert_after/remove operations and one-file batches.
+Objects include named top-level/member `fun` declarations, extension functions, generic/suspend/operator functions,
+block/expression bodies and bodyless signatures. Named classes (including data/value/enum/annotation forms),
+interfaces (including `fun interface`), objects, named companions and `typealias` declarations are type objects.
+An unnamed companion is a noneditable scope with selectable named members. A primary constructor belongs to its
+type source. Named top-level/member/extension `val`/`var` declarations are **property** objects, including delegated
+initializers. Their complete source owns all explicit getters/setters and intervening trivia. Each explicit accessor
+is also an **accessor** object named `get` or `set`, with its own attributes, visibility and code-token span.
+
+```bash
+funcfinder --inp Counter.kt --source kotlin --object-kind property --read-object value
+funcfinder --inp Counter.kt --source kotlin --object-kind accessor --read-object get
+```
+
+Several getters/setters return ambiguity candidates; select by physical line/byte column or edit the returned
+candidate. Implicit default accessors are not objects; a written visibility-only `private set` is an object. Preserve
+val/var, receiver prefixes and declaration/accessor attributes on replacement. Property replacement/removal owns its
+accessors, so it overlaps any separate edit to one of them. Replace the whole property to add its first accessor.
+Inside an accessor's property scope, insertion accepts only get/set; val refuses setters and duplicate accessors
+are rejected. Insertion after a property accepts named declarations in its enclosing file/type scope.
+
+Primary-constructor property parameters, destructured bindings, secondary constructors, initializers, enum entries
+and anonymous objects/functions are not separate editable objects. Destructured/unsupported declaration shapes
+may refuse the file. Initializer/function/accessor and enum-entry bodies are opaque: local declarations and methods
+of anonymous objects inside them are excluded. This profile differs from the navigation finder's local discovery.
+
+Byte spans preserve neighboring declarations on a shared line. Annotations, modifiers and context/extension/generic
+receiver prefixes belong to source and must remain unchanged on replacement. KDoc and ordinary comments outside
+the first/final code token stay outside the object; file annotations remain noneditable entries. Overloads return
+candidates selected by physical line and UTF-8 byte column. Syntactic signature keys distinguish candidates and
+reject exact duplicate introductions; they do not resolve equivalent types, parameter renaming or overload semantics.
+
+The lexer handles nested block comments, backtick names, quoted/character/triple-quoted strings and nested string
+interpolations before delimiter pairing. Interpolation contents do not expose editable declarations. Multiline
+expressions retain trailing lambdas/member chains, infix operands and if/when/try/catch/finally continuations.
+LF/CRLF, UTF-8 and BOM are preserved; mixed EOL refuses edits. Literal nesting over 64 and type-scope nesting over
+128 are refused. Unsupported or incomplete shapes may refuse the whole file.
+
+Success reports `kotlin_tokens_and_declaration_identity`: structural token/scope/catalogue validation, **not full
+Kotlin grammar, type checking, compiler-plugin evaluation or behavioral compatibility**. Balanced invalid code can
+pass. Compile and run the target project's checks after edits. Navigation finders and D prototypes are unchanged.
+
+Verification: `go test ./internal -run "TestKotlin(CodeObjects|PropertyObjects)"` covers exact spans, scoped ambiguity, shared-line
+transactions, annotation/receiver guards, no-mutation refusals, literals and BOM/EOL (including multiline raw-string
+keys under CRLF). Independent Kotlin 2.2.0 PSI on Temurin JDK 21.0.12.1 matched all **3786 objects** and unchanged
+replacement previews across 311 tracked `.kt`/`.kts` files, with no missing/extra/span differences or excluded files:
+
+| Project/revision | Files | Functions | Types | Properties | Accessors |
+|---|---:|---:|---:|---:|---:|
+| NekoBoxForAndroid `5768494d8ae3c74a057bb6d46c0f8dc071b0d821` | 166 | 1096 | 232 | 807 | 33 |
+| Seal `7677f61a20fda4210e84215fef9e9b51d25daa47` | 145 | 804 | 181 | 578 | 55 |
+
+The PSI reference visits file/script/type declaration lists and explicit property accessors, trimming edge comments/trivia with Kotlin's own lexer;
+its exclusions follow the editing profile above. A four-operation CLI transaction replaced a function and data
+class, inserted a helper and removed a function; compiled JVM output changed from 2 to 20, a third same-line
+function survived and stale reapplication was refused. Actual comment edits on copies of NekoBox's
+`AlertDialogFragment.kt` and Seal's `ExampleInstrumentedTest.kt` passed PSI parsing. A separate five-operation property/accessor transaction passed JVM compilation and execution: getter output
+changed from 2 to 20 and assigning 40 through the new setter stored 4. It replaced a property/getter/setter, inserted
+a property and removed another while preserving a same-line neighbor; stale/overlapping requests were refused
+without writing. Property edits on copies of NekoBox's `SagerNet.kt` and Seal's `app/build.gradle.kts` passed PSI.
+Neither application was built or executed; Gradle/type/Android behavior is not established by this syntax comparison.
+
+Reproduce with an existing runtime containing `jdk-*/` and `kotlinc/lib/`:
+
+```bash
+python benchmarks/kotlin_objects_eval.py --runtime build/kotlin-oracle-runtime \
+  --root PATH_TO_NEKOBOX --root PATH_TO_SEAL --out build/kotlin-objects --check
+```
+
+The harness records corpus pins, input bytes' hashes, a working-tree source snapshot and compiler/JDK/oracle
+hashes. `FUNC_KOTLIN_ORACLE` and optional `FUNC_KOTLIN_REPORT` select the exported reference/report for the Go
+corpus test. Measurements and runtime logs for this unreleased implementation live in ignored
+`build/_kotlin-objects-20261022/` and `build/_kotlin-properties-20261022/`; they are scoped evidence, not universal language-accuracy claims.
+
+## Goose JSON objects
+
+Use the existing protocol with `--source goose`; no additional editing flags are needed:
+
+```bash
+funcfinder --inp codec.goose --source goose --read-object compress
+funcfinder --inp codec.goose --source goose --read-object Range --object-kind type
+funcfinder --edit-object request.json
+funcfinder --edit-object request.json --apply
+```
+
+Change only the returned `source`. Direct replacement, `replace`/`insert_after`/`remove` wrappers
+and one-file `funcfinder.edits/v1` batches share the existing revision, ambiguity and response contracts.
+After applying, reuse returned objects; the preview describes a proposed revision and must not replace
+the original apply request. Overloads on the same line return candidates with distinct byte columns.
+
+Editable declarations are **top-level** ordinary/generic/recursive/inline/checkfree/simd/export functions,
+`thread_fn`, standalone `extern fn` signatures (including the old prefix-symbol spelling), and named
+`struct`/`enum`/`type` aliases. Names keep their written qualification (`name`, `ns::name`, `::name`).
+Nested functions, fields, globals, namespace/import declarations and extern-block members are not
+individual objects. Replace an outer function/type to edit its contents. Navigation still finds nested
+functions and extern members; its physical line extraction is a different, broader interface.
+
+Objects include function modifiers and extern/export symbols; replacement must preserve these,
+the declaration category, name and explicit qualification. Signature/field/body changes are allowed
+but do not establish caller compatibility. Exact duplicate declaration keys are refused; overload/type
+resolution remains the compiler's responsibility. Leading docs and trailing comments stay outside source.
+
+Byte tokens handle nested block comments, strings/chars, triple strings, generic bounds, grow-only arrays
+and compact references. Unterminated literals/comments, mismatched brackets, unsupported top-level
+shapes, mixed EOL, stale identity/revision, overlapping batches and edits that consume/change neighboring
+declarations refuse the entire transaction. Namespace, import, globals and opaque extern blocks participate
+in the full-file catalogue even though they cannot be selected. BOM/EOL and bytes outside edited spans
+are retained. An incomplete single-line string may be tolerated by navigation; object reads refuse it.
+
+`validation: "goose_tokens_and_declaration_identity"` means **structural validation**, not complete
+Goose grammar, raw-string margin/escape checking, type/lifetime checking, specialization or behavioral
+compatibility. Function/type bodies and parameter groups are opaque for structural validation. Run
+`goose check FILE` and relevant tests after applying; balanced invalid code can pass this token guard.
+
+Verification: `go test ./internal -run TestGooseCodeObjects` and the CLI tests in `cmd/funcfinder` cover
+exact shared-line spans, overloads, transactions, modifier/binding guards, comments, BOM/CRLF, stale
+requests and returned-object reuse. An independent upstream Tree-sitter reference at Goose `94cc64d`
+matched all **7,478 top-level objects** (5,980 functions and 1,498 types) and unchanged replacement
+previews on **855 files**, with zero byte-span or catalogue differences. Four grammar-error files are
+explicit exclusions from the 859 tracked inputs; nested functions/extern members are outside this object
+profile. This is syntax-span evidence, not whole-corpus compiler acceptance.
+
+Reproduce with a caller-built upstream grammar and tree-sitter 0.25.2 (grammar CLI 0.25.8):
+
+```bash
+python benchmarks/goose_objects_oracle.py --root build/research/goose --runtime build/accuracy-runtime --grammar-library build/research/goose-grammar.dll --output build/goose-objects/oracle.json
+# Set FUNC_GOOSE_ORACLE to the absolute oracle.json path; optional FUNC_GOOSE_REPORT saves results.
+go test ./internal -run TestGooseCodeObjectsCorpus -v -count=1
+```
+
+The oracle records corpus/source/grammar hashes and exact byte ranges. Evidence is retained under ignored
+`build/goose-objects/`. JSON edits on copies of the BWT forward and SA-IS sort functions passed native
+API checks, 1,200 baseline comparisons, 299 byte-exact vectors, four large round trips and eight rejection
+checks (optimized and debug CLI builds). A renamed LZ78 decoder passed 140 byte-exact vectors and
+73 malformed archives; a type/function batch renaming a grow-only array field passed Goose check/run.
+
 ## Legacy text commands
 
 These commands change one function in a file. The span comes from the same finder as `--extract`, so an edit does
@@ -263,7 +529,7 @@ methods, type parameters, aliases or callers: compile the project and run its be
 
 ## Limitations
 
-These are the limits of the checks. Most of them are not checked at all.
+These limits describe legacy text commands; the JSON backend sections above define their separate contracts.
 
 - **Only the finder's view is validated, except for Go.** For languages other than Go the tool trusts the finder's
   spans and its list of functions and types. A wrong span from the finder carries over into the edit. The known
@@ -275,8 +541,8 @@ These are the limits of the checks. Most of them are not checked at all.
   `callgraph --dir . -l <lang> --reverse --func <Name>` first.
 - **Comments above the `func` line are not part of the span.** A removed function leaves its doc comment behind;
   a replacement keeps it. Doc comments are not edited by these commands.
-- **Only one function per edit.** Changing two functions needs two commands. Members of a class or struct, fields
-  and fragments inside a function are not targets yet.
+- **One target per legacy command.** Changing two targets needs two commands. Fields and fragments inside a
+  function are not targets. Go/Rust/C#/D/JS/TS/Kotlin/Goose JSON batches can edit multiple supported declarations in one file.
 - **Nested functions go with their parent on removal.** Replacing a parent does not keep its nested functions
   unless the new text contains them, so the finder check refuses that case.
 - **Decorators cannot be removed by a replacement.** A replacement can only restate the old set or keep it. Drop
@@ -295,5 +561,5 @@ These are the limits of the checks. Most of them are not checked at all.
   Extraction headers retain their original format for `--old`.
 - **Discovery and editing have different limits.** Mapping can report multiple functions on one line in other
   languages too. Extraction still returns their covering physical lines, which can include neighbors.
-- **Shared-line JSON editing supports Go and Rust.** Legacy text commands retain their language-specific restrictions.
+- **Shared-line JSON editing supports Go, Rust, C#, D, JavaScript, TypeScript, Kotlin and Goose.** Legacy text commands retain their language-specific restrictions.
   Go validation checks syntax and declaration identity, not type correctness or runtime behavior; run project tests.

@@ -1,5 +1,25 @@
 # TODO
 
+## Goose language support (2026-10-23)
+
+- Go toolkit recognizes `.goose` and uses native token declaration scanning with Goose compiler lexer/parser rules. Function/type extraction, nested/shared-line declarations, externs/generics/modifiers, nested comments and triple literals are covered; callgraph/funcstats/deps/complexity retain their documented lexical scope. Fixture compiler-check and independent upstream grammar comparison cover 6384 functions and 1498 types on 855 accepted files, with no differences; four grammar-error files are excluded. See `docs/GOOSE.md`, `benchmarks/goose_tree_eval.py` and ignored `build/research/goose-language-eval.json`.
+- Goose JSON byte-span objects/transactions are implemented for top-level functions and types; independent exact-byte verification covers 7478 objects and identity previews. See `docs/EDIT.md`.
+- Follow-ups: selectively expose nested functions/extern-block members with explicit ownership guards; semantic field types and enum variants; Goose-specific package/shard resolution; D tokenizer/registry/backend. Do not infer compiler semantics, exact editing safety or D parity from navigation accuracy.
+
+## Goose C++ accuracy audit (2026-10-23)
+
+- Fixed C++ raw-literal masking in the Go sanitizer. The same accepted Goose subset now has 1,591 candidates, all 1,591 matched, zero false entries and zero wrong matched ends; the 333 misses and 15 excluded files are unchanged. Before/after evidence: ignored `build/research/goose-accuracy/before-literals.json` and `report.json`. Pointer/reference returns and the other recognition gaps below remain outstanding.
+
+- Audited Go CLI v1.16.0 / `86b9e3f` on Goose `94cc64d`, restricted to 67 `src/` C++/header files. Tree-sitter 0.25.2 / tree-sitter-cpp 0.23.4 accepted 52 files; 15 grammar-error files are explicit exclusions. This is unpreprocessed syntax, including conditional branches, not a compiled whole-project oracle; types and exact byte spans are unscored.
+- Accepted subset: 1,924 named function declarations/definitions (including local-class methods), 1,591 matched, 333 missing; 1,759 CLI entries include 168 false entries, all inside the generated raw-string payloads of `runtime_inline.h`. All matched function end lines agree. Evidence and reproducible scripts: ignored `build/research/goose-accuracy/report.json`, `build/research/goose_accuracy.py`, `build/research/check_findings.py`, and `build/research/goose-accuracy/REPORT.md`.
+- Prioritize C++ raw-literal masking and pointer/reference return declarators, including qualified definitions and assignment operators. Also inspect local-class constructors/destructors, the defaulted move constructor in `json.h`, and `TypeCheck::StableTypeQuery`. A standalone libclang fixture confirms missing pointer/reference-return functions and `operator=`; it has no compiler diagnostics. Do not present the simple header grouping heuristic as a complete root-cause classification.
+- Full libclang validation is blocked by libclang/GCC 16 standard-header incompatibilities; direct GCC syntax checking additionally needs CMake-generated `builtin_packages.h`. Resolve the build/oracle environment before claiming full-corpus compiler accuracy. The D implementation was not scored in this audit.
+
+## Kotlin JSON structural editing (2026-10-22)
+
+- Done locally: named functions/member/extensions and named class/interface/object/companion/typealias CRUD through the token transaction planner. Kotlin 2.2 PSI matched 3786 exact objects (including 1385 properties and 88 accessors) and unchanged previews across 311 tracked NekoBox/Seal files, with zero exclusions or differences in the documented file/type declaration-list profile. Compiled JVM transaction: output 2 → 20. Evidence: `docs/EDIT.md`, `benchmarks/kotlin_objects_eval.py` and ignored `build/_kotlin-objects-20261022/`.
+- Done locally: separate property (`val`/`var`) and explicit get/set objects, scoped insertion, overlapping parent/child refusal and compiled getter/setter transaction (2/40 → 20/4). Evidence: ignored `build/_kotlin-properties-20261022/`. Secondary constructors, initializers, enum entries and local/anonymous declarations are not standalone targets; full Kotlin grammar/type checking remains a compiler responsibility.
+
 ## Structural editing: Go first operation (2026-10-21)
 
 - Done on branch `structured-edit-go`: `funcfinder --replace-func NAME --source LANG --with FILE|- [--line N] [--old FILE] [--apply]` for all 15 configured languages. The span comes from the finder; the replacement must keep the functions and types the finder reports, in the same order; brace languages must balance brackets; Go also checks against `go/ast`. Tests: `internal/edit_lang_test.go` (14 languages), `internal/edit_go_test.go`. Python does not get a bracket check, only the finder comparison.

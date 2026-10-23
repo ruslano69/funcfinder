@@ -6,6 +6,8 @@ Multi-language source fixtures used by parser unit tests in `internal/`. Each fi
 
 ## Ownership
 
+- `test_example.goose` covers Goose functions/types/aliases, external declarations, generics, shared lines, nested functions/comments and triple-string payloads; it must also pass Goose compiler `check` when that compiler is available.
+
 - One fixture file per language: `test_example.<ext>`.
 - Stress-test fixtures (`test_stress_*.{cpp,java,py}`) exercise parser performance and correctness at scale.
 - Struct fixtures (`test_structs.*`) exercise struct/class/type extraction.
@@ -15,7 +17,7 @@ Multi-language source fixtures used by parser unit tests in `internal/`. Each fi
 ## Local Contracts
 
 - Fixture files are consumed by `internal/*_test.go` tests via relative paths; do not rename or move them without updating the corresponding test.
-- When adding a new language, add `test_example.<ext>` here and reference it from `internal/finder_test.go` or `internal/struct_finder_test.go`.
+- When adding a new language, add `test_example.<ext>` here and reference it from `internal/finder_test.go`, `internal/struct_finder_test.go` or the language's dedicated `*_finder_test.go`.
 - Fixtures must contain enough representative syntax (functions, methods, classes/structs, comments, string literals) to exercise the sanitizer and finder together.
 
 ## Work Guidance
