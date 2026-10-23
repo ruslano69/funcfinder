@@ -508,6 +508,12 @@ func tripleQuoteAt(runes []rune, idx int, opener string) bool {
 // tryHandleRegularStrings opens a string at idx. It returns how many runes the opener takes: a raw opener such as r"
 // is read whole, so that its quote is not taken for the closing delimiter.
 func (s *Sanitizer) tryHandleRegularStrings(runes []rune, idx int) (ParserState, int, bool) {
+	if !s.useRaw && s.config.LangKey == "cpp" {
+		if consumed, closing := cppRawLiteralOpener(runes, idx); consumed > 0 {
+			s.stringDelim = closing
+			return StateRawString, consumed, true
+		}
+	}
 	if !s.useRaw && s.matchesRawStringDelimiter(runes, idx) {
 		opener := s.rawOpenerAt(runes, idx)
 		if tripleQuoteAt(runes, idx, opener) {
