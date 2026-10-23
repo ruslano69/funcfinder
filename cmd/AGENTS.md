@@ -20,10 +20,11 @@ CLI entrypoints for the funcfinder toolkit. Each subdirectory contains a single 
 
 - When adding a flag, add it to the tool's `main.go` only; propagate to `internal` via an existing config struct.
 - Type edit commands forward `--line` and `--old` to the shared edit request. `--old` is valid for replacement only; insertion/removal reject it. Type selection/validation remains in `internal`, restricted to Go.
-- `funcfinder --read-object NAME` / `--edit-object FILE|-` are Go/Rust/C#/D/JS/TS/Kotlin JSON object modes (`object.go`). Dispatch precedes legacy input validation. `object_decode.go` strictly distinguishes direct objects, operation wrappers and single-file batches; direct replacement keeps its response shape. Strict JSON, disjoint flag sets and stable error envelopes support automation. Preview is default; apply stages/syncs a same-directory file, rechecks bytes and renames. Kotlin additionally accepts property/accessor object kinds; selection/ownership validation stays in internal. Validation labels distinguish Go syntax from Rust/C#/D/JS/TS/Kotlin token/item checks. Regular files only, no cross-process lock. `object_test.go` checks stale-write refusal and staging cleanup.
+- `funcfinder --read-object NAME` / `--edit-object FILE|-` are Go/Rust/C#/D/JS/TS/Kotlin/Goose JSON object modes (`object.go`). Dispatch precedes legacy input validation. `object_decode.go` strictly distinguishes direct objects, operation wrappers and single-file batches; direct replacement keeps its response shape. Strict JSON, disjoint flag sets and stable error envelopes support automation. Preview is default; apply stages/syncs a same-directory file, rechecks bytes and renames. Kotlin additionally accepts property/accessor object kinds; selection/ownership validation stays in internal. Validation labels distinguish Go syntax from Rust/C#/D/JS/TS/Kotlin/Goose token/item checks. Regular files only, no cross-process lock. `object_test.go` checks stale-write refusal and staging cleanup. `goose_object_test.go` exercises the full CLI JSON preview/apply/batch/stale/reuse path and the Goose validation label.
 - Keep `main.go` files thin: parse flags → call internal → handle error → exit.
 - Do not add business logic to `main.go`.
 - `funcstats` consumes the finder's signature coordinates/token for C#, Java and JavaScript, excluding only the declaration occurrence from call counts; the configured-pattern fallback applies to other languages. A real recursive call must still count, including on a split header's name line or the declaration's own line. JS anonymous variable function/arrow values have no name/parenthesis declaration token and must not lose recursive calls on their header line.
+- Goose also uses finder signature coordinates in funcstats, including split headers, extern declarations and distinct declarations on one line; literal/comment payloads stay opaque through its shared sanitizer.
 
 ## Verification
 
@@ -32,7 +33,7 @@ CLI entrypoints for the funcfinder toolkit. Each subdirectory contains a single 
 ./funcfinder --help # spot-check flag registration
 ```
 
-On sandboxed Windows, if the system temporary directory denies replacement renames, run tests with `TMP` and `TEMP` pointing to an existing writable directory under ignored `build/`. The object write test must still run.
+On sandboxed Windows, if the system temporary directory denies replacement renames, point `TMP` and `TEMP` at a writable directory outside every Go module. Tests of module discovery must not inherit this checkout's go.mod. Keep generated Go harnesses under a separate ignored build/go.mod module boundary so `go test ./...` does not discover them. The object write test must still run.
 
 ## Child DOX Index
 

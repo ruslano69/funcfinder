@@ -59,6 +59,10 @@ The remaining two tools (`deps`, `complexity`) are not implemented in D.
 - `ffd_split.d` owns shard grouping, FNV-1a 128 checksums, manifests, output writing and incremental cache planning;
   `split_checks.py` compares Go output and checksums, and `incremental_checks.py` checks invalidation/repair against fresh D scans.
 - `README.md` owns user-facing build/run examples and file/directory limitations.
+- Generated settings mirror all Go language configs, including Goose since 1.16.1;
+  the D language registry/finders still support 15 languages and do not implement Goose.
+  Unicode metadata stays pinned to brace_port_unicode.d (15.0.0), independently of
+  the generator's Go toolchain; the genconfig regression checks this table contract.
 - `PERFORMANCE_20261021.md` records the i3-12100 full-CLI comparison on 16 pinned corpora, including current/released Go, equal-key subsets, struct-mode limitations and C++ accuracy-check overhead. Keep it distinct from historical measurements on the 16-core host.
 - `OPTIMIZATION_PLAN.md` owns the staged optimization plan: reuse validated function lexers/scanners/pools, propagate consumer needs, pilot JS/TS types-only, specialize other native finders, share Go C++ tokens, then profile allocations/scheduling. Independent accuracy gates apply to every stage.
 - `genvectors/` (Go) writes `ts_declaration_vectors.jsonl`: 6,000 lines with what Go's TS declaration and declarator patterns

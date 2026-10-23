@@ -428,6 +428,73 @@
    ],
    "unicode_version": "15.0.0"
   },
+  "goose": {
+   "block_comment_end": "*/",
+   "block_comment_start": "/*",
+   "call_pattern": "({IDENT}+)\\s*\\(",
+   "char_delimiters": [
+    "'"
+   ],
+   "class_pattern": "^\\s*(?:struct|enum)\\s+([\\p{L}\\p{Nd}_]+)",
+   "decorator_pattern": "",
+   "escape_char": "\\",
+   "exclude_patterns": null,
+   "exclude_words": [
+    "if",
+    "else",
+    "while",
+    "for",
+    "match",
+    "return",
+    "fn",
+    "thread_fn",
+    "struct",
+    "enum",
+    "type",
+    "let",
+    "var",
+    "const",
+    "reusable",
+    "import",
+    "namespace",
+    "sizeof",
+    "alignof",
+    "typeof",
+    "const_for"
+   ],
+   "extensions": [
+    ".goose"
+   ],
+   "flat_pattern": "^\\s*\\}?\\s*(else)\\b",
+   "func_pattern": "^\\s*(?:(?:checkfree|simd|inline|recursive|export|extern)\\s+)*(?:fn|thread_fn)\\s+((?:::)?[\\p{L}\\p{Nd}_]+(?:::[\\p{L}\\p{Nd}_]+)?)\\s*(?:\u003c[^\u003e]*\u003e\\s*)?\\(",
+   "import_pattern": "^\\s*import\\s+(\\.?[A-Za-z_][A-Za-z_0-9.]*)",
+   "indent_based": false,
+   "lang": "goose",
+   "lang_key": "goose",
+   "line_comment": "//",
+   "loop_pattern": "^\\s*(for|while)\\b",
+   "multi_line_block": "",
+   "name": "Goose",
+   "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|match)\\b",
+   "raw_string_chars": [
+    "\"\"\""
+   ],
+   "string_chars": [
+    "\""
+   ],
+   "struct_patterns": {
+    "enum": "^\\s*enum\\s+([\\p{L}\\p{Nd}_]+)",
+    "struct": "^\\s*struct\\s+([\\p{L}\\p{Nd}_]+)",
+    "type": "^\\s*type\\s+([\\p{L}\\p{Nd}_]+)\\s*="
+   },
+   "supports_nested": true,
+   "type_keywords": [
+    "struct",
+    "enum",
+    "type"
+   ],
+   "unicode_version": "15.0.0"
+  },
   "java": {
    "block_comment_end": "*/",
    "block_comment_start": "/*",

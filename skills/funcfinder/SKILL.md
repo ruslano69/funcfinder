@@ -1,6 +1,6 @@
 ---
 name: funcfinder
-description: Map repositories, locate and extract functions/types, trace calls and dependencies, and edit Go/Rust/C#/D/JS/TS/Kotlin declarations through versioned JSON code objects. Use for code navigation, impact analysis and function/type replacement with the funcfinder toolkit.
+description: Map repositories, locate and extract functions/types, trace calls and dependencies, and edit Go/Rust/C#/D/JS/TS/Kotlin/Goose declarations through versioned JSON code objects. Use for code navigation, impact analysis and function/type replacement with the funcfinder toolkit.
 ---
 
 # funcfinder
@@ -16,7 +16,7 @@ Check `funcfinder --help` for `--read-object` and `--edit-object` before choosin
 Do not infer capability from the version number alone or use an older learning snapshot.
 
 Prefer the binary from the active maintained checkout. On this user's Windows machine it is currently
-`G:\DEV\Go\funcfinder\funcfinder.exe`. Verify this path before using it from another repository.
+`D:\Dev\Go\funcfinder\funcfinder.exe`. Verify this path before using it from another repository.
 If rebuilding is needed, build the active funcfinder checkout with `build.ps1` on Windows or `build.sh` on Unix.
 Do not run a funcfinder build inside the target application's repository. JSON editing may not yet exist in
 the remote default branch; check actual help rather than silently substituting an older installed binary.
@@ -51,11 +51,11 @@ callgraph --inp file.go -l go --func Name --depth 2
 ```
 
 `--dir` defaults to mapping; ordinary `--inp` mode needs `--source` and an operation.
-Language keys: `go`, `c`, `cpp`, `cs`, `java`, `d`, `js`, `ts`, `py`, `rust`, `swift`, `kotlin`, `php`, `ruby`, `scala`.
+Language keys: `go`, `c`, `cpp`, `cs`, `java`, `d`, `js`, `ts`, `py`, `rust`, `swift`, `kotlin`, `php`, `ruby`, `scala`, `goose`.
 Finding neighbors on one line does not imply exact editing support in that language. `[one-line]` means equal
 start/end lines, not necessarily shared code. Text extraction returns covering physical lines and may include neighbors.
 
-## Go/Rust/C#/D/JS/TS/Kotlin replacement: JSON objects first
+## Go/Rust/C#/D/JS/TS/Kotlin/Goose replacement: JSON objects first
 
 ```bash
 funcfinder --inp file.go --source go --read-object Name
@@ -72,7 +72,7 @@ funcfinder --edit-object -          # Edited object on stdin; validates without 
 funcfinder --edit-object - --apply  # Send the SAME request after preview.
 ```
 
-Go, Rust, C#, D, JavaScript, TypeScript and Kotlin declarations are supported by this protocol (`--source go|rust|cs|d|js|ts|kotlin`). Read the backend scope/validation limits below. Go aliases, generics and grouped
+Go, Rust, C#, D, JavaScript, TypeScript, Kotlin and Goose declarations are supported by this protocol (`--source go|rust|cs|d|js|ts|kotlin|goose`). Read the backend scope/validation limits below. Go aliases, generics and grouped
 types work; a group member's `source` includes a synthetic `type` keyword and is converted back automatically.
 Leading doc comments remain outside the object. The tool preserves BOM, EOL style and surrounding bytes.
 Function names/receiver types and type names must remain unchanged. Syntax/identity checks do not prove that
@@ -94,7 +94,7 @@ Object modes reject incompatible legacy flags. `--json` is optional; output is a
 JSON filename. For the complete schema, in-memory automation example and error codes, read
 [references/edit.md](references/edit.md) when implementing a client or diagnosing a refusal.
 
-## Go/Rust/C#/D/JS/TS/Kotlin insertion, removal and transactions
+## Go/Rust/C#/D/JS/TS/Kotlin/Goose insertion, removal and transactions
 
 Check `--edit-object` help for single-file batch support before using these newer envelopes. Do not change read
 object metadata. For insertion/removal, keep the anchor object unchanged:
@@ -186,6 +186,16 @@ destructuring, secondary constructors, initializers and enum entries are not sep
 accessor and enum-entry bodies are opaque; local declarations and anonymous-object members there are outside this profile. Leading KDoc/comments stay outside source. Mixed EOL refuses edits; literal/scope nesting is
 bounded. `kotlin_tokens_and_declaration_identity` is structural, not complete grammar/type/compiler validation.
 Run kotlinc/Gradle and project tests. See [references/edit.md](references/edit.md) for exact scope and PSI evidence.
+
+## Goose backend limits
+
+Use `--source goose` for top-level fn/thread_fn, standalone extern signatures and struct/enum/type aliases.
+Keep the written name/qualification, declaration category, function modifiers and extern/export symbols.
+Nested functions, fields/globals and extern-block members are not individual objects; edit the owning function/type.
+Navigation has a broader scope. Namespace/import/global/extern-block entries protect neighbors in transactions.
+The usual JSON read → change only source → preview → apply workflow works without new flags or span preparation.
+`goose_tokens_and_declaration_identity` is structural: run `goose check FILE` and relevant tests after applying.
+See [references/edit.md](references/edit.md#goose-json-objects) for scope, exact-byte evidence and native checks.
 
 ## Legacy editing and other languages
 

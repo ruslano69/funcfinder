@@ -15,7 +15,7 @@ func main() {
 
 	// Режим файла
 	inp := flag.String("inp", "", "input file with source code")
-	source := flag.String("source", "", "source language: go/c/cpp/cs/java/d/js/ts/py/rust/swift/kotlin/php/ruby/scala")
+	source := flag.String("source", "", "source language: go/c/cpp/cs/java/d/js/ts/py/rust/swift/kotlin/php/ruby/scala/goose")
 
 	// Режим каталога
 	dir := flag.String("dir", "", "directory to scan for source files (auto-detects language by extension)")
@@ -55,7 +55,7 @@ func main() {
 	showEdit := flag.Bool("show", false, "with an edit flag: print the new text of the changed lines, read back from the file after --apply")
 	applyEdit := flag.Bool("apply", false, "with --replace-func: write the file (without it, only validate and report)")
 
-	readObject := flag.String("read-object", "", "read a Go/Rust/C#/D/JS/TS/Kotlin declaration as an editable JSON object")
+	readObject := flag.String("read-object", "", "read a Go/Rust/C#/D/JS/TS/Kotlin/Goose declaration as an editable JSON object")
 	editObject := flag.String("edit-object", "", "preview/apply a JSON object, edit operation or single-file batch from FILE or -")
 	objectKind := flag.String("object-kind", "function", "with --read-object: function/type; Kotlin also property/accessor")
 	objectColumn := flag.Int("column", 0, "with --read-object: declaration byte column (1-based)")

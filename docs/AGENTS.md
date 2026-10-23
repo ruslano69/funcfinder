@@ -6,6 +6,8 @@ User-facing documentation: CI/CD integration guide (`CI_CD.md`), Windows setup g
 
 ## Ownership
 
+- `GOOSE.md` owns Goose navigation/JSON-editing/call/dependency scope, parser references and independent measurement limits, including the distinction between shipped Go and experimental D support.
+
 - Markdown files here describe stable user-facing behavior.
 - `examples/` holds runnable shell scripts demonstrating tool combinations.
 

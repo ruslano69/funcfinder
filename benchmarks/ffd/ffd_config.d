@@ -35,7 +35,9 @@ unittest {
     // Full schema equality includes every unused field, null vs empty arrays,
     // booleans, Unicode and escaped regular-expression strings.
     assert(configJSON(rootConfig()) == expected);
-    assert(rootConfig()["languages"].children.length == 15);
+    // Settings mirror the Go registry; the native D registry remains 15 languages.
+    assert(rootConfig()["languages"].children.length == 16);
+    assert(languageConfig("goose")["extensions"].strings == [".goose"]);
     assert(languageConfig("go")["extensions"].strings == [".go"]);
     assert(languageConfig("missing").kind == ConfigKind.null_);
 }

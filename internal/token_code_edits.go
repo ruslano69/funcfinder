@@ -191,7 +191,7 @@ func planTokenCodeEdits(edits []CodeEdit, src []byte, language string, catalog f
 		for _, n := range items {
 			if n.object.Kind != "" {
 				key := n.scope + "/" + n.object.Kind + ":" + n.object.Name
-				if language == "kotlin" || language == "cs" || language == "d" || language == "js" || language == "ts" {
+				if language == "goose" || language == "kotlin" || language == "cs" || language == "d" || language == "js" || language == "ts" {
 					key = n.key
 				}
 				m[key]++

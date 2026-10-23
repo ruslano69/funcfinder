@@ -13,6 +13,7 @@ Portable Codex/Claude Code skill definitions that teach the agent how to use the
 ## Local Contracts
 
 - Keep `funcfinder/references/edit.md` synchronized with `docs/EDIT.md` whenever the editing contract changes. Validate installable frontmatter with the system skill-creator validator and verify referenced files exist before deployment.
+- Goose instructions use the existing JSON protocol for top-level functions/types and explicitly retain broader navigation plus compiler-check limits.
 - Each skill file must reflect the current CLI flags and output format of its tool.
 - When a tool's API changes (new flags, renamed flags, JSON schema changes), update the matching skill file in the same commit.
 

@@ -17,7 +17,7 @@ funcfinder --edit-object object.json --apply
 selects a named type (Go includes top-level aliases, generics and grouped members); the default is `function`.
 Kotlin additionally supports `--object-kind property` for val/var and `--object-kind accessor` for explicit get/set.
 `--line N` and `--column N` select a declaration by physical start line and 1-based UTF-8 byte column.
-Go, Rust, C# (`--source cs`), D (`--source d`), JavaScript (`--source js`), TypeScript (`--source ts`) and Kotlin (`--source kotlin`) are supported. Rust/C#/D/JS/TS/Kotlin use token/scoped-item validation rather than Go AST validation; see their backend sections below. Legacy map/JSON formats remain unchanged.
+Go, Rust, C# (`--source cs`), D (`--source d`), JavaScript (`--source js`), TypeScript (`--source ts`), Kotlin (`--source kotlin`) and Goose (`--source goose`) are supported. Rust/C#/D/JS/TS/Kotlin/Goose use token/scoped-item validation rather than Go AST validation; see their backend sections below. Legacy map/JSON formats remain unchanged.
 
 The v1 object contains `protocol: "funcfinder.code/v1"`, opaque `id`, absolute `path`, `language`, `kind`, `name`,
 `line`, `column`, `end_line`, whole-file SHA-256 `revision`, and editable `source`. Source uses LF and contains
@@ -88,7 +88,7 @@ not a cross-process lock: coordinate simultaneous writers. Original BOM, EOL sty
 span are preserved. Doc comments outside the span remain untouched; grouped conversion refuses declaration
 comments outside the replacement spec rather than silently losing them.
 
-## Insert, remove and batch edits (Go, Rust, C#, D, JavaScript, TypeScript and Kotlin)
+## Insert, remove and batch edits (Go, Rust, C#, D, JavaScript, TypeScript, Kotlin and Goose)
 
 The same `--edit-object FILE|- [--apply]` command also accepts an operation wrapper:
 
@@ -389,6 +389,68 @@ hashes. `FUNC_KOTLIN_ORACLE` and optional `FUNC_KOTLIN_REPORT` select the export
 corpus test. Measurements and runtime logs for this unreleased implementation live in ignored
 `build/_kotlin-objects-20261022/` and `build/_kotlin-properties-20261022/`; they are scoped evidence, not universal language-accuracy claims.
 
+## Goose JSON objects
+
+Use the existing protocol with `--source goose`; no additional editing flags are needed:
+
+```bash
+funcfinder --inp codec.goose --source goose --read-object compress
+funcfinder --inp codec.goose --source goose --read-object Range --object-kind type
+funcfinder --edit-object request.json
+funcfinder --edit-object request.json --apply
+```
+
+Change only the returned `source`. Direct replacement, `replace`/`insert_after`/`remove` wrappers
+and one-file `funcfinder.edits/v1` batches share the existing revision, ambiguity and response contracts.
+After applying, reuse returned objects; the preview describes a proposed revision and must not replace
+the original apply request. Overloads on the same line return candidates with distinct byte columns.
+
+Editable declarations are **top-level** ordinary/generic/recursive/inline/checkfree/simd/export functions,
+`thread_fn`, standalone `extern fn` signatures (including the old prefix-symbol spelling), and named
+`struct`/`enum`/`type` aliases. Names keep their written qualification (`name`, `ns::name`, `::name`).
+Nested functions, fields, globals, namespace/import declarations and extern-block members are not
+individual objects. Replace an outer function/type to edit its contents. Navigation still finds nested
+functions and extern members; its physical line extraction is a different, broader interface.
+
+Objects include function modifiers and extern/export symbols; replacement must preserve these,
+the declaration category, name and explicit qualification. Signature/field/body changes are allowed
+but do not establish caller compatibility. Exact duplicate declaration keys are refused; overload/type
+resolution remains the compiler's responsibility. Leading docs and trailing comments stay outside source.
+
+Byte tokens handle nested block comments, strings/chars, triple strings, generic bounds, grow-only arrays
+and compact references. Unterminated literals/comments, mismatched brackets, unsupported top-level
+shapes, mixed EOL, stale identity/revision, overlapping batches and edits that consume/change neighboring
+declarations refuse the entire transaction. Namespace, import, globals and opaque extern blocks participate
+in the full-file catalogue even though they cannot be selected. BOM/EOL and bytes outside edited spans
+are retained. An incomplete single-line string may be tolerated by navigation; object reads refuse it.
+
+`validation: "goose_tokens_and_declaration_identity"` means **structural validation**, not complete
+Goose grammar, raw-string margin/escape checking, type/lifetime checking, specialization or behavioral
+compatibility. Function/type bodies and parameter groups are opaque for structural validation. Run
+`goose check FILE` and relevant tests after applying; balanced invalid code can pass this token guard.
+
+Verification: `go test ./internal -run TestGooseCodeObjects` and the CLI tests in `cmd/funcfinder` cover
+exact shared-line spans, overloads, transactions, modifier/binding guards, comments, BOM/CRLF, stale
+requests and returned-object reuse. An independent upstream Tree-sitter reference at Goose `94cc64d`
+matched all **7,478 top-level objects** (5,980 functions and 1,498 types) and unchanged replacement
+previews on **855 files**, with zero byte-span or catalogue differences. Four grammar-error files are
+explicit exclusions from the 859 tracked inputs; nested functions/extern members are outside this object
+profile. This is syntax-span evidence, not whole-corpus compiler acceptance.
+
+Reproduce with a caller-built upstream grammar and tree-sitter 0.25.2 (grammar CLI 0.25.8):
+
+```bash
+python benchmarks/goose_objects_oracle.py --root build/research/goose --runtime build/accuracy-runtime --grammar-library build/research/goose-grammar.dll --output build/goose-objects/oracle.json
+# Set FUNC_GOOSE_ORACLE to the absolute oracle.json path; optional FUNC_GOOSE_REPORT saves results.
+go test ./internal -run TestGooseCodeObjectsCorpus -v -count=1
+```
+
+The oracle records corpus/source/grammar hashes and exact byte ranges. Evidence is retained under ignored
+`build/goose-objects/`. JSON edits on copies of the BWT forward and SA-IS sort functions passed native
+API checks, 1,200 baseline comparisons, 299 byte-exact vectors, four large round trips and eight rejection
+checks (optimized and debug CLI builds). A renamed LZ78 decoder passed 140 byte-exact vectors and
+73 malformed archives; a type/function batch renaming a grow-only array field passed Goose check/run.
+
 ## Legacy text commands
 
 These commands change one function in a file. The span comes from the same finder as `--extract`, so an edit does
@@ -480,7 +542,7 @@ These limits describe legacy text commands; the JSON backend sections above defi
 - **Comments above the `func` line are not part of the span.** A removed function leaves its doc comment behind;
   a replacement keeps it. Doc comments are not edited by these commands.
 - **One target per legacy command.** Changing two targets needs two commands. Fields and fragments inside a
-  function are not targets. Go/Rust/C#/D/JS/TS/Kotlin JSON batches can edit multiple supported declarations in one file.
+  function are not targets. Go/Rust/C#/D/JS/TS/Kotlin/Goose JSON batches can edit multiple supported declarations in one file.
 - **Nested functions go with their parent on removal.** Replacing a parent does not keep its nested functions
   unless the new text contains them, so the finder check refuses that case.
 - **Decorators cannot be removed by a replacement.** A replacement can only restate the old set or keep it. Drop
@@ -499,5 +561,5 @@ These limits describe legacy text commands; the JSON backend sections above defi
   Extraction headers retain their original format for `--old`.
 - **Discovery and editing have different limits.** Mapping can report multiple functions on one line in other
   languages too. Extraction still returns their covering physical lines, which can include neighbors.
-- **Shared-line JSON editing supports Go, Rust, C#, D, JavaScript, TypeScript and Kotlin.** Legacy text commands retain their language-specific restrictions.
+- **Shared-line JSON editing supports Go, Rust, C#, D, JavaScript, TypeScript, Kotlin and Goose.** Legacy text commands retain their language-specific restrictions.
   Go validation checks syntax and declaration identity, not type correctness or runtime behavior; run project tests.

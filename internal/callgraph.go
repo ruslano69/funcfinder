@@ -82,6 +82,9 @@ func buildFileCallGraph(
 	knownFuncs map[string]bool,
 	importAliases map[string]string,
 ) *FileCallGraph {
+	if langConfig.LangKey == "goose" {
+		return gooseCallGraph(path, lines, langConfig, knownFuncs, importAliases)
+	}
 	// A bare call counts when it names a function of this file or one of knownFuncs. The two sets are looked up in
 	// turn, not merged: knownFuncs is every function of a directory run, and copying it once per file was most of
 	// the time of a callgraph run on a large tree.

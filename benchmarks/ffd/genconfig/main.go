@@ -13,10 +13,13 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"unicode"
 
 	ff "github.com/ruslano69/funcfinder/internal"
 )
+
+// D scanners use brace_port_unicode.d's frozen categories, not the generator's
+// host Go Unicode tables. Keep the metadata stable across Go toolchains.
+const dUnicodeVersion = "15.0.0"
 
 // generate returns the JSON text: {"unicode_version": ..., "languages": {"<key>": {...}, ...}}. Maps are written with
 // sorted keys, so the output is stable.
@@ -40,7 +43,7 @@ func generate() ([]byte, error) {
 			return nil, err
 		}
 		out["lang"] = lang
-		out["unicode_version"] = unicode.Version
+		out["unicode_version"] = dUnicodeVersion
 		out["func_pattern"] = c.FuncRegex().String()
 		patterns := []struct {
 			key string
@@ -70,7 +73,7 @@ func generate() ([]byte, error) {
 		out["struct_patterns"] = structPatterns
 		languages[lang] = out
 	}
-	return json.MarshalIndent(map[string]any{"unicode_version": unicode.Version, "languages": languages}, "", " ")
+	return json.MarshalIndent(map[string]any{"unicode_version": dUnicodeVersion, "languages": languages}, "", " ")
 }
 
 func main() {

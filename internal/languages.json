@@ -979,5 +979,65 @@
     "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|do|match|case|catch|finally)\\b",
     "flat_pattern": "^\\s*\\}?\\s*(else|case)\\b",
     "loop_pattern": "^\\s*(for|while|do)\\b"
+  },
+  "goose": {
+    "name": "Goose",
+    "extensions": [
+      ".goose"
+    ],
+    "func_pattern": "^\\s*(?:(?:checkfree|simd|inline|recursive|export|extern)\\s+)*(?:fn|thread_fn)\\s+((?:::)?{IDENT}+(?:::{IDENT}+)?)\\s*(?:<[^>]*>\\s*)?\\(",
+    "type_keywords": [
+      "struct",
+      "enum",
+      "type"
+    ],
+    "class_pattern": "^\\s*(?:struct|enum)\\s+({IDENT}+)",
+    "struct_type_patterns": {
+      "struct": "^\\s*struct\\s+({IDENT}+)",
+      "enum": "^\\s*enum\\s+({IDENT}+)",
+      "type": "^\\s*type\\s+({IDENT}+)\\s*="
+    },
+    "call_pattern": "({IDENT}+)\\s*\\(",
+    "import_pattern": "^\\s*import\\s+(\\.?[A-Za-z_][A-Za-z_0-9.]*)",
+    "line_comment": "//",
+    "block_comment_start": "/*",
+    "block_comment_end": "*/",
+    "string_chars": [
+      "\""
+    ],
+    "raw_string_chars": [
+      "\"\"\""
+    ],
+    "char_delimiters": [
+      "'"
+    ],
+    "escape_char": "\\",
+    "exclude_words": [
+      "if",
+      "else",
+      "while",
+      "for",
+      "match",
+      "return",
+      "fn",
+      "thread_fn",
+      "struct",
+      "enum",
+      "type",
+      "let",
+      "var",
+      "const",
+      "reusable",
+      "import",
+      "namespace",
+      "sizeof",
+      "alignof",
+      "typeof",
+      "const_for"
+    ],
+    "supports_nested": true,
+    "nesting_pattern": "^\\s*\\}?\\s*(if|else|for|while|match)\\b",
+    "flat_pattern": "^\\s*\\}?\\s*(else)\\b",
+    "loop_pattern": "^\\s*(for|while)\\b"
   }
 }

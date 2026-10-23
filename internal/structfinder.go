@@ -69,6 +69,9 @@ func (f *StructFinder) FindStructures(filename string) (*StructFindResult, error
 
 // FindStructuresInLines finds types in pre-read lines
 func (f *StructFinder) FindStructuresInLines(lines []string, startLine int, filename string) (*StructFindResult, error) {
+	if f.config.LangKey == "goose" {
+		return f.findGooseStructures(lines, startLine, filename)
+	}
 	lineOffset := startLine - 1
 
 	result := &StructFindResult{

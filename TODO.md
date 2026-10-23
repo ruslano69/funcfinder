@@ -1,5 +1,11 @@
 # TODO
 
+## Goose language support (2026-10-23)
+
+- Go toolkit recognizes `.goose` and uses native token declaration scanning with Goose compiler lexer/parser rules. Function/type extraction, nested/shared-line declarations, externs/generics/modifiers, nested comments and triple literals are covered; callgraph/funcstats/deps/complexity retain their documented lexical scope. Fixture compiler-check and independent upstream grammar comparison cover 6384 functions and 1498 types on 855 accepted files, with no differences; four grammar-error files are excluded. See `docs/GOOSE.md`, `benchmarks/goose_tree_eval.py` and ignored `build/research/goose-language-eval.json`.
+- Goose JSON byte-span objects/transactions are implemented for top-level functions and types; independent exact-byte verification covers 7478 objects and identity previews. See `docs/EDIT.md`.
+- Follow-ups: selectively expose nested functions/extern-block members with explicit ownership guards; semantic field types and enum variants; Goose-specific package/shard resolution; D tokenizer/registry/backend. Do not infer compiler semantics, exact editing safety or D parity from navigation accuracy.
+
 ## Goose C++ accuracy audit (2026-10-23)
 
 - Fixed C++ raw-literal masking in the Go sanitizer. The same accepted Goose subset now has 1,591 candidates, all 1,591 matched, zero false entries and zero wrong matched ends; the 333 misses and 15 excluded files are unchanged. Before/after evidence: ignored `build/research/goose-accuracy/before-literals.json` and `report.json`. Pointer/reference returns and the other recognition gaps below remain outstanding.

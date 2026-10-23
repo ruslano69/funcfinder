@@ -6,6 +6,9 @@ Measure funcfinder on real projects using independent syntax-tree references.
 
 ## Ownership
 
+- `goose_objects_oracle.py` exports exact top-level Goose function/type byte spans from the caller-built upstream Tree-sitter grammar; nested functions/extern members stay outside the initial JSON editor profile. It retains source/grammar/runtime hashes and explicit grammar-error exclusions. Consume with `FUNC_GOOSE_ORACLE` / optional `FUNC_GOOSE_REPORT` and `TestGooseCodeObjectsCorpus`; require exact bytes and identity previews separately from navigation or compiler semantics.
+- `goose_tree_eval.py` compares named Goose functions/extern members and struct/enum/alias spans against a caller-built upstream Tree-sitter shared library. It requires `--root`, `--binary`, `--runtime`, `--grammar-library`, `--output`; it installs/fetches nothing. Exclude grammar-error files and the explicit malformed/semantic error directories, retain source/grammar/binary hashes and corpus revision, and report names/starts/ends separately from semantic/compiler validity. See `docs/GOOSE.md`.
+
 - `accuracy_checks.py` validates small C/C++/Kotlin/Ruby regressions with independent pinned tree-sitter grammars and explicit expected declarations. It requires a caller-supplied grammar runtime and Go/D binaries; artifacts stay under ignored `build/accuracy-fixed`.
 - `specsheet.py` compares directory maps with the Go oracle and estimates token savings.
 - `ffd/` owns experimental D `ffd`, `funcstats` and `callgraph`: all 15 token finders, discovery/extraction/shards, statistics/uncalled candidates and forward/reverse call graphs, with shared lexers, call recognition, workers and Go/independent comparisons. Its contracts are in `ffd/AGENTS.md`. `reuse.d` holds the thread-local block reuse the finders and cleaners share.

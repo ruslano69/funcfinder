@@ -97,6 +97,9 @@ func handleObjectCLI(read, edit, path, language, kind string, line, column int, 
 		status = "applied"
 	}
 	validation := "go_syntax_and_declaration_identity"
+	if obj.Language == "goose" {
+		validation = "goose_tokens_and_declaration_identity"
+	}
 	if obj.Language == "kotlin" {
 		validation = "kotlin_tokens_and_declaration_identity"
 	}

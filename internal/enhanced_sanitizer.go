@@ -86,9 +86,10 @@ type Sanitizer struct {
 	stringDelim string
 	// runeBuf and resultBuf are reused from line to line by cleanLineSlow. A Sanitizer belongs to one finder
 	// at a time (it already keeps stringDelim), so the buffers are not shared between goroutines.
-	runeBuf   []rune
-	resultBuf []rune
-	template  jsTemplateScanner
+	runeBuf    []rune
+	resultBuf  []rune
+	template   jsTemplateScanner
+	gooseDepth int
 }
 
 func NewSanitizer(config *LanguageConfig, useRaw bool) *Sanitizer {
@@ -675,6 +676,9 @@ func (s *Sanitizer) noLiteralStarts(line string) bool {
 }
 
 func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserState) {
+	if s.config.LangKey == "goose" {
+		return s.cleanGooseLine(line, state)
+	}
 	if len(line) == 0 {
 		return line, state
 	}
@@ -690,6 +694,9 @@ func (s *Sanitizer) CleanLine(line string, state ParserState) (string, ParserSta
 
 // cleanLineSlow is the rune-by-rune cleaner that CleanLine's fast path must agree with.
 func (s *Sanitizer) cleanLineSlow(line string, state ParserState) (string, ParserState) {
+	if s.config.LangKey == "goose" {
+		return s.cleanGooseLine(line, state)
+	}
 	// Size the buffer by rune count, not byte count: a byte-sized buffer would
 	// leave (bytes-runes) trailing spaces on lines containing multibyte runes.
 	// The rune buffers are the sanitizer's own, reused from line to line. Ranging over the string yields the same
