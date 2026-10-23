@@ -15,11 +15,40 @@ The five tools are `funcfinder`, `funcstats`, `deps`, `callgraph`, `complexity` 
 Check `funcfinder --help` for `--read-object` and `--edit-object` before choosing the JSON workflow.
 Do not infer capability from the version number alone or use an older learning snapshot.
 
-Prefer the binary from the active maintained checkout. On this user's Windows machine it is currently
-`D:\Dev\Go\funcfinder\funcfinder.exe`. Verify this path before using it from another repository.
-If rebuilding is needed, build the active funcfinder checkout with `build.ps1` on Windows or `build.sh` on Unix.
-Do not run a funcfinder build inside the target application's repository. JSON editing may not yet exist in
-the remote default branch; check actual help rather than silently substituting an older installed binary.
+Prefer the binary from the active maintained checkout. On this user's Windows machine that checkout is
+`H:\Ruslan\Code\Go\funcfinder` (`funcfinder.exe` there after `build.ps1`). Verify it with `funcfinder --version`
+before using it from another repository. On Unix build with `build.sh`. Do not run a funcfinder build inside the
+target application's repository. Check `funcfinder --help` for `--read-object` / `--edit-object`; if they are
+missing, the binary predates JSON editing (v1.16.0+) — rebuild or update rather than falling back to legacy edits.
+
+## Python intermediary (for agents that drive commands through Python)
+
+Agents that cannot run shell pipelines safely should call funcfinder through
+`scripts/funcfinder_edit.py` (stdlib only, UTF-8 pipes, works on Windows). It never interpolates source into a
+command line; JSON goes through stdin.
+
+```bash
+python scripts/funcfinder_edit.py read file.go go Count > object.json   # --kind type|property|accessor, --line/--column
+# change ONLY object.json's "source" field (use a JSON-aware editor, not string substitution in a shell)
+python scripts/funcfinder_edit.py preview object.json                   # validates, writes nothing
+python scripts/funcfinder_edit.py apply object.json                     # the SAME file, after reviewing preview
+```
+
+Exit code 1 means funcfinder refused the request; stdout then holds the structured `error.code` envelope.
+Branch on `error.code` (table in [references/edit.md](references/edit.md)), never on the message text.
+Set `FUNCFINDER` to the binary path when it is not on PATH. From Python, import the helpers instead:
+
+```python
+import sys; sys.path.insert(0, "scripts")
+import funcfinder_edit as ff
+obj = ff.read_object("file.go", "go", "Count")
+obj["source"] = "func Count() int { return 42 }"
+ff.preview(obj)              # inspect the result before applying
+applied = ff.apply(obj)      # same request, unchanged
+```
+
+Never run `apply` with a request you have not previewed, and never rebuild a revision by hand after a
+`stale_revision` refusal: read the object again and reconcile the change.
 
 ## Orient and select
 
