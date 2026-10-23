@@ -92,6 +92,39 @@ def apply(request, exe=None):
     """Apply the SAME request previewed earlier. Returns the applied response."""
     return run(["--edit-object", "-", "--apply"], request, exe=exe)
 
+def pipeline(path, source, name, new_source, check=None, kind="function", line=None, column=None):
+    """Replace one declaration, run an optional check, and roll back if the check fails.
+
+    ``check`` is an argv list, never a shell string. The original declaration is kept
+    in memory; on a failed check it is written back through the same preview/apply
+    protocol, using the object returned by the applied edit (its revision is current).
+    """
+    original = read_object(path, source, name, kind, line, column)
+    edited = dict(original, source=new_source)
+    preview(edited)
+    applied = apply(edited)
+    result = {"status": "applied", "file": path, "name": name, "rolled_back": False}
+    if check:
+        proc = subprocess.run(check, capture_output=True, text=True, encoding="utf-8")
+        result["check"] = {
+            "argv": check,
+            "returncode": proc.returncode,
+            "stdout": proc.stdout[-4000:],
+            "stderr": proc.stderr[-4000:],
+        }
+        if proc.returncode != 0:
+            restore = dict(applied["object"], source=original["source"])
+            try:
+                preview(restore)
+                apply(restore)
+            except FuncfinderError as err:
+                result["status"] = "restore_failed"
+                result["restore_error"] = {"code": err.code, "message": err.message}
+                return result
+            result["status"] = "rolled_back"
+            result["rolled_back"] = True
+    return result
+
 
 def load_request(path):
     # Read JSON as UTF-8 explicitly; relying on the locale breaks on Windows.
@@ -117,14 +150,34 @@ def main(argv=None):
     p_apply = sub.add_parser("apply", help="apply the same request after reviewing the preview")
     p_apply.add_argument("request")
 
+    p_pipe = sub.add_parser(
+        "pipeline",
+        help="replace a declaration, run a check command, roll back if the check fails",
+        description="Usage: pipeline FILE SOURCE NAME --new-source NEW.txt [--kind K] [--line N --column N] --check CMD ARGS...",
+    )
+    p_pipe.add_argument("file")
+    p_pipe.add_argument("source")
+    p_pipe.add_argument("name")
+    p_pipe.add_argument("--new-source", required=True, help="file holding the complete new declaration source (UTF-8)")
+    p_pipe.add_argument("--kind", default="function")
+    p_pipe.add_argument("--line", type=int)
+    p_pipe.add_argument("--column", type=int)
+    p_pipe.add_argument("--check", nargs=argparse.REMAINDER, default=None,
+                        help="check command as argv; must be the LAST option (it takes the rest)")
+
     args = parser.parse_args(argv)
     try:
         if args.command == "read":
             response = read_object(args.file, args.source, args.name, args.kind, args.line, args.column)
         elif args.command == "preview":
             response = preview(load_request(args.request))
-        else:
+        elif args.command == "apply":
             response = apply(load_request(args.request))
+        else:
+            with open(args.new_source, encoding="utf-8") as handle:
+                new_source = handle.read()
+            response = pipeline(args.file, args.source, args.name, new_source,
+                                check=args.check or None, kind=args.kind, line=args.line, column=args.column)
     except FuncfinderError as err:
         # Print the full structured envelope so callers can branch on error.code.
         json.dump(err.response, sys.stdout, ensure_ascii=False, indent=2)
@@ -132,6 +185,8 @@ def main(argv=None):
         return 1
     json.dump(response, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
+    if response.get("status") in ("rolled_back", "restore_failed"):
+        return 1
     return 0
 
 
