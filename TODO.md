@@ -8,11 +8,12 @@
 
 ## Goose C++ accuracy audit (2026-10-23)
 
-- Fixed C++ raw-literal masking in the Go sanitizer. The same accepted Goose subset now has 1,591 candidates, all 1,591 matched, zero false entries and zero wrong matched ends; the 333 misses and 15 excluded files are unchanged. Before/after evidence: ignored `build/research/goose-accuracy/before-literals.json` and `report.json`. Pointer/reference returns and the other recognition gaps below remain outstanding.
+- Follow-up (2026-11-26) recovered all 333 missing declarations in the 52 accepted Goose C++ files. All 1,924 names and ends now match. The same comparison on kanzi-cpp `0b93d66` recovered all 43 misses (706/706 matches in 84 accepted files, 49 grammar exclusions). Correcting one existing constructor span left six end-line differences. Neither subset gained false entries. Corpus hashes and reports are under ignored `build/cpp-recovery/final-goose/` and `final-kanzi/`.
+- The earlier raw-literal masking fix eliminated 168 false entries on the same Goose subset. Its saved reports are under ignored `build/research/goose-accuracy/`.
 
 - Audited Go CLI v1.16.0 / `86b9e3f` on Goose `94cc64d`, restricted to 67 `src/` C++/header files. Tree-sitter 0.25.2 / tree-sitter-cpp 0.23.4 accepted 52 files; 15 grammar-error files are explicit exclusions. This is unpreprocessed syntax, including conditional branches, not a compiled whole-project oracle; types and exact byte spans are unscored.
 - Accepted subset: 1,924 named function declarations/definitions (including local-class methods), 1,591 matched, 333 missing; 1,759 CLI entries include 168 false entries, all inside the generated raw-string payloads of `runtime_inline.h`. All matched function end lines agree. Evidence and reproducible scripts: ignored `build/research/goose-accuracy/report.json`, `build/research/goose_accuracy.py`, `build/research/check_findings.py`, and `build/research/goose-accuracy/REPORT.md`.
-- Prioritize C++ raw-literal masking and pointer/reference return declarators, including qualified definitions and assignment operators. Also inspect local-class constructors/destructors, the defaulted move constructor in `json.h`, and `TypeCheck::StableTypeQuery`. A standalone libclang fixture confirms missing pointer/reference-return functions and `operator=`; it has no compiler diagnostics. Do not present the simple header grouping heuristic as a complete root-cause classification.
+- Remaining follow-ups are the kanzi-cpp end-line differences and compiler-backed scoring on the grammar exclusions. Keep raw syntax and active compiler coverage separate.
 - Full libclang validation is blocked by libclang/GCC 16 standard-header incompatibilities; direct GCC syntax checking additionally needs CMake-generated `builtin_packages.h`. Resolve the build/oracle environment before claiming full-corpus compiler accuracy. The D implementation was not scored in this audit.
 
 ## Kotlin JSON structural editing (2026-10-22)

@@ -264,5 +264,6 @@ func (f *Finder) recoverCppMembers(lines []string, facts []LineFacts, startLine 
 		}
 		i, boundary = end, end+1
 	}
+	f.recoverCppDeclarators(lines, clean, t, pairs, startLine, result)
 	sort.SliceStable(result.Functions, func(i, j int) bool { return result.Functions[i].Start < result.Functions[j].Start })
 }

@@ -1,12 +1,14 @@
 # Changelog
 
-## v1.16.1 - 2026-10-23
+## v1.16.1 - 2026-11-26
 
 Goose becomes the sixteenth language supported by the five shipped Go tools:
 token-based navigation, extraction, lexical analysis and JSON declaration editing.
 Goose editing validation is structural; it does not replace compiler/type/lifetime
 checks. Nested functions and extern-block members are navigation-only targets;
 the experimental D tools do not yet support Goose. See [Goose scope](docs/GOOSE.md).
+
+- Recover C++ functions returning pointers or references, qualified operators, local-class methods, special members and split or template definitions in the Go finder. Correct truncated constructor spans at multiline initializer lists. On the independently parsed subsets, recover all 333 missing Goose C++ declarations and all 43 missing kanzi-cpp declarations without new false entries. The audit excludes 15 Goose and 49 kanzi-cpp files with grammar errors. Six existing kanzi-cpp end-line differences remain.
 
 - Add Goose JSON function/type objects and transactional replace/insert_after/remove through the existing protocol. Strict byte tokens and a full declaration catalogue protect shared-line neighbors, namespaces, globals and opaque extern blocks; modifiers and extern/export bindings must survive replacement. Independent upstream grammar matched all 7478 top-level objects and unchanged previews on 855 accepted files (four grammar-error exclusions); native BWT/SA-IS/LZ78 edit checks passed. Nested functions and extern-block members remain navigation-only. Structural validation limits and reproduction are documented in `docs/EDIT.md`.
 
